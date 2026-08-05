@@ -5,8 +5,22 @@ import starlight from '@astrojs/starlight';
 
 import mdx from '@astrojs/mdx';
 
+const site = (() => {
+  const configuredSite = process.env.SITE?.trim();
+
+  if (!configuredSite) {
+    return 'http://localhost:4321';
+  }
+
+  try {
+    return new URL(configuredSite).href;
+  } catch {
+    return 'http://localhost:4321';
+  }
+})();
+
 export default defineConfig({
-  site: '#!',
+  site,
   image: {
     domains: ['images.unsplash.com'],
   },

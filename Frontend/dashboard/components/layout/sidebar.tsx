@@ -29,7 +29,7 @@ const navItems = [
     items: [
       {
         label: "Dashboard",
-        href: "/",
+        href: "/dashboard",
         icon: LayoutDashboard,
       },
       {
@@ -77,7 +77,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
 
   const isActive = (href: string) => {
-    if (href === "/") return pathname === "/";
+    if (href === "/dashboard") return pathname === "/dashboard";
     return pathname.startsWith(href);
   };
 

@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 
 const navItems = [
-  { label: "Dashboard", href: "/", icon: LayoutDashboard },
+  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Donor Pool", href: "/donors", icon: Users },
   { label: "Campaigns", href: "/campaigns", icon: Megaphone },
   { label: "Team", href: "/team", icon: UserCog },
@@ -33,7 +33,7 @@ export function MobileNav({ open, onClose }: MobileNavProps) {
   const pathname = usePathname();
 
   const isActive = (href: string) => {
-    if (href === "/") return pathname === "/";
+    if (href === "/dashboard") return pathname === "/dashboard";
     return pathname.startsWith(href);
   };
 

@@ -1,0 +1,34 @@
+type ProductTabBtnProps = {
+  id: string;
+  dataTab: string;
+  title: string;
+  first?: boolean;
+};
+
+const BUTTON_CLASS =
+  'flex w-full justify-center rounded-xl border border-transparent p-3 outline-hidden ring-zinc-500 transition duration-300 hover:bg-neutral-100 focus-visible:ring-3 dark:ring-zinc-200 dark:hover:bg-neutral-700 dark:focus:outline-hidden md:p-5';
+const HEADING_CLASS = 'block text-center font-bold';
+const INACTIVE_HEADING_CLASS = 'text-neutral-800 dark:text-neutral-200';
+
+export default function ProductTabBtn({
+  id,
+  dataTab,
+  title,
+  first,
+}: ProductTabBtnProps) {
+  return (
+    <button
+      type="button"
+      className={`${BUTTON_CLASS} ${first ? 'active bg-neutral-100 hover:border-transparent dark:bg-white/[.05]' : ''}`}
+      id={id}
+      data-target={dataTab}
+      role="tab"
+    >
+      <span
+        className={`${HEADING_CLASS} ${first ? 'text-orange-400 dark:text-orange-300' : INACTIVE_HEADING_CLASS}`}
+      >
+        {title}
+      </span>
+    </button>
+  );
+}

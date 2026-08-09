@@ -1,27 +1,27 @@
 const navBarLinks = [
   { name: 'Accueil', url: '/fr' },
-  { name: 'Produits', url: '/fr/products' },
-  { name: 'Services', url: '/fr/services' },
+  { name: 'Modules', url: '/fr/products' },
+  { name: 'Comment ça marche', url: '/fr/services' },
   { name: 'Blog', url: '/fr/blog' },
   { name: 'Contact', url: '/fr/contact' },
 ];
 
 const footerLinks = [
   {
-    section: 'Écosystème',
+    section: 'Plateforme',
     links: [
-      { name: 'Documentation', url: '#' },
-      { name: 'Outils et Équipements', url: '/fr/products' },
-      { name: 'Services de Construction', url: '/fr/services' },
+      { name: 'Modules', url: '/fr/products' },
+      { name: 'Comment ça marche', url: '/fr/services' },
+      { name: 'Blog', url: '/fr/blog' },
     ],
   },
   {
     section: 'Société',
     links: [
-      { name: 'À propos de nous', url: '#' },
-      { name: 'Blog', url: '/fr/blog' },
-      { name: 'Carrières', url: '#' },
-      { name: 'Clients', url: '#' },
+      { name: 'À propos', url: '#' },
+      { name: 'Contact', url: '/fr/contact' },
+      { name: 'Politique de confidentialité', url: '#' },
+      { name: "Conditions d'utilisation", url: '#' },
     ],
   },
 ];

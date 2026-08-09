@@ -1,53 +1,62 @@
 ---
-title: 'SF-AB A765'
-description: 'Ensemble de Vis Assorties'
+title: 'Distribution de liens de campagne'
+description: 'MVP Module 2'
 main:
   id: 2
   content: |
-    Découvrez l'ensemble de vis assorties SF-AB A765 – la solution ultime pour vos besoins de fixation. Ce set complet comprend une grande variété de vis soigneusement sélectionnées pour aborder divers projets avec facilité et précision.
+    Le module 2 permet à votre organisation de créer une campagne de collecte de fonds et de distribuer un message simple, compatible avec les téléphones de base, à la base de donateurs ou aux canaux publics. Les donateurs suivent le lien, paient via le parcours de la passerelle prise en charge et reçoivent un reçu ainsi qu'une mise à jour montrant la progression.
   imgCard: '@/images/product-image-2.avif'
   imgMain: '@/images/product-image-main-2.avif'
-  imgAlt: "Boîtes factices de l'ensemble de vis assorties"
+  imgAlt: 'Page de campagne Changia avec lien court et code QR'
 tabs:
   - id: 'tabs-with-card-item-1'
     dataTab: '#tabs-with-card-1'
     title: 'Description'
   - id: 'tabs-with-card-item-2'
     dataTab: '#tabs-with-card-2'
-    title: 'Spécifications'
+    title: 'Périmètre'
   - id: 'tabs-with-card-item-3'
     dataTab: '#tabs-with-card-3'
-    title: 'Plans'
+    title: 'Acceptation'
 longDescription:
-  title: 'Solutions Polyvalentes de Fixation'
+  title: 'Du lien partageable au paiement effectué'
   subTitle: |
-    L'ensemble de vis assorties SF-AB A765 offre une polyvalence et une commodité inégalées, ce qui en fait le choix idéal pour les amateurs de bricolage et les professionnels. Avec une sélection complète de vis, vous aurez toujours le bon élément de fixation pour chaque tâche.
-  btnTitle: 'Contactez les ventes pour en savoir plus'
+    Créez une campagne, définissez un montant requis, ajoutez des frais de service configurables et un objectif public, puis distribuez des modèles SMS, WhatsApp ou e-mail approuvés aux contacts consentants — depuis un seul espace de travail.
+  btnTitle: 'Contactez l’équipe pour en savoir plus'
   btnURL: '#'
 descriptionList:
-  - title: 'Grande Variété'
-    subTitle: "Comprend une gamme diversifiée de types et de tailles de vis pour s'adapter à diverses applications et matériaux."
-  - title: "Facilité d'Utilisation"
-    subTitle: 'Chaque vis est conçue pour une installation facile, garantissant une fixation sans tracas à chaque fois.'
-  - title: 'Commodité'
-    subTitle: 'Élimine le besoin de multiples déplacements au magasin de bricolage, économisant temps et effort sur vos projets.'
+  - title: 'Gestion des campagnes'
+    subTitle: "Créez/modifiez des campagnes avec titre, histoire, image, montant requis, frais, objectif public, montant minimum, échéance, statut et affectation du responsable."
+  - title: 'Liens et atouts QR'
+    subTitle: "Une URL publique unique, un slug de lien court, un code QR téléchargeable et un texte de campagne prêt à copier."
+  - title: 'Communication de masse'
+    subTitle: "Sélectionnez des contacts consentants dans la base de donateurs et envoyez des modèles SMS, WhatsApp Business ou e-mail approuvés via des fournisseurs connectés."
 specificationsLeft:
-  - title: 'Matériau'
-    subTitle: "Fabriqué à partir de matériaux de haute qualité tels que l'acier inoxydable, assurant durabilité et résistance à la corrosion."
-  - title: 'Assortiment'
-    subTitle: 'Contient un assortiment généreux de vis, incluant des vis à bois, des vis mécaniques, et des vis pour tôle.'
-  - title: 'Quantité'
-    subTitle: 'Chaque set comprend une quantité suffisante de vis pour gérer une large gamme de projets et de tâches.'
-  - title: 'Tailles'
-    subTitle: "Disponible en différentes tailles pour s'adapter aux exigences de divers projets, assurant compatibilité et polyvalence."
+  - title: 'Page de campagne publique'
+    subTitle: "Histoire mobile-first, progression, objectif, montant prédéfini ou personnalisé et sélecteur de canal de paiement."
+  - title: 'Suivi des messages'
+    subTitle: "État de livraison lorsque le fournisseur le prend en charge, journal d'envoi au niveau de la campagne et file d'attente des messages en échec."
+  - title: 'Après le paiement'
+    subTitle: "Page de remerciement, reçu et mise à jour de progression via le canal autorisé."
+  - title: 'Analyses'
+    subTitle: "Visites de campagne, tentatives de paiement, dons réussis et reporting de conversion par canal."
+specificationsRight:
+  - title: 'Compatible téléphones de base'
+    subTitle: "Le SMS reste court avec une URL simple, afin que même les téléphones de base puissent recevoir le message."
+  - title: 'Callbacks vérifiés'
+    subTitle: "Un callback réussi met à jour la campagne une seule fois et déclenche le message de reçu/progression approuvé."
+  - title: 'Totaux sans conflits'
+    subTitle: "Les totaux publics n'utilisent que les dons confirmés ; les tentatives échouées et en attente sont rapportées séparément."
+  - title: 'Coût recommandé'
+    subTitle: "TZS 200 000 en développement unique ; les coûts d'API SMS et d'identifiant d'expéditeur sont spécifiques au fournisseur."
 tableData:
   - feature: ['Spécification', 'Valeur']
     description:
-      - ['Longueur (mm)', 'Divers']
-      - ['Poids (g)', 'N/A']
-      - ['Matériau', 'Acier Inoxydable']
-      - ['Finition', 'Assortie']
-      - ['Contenu du Pack', 'Diverses vis dans un ensemble']
+      - ['Frais de développement', 'TZS 200 000']
+      - ['Résultat principal', 'Créer, distribuer et collecter via des liens de campagne']
+      - ['Facturation', 'Une fois, par module approuvé']
+      - ['Dépendance', "Comptes SMS/WhatsApp/e-mail et sandbox de la passerelle"]
+      - ['Acceptation', 'Campagne publiée avec callback de paiement vérifié']
 blueprints:
   first: '@/images/blueprint-1.avif'
   second: '@/images/blueprint-2.avif'

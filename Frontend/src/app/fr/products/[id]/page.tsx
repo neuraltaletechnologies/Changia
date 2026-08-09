@@ -22,7 +22,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
     title: product.data.title,
     description: product.data.description,
     openGraph: {
-      title: `${product.data.title} | Outils Matériels | ScrewFast`,
+      title: `${product.data.title} | Plateforme Changia`,
       description: product.data.description,
     },
   };

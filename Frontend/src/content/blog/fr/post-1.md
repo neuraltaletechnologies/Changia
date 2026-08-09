@@ -1,20 +1,20 @@
 ---
-title: "Optimisation de l'efficacité avec les outils de pointe de ScrewFast"
-description: "Innovation de l'efficacité de la construction avec des outils de précision et un soutien."
+title: "Pourquoi la collecte de fonds perd des donateurs entre l'intention et le paiement"
+description: "Combler l'écart entre la volonté de donner et un paiement mobile money effectué"
 author: 'Jacob'
 authorImage: '@/images/blog/jacob.avif'
-authorImageAlt: 'Avatar Description'
-pubDate: 2024-02-06
+authorImageAlt: 'Description de l’avatar'
+pubDate: 2026-07-10
 cardImage: '@/images/blog/post-1.avif'
-cardImageAlt: 'Top view mechanical tools arrangement'
+cardImageAlt: 'Page de campagne ouverte sur un smartphone avec une invite mobile money'
 readTime: 4
-tags: ['outils', 'construction', 'flux de travail']
+tags: ['collecte', 'mobile-money', 'tanzanie']
 contents:
   [
-    "Dans l'industrie de la construction d'aujourd'hui, où tout va vite, l'efficacité est la clé du succès. Chez ScrewFast, nous comprenons l'importance d'optimiser le flux de votre projet pour respecter les délais et rester dans les limites du budget. C'est pourquoi nous sommes ravis de vous présenter nos outils de pointe conçus pour donner à vos projets une puissance inégalée.",
-    "Notre gamme d'outils matériels associe ingénierie de précision et design centré sur l'utilisateur, garantissant une productivité maximale sur chaque chantier. Des perceuses électriques aux solutions de fixation avancées, les outils de ScrewFast sont conçus pour résister aux rigueurs de la construction tout en rationalisant votre flux de travail.",
-    "L'un de nos atouts majeurs est nos tableaux de bord intuitifs, qui fournissent des informations en temps réel sur l'avancement du projet, l'allocation des ressources, et plus encore. Avec des interfaces conviviales, naviguer et superviser vos projets n'a jamais été aussi simple.",
-    "Mais l'efficacité ne dépend pas seulement des outils que vous utilisez, elle dépend également du soutien que vous recevez. C'est pourquoi ScrewFast propose une documentation complète et un accompagnement d'experts à chaque étape. Nos équipes dévouées sont engagées dans votre succès, fournissant une assistance personnalisée pour vous assurer de tirer le meilleur parti de nos produits.",
-    "Rejoignez les nombreux leaders de l'industrie qui ont déjà constaté la différence que peuvent faire les outils ScrewFast. Avec nos solutions de pointe, vous pouvez accélérer vos projets vers le succès et rester en tête de la concurrence.",
+    "La collecte de fonds en Tanzanie raconte une histoire familière : les gens sont prêts à donner TZS 1 000, mais le don n'a jamais lieu. La raison est rarement un manque de générosité. C'est la friction — des menus mobile money longs, des numéros de commerçant, des références de compte et la confusion sur la destination de l'argent.",
+    "Dans un flux mobile money classique, un donateur doit souvent composer un menu, choisir un service, saisir un numéro de commerçant, un numéro de compte, un montant et une référence. Chaque étape supplémentaire est une occasion pour le donateur de perdre le fil, de manquer de batterie ou d'abandonner le paiement dans une file d'attente.",
+    "Changia réduit cette friction avec une page de campagne claire et un lien court et partageable. Le donateur ouvre le lien, choisit ou confirme un montant, puis approuve le paiement dans l'invite de la passerelle avec son propre PIN. Tout le parcours tient sur une page mobile-first conçue pour les connexions à faible bande passante.",
+    "Pour les responsables sur le terrain, le même principe s'applique. Après une conversation en face à face et un accord clair, le responsable envoie une demande de don par poussée instantanée. Le donateur confirme avec son PIN, et un callback vérifié enregistre le don exactement une fois. Pas de menus, pas de numéros à recopier, aucun doute sur le montant.",
+    "Lorsque chaque shilingi est confirmé par la passerelle et visible sur une barre de progression publique, les donateurs donnent en confiance — et les campagnes atteignent leurs objectifs plus vite. C'est la promesse de Changia : convertir la volonté d'aider en paiement effectué.",
   ]
 ---

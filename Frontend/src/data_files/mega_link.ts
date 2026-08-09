@@ -3,40 +3,40 @@ export const servicesData = [
   {
     title: 'Explore Advice and Explanations',
     description:
-      "Dive deep into helpful guides and explanations for all of ScrewFast's features",
+      "Dive deep into helpful guides and explanations for all of Changia's platform features",
     icon: 'guides',
     url: '#',
   },
   {
     title: 'Discover Integrations',
     description:
-      'Supercharge Your Workflow. Seamless integrations with all your favorite tools',
+      'Supercharge your campaigns. Seamless integrations with mobile-money gateways, SMS, WhatsApp and email',
     icon: 'puzzle',
     url: '#',
   },
   {
     title: 'Expert Services',
-    description: "Go beyond tools with ScrewFast's expert services",
+    description: "Go beyond the platform with Changia's setup and training services",
     icon: 'rocket',
     url: '#',
   },
   {
-    title: 'Cutting-Edge Tools',
+    title: 'Campaign Leadership',
     description:
-      "Build Smarter, Faster. Experience next-level efficiency with ScrewFast's cutting-edge construction tools",
+      "Launch shorter, trusted campaigns with Changia's manager-led field fundraising tools",
     icon: 'hammer',
     url: '#',
   },
   {
-    title: 'Simple Plans',
+    title: 'Simple Fees',
     description:
-      "Boost your efficiency with ScrewFast's straightforward, value-driven plans",
+      "A transparent, campaign-level service fee — no deductions from individual donations",
     icon: 'sparks',
     url: '#',
   },
   {
     title: 'Community Forum',
-    description: 'Learn, share, and connect with other ScrewFast users',
+    description: 'Learn, share, and connect with other Changia campaign owners',
     icon: 'community',
     url: '#',
   },
@@ -48,7 +48,7 @@ export const successStoriesData = [
       'https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=1376&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D8&auto=format&fit=facearea&facepad=2&w=320&h=320&q=80',
     alt: 'Portrait of a smiling person',
     description:
-      'See how ScrewFast has empowered businesses of all sizes to achieve outstanding results.',
+      'See how organizations are using Changia to convert willingness to help into completed mobile-money payments.',
     learnMoreUrl: '#',
   },
 ];

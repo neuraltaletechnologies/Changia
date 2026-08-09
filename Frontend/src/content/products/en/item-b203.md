@@ -1,54 +1,62 @@
 ---
-title: 'SF-BN B203'
-description: 'Tap Bolts and Nuts Set'
+title: 'Instant Push Donation'
+description: 'MVP Module 3'
 main:
   id: 3
   content: |
-    Meet the SF-BN B203 – your reliable companion for professional-grade fastening. This comprehensive box set comes with a versatile selection of tap bolts and nuts, meticulously crafted to provide the strongest hold for your construction and assembly projects.
+    Module 3 supports field fundraising. A campaign manager speaks with a potential donor, obtains agreement for a stated amount, enters the donor's phone number and amount, then sends a payment request. The donor receives the authorized mobile-money/gateway prompt and confirms only with their PIN.
   imgCard: '@/images/product-image-3.avif'
   imgMain: '@/images/product-image-main-3.avif'
-  imgAlt: 'Mockup boxes of a tap bolts and nuts set'
+  imgAlt: 'Manager sending an instant push donation request from a phone'
 tabs:
   - id: 'tabs-with-card-item-1'
     dataTab: '#tabs-with-card-1'
     title: 'Description'
   - id: 'tabs-with-card-item-2'
     dataTab: '#tabs-with-card-2'
-    title: 'Specifications'
+    title: 'Scope'
   - id: 'tabs-with-card-item-3'
     dataTab: '#tabs-with-card-3'
-    title: 'Blueprints'
+    title: 'Acceptance'
 longDescription:
-  title: 'Strength Meets Precision'
+  title: 'Fundraising That Meets the Donor'
   subTitle: |
-    The SF-BN B203 Tap Bolts and Nuts Set offers robust durability and precision for construction professionals, ensuring reliable performance in every application, from house framing to machinery assembly.
-  btnTitle: 'Contact sales to learn more'
+    Changia never stores, sees or asks a donor for a mobile-money PIN. The PIN is entered only in the operator or gateway-controlled approval prompt, and no donation is recorded until a verified callback confirms success.
+  btnTitle: 'Contact the team to learn more'
   btnURL: '#'
 descriptionList:
-  - title: 'Corrosion Resistance'
-    subTitle: 'Zinc coating not only provides a polished look but also shields against corrosion, ensuring longevity.'
-  - title: 'Improved Safety'
-    subTitle: 'A secure fitting translates to safer structures with reduced risk of component failure.'
-  - title: 'Convenience'
-    subTitle: 'This all-in-one set means you have the right size on hand, cutting down on project delays and additional trips to the hardware store.'
+  - title: 'Manager Workspace'
+    subTitle: 'Assigned campaign list, campaign progress and a manager performance summary.'
+  - title: 'Donor Search & Capture'
+    subTitle: 'Search the donor pool, select an existing donor or add a new one with a recorded consent status.'
+  - title: 'Push Request Form'
+    subTitle: 'Campaign, donor phone, optional name, agreed amount and confirmation before submission, with controlled resending.'
 specificationsLeft:
-  - title: 'Material Composition'
-    subTitle: 'Manufactured from high-grade steel, delivering strength and reliability for demanding applications.'
-  - title: 'Surface Finish'
-    subTitle: 'Protected with a zinc coating to offer enhanced corrosion resistance and longevity.'
-  - title: 'Quantity Per Set'
-    subTitle: 'The set includes a balanced selection of 25 tap bolts and 25 matching nuts.'
-  - title: 'Size Assortment'
-    subTitle: 'Features a comprehensive range of sizes to cater to various project requirements, ensuring compatibility and versatility.'
+  - title: 'Request Status'
+    subTitle: 'Pending, successful, failed, expired or cancelled; resending is controlled to prevent duplicates.'
+  - title: 'Consent & Rules'
+    subTitle: 'The manager records the agreement; the manager cannot request above campaign rules or outside assigned campaigns.'
+  - title: 'Anti-Harassment'
+    subTitle: 'A rate limit and repeat-request cooling period prevent harassment and duplicate payment attempts.'
+  - title: 'Receipts & Progress'
+    subTitle: 'Post-success thank-you/receipt and updated campaign progress through the permitted channel.'
 specificationsRight:
-  - title: 'Thread Details'
-    subTitle: 'Engineered with precision-cut threads for a secure fit and easy installation.'
-  - title: 'Mechanical Properties'
-    subTitle: 'Each bolt and nut is designed to meet specific load rating or strength grades, suitable for structural applications.'
-  - title: 'Standards and Certifications'
-    subTitle: 'Complies with relevant industry standards and certifications, ensuring consistent quality and safety.'
-  - title: 'Suitable Applications'
-    subTitle: 'Ideal for a wide array of uses, from construction environments to mechanical assemblies that demand strong and secure joints.'
+  - title: 'Manager Reporting'
+    subTitle: 'Own requests, success rate, amounts collected and daily or assigned-campaign totals.'
+  - title: 'Safeguards'
+    subTitle: 'No manager withdrawal access; requests are reversible only by cancellation.'
+  - title: 'Audit Trail'
+    subTitle: 'Manager identity, timestamp, campaign, requested amount, donor number and gateway references are logged.'
+  - title: 'Recommended Cost'
+    subTitle: 'TZS 200,000 one-time development; gateway merchant onboarding and KYC are client-provided.'
+tableData:
+  - feature: ['Specification', 'Value']
+    description:
+      - ['Development fee', 'TZS 200,000']
+      - ['Primary outcome', 'Manager-led push donation with verified callback']
+      - ['Billing', 'One-time, per approved module']
+      - ['Dependency', 'Gateway push capability and merchant onboarding']
+      - ['Acceptance', 'Verified test request counted exactly once']
 blueprints:
   first: '@/images/blueprint-1.avif'
   second: '@/images/blueprint-2.avif'

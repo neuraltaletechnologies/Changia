@@ -1,54 +1,62 @@
 ---
-title: 'SF-BN B203'
-description: 'Ensemble de boulons à vis et écrous'
+title: 'Don par poussée instantanée'
+description: 'MVP Module 3'
 main:
   id: 3
   content: |
-    Découvrez le SF-BN B203 – votre compagnon fiable pour des fixations de qualité professionnelle. Cet ensemble complet comprend une sélection polyvalente de boulons à vis et d'écrous, méticuleusement conçus pour offrir la tenue la plus solide pour vos projets de construction et d'assemblage.
+    Le module 3 prend en charge la collecte de terrain. Un responsable de campagne parle à un donateur potentiel, obtient son accord sur un montant, saisit le numéro de téléphone du donateur et le montant, puis envoie une demande de paiement. Le donateur reçoit l'invite autorisée de la passerelle mobile money et ne confirme qu'avec son PIN.
   imgCard: '@/images/product-image-3.avif'
   imgMain: '@/images/product-image-main-3.avif'
-  imgAlt: "Maquettes de boîtes d'un ensemble de boulons à vis et écrous"
+  imgAlt: 'Responsable envoyant une demande de don par poussée depuis un téléphone'
 tabs:
   - id: 'tabs-with-card-item-1'
     dataTab: '#tabs-with-card-1'
     title: 'Description'
   - id: 'tabs-with-card-item-2'
     dataTab: '#tabs-with-card-2'
-    title: 'Spécifications'
+    title: 'Périmètre'
   - id: 'tabs-with-card-item-3'
     dataTab: '#tabs-with-card-3'
-    title: 'Plans'
+    title: 'Acceptation'
 longDescription:
-  title: 'La force rencontre la précision'
+  title: 'Une collecte qui va à la rencontre du donateur'
   subTitle: |
-    L'ensemble de boulons à vis et écrous SF-BN B203 offre une durabilité robuste et une précision pour les professionnels de la construction, garantissant des performances fiables dans chaque application, de l'encadrement de maisons à l'assemblage de machines.
-  btnTitle: 'Contactez le service commercial pour en savoir plus'
+    Changia ne stocke, ne voit et ne demande jamais le PIN mobile money d'un donateur. Le PIN n'est saisi que dans l'invite contrôlée par l'opérateur ou la passerelle, et aucun don n'est enregistré tant qu'un callback vérifié n'a pas confirmé le succès.
+  btnTitle: 'Contactez l’équipe pour en savoir plus'
   btnURL: '#'
 descriptionList:
-  - title: 'Résistance à la corrosion'
-    subTitle: 'Le revêtement en zinc offre non seulement un aspect poli, mais protège également contre la corrosion, garantissant une longue durée de vie.'
-  - title: 'Sécurité améliorée'
-    subTitle: 'Un ajustement sécurisé se traduit par des structures plus sûres avec un risque réduit de défaillance des composants.'
-  - title: 'Praticité'
-    subTitle: 'Cet ensemble tout-en-un signifie que vous avez la bonne taille sous la main, réduisant les retards de projet et les allers-retours supplémentaires au magasin de bricolage.'
+  - title: 'Espace de travail du responsable'
+    subTitle: 'Liste des campagnes assignées, progression des campagnes et synthèse de performance du responsable.'
+  - title: 'Recherche et capture de donateurs'
+    subTitle: "Recherchez dans la base, sélectionnez un donateur existant ou ajoutez-en un nouveau avec un statut de consentement enregistré."
+  - title: 'Formulaire de demande par poussée'
+    subTitle: 'Campagne, téléphone du donateur, nom facultatif, montant convenu et confirmation avant envoi, avec renvoi contrôlé.'
 specificationsLeft:
-  - title: 'Composition du matériau'
-    subTitle: "Fabriqué à partir d'acier de haute qualité, offrant résistance et fiabilité pour des applications exigeantes."
-  - title: 'Finition de surface'
-    subTitle: 'Protégé par un revêtement de zinc pour offrir une résistance accrue à la corrosion et une longévité.'
-  - title: 'Quantité par ensemble'
-    subTitle: "L'ensemble comprend une sélection équilibrée de 25 boulons à vis et 25 écrous assortis."
-  - title: 'Assortiment de tailles'
-    subTitle: 'Comprend une gamme complète de tailles pour répondre à diverses exigences de projet, garantissant compatibilité et polyvalence.'
+  - title: 'Statut de la demande'
+    subTitle: 'En attente, réussie, échouée, expirée ou annulée ; le renvoi est contrôlé pour éviter les doublons.'
+  - title: 'Consentement et règles'
+    subTitle: "Le responsable enregistre l'accord ; il ne peut pas demander au-delà des règles de campagne ni hors des campagnes assignées."
+  - title: 'Anti-harcèlement'
+    subTitle: "Une limite de débit et un délai de refroidissement entre les demandes évitent le harcèlement et les tentatives en double."
+  - title: 'Reçus et progression'
+    subTitle: 'Remerciement/reçu après succès et mise à jour de la progression via le canal autorisé.'
 specificationsRight:
-  - title: 'Détails du filetage'
-    subTitle: 'Conçu avec des filets coupés avec précision pour un ajustement sécurisé et une installation facile.'
-  - title: 'Propriétés mécaniques'
-    subTitle: 'Chaque boulon et écrou est conçu pour répondre à des indices de charge spécifiques ou à des normes de résistance, adaptés aux applications structurelles.'
-  - title: 'Normes et certifications'
-    subTitle: 'Conforme aux normes et certifications industrielles pertinentes, garantissant une qualité et une sécurité constantes.'
-  - title: 'Applications adaptées'
-    subTitle: "Idéal pour un large éventail d'utilisations, des environnements de construction aux assemblages mécaniques qui nécessitent des joints solides et sécurisés."
+  - title: 'Rapports du responsable'
+    subTitle: 'Ses propres demandes, taux de réussite, montants collectés et totaux quotidiens ou par campagne assignée.'
+  - title: 'Sécurité'
+    subTitle: "Aucun accès aux retraits par les responsables ; les demandes ne peuvent être révoquées que par annulation."
+  - title: "Piste d'audit"
+    subTitle: "Identité du responsable, horodatage, campagne, montant demandé, numéro du donateur et références de la passerelle sont enregistrés."
+  - title: 'Coût recommandé'
+    subTitle: "TZS 200 000 en développement unique ; l'onboarding marchand et le KYC de la passerelle sont fournis par le client."
+tableData:
+  - feature: ['Spécification', 'Valeur']
+    description:
+      - ['Frais de développement', 'TZS 200 000']
+      - ['Résultat principal', 'Don par poussée piloté par le responsable avec callback vérifié']
+      - ['Facturation', 'Une fois, par module approuvé']
+      - ['Dépendance', 'Capacité de poussée de la passerelle et onboarding marchand']
+      - ['Acceptation', 'Test vérifié compté exactement une fois']
 blueprints:
   first: '@/images/blueprint-1.avif'
   second: '@/images/blueprint-2.avif'

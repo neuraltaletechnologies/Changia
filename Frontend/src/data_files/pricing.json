@@ -1,38 +1,39 @@
 {
   "title": "Simple, Transparent Pricing",
-  "subTitle": "Boost efficiency with ScrewFast's clear, value-driven plans.",
+  "subTitle": "A three-module MVP priced in TZS, with third-party costs billed separately.",
   "badge": "Best value",
-  "thirdOption": "Enterprise Solutions?",
-  "btnText": "Get a Custom Quote",
+  "thirdOption": "Need hosting, domain or messaging costs?",
+  "btnText": "Download the Proposal",
 
   "starterKit": {
-    "name": "Starter Kit",
-    "description": "Best option for DIY projects",
-    "price": "49",
-    "cents": ".00",
-    "billingFrequency": "USD / monthly",
+    "name": "Core Platform & Donor Pool",
+    "description": "Module 1 · Lay the foundation",
+    "price": "200,000",
+    "cents": "",
+    "billingFrequency": "TZS · one-time development",
     "features": [
-      "Key hardware tools",
-      "Access to guides & tutorials",
-      "Standard support"
+      "Secure web interface & dashboards",
+      "User management with role limits",
+      "Donor Pool (CRM) with consent tracking",
+      "Audit log & reporting"
     ],
-    "purchaseBtnTitle": "Get the Starter Kit",
-    "purchaseLink": "#"
+    "purchaseBtnTitle": "Explore Module 1",
+    "purchaseLink": "/products"
   },
 
   "professionalToolbox": {
-    "name": "Professional Toolbox",
-    "description": "Best for large scale uses",
-    "price": "89",
-    "cents": ".00",
-    "billingFrequency": "USD / monthly",
+    "name": "Complete MVP",
+    "description": "All three modules · recommended",
+    "price": "600,000",
+    "cents": "",
+    "billingFrequency": "TZS · one-time development",
     "features": [
-      "Premium tool selection",
-      "Priority support",
-      "Exclusive content & deals",
-      "Bulk order discounts"
+      "Core Platform & Donor Pool",
+      "Campaign Link Distribution",
+      "Instant Push Donation",
+      "30-day defect warranty"
     ],
-    "purchaseBtnTitle": "Get the Professional Toolbox",
-    "purchaseLink": "#"
+    "purchaseBtnTitle": "Explore the Modules",
+    "purchaseLink": "/products"
   }
 }

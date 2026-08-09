@@ -18,9 +18,9 @@ import dashboard from '@images/dashboard-image.avif';
 import { partnersData } from '@/data_files/constants';
 
 export const metadata = {
-  title: 'ScrewFast',
+  title: 'Changia',
   description:
-    'ScrewFast offre des outils matériels de premier ordre et des services de construction experts pour répondre à tous vos besoins de projet.',
+    'Changia est une plateforme tanzanienne de collecte de fonds numérique, orientée mobile money. Créez une campagne, partagez un lien et collectez des contributions mobile money avec moins de frictions.',
 };
 
 const avatarSrcs: string[] = [
@@ -35,90 +35,103 @@ export default function FrenchHomePage() {
     <>
       <AnnouncementBanner
         btnId="dismiss-button"
-        btnTitle="Découvrez ScrewFast sur GitHub"
-        url="#!"
+        btnTitle="Explorer la plateforme"
+        url="/fr/products"
+        title="Nous construisons une plateforme tanzanienne de collecte de fonds, mobile money d'abord."
       />
 
       <HeroSection
-        title='Équipez vos projets avec <span class="text-yellow-500 dark:text-yellow-400">ScrewFast</span>'
-        subTitle="Outils matériels de haute qualité et services de construction experts pour tous les besoins en projet."
-        primaryBtn="Commencez à explorer"
-        primaryBtnURL="/fr/products"
-        secondaryBtn="Contacter l'équipe commerciale"
-        secondaryBtnURL="/fr/contact"
+        title='Collectez de petites contributions mobile money avec <span class="text-yellow-500 dark:text-yellow-400">moins de frictions</span>'
+        subTitle="Changia est une plateforme tanzanienne de collecte de fonds, mobile money d'abord. Les propriétaires de campagnes créent une page claire, partagent un lien et transforment la volonté d'aider d'un donateur en paiement effectué."
+        primaryBtn="Lancer une campagne"
+        primaryBtnURL="/fr/contact"
+        secondaryBtn="Explorer les modules"
+        secondaryBtnURL="/fr/products"
         withReview
         avatars={avatarSrcs}
-        rating='<span class="font-bold">4.8</span> / 5'
+        rating='<span class="font-bold">TZS 1 000</span>'
         starCount={4}
-        reviews='À partir de plus de <span class="font-bold">12,8k</span> avis'
+        reviews="don minimum sur toute campagne Changia"
         src={heroImage}
-        alt="Pile de boîtes de produits ScrewFast contenant des outils matériels assortis"
+        alt="Une page de campagne Changia affichée sur un smartphone"
       />
 
       <ClientsSection
-        title="Faites confiance aux leaders de l'industrie"
-        subTitle="Découvrez la fiabilité choisie par les géants de l'industrie."
+        title="Fonctionne avec le mobile money que vos donateurs utilisent déjà"
+        subTitle="Les donateurs donnent depuis n'importe quel smartphone et confirment avec leur propre PIN dans l'invite de la passerelle en laquelle ils ont confiance."
         partners={partnersData}
       />
 
       <FeaturesGeneral
-        title="Répondre aux exigences de l'industrie"
-        subTitle="Chez ScrewFast, nous relevons les défis uniques rencontrés dans les secteurs du matériel et de la construction. Des outils de pointe aux services experts, nous sommes déterminés à vous aider à surmonter les obstacles et à atteindre vos objectifs."
+        title="Une façon plus simple de donner"
+        subTitle="La collecte de fonds perd souvent des donateurs entre l'intention et le paiement. Changia réduit cette friction avec des pages de campagne claires, des liens partageables et une demande de paiement directe."
         src={featureImage}
-        alt="Produits ScrewFast dans des boîtes flottantes"
+        alt="Le tableau de bord Changia sur un ordinateur portable"
         features={features}
       />
 
       <FeaturesNavs
-        title='Personnalisez les offres de <span class="text-yellow-500 dark:text-yellow-400">ScrewFast</span> pour répondre parfaitement à vos besoins en matériel et en construction.'
+        title={'Les trois modules du MVP <span class="text-yellow-500 dark:text-yellow-400">Changia</span> mènent une campagne de l\u2019idée au paiement effectué.'}
         tabs={[
           {
-            heading: 'Outils de pointe',
+            heading: 'Plateforme de base et base de donateurs',
             content:
-              "Optimisez vos projets avec les outils de pointe de ScrewFast. Faites l'expérience d'une efficacité accrue dans la gestion de la construction avec nos solutions automatisées sophistiquées.",
+              "Une fondation sécurisée et réactive pour les administrateurs, les responsables et les donateurs — avec accès par rôles, tableaux de bord, journal d'audit et un CRM de donateurs respectueux du consentement.",
             svg: 'tools',
             src: tools,
-            alt: "Équipement lourd jaune et noir sur un champ d'herbe brune",
+            alt: "Espace de travail du tableau de bord d'administration Changia",
             first: true,
           },
           {
-            heading: 'Tableaux de bord intuitifs',
+            heading: 'Distribution de liens de campagne',
             content:
-              'Naviguez facilement avec les tableaux de bord intuitifs de ScrewFast. Configurez et supervisez vos projets de manière transparente, avec des interfaces conviviales conçues pour une gestion efficace des flux de travail rapide et efficace.',
+              "Créez des campagnes, définissez un montant requis, générez un lien court et un QR code, puis distribuez des SMS, WhatsApp ou emails approuvés à la base de donateurs ou aux canaux publics.",
             svg: 'dashboard',
             src: dashboard,
-            alt: "Capture d'écran ou représentation graphique du tableau de bord intuitif",
+            alt: 'Page de campagne Changia avec barre de progression et options de don',
             second: true,
           },
           {
-            heading: 'Fonctionnalités robustes',
+            heading: 'Don par poussée instantanée',
             content:
-              'Minimisez la complexité, maximisez la productivité. Les fonctionnalités robustes de ScrewFast sont conçues pour rationaliser votre processus de construction, offrant des résultats qui se distinguent par leur excellence.',
+              "Un responsable de campagne qui a obtenu l'accord d'un donateur envoie une demande de paiement directe. Le donateur confirme avec son PIN et le callback vérifié met à jour la campagne exactement une fois.",
             svg: 'house',
             src: construction,
-            alt: "Structure métallique grise d'un bâtiment près d'une grue à tour pendant la journée",
+            alt: 'Un collecteur de terrain confirmant une demande de don sur un téléphone',
           },
         ]}
       />
 
       <TestimonialsSection
-        title="Accélérez vos projets"
-        subTitle="Chez ScrewFast, nous assurons un démarrage rapide avec une configuration de compte instantanée. Découvrez la vitesse de la construction redéfinie."
+        title="Convertir la volonté d'aider en paiements effectués"
+        subTitle="De la radio, des SMS et WhatsApp à grande échelle à la collecte de terrain pilotée par les responsables, Changia fait le pont entre l'intention et la contribution."
         testimonials={[
           {
             content:
-              "ScrewFast a considérablement augmenté l'efficacité de notre projet. La configuration a été instantanée et leurs temps de réponse rapides sont phénoménaux. Vraiment un changement de jeu dans le support matériel et de construction !",
-            author: 'Samantha Ruiz',
-            role: 'Directrice des opérations | ConstructIt Inc.',
+              "Nous avons mené le Fonds pour la Chirurgie des Enfants avec un objectif public de TZS 10 500 000 — le montant prévu de 10 000 000 plus les frais Changia de 5 %. Chaque contribution est créditée à sa pleine valeur et les donateurs reçoivent un reçu ainsi qu'une mise à jour en direct. Une collecte qui inspire confiance.",
+            author: 'Dr Msuya',
+            role: 'Partenaire de lancement initial',
             avatarSrc:
               'https://images.unsplash.com/photo-1593104547489-5cfb3839a3b5?q=80&w=1453&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D8&auto=format&fit=facearea&facepad=2&w=320&h=320&q=80',
           },
         ]}
         statistics={[
-          { count: '70k+', description: 'clients équipés — des bricoleurs aux grandes entreprises de construction' },
-          { count: '35%', description: "hausse de l'efficacité des projets avec les outils et services de ScrewFast" },
-          { count: '15,3%', description: 'réduction des coûts de maintenance rapportée par des clients à long terme' },
-          { count: '2x', description: 'assemblage plus rapide grâce à des solutions de fixation innovantes' },
+          {
+            count: 'TZS 1 000',
+            description: 'don minimum sur chaque campagne Changia',
+          },
+          {
+            count: '5 %',
+            description: 'frais de service configurables au niveau de la campagne',
+          },
+          {
+            count: '3',
+            description: 'modules MVP, livrés et payables indépendamment',
+          },
+          {
+            count: 'TZS 200 000',
+            description: 'frais de développement par module approuvé',
+          },
         ]}
       />
 
@@ -127,9 +140,8 @@ export default function FrenchHomePage() {
       <FAQ title="Questions<br />fréquemment posées" faqs={faqs} />
 
       <HeroSectionAlt
-        title="Construisons ensemble"
-        subTitle="ScrewFast est un modèle open source, méticuleusement conçu avec les frameworks Astro, Tailwind CSS et Preline UI."
-        url="#!"
+        title="Collectons ensemble"
+        subTitle="Changia est conçu pour la Tanzanie : utile pour notre première organisation aujourd'hui, et adaptable demain aux hôpitaux, églises, écoles, ONG, groupes communautaires et particuliers."
       />
     </>
   );

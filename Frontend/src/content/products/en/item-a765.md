@@ -1,53 +1,62 @@
 ---
-title: 'SF-AB A765'
-description: 'Assorted Screw Set'
+title: 'Campaign Link Distribution'
+description: 'MVP Module 2'
 main:
   id: 2
   content: |
-    Introducing the SF-AB A765 Assorted Screw Set – the ultimate solution for your screw fastening needs. This comprehensive set includes a wide variety of screws meticulously curated to tackle various projects with ease and precision.
+    Module 2 lets your organization create a fundraising campaign and distribute a simple, feature-phone-friendly message to the donor pool or to public channels. Donors follow the link, pay through the supported gateway journey and receive a receipt plus an update showing progress and remaining balance.
   imgCard: '@/images/product-image-2.avif'
   imgMain: '@/images/product-image-main-2.avif'
-  imgAlt: 'Mockup boxes of assorted screw set'
+  imgAlt: 'Changia campaign page with a short link and QR code'
 tabs:
   - id: 'tabs-with-card-item-1'
     dataTab: '#tabs-with-card-1'
     title: 'Description'
   - id: 'tabs-with-card-item-2'
     dataTab: '#tabs-with-card-2'
-    title: 'Specifications'
+    title: 'Scope'
   - id: 'tabs-with-card-item-3'
     dataTab: '#tabs-with-card-3'
-    title: 'Blueprints'
+    title: 'Acceptance'
 longDescription:
-  title: 'Versatile Screw Fastening Solutions'
+  title: 'From Shareable Link to Completed Payment'
   subTitle: |
-    The SF-AB A765 Assorted Screw Set offers unmatched versatility and convenience, making it the perfect choice for DIY enthusiasts and professionals alike. With a comprehensive selection of screws, you'll always have the right fastener for the job.
-  btnTitle: 'Contact sales to learn more'
+    Create a campaign, set a required amount, add a configurable service fee and a public target, then distribute approved SMS, WhatsApp or email templates to consented contacts — all from one workspace.
+  btnTitle: 'Contact the team to learn more'
   btnURL: '#'
 descriptionList:
-  - title: 'Wide Variety'
-    subTitle: 'Includes a diverse range of screw types and sizes to accommodate various applications and materials.'
-  - title: 'Ease of Use'
-    subTitle: 'Each screw is designed for effortless installation, ensuring hassle-free fastening every time.'
-  - title: 'Convenience'
-    subTitle: 'Eliminates the need for multiple trips to the hardware store, saving time and effort on your projects.'
+  - title: 'Campaign Management'
+    subTitle: 'Create/edit campaigns with title, story, image, required amount, fee, public goal, minimum amount, deadline, status and manager assignment.'
+  - title: 'Link & QR Assets'
+    subTitle: 'A unique public URL, a short-link slug, a downloadable QR code and ready-to-copy campaign text.'
+  - title: 'Bulk Communication'
+    subTitle: 'Choose consented contacts from the donor pool and send approved SMS, WhatsApp Business or email templates through connected providers.'
 specificationsLeft:
-  - title: 'Material'
-    subTitle: 'Constructed from high-quality materials such as stainless steel, ensuring durability and corrosion resistance.'
-  - title: 'Assortment'
-    subTitle: 'Contains a generous assortment of screws, including wood screws, machine screws, and sheet metal screws.'
-  - title: 'Quantity'
-    subTitle: 'Each set includes a sufficient quantity of screws to handle a wide range of projects and tasks.'
-  - title: 'Sizes'
-    subTitle: 'Available in various sizes to suit different project requirements, ensuring compatibility and versatility.'
+  - title: 'Public Campaign Page'
+    subTitle: 'Mobile-first story, progress, target, preset or custom amount and a payment channel selector.'
+  - title: 'Message Tracking'
+    subTitle: 'Delivery state where the provider supports it, a campaign-level send log and a failed-message queue.'
+  - title: 'After Payment'
+    subTitle: 'Thank-you page, receipt and a progress update through the permitted channel.'
+  - title: 'Analytics'
+    subTitle: 'Campaign visits, payment attempts, successful donations and basic channel conversion reporting.'
+specificationsRight:
+  - title: 'Feature-Phone Friendly'
+    subTitle: 'SMS stays short with a plain URL so even basic phones can receive the message.'
+  - title: 'Verified Callbacks'
+    subTitle: 'A successful gateway callback updates the campaign once and triggers the approved receipt/progress message.'
+  - title: 'Conflict-Free Totals'
+    subTitle: 'Public totals use confirmed donations only; failed and pending attempts are reported separately.'
+  - title: 'Recommended Cost'
+    subTitle: 'TZS 200,000 one-time development; SMS API and sender-ID costs are provider-specific.'
 tableData:
   - feature: ['Specification', 'Value']
     description:
-      - ['Length (mm)', 'Various']
-      - ['Weight (g)', 'N/A']
-      - ['Material', 'Stainless Steel']
-      - ['Finish', 'Assorted']
-      - ['Package Contents', 'Various screws in a set']
+      - ['Development fee', 'TZS 200,000']
+      - ['Primary outcome', 'Create, distribute and collect via campaign links']
+      - ['Billing', 'One-time, per approved module']
+      - ['Dependency', 'SMS/WhatsApp/email accounts and gateway sandbox']
+      - ['Acceptance', 'Published campaign with verified payment callback']
 blueprints:
   first: '@/images/blueprint-1.avif'
   second: '@/images/blueprint-2.avif'

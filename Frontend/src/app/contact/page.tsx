@@ -4,11 +4,11 @@ import ContactSection from '@components/sections/misc/ContactSection';
 export const metadata: Metadata = {
   title: 'Contact',
   description:
-    "Have questions or want to discuss a project? Reach out, and let's craft the perfect solution with our tools and services.",
+    "Have a campaign idea or questions about the Changia platform? Reach out, and let's plan your mobile-money fundraising rollout.",
   openGraph: {
-    title: 'Contact Us | ScrewFast',
+    title: 'Contact Us | Changia',
     description:
-      "Have questions or want to discuss a project? Reach out, and let's craft the perfect solution with our tools and services.",
+      "Have a campaign idea or questions about the Changia platform? Reach out, and let's plan your mobile-money fundraising rollout.",
   },
 };
 

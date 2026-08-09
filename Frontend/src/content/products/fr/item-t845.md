@@ -1,54 +1,62 @@
 ---
-title: 'SF-TB T845'
-description: 'Vis à machine'
+title: 'Plateforme de base et base de donateurs'
+description: 'MVP Module 1'
 main:
   id: 1
   content: |
-    Découvrez le SF-TB T845 – votre solution de prédilection pour la fixation de précision dans les machines et équipements. Cet ensemble complet de vis à machine est méticuleusement conçu pour répondre aux exigences strictes des applications industrielles, garantissant une fixation sécurisée et fiable.
+    Le module 1 établit la fondation sécurisée et réactive utilisée par les administrateurs, les responsables et les donateurs. Il contient l'interface commune, les contrôles d'accès, le CRM de donateurs, les tableaux de bord et les enregistrements prêts pour l'audit requis par les modules 2 et 3.
   imgCard: '@/images/product-image-1.avif'
   imgMain: '@/images/product-image-main-1.avif'
-  imgAlt: 'Maquettes de boîtes de vis à machine'
+  imgAlt: 'Tableau de bord d’administration Changia sur un ordinateur portable'
 tabs:
   - id: 'tabs-with-card-item-1'
     dataTab: '#tabs-with-card-1'
     title: 'Description'
   - id: 'tabs-with-card-item-2'
     dataTab: '#tabs-with-card-2'
-    title: 'Spécifications'
+    title: 'Périmètre'
   - id: 'tabs-with-card-item-3'
     dataTab: '#tabs-with-card-3'
-    title: 'Plans'
+    title: 'Acceptation'
 longDescription:
-  title: 'Solutions de fixation de précision'
+  title: 'Une fondation sécurisée pour chaque campagne'
   subTitle: |
-    Les vis à machine SF-TB T845 offrent une précision et une fiabilité inégalées pour les applications industrielles, garantissant un fonctionnement fluide et une longue durée de vie pour vos machines et équipements.
-  btnTitle: 'Contactez le service commercial pour en savoir plus'
+    Le module 1 offre à votre organisation la connexion, des tableaux de bord par rôles, la gestion des utilisateurs, une base de donateurs respectueuse du consentement et un journal d'audit — tout ce qu'il faut avant qu'un module de paiement ne soit mis en service.
+  btnTitle: 'Contactez l’équipe pour en savoir plus'
   btnURL: '#'
 descriptionList:
-  - title: 'Durabilité'
-    subTitle: 'Fabriquées à partir de matériaux de haute qualité, ces vis à machine sont conçues pour résister aux rigueurs des environnements industriels.'
-  - title: 'Ingénierie de précision'
-    subTitle: 'Conçues avec des filets coupés avec précision et des spécifications exactes, garantissant un ajustement serré et sécurisé pour chaque application.'
-  - title: 'Polyvalence'
-    subTitle: "Adaptées à une large gamme de machines et d'équipements, offrant des solutions de fixation polyvalentes pour divers besoins industriels."
+  - title: 'Interface publique'
+    subTitle: "Page d'accueil, À propos, Contact, FAQ, Politique de confidentialité et Conditions, plus connexion, inscription, réinitialisation de mot de passe et vérification par e-mail."
+  - title: 'Tableaux de bord et utilisateurs'
+    subTitle: "Vue d'ensemble de l'organisation, flux d'activité, notifications et résumés de campagnes avec profils super-admin, admin d'organisation et responsable de campagne."
+  - title: 'Base de donateurs (CRM)'
+    subTitle: 'Ajoutez, modifiez, recherchez, étiquetez et importez des donateurs avec téléphone, nom, e-mail, statut de consentement, historique des contacts et canal préféré.'
 specificationsLeft:
-  - title: 'Composition du matériau'
-    subTitle: 'Construites en acier ou alliage de qualité supérieure pour une résistance et une durabilité exceptionnelles.'
-  - title: 'Finition de surface'
-    subTitle: 'Fini avec un revêtement protecteur pour améliorer la résistance à la corrosion et prolonger la durée de vie.'
-  - title: 'Quantité par ensemble'
-    subTitle: 'Chaque ensemble contient un assortiment complet de vis à machine pour répondre aux divers besoins industriels.'
-  - title: 'Gamme de tailles'
-    subTitle: "Disponible en différentes tailles et longueurs pour s'adapter aux spécifications des machines et équipements."
+  - title: 'Limites de rôles'
+    subTitle: 'Accès au moindre privilège : les responsables travaillent uniquement sur les campagnes assignées et ne peuvent ni retirer des fonds ni modifier les paramètres.'
+  - title: 'Enregistrements de consentement'
+    subTitle: "Les numéros de téléphone sont normalisés et dédupliqués ; le statut de consentement et les contrôles d'opt-out sont enregistrés avant toute utilisation en masse."
+  - title: "Journal d'audit"
+    subTitle: "Les changements de rôles, campagnes, demandes et retraits sont enregistrés comme événements d'audit immuables."
+  - title: 'Sécurité de l’import'
+    subTitle: "L'écran d'importation affiche les enregistrements rejetés, les doublons et le nombre de contacts valides avant d'envoyer un message."
 specificationsRight:
-  - title: 'Spécifications du filetage'
-    subTitle: 'Des filets conçus avec précision assurent une adhérence optimale et une fiabilité, même dans les environnements à haute vibration.'
-  - title: 'Capacité de charge'
-    subTitle: 'Conçues pour répondre ou dépasser les normes industrielles en matière de capacité de charge, garantissant une opération sûre et fiable.'
-  - title: 'Certifications'
-    subTitle: 'Conformes aux normes et certifications industrielles pertinentes, garantissant qualité et fiabilité.'
-  - title: 'Applications'
-    subTitle: 'Idéal pour une utilisation dans une large gamme de machines industrielles, équipements et assemblages nécessitant une fixation précise et sécurisée.'
+  - title: 'Paramètres et opérations'
+    subTitle: "Profil de l'organisation, image de marque, modèles de messages, rapports de base et centre de notifications."
+  - title: 'Rapports de base'
+    subTitle: 'Résumés de campagnes et de dons avec une image financière claire pour les utilisateurs autorisés.'
+  - title: 'Aucun module de paiement'
+    subTitle: "La plateforme n'est acceptée qu'une fois les règles d'accès des utilisateurs et des donateurs opérationnelles, avant tout paiement."
+  - title: 'Coût recommandé'
+    subTitle: 'TZS 200 000 en développement unique ; hébergement, domaine et e-mail facturés séparément.'
+tableData:
+  - feature: ['Spécification', 'Valeur']
+    description:
+      - ['Frais de développement', 'TZS 200 000']
+      - ['Résultat principal', 'Interface sécurisée, tableaux de bord, CRM de donateurs']
+      - ['Facturation', 'Une fois, par module approuvé']
+      - ['Dépendance', 'Hébergement, domaine et e-mail facturés séparément']
+      - ['Acceptation', 'Connexion autorisée et gestion des donateurs limitée par rôle']
 blueprints:
   first: '@/images/blueprint-1.avif'
   second: '@/images/blueprint-2.avif'

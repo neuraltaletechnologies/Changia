@@ -18,9 +18,9 @@ import dashboard from '@images/dashboard-image.avif';
 import { partnersData } from '@/data_files/constants';
 
 export const metadata = {
-  title: 'ScrewFast',
+  title: 'Changia',
   description:
-    'ScrewFast offers top-tier hardware tools and expert construction services to meet all your project needs. Start exploring and contact our sales team for superior quality and reliability.',
+    'Changia is a Tanzania-first, mobile-money-first digital fundraising platform. Create a campaign, share a link, and collect mobile-money contributions with less friction.',
 };
 
 const avatarSrcs: string[] = [
@@ -35,90 +35,91 @@ export default function HomePage() {
     <>
       <AnnouncementBanner
         btnId="dismiss-button"
-        btnTitle="Explore ScrewFast on GitHub"
-        url="#!"
+        btnTitle="Explore the Platform"
+        url="/products"
+        title="We're building a Tanzania-first, mobile-money-first fundraising platform."
       />
 
       <HeroSection
-        title='Equip Your Projects with <span class="text-yellow-500 dark:text-yellow-400">ScrewFast</span>'
-        subTitle="Top-quality hardware tools and expert construction services for every project need."
-        primaryBtn="Start Exploring"
-        primaryBtnURL="/products"
-        secondaryBtn="Contact Sales Team"
-        secondaryBtnURL="/contact"
+        title='Collect small mobile-money contributions with <span class="text-yellow-500 dark:text-yellow-400">less friction</span>'
+        subTitle="Changia is a Tanzania-first, mobile-money-first fundraising platform. Campaign owners create a clear campaign page, share a link, and turn a donor's willingness to help into a completed payment."
+        primaryBtn="Start a Campaign"
+        primaryBtnURL="/contact"
+        secondaryBtn="Explore the Modules"
+        secondaryBtnURL="/products"
         withReview
         avatars={avatarSrcs}
-        rating='<span class="font-bold">4.8</span> / 5'
+        rating='<span class="font-bold">TZS 1,000</span>'
         starCount={4}
-        reviews='From Over <span class="font-bold">12.8k</span> Reviews'
+        reviews='minimum donation on any Changia campaign'
         src={heroImage}
-        alt="Stack of ScrewFast product boxes containing assorted hardware tools"
+        alt="A Changia campaign page shown on a smartphone"
       />
 
       <ClientsSection
-        title="Trusted by Industry Leaders"
-        subTitle="Experience the reliability chosen by industry giants."
+        title="Works with the mobile money your donors already use"
+        subTitle="Donors give from any smartphone and confirm with their own PIN in the gateway prompt they trust."
         partners={partnersData}
       />
 
       <FeaturesGeneral
-        title="Meeting Industry Demands"
-        subTitle="At ScrewFast, we tackle the unique challenges encountered in the hardware and construction sectors. From cutting-edge tools to expert services, we're dedicated to helping you overcome obstacles and achieve your goals."
+        title="A Simpler Way to Give"
+        subTitle="Fundraising often loses donors between intention and payment. Changia reduces that friction with clear campaign pages, shareable links and a direct payment request."
         src={featureImage}
-        alt="ScrewFast products in floating boxes"
+        alt="The Changia dashboard on a laptop"
         features={features}
       />
 
       <FeaturesNavs
-        title='Customize <span class="text-yellow-500 dark:text-yellow-400">ScrewFast</span>&#39;s offerings to perfectly suit your hardware and construction needs.'
+        title='The three modules of the <span class="text-yellow-500 dark:text-yellow-400">Changia</span> MVP take a campaign from idea to completed payment.'
         tabs={[
           {
-            heading: 'Cutting-Edge Tools',
+            heading: 'Core Platform & Donor Pool',
             content:
-              "Empower your projects with ScrewFast's cutting-edge tools. Experience enhanced efficiency in construction management with our sophisticated automated solutions.",
+              'A secure, responsive foundation for administrators, managers and donors — with role-based access, dashboards, an audit log and a consent-aware donor CRM.',
             svg: 'tools',
             src: tools,
-            alt: 'Yellow and black heavy equipment on brown grass field',
+            alt: 'Changia admin dashboard workspace',
             first: true,
           },
           {
-            heading: 'Intuitive Dashboards',
+            heading: 'Campaign Link Distribution',
             content:
-              "Navigate with ease using ScrewFast's intuitive dashboards. Set up and oversee your projects seamlessly, with user-friendly interfaces designed for quick and effective workflow management.",
+              'Create campaigns, set a required amount, generate a short link and QR code, and distribute approved SMS, WhatsApp or email messages to the donor pool or public channels.',
             svg: 'dashboard',
             src: dashboard,
-            alt: 'A screenshot or graphic representation of the intuitive dashboard',
+            alt: 'Changia campaign page with progress bar and donation options',
             second: true,
           },
           {
-            heading: 'Robust Features',
+            heading: 'Instant Push Donation',
             content:
-              "Minimize complexity, maximize productivity. ScrewFast's robust features are engineered to streamline your construction process, delivering results that stand out for their excellence.",
+              "A campaign manager who has obtained a donor's agreement sends a direct payment request. The donor confirms with their PIN and the verified callback updates the campaign exactly once.",
             svg: 'house',
             src: construction,
-            alt: 'Gray metal building frame near tower crane during daytime',
+            alt: 'A field fundraiser confirming a donation request on a phone',
           },
         ]}
       />
 
       <TestimonialsSection
-        title="Fast-Track Your Projects"
-        subTitle="At ScrewFast, we ensure a swift start with instant account setup. Experience the speed of construction redefined."
+        title="Convert willingness into completed payments"
+        subTitle="From radio, SMS and WhatsApp at scale to face-to-face manager-led giving, Changia bridges the gap between intention and contribution."
         testimonials={[
           {
             content:
-              'ScrewFast dramatically boosted our project efficiency. Setup was instant, and their rapid response times are phenomenal. Truly a game-changer in hardware and construction support!',
-            author: 'Samantha Ruiz',
-            role: 'Chief Operating Officer | ConstructIt Inc.',
+              'We ran the Children Surgery Fund with a public target of TZS 10,500,000 — the 10,000,000 purpose amount plus the 5% Changia fee. Every contribution is credited at full face value and donors receive a receipt plus a live progress update. Fundraising that inspires trust.',
+            author: 'Dr. Msuya',
+            role: 'Initial Launch Partner',
             avatarSrc:
               'https://images.unsplash.com/photo-1593104547489-5cfb3839a3b5?q=80&w=1453&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D8&auto=format&fit=facearea&facepad=2&w=320&h=320&q=80',
           },
         ]}
         statistics={[
-          { count: '70k+', description: 'customers equipped — from DIY to major construction firms' },
-          { count: '35%', description: 'uptick in project efficiency with ScrewFast tools and services' },
-          { count: '15.3%', description: 'reduction in maintenance costs reported by long-term clients' },
-          { count: '2x', description: 'quicker assembly using innovative fastening solutions' },
+          { count: 'TZS 1,000', description: 'minimum donation on every Changia campaign' },
+          { count: '5%', description: 'configurable campaign-level service fee' },
+          { count: '3', description: 'MVP modules, delivered and payable independently' },
+          { count: 'TZS 200,000', description: 'development fee per approved module' },
         ]}
       />
 
@@ -127,9 +128,8 @@ export default function HomePage() {
       <FAQ title="Frequently<br />asked questions" faqs={faqs} />
 
       <HeroSectionAlt
-        title="Let's Build Together"
-        subTitle="ScrewFast is an open-source template, meticulously crafted with Astro, Tailwind CSS, and Preline UI frameworks."
-        url="#!"
+        title="Let's Raise Together"
+        subTitle="Changia is designed for Tanzania: useful for our first organization today, and adaptable to hospitals, churches, schools, NGOs, community groups and individuals tomorrow."
       />
     </>
   );

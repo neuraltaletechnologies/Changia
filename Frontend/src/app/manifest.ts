@@ -4,9 +4,9 @@ import maskableIcon from '@/images/icon-maskable.png';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'ScrewFast',
-    short_name: 'ScrewFast',
-    description: 'Top-quality Hardware Tools',
+    name: 'Changia',
+    short_name: 'Changia',
+    description: 'Tanzania-first Mobile-Money Fundraising',
     start_url: '/',
     id: '/',
     display: 'minimal-ui',

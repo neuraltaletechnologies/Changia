@@ -1,38 +1,39 @@
 {
-  "title": "Tarification Simple et Transparente",
-  "subTitle": "Augmentez l'efficacité avec les plans clairs et axés sur la valeur de ScrewFast.",
+  "title": "Tarification simple et transparente",
+  "subTitle": "Un MVP en trois modules au prix en TZS, avec les coûts tiers facturés séparément.",
   "badge": "Meilleure valeur",
-  "thirdOption": "Solutions Entreprise?",
-  "btnText": "Obtenez un Devis Personnalisé",
+  "thirdOption": "Besoin des coûts d'hébergement, de domaine ou de messagerie ?",
+  "btnText": "Télécharger la proposition",
 
   "starterKit": {
-    "name": "Kit de Démarrage",
-    "description": "Meilleure option pour les projets de bricolage",
-    "price": "$49",
-    "cents": ".00",
-    "billingFrequency": "USD / mensuel",
+    "name": "Plateforme de base et base de donateurs",
+    "description": "Module 1 · Poser les fondations",
+    "price": "200 000",
+    "cents": "",
+    "billingFrequency": "TZS · développement unique",
     "features": [
-      "Outils matériels essentiels",
-      "Accès aux guides et tutoriels",
-      "Support standard"
+      "Interface web sécurisée et tableaux de bord",
+      "Gestion des utilisateurs avec limites de rôles",
+      "Base de donateurs (CRM) avec suivi du consentement",
+      "Journal d'audit et rapports"
     ],
-    "purchaseBtnTitle": "Obtenez le Kit de Démarrage",
-    "purchaseLink": "#"
+    "purchaseBtnTitle": "Explorer le module 1",
+    "purchaseLink": "/fr/products"
   },
 
   "professionalToolbox": {
-    "name": "Boîte à Outils Professionnelle",
-    "description": "Idéale pour les utilisations à grande échelle",
-    "price": "$89",
-    "cents": ".00",
-    "billingFrequency": "USD / mensuel",
+    "name": "MVP complet",
+    "description": "Les trois modules · recommandé",
+    "price": "600 000",
+    "cents": "",
+    "billingFrequency": "TZS · développement unique",
     "features": [
-      "Sélection d'outils premium",
-      "Support prioritaire",
-      "Contenu et offres exclusifs",
-      "Remises sur les commandes en gros"
+      "Plateforme de base et base de donateurs",
+      "Distribution de liens de campagne",
+      "Don par poussée instantanée",
+      "Garantie de 30 jours sur les défauts"
     ],
-    "purchaseBtnTitle": "Obtenez la Boîte à Outils Professionnelle",
-    "purchaseLink": "#"
+    "purchaseBtnTitle": "Explorer les modules",
+    "purchaseLink": "/fr/products"
   }
 }

@@ -1,54 +1,62 @@
 ---
-title: 'SF-FN F303'
-description: 'Hex Bolts'
+title: 'Receipts, Reports & Audit'
+description: 'Platform Foundation'
 main:
   id: 4
   content: |
-    Introducing the SF-FN F303 Hex Bolts – the perfect choice for heavy-duty fastening applications. Crafted with precision and durability in mind, these hex bolts provide the strength and reliability you need for your toughest projects.
+    Beyond the three MVP modules, Changia keeps every shilingi accountable. Donations are confirmed only by verified callbacks, receipts are delivered on the permitted channel, and daily reconciliation is supported by immutable audit events across the platform.
   imgCard: '@/images/product-image-4.avif'
   imgMain: '@/images/product-image-main-4.avif'
-  imgAlt: 'Mockup boxes of hex bolts'
+  imgAlt: 'Changia receipt and verified donation report'
 tabs:
   - id: 'tabs-with-card-item-1'
     dataTab: '#tabs-with-card-1'
     title: 'Description'
   - id: 'tabs-with-card-item-2'
     dataTab: '#tabs-with-card-2'
-    title: 'Specifications'
+    title: 'Scope'
   - id: 'tabs-with-card-item-3'
     dataTab: '#tabs-with-card-3'
-    title: 'Blueprints'
+    title: 'Acceptance'
 longDescription:
-  title: 'Heavy-Duty Fastening Solutions'
+  title: 'Transparency You Can Reconcile'
   subTitle: |
-    The SF-FN F303 Hex Bolts are designed to handle the toughest fastening challenges with ease. Whether you're working on construction projects or heavy machinery, these hex bolts deliver the strength and reliability you need.
-  btnTitle: 'Contact sales to learn more'
+    Every payment attempt uses unique idempotency keys, confirmed donations update campaigns exactly once, and receipts and campaign progress always match confirmed transactions — ready for reconciliation with gateway reports.
+  btnTitle: 'Contact the team to learn more'
   btnURL: '#'
 descriptionList:
-  - title: 'Strength and Durability'
-    subTitle: 'Constructed from high-quality materials, these hex bolts are built to withstand heavy loads and tough conditions.'
-  - title: 'Precision Engineering'
-    subTitle: 'Engineered with precision-cut threads and exact specifications, ensuring a tight and secure fit every time.'
-  - title: 'Versatility'
-    subTitle: 'Suitable for a wide range of applications, from construction to machinery, providing versatile fastening solutions.'
+  - title: 'Verified Money Flow'
+    subTitle: 'Payment initiated, pending, verified callback, confirmed donation, campaign progress updated, receipt and reconciliation.'
+  - title: 'Idempotent Payments'
+    subTitle: 'The same gateway event can never be counted twice, and overfunding is blocked at the public target.'
+  - title: 'Financial Integrity'
+    subTitle: 'Integer TZS amounts, immutable audit events and a daily reconciliation process keep records exact.'
 specificationsLeft:
-  - title: 'Material'
-    subTitle: 'Made from premium-grade steel or alloy, offering exceptional strength and corrosion resistance.'
-  - title: 'Thread Design'
-    subTitle: 'Precision-cut threads ensure optimal grip and reliability, even in high-stress environments.'
-  - title: 'Quantity'
-    subTitle: 'Each set includes a sufficient quantity of hex bolts to tackle various projects and applications.'
-  - title: 'Sizes'
-    subTitle: 'Available in a range of sizes to accommodate different project requirements, ensuring versatility and compatibility.'
+  - title: 'Receipts'
+    subTitle: 'Receipt references with delivery state, e.g. CHG-2026-000123, delivered on the permitted channel.'
+  - title: 'Payouts'
+    subTitle: 'Settlement requires organization approval controls and reconciliation against gateway reports.'
+  - title: 'Consent & Privacy'
+    subTitle: 'Data minimization, retention policy, opt-out controls and restricted support access.'
+  - title: 'Security'
+    subTitle: 'TLS everywhere, protected secrets, MFA-ready admin accounts and secure logging.'
 specificationsRight:
-  - title: 'Finish'
-    subTitle: 'Finished with a protective coating to enhance corrosion resistance and extend service life.'
-  - title: 'Load Capacity'
-    subTitle: 'Designed to meet or exceed industry standards for load-bearing capacity, ensuring reliable performance under heavy loads.'
-  - title: 'Certifications'
-    subTitle: 'Compliant with relevant industry standards and certifications, guaranteeing quality and reliability.'
-  - title: 'Applications'
-    subTitle: 'Ideal for use in construction, machinery, automotive, and other heavy-duty applications that demand strong and reliable fastening.'
+  - title: 'Donor Confirmation'
+    subTitle: 'Donors may decline, cancel or ignore a prompt; nothing is recorded until verified.'
+  - title: 'Blocked Overfunding'
+    subTitle: 'At the public target, new payment initiation is blocked; overfunding follows written policy.'
+  - title: 'Reconciliation'
+    subTitle: 'Confirmed donations, fees, payouts and settlements reconcile against gateway events.'
+  - title: 'Recommended Cost'
+    subTitle: 'Included across the three modules; none separated unless contracted.'
+tableData:
+  - feature: ['Specification', 'Value']
+    description:
+      - ['Linked module', 'All modules']
+      - ['Primary outcome', 'Verified, auditable financial records']
+      - ['Billing', 'Included in module fees']
+      - ['Dependency', 'Production backup and monitored callbacks']
+      - ['Acceptance', 'Receipts and progress match confirmed transactions']
 blueprints:
   first: '@/images/blueprint-1.avif'
   second: '@/images/blueprint-2.avif'

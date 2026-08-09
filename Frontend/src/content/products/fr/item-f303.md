@@ -1,54 +1,62 @@
 ---
-title: 'SF-FN F303'
-description: 'Boulons hexagonaux'
+title: 'Reçus, rapports et audit'
+description: 'Fondation de la plateforme'
 main:
   id: 4
   content: |
-    Découvrez les boulons hexagonaux SF-FN F303 – le choix parfait pour les applications de fixation lourdes. Conçus avec précision et durabilité, ces boulons hexagonaux offrent la force et la fiabilité dont vous avez besoin pour vos projets les plus exigeants.
+    Au-delà des trois modules du MVP, Changia rend chaque shilingi comptable. Les dons ne sont confirmés que par des callbacks vérifiés, les reçus sont délivrés via le canal autorisé, et la réconciliation quotidienne est appuyée par des événements d'audit immuables sur toute la plateforme.
   imgCard: '@/images/product-image-4.avif'
   imgMain: '@/images/product-image-main-4.avif'
-  imgAlt: 'Maquettes de boîtes de boulons hexagonaux'
+  imgAlt: 'Reçu Changia et rapport de dons vérifiés'
 tabs:
   - id: 'tabs-with-card-item-1'
     dataTab: '#tabs-with-card-1'
     title: 'Description'
   - id: 'tabs-with-card-item-2'
     dataTab: '#tabs-with-card-2'
-    title: 'Spécifications'
+    title: 'Périmètre'
   - id: 'tabs-with-card-item-3'
     dataTab: '#tabs-with-card-3'
-    title: 'Plans'
+    title: 'Acceptation'
 longDescription:
-  title: 'Solutions de fixation robustes'
+  title: 'Une transparence que vous pouvez réconcilier'
   subTitle: |
-    Les boulons hexagonaux SF-FN F303 sont conçus pour relever les défis de fixation les plus difficiles avec aisance. Que vous travailliez sur des projets de construction ou des machines lourdes, ces boulons hexagonaux offrent la force et la fiabilité nécessaires.
-  btnTitle: 'Contactez le service commercial pour en savoir plus'
+    Chaque tentative de paiement utilise des clés d'idempotence uniques, les dons confirmés mettent à jour les campagnes exactement une fois, et les reçus et la progression correspondent toujours aux transactions confirmées — prêts pour la réconciliation avec les rapports de la passerelle.
+  btnTitle: 'Contactez l’équipe pour en savoir plus'
   btnURL: '#'
 descriptionList:
-  - title: 'Solidité et durabilité'
-    subTitle: 'Fabriqués à partir de matériaux de haute qualité, ces boulons hexagonaux sont conçus pour supporter des charges lourdes et des conditions difficiles.'
-  - title: 'Ingénierie de précision'
-    subTitle: 'Conçus avec des filets coupés avec précision et des spécifications exactes, garantissant un ajustement serré et sécurisé à chaque fois.'
-  - title: 'Polyvalence'
-    subTitle: "Adaptés à une large gamme d'applications, de la construction aux machines, offrant des solutions de fixation polyvalentes."
+  - title: 'Flux d’argent vérifié'
+    subTitle: 'Paiement initié, en attente, callback vérifié, don confirmé, progression mise à jour, reçu et réconciliation.'
+  - title: 'Paiements idempotents'
+    subTitle: "Le même événement de passerelle ne peut jamais être compté deux fois, et le surfinancement est bloqué à l'objectif public."
+  - title: 'Intégrité financière'
+    subTitle: "Montants entiers en TZS, événements d'audit immuables et processus de réconciliation quotidien."
 specificationsLeft:
-  - title: 'Matériau'
-    subTitle: 'Fabriqués en acier ou en alliage de qualité supérieure, offrant une résistance exceptionnelle et une résistance à la corrosion.'
-  - title: 'Conception du filetage'
-    subTitle: 'Des filets coupés avec précision assurent une adhérence optimale et une fiabilité même dans des environnements à haute contrainte.'
-  - title: 'Quantité'
-    subTitle: 'Chaque ensemble comprend une quantité suffisante de boulons hexagonaux pour divers projets et applications.'
-  - title: 'Tailles'
-    subTitle: 'Disponible dans une gamme de tailles pour répondre aux différentes exigences des projets, garantissant polyvalence et compatibilité.'
+  - title: 'Reçus'
+    subTitle: "Références de reçus avec état de livraison, par ex. CHG-2026-000123, délivrées sur le canal autorisé."
+  - title: 'Versements'
+    subTitle: "Le règlement exige des contrôles d'approbation de l'organisation et une réconciliation avec les rapports de la passerelle."
+  - title: 'Consentement et confidentialité'
+    subTitle: 'Minimisation des données, politique de conservation, contrôles d’opt-out et accès restreint du support.'
+  - title: 'Sécurité'
+    subTitle: 'TLS partout, secrets protégés, comptes administrateurs prêts pour MFA et journalisation sécurisée.'
 specificationsRight:
-  - title: 'Finition'
-    subTitle: 'Fini avec un revêtement protecteur pour améliorer la résistance à la corrosion et prolonger la durée de vie.'
-  - title: 'Capacité de charge'
-    subTitle: 'Conçus pour répondre ou dépasser les normes industrielles en matière de capacité de charge, garantissant des performances fiables sous des charges lourdes.'
-  - title: 'Certifications'
-    subTitle: 'Conformes aux normes et certifications industrielles pertinentes, garantissant qualité et fiabilité.'
-  - title: 'Applications'
-    subTitle: "Idéal pour une utilisation dans la construction, les machines, l'automobile et d'autres applications lourdes nécessitant une fixation solide et fiable."
+  - title: 'Confirmation du donateur'
+    subTitle: 'Les donateurs peuvent refuser, annuler ou ignorer une invite ; rien n'est enregistré jusqu'à vérification.'
+  - title: 'Surfinancement bloqué'
+    subTitle: "À l'objectif public, le lancement de nouveaux paiements est bloqué ; les excédents suivent une politique écrite."
+  - title: 'Réconciliation'
+    subTitle: 'Dons confirmés, frais, versements et règlements se réconcilient avec les événements de la passerelle.'
+  - title: 'Coût recommandé'
+    subTitle: 'Inclus dans les trois modules ; aucun coût séparé sauf contrat.'
+tableData:
+  - feature: ['Spécification', 'Valeur']
+    description:
+      - ['Module lié', 'Tous les modules']
+      - ['Résultat principal', 'Enregistrements financiers vérifiés et audités']
+      - ['Facturation', 'Incluse dans les frais des modules']
+      - ['Dépendance', 'Sauvegarde de production et callbacks surveillés']
+      - ['Acceptation', 'Les reçus et la progression correspondent aux transactions confirmées']
 blueprints:
   first: '@/images/blueprint-1.avif'
   second: '@/images/blueprint-2.avif'

@@ -16,10 +16,11 @@ export default function FooterSection() {
 
   const sectionThreeTitle = isFr ? 'Rester à jour' : 'Stay up to date';
   const sectionThreeContent = isFr
-    ? 'Restez informé des derniers outils et des offres exclusives.'
-    : 'Stay updated with the latest tools and exclusive deals.';
-  const crafted = isFr ? 'Fabriqué par' : 'Crafted by';
-  const hiring = isFr ? "Nous recrutons !" : "We're hiring!";
+    ? 'Restez informé des nouvelles campagnes, fonctionnalités et lancements.'
+    : 'Stay updated with new campaigns, features and launches.';
+  const giverLine = isFr
+    ? "Tanzanie d'abord. Mobile money d'abord."
+    : 'Tanzania-first. Mobile-money-first.';
 
   return (
     <footer className="w-full bg-neutral-300 dark:bg-neutral-900">
@@ -35,7 +36,7 @@ export default function FooterSection() {
                 {section.section}
               </h3>
               <ul className="mt-3 grid space-y-3">
-                {section.links.map((link, index) => (
+                {section.links.map((link) => (
                   <li key={link.url + link.name}>
                     <a
                       href={link.url}
@@ -43,11 +44,6 @@ export default function FooterSection() {
                     >
                       {link.name}
                     </a>
-                    {section.section === 'Company' && index === 2 ? (
-                      <span className="ms-1 inline rounded-lg bg-orange-500 px-2 py-1 text-xs font-bold text-neutral-50">
-                        {hiring}
-                      </span>
-                    ) : null}
                   </li>
                 ))}
               </ul>
@@ -70,24 +66,7 @@ export default function FooterSection() {
         <div className="mt-9 grid gap-y-2 sm:mt-12 sm:flex sm:items-center sm:justify-between sm:gap-y-0">
           <div className="flex items-center justify-between">
             <p className="text-sm text-neutral-600 dark:text-neutral-400">
-              © {new Date().getFullYear()} {SITE.title}. {crafted}{' '}
-              <a
-                className="rounded-lg font-medium underline underline-offset-2 ring-zinc-500 outline-hidden transition duration-300 hover:text-neutral-700 hover:decoration-dashed focus:outline-hidden focus-visible:ring-3 dark:ring-zinc-200 dark:hover:text-neutral-300"
-                href="https://github.com/mearashadowfax"
-                rel="noopener noreferrer"
-              >
-                Gulamov
-              </a>{' '}
-              • Distributed by{' '}
-              <a
-                className="rounded-lg font-medium ring-zinc-500 outline-hidden transition duration-300 hover:text-neutral-700 hover:decoration-dashed focus:outline-hidden focus-visible:ring-3 dark:ring-zinc-200 dark:hover:text-neutral-300 underline"
-                href="https://themewagon.com"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                ThemeWagon
-              </a>
-              .
+              © {new Date().getFullYear()} {SITE.title}. {giverLine}
             </p>
           </div>
 

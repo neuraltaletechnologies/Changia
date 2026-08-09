@@ -4,11 +4,11 @@ import ContactSectionFr from '@components/sections/fr/ContactSection_fr';
 export const metadata: Metadata = {
   title: 'Nous Contacter',
   description:
-    "Vous avez des questions ou souhaitez discuter d'un projet ? Contactez-nous et élaborons ensemble la solution parfaite avec nos outils et services.",
+    "Vous avez une idée de campagne ou des questions sur la plateforme Changia ? Contactez-nous et planifions ensemble votre déploiement de collecte mobile money.",
   openGraph: {
-    title: 'Nous Contacter | ScrewFast',
+    title: 'Nous Contacter | Changia',
     description:
-      "Vous avez des questions ou souhaitez discuter d'un projet ? Contactez-nous et élaborons ensemble la solution parfaite avec nos outils et services.",
+      "Vous avez une idée de campagne ou des questions sur la plateforme Changia ? Contactez-nous et planifions ensemble votre déploiement de collecte mobile money.",
   },
 };
 

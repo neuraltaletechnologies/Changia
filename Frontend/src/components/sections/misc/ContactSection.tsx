@@ -8,7 +8,7 @@ import Icon from '@/components/ui/icons/Icon';
 
 const title = 'Contact us';
 const subTitle =
-  "Have questions or want to discuss a project? Reach out, and let's craft the perfect solution with our tools and services.";
+  "Have a campaign idea or questions about the platform? Reach out, and let's plan your Changia rollout.";
 const formTitle = 'Fill in the form below';
 const formSubTitle = "We'll get back to you in 1-2 business days.";
 
@@ -51,8 +51,8 @@ export default function ContactSection() {
 
           <div className="divide-y divide-neutral-300 dark:divide-neutral-700">
             <ContactIconBlock
-              heading="Knowledgebase"
-              content="Browse through all of our knowledgebase articles."
+              heading="Guides & Docs"
+              content="Browse through our platform guides and campaign best practices."
               isLinkVisible
               linkTitle="Visit guides & tutorials"
               linkURL="#"
@@ -62,7 +62,7 @@ export default function ContactSection() {
             </ContactIconBlock>
             <ContactIconBlock
               heading="FAQ"
-              content="Explore our FAQ for quick, clear answers to common queries."
+              content="Explore our FAQ for quick, clear answers about campaigns, donors and fees."
               isLinkVisible
               linkTitle="Visit FAQ"
               linkURL="#"
@@ -71,10 +71,10 @@ export default function ContactSection() {
               <Icon name="chatBubble" />
             </ContactIconBlock>
             <ContactIconBlock
-              heading="Visit our office"
-              content="UK ScrewFast"
+              heading="Where we work"
+              content="Tanzania — remote-first"
               isAddressVisible
-              addressContent="72 Union Terrace, E10 4PE London"
+              addressContent="Nationwide support for your campaigns"
             >
               <Icon name="mapPin" />
             </ContactIconBlock>
@@ -82,7 +82,7 @@ export default function ContactSection() {
               heading="Contact us by email"
               content="Prefer the written word? Drop us an email at"
               isLinkVisible
-              linkTitle="support@screwfast.uk"
+              linkTitle="hello@changia.co"
               linkURL="#"
             >
               <Icon name="envelopeOpen" />

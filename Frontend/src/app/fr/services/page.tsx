@@ -12,13 +12,13 @@ import aerialView from '@images/aerial-view.avif';
 import usingTools from '@images/using-tools.avif';
 
 export const metadata: Metadata = {
-  title: 'Services',
+  title: 'Comment ça marche',
   description:
-    "Unissant l'expertise à votre vision, ScrewFast fournit un service exceptionnel et des solutions complètes dans le secteur du matériel et de la construction, de la consultation à l'achèvement du projet.",
+    "Découvrez comment Changia mène une campagne du brouillon au paiement effectué — des campagnes approuvées aux parcours de donateurs en passant par les dons pilotés par les responsables, avec une transparence prête pour l'audit à chaque étape.",
   openGraph: {
-    title: "Services de Consultation d'Experts | ScrewFast",
+    title: 'Comment ça marche | Changia',
     description:
-      "Unissant l'expertise à votre vision, ScrewFast fournit un service exceptionnel et des solutions complètes dans le secteur du matériel et de la construction, de la consultation à l'achèvement du projet.",
+      "Découvrez comment Changia mène une campagne du brouillon au paiement effectué — des campagnes approuvées aux parcours de donateurs en passant par les dons pilotés par les responsables, avec une transparence prête pour l'audit à chaque étape.",
   },
 };
 
@@ -41,37 +41,59 @@ interface Article {
 const articles: Article[] = [
   {
     isRightSection: true,
-    title: "Fournir des conseils d'experts",
+    title: 'Du brouillon à une campagne approuvée',
     subTitle:
-      "Se lancer dans un projet de construction peut être accablant. Avec nos services de consultation professionnelle, nous vous guidons à chaque étape, en veillant à ce que vous preniez des décisions éclairées. Que vous soyez un passionné du bricolage ou un entrepreneur qualifié, nos experts sont là pour vous offrir des conseils sur mesure sur la sélection de produits, l'envergure du projet et la conformité aux réglementations locales.",
+      "Les administrateurs d'organisation créent une campagne avec un montant prévu, des frais de service configurables, un objectif public, une échéance et un état qui passe de « brouillon » à « approuvé » puis « active ». Les responsables de campagne sont assignés campagne par campagne, de sorte que chaque demande reste liée à la bonne personne et aux bonnes règles.",
     single: false,
     imgOne: blueprints,
-    imgOneAlt: 'Plans et tablette numérique avec des plans de construction.',
+    imgOneAlt: "Feuille de configuration de campagne et outils de planification numériques.",
     imgTwo: personWorking,
-    imgTwoAlt: 'Personne travaillant au bureau',
+    imgTwoAlt: "Administrateur d'organisation approuvant une campagne",
   },
   {
     isRightSection: false,
-    title: 'Transformer les conceptions en réalité',
+    title: 'Le parcours du donateur jusqu’au paiement effectué',
     subTitle:
-      'Nos artisans qualifiés apportent précision et excellence à chaque projet de construction. Des installations mineures aux travaux structuraux substantiels, ScrewFast offre des services de construction fiables pour concrétiser vos plans. Nous assurons les normes les plus élevées de sécurité et de savoir-faire, en utilisant des outils et des matériaux de haute qualité de notre vaste inventaire.',
+      "Un donateur ouvre un lien court depuis un SMS, WhatsApp, un email ou une affiche QR, choisit ou confirme un montant, puis approuve le paiement dans l'invite de la passerelle avec son propre PIN. Seul un callback vérifié crée le don — les donateurs reçoivent un reçu et une mise à jour en direct, et le total de la campagne est mis à jour exactement une fois.",
     img: beforeAfter,
-    imgAlt: 'Chantier de construction avant et après',
+    imgAlt: 'Progression de la campagne avant et après les dons vérifiés',
     btnExists: true,
-    btnTitle: 'En savoir plus',
-    btnURL: '#',
+    btnTitle: 'Explorer les modules',
+    btnURL: '/fr/products',
+  },
+  {
+    isRightSection: true,
+    title: 'Collecte de terrain pilotée par les responsables',
+    subTitle:
+      "Les responsables de campagne recherchent ou ajoutent des donateurs consentants, saisissent un montant convenu et envoient une demande de don par poussée instantanée. Le donateur confirme avec son PIN, et des limites de débit ainsi qu'un délai de refroidissement protègent contre les demandes en double ou non souhaitées. Les responsables suivent leurs résultats sans jamais toucher aux retraits.",
+    single: false,
+    imgOne: constructionWorkers,
+    imgOneAlt: 'Responsable de collecte examinant les campagnes assignées',
+    imgTwo: aerialView,
+    imgTwoAlt: 'Vue d’ensemble de la progression des campagnes et des performances',
+  },
+  {
+    isRightSection: false,
+    title: 'Confiance, audit et accompagnement continu',
+    subTitle:
+      "Chaque demande, tentative et callback est enregistré(e) pour la réconciliation, avec des montants entiers en TZS et des événements d'audit immuables. Notre équipe est là après le lancement avec la formation, une garantie de 30 jours sur les défauts et un chemin clair vers le module suivant dès que vous êtes prêt.",
+    img: usingTools,
+    imgAlt: 'Équipe surveillant les callbacks vérifiés et les événements d’audit',
+    btnExists: true,
+    btnTitle: 'Contacter l’équipe',
+    btnURL: '/fr/contact',
   },
 ];
 
-export default function FrenchServicesPage() {
+export default function ServicesPage() {
   return (
     <>
       <MainSection
-        title="Unir l'expertise à votre vision"
-        subTitle="Chez ScrewFast, nous sommes fiers de fournir des solutions complètes et un service exceptionnel dans l'industrie du matériel et de la construction. Notre équipe expérimentée est dédiée à soutenir votre projet de sa conception à son achèvement avec une gamme de services spécialisés."
+        title="Une collecte de fonds qui inspire confiance"
+        subTitle="Changia combine la collecte numérique de masse et la collecte de terrain pilotée par les responsables. D'une page de campagne claire à un paiement mobile money vérifié, chaque étape est conçue pour réduire les frictions et garder les comptes transparents."
         btnExists
-        btnTitle="Planifier une consultation"
-        btnURL="#"
+        btnTitle="Lancer une campagne"
+        btnURL="/fr/contact"
       />
 
       {articles.map((article) =>
@@ -104,14 +126,14 @@ export default function FrenchServicesPage() {
       )}
 
       <FeaturesStats
-        title="Par les chiffres"
-        subTitle="Notre engagement envers la qualité et la fiabilité est évident dans chaque projet que nous entreprenons. Chez ScrewFast, nous nous engageons à fournir des services de premier plan dans l'industrie qui garantissent que vos projets de construction sont conçus pour durer."
-        mainStatTitle="96%"
-        mainStatSubTitle="de nos clients évaluent leur expérience avec ScrewFast comme exceptionnelle"
+        title="Changia en chiffres"
+        subTitle="Notre engagement envers la transparence et la fiabilité est intégré dans chaque module. Nous concevons pour des paiements vérifiés, des frais clairs et des enregistrements prêts pour l'audit."
+        mainStatTitle="TZS 1 000"
+        mainStatSubTitle="don minimum défini sur chaque campagne Changia"
         stats={[
-          { stat: '99,8%', description: 'taux de réalisation de projets' },
-          { stat: '5 000+', description: 'installations réussies' },
-          { stat: '85%', description: 'croissance client année après année' },
+          { stat: '5 %', description: 'frais de service configurables au niveau de la campagne' },
+          { stat: '600 000', description: 'total TZS du développement du MVP en trois modules' },
+          { stat: '3', description: 'modules MVP indépendants et payables' },
         ]}
       />
     </>

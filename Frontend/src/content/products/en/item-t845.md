@@ -1,54 +1,62 @@
 ---
-title: 'SF-TB T845'
-description: 'Machine Screws'
+title: 'Core Platform & Donor Pool'
+description: 'MVP Module 1'
 main:
   id: 1
   content: |
-    Introducing the SF-TB T845 – your go-to solution for precision fastening in machinery and equipment. This comprehensive set of machine screws is meticulously crafted to meet the stringent demands of industrial applications, ensuring secure and reliable fastening.
+    Module 1 establishes the secure, responsive foundation used by administrators, managers and donors. It contains the common interface, access controls, donor CRM, dashboards and audit-ready management records required by Modules 2 and 3.
   imgCard: '@/images/product-image-1.avif'
   imgMain: '@/images/product-image-main-1.avif'
-  imgAlt: 'Mockup boxes of machine screws set'
+  imgAlt: 'Changia admin dashboard on a laptop'
 tabs:
   - id: 'tabs-with-card-item-1'
     dataTab: '#tabs-with-card-1'
     title: 'Description'
   - id: 'tabs-with-card-item-2'
     dataTab: '#tabs-with-card-2'
-    title: 'Specifications'
+    title: 'Scope'
   - id: 'tabs-with-card-item-3'
     dataTab: '#tabs-with-card-3'
-    title: 'Blueprints'
+    title: 'Acceptance'
 longDescription:
-  title: 'Precision Fastening Solutions'
+  title: 'A Secure Foundation for Every Campaign'
   subTitle: |
-    The SF-TB T845 Machine Screws offer unparalleled precision and reliability for industrial applications, ensuring seamless operation and longevity for your machinery and equipment.
-  btnTitle: 'Contact sales to learn more'
+    Module 1 gives your organization sign-in, role-based dashboards, user management, a consent-aware donor pool and an audit log — everything needed before any payment module goes live.
+  btnTitle: 'Contact the team to learn more'
   btnURL: '#'
 descriptionList:
-  - title: 'Durability'
-    subTitle: 'Crafted from high-quality materials, these machine screws are built to withstand the rigors of industrial environments.'
-  - title: 'Precision Engineering'
-    subTitle: 'Engineered with precision-cut threads and exact specifications, ensuring a tight and secure fit for every application.'
-  - title: 'Versatility'
-    subTitle: 'Suitable for a wide range of machinery and equipment, providing versatile fastening solutions for various industrial needs.'
+  - title: 'Public Interface'
+    subTitle: 'Landing page, About, Contact, FAQ, Privacy Policy and Terms, plus login, registration, password reset and email verification.'
+  - title: 'Dashboards & Users'
+    subTitle: 'Organization overview, activity feed, notifications and campaign summaries with super-admin, organization-admin and campaign-manager profiles.'
+  - title: 'Donor Pool (CRM)'
+    subTitle: 'Add, edit, search, tag and import donors with phone, name, email, consent status, contact history and preferred channel.'
 specificationsLeft:
-  - title: 'Material Composition'
-    subTitle: 'Constructed from premium-grade steel or alloy for exceptional strength and durability.'
-  - title: 'Surface Finish'
-    subTitle: 'Finished with a protective coating to enhance corrosion resistance and extend service life.'
-  - title: 'Quantity Per Set'
-    subTitle: 'Each set contains a comprehensive assortment of machine screws to meet diverse industrial requirements.'
-  - title: 'Size Range'
-    subTitle: 'Available in various sizes and lengths to accommodate different machinery and equipment specifications.'
+  - title: 'Role Limits'
+    subTitle: 'Least-privilege access: managers work only on assigned campaigns and cannot withdraw funds or change settings.'
+  - title: 'Consent Records'
+    subTitle: 'Phone numbers are normalized and deduplicated; consent status and opt-out controls are recorded before any bulk use.'
+  - title: 'Audit Log'
+    subTitle: 'Role changes, campaigns, requests and payouts are logged as immutable audit events.'
+  - title: 'Import Safety'
+    subTitle: 'The import screen shows rejected records, duplicates and the number of valid contacts before any message is sent.'
 specificationsRight:
-  - title: 'Thread Specifications'
-    subTitle: 'Precision-engineered threads ensure optimal grip and reliability, even in high-vibration environments.'
-  - title: 'Load Capacity'
-    subTitle: 'Designed to meet or exceed industry standards for load-bearing capacity, ensuring safe and reliable operation.'
-  - title: 'Certifications'
-    subTitle: 'Compliant with relevant industry standards and certifications, guaranteeing quality and reliability.'
-  - title: 'Applications'
-    subTitle: 'Ideal for use in a wide range of industrial machinery, equipment, and assemblies that demand precise and secure fastening.'
+  - title: 'Settings & Operations'
+    subTitle: 'Organization profile, branding, message templates, basic reporting and a notification center.'
+  - title: 'Basic Reporting'
+    subTitle: 'Campaign and donation summaries with a clear financial picture for authorized users.'
+  - title: 'No Payment Module'
+    subTitle: 'The platform is accepted only after user and donor access rules are working, before any payments.'
+  - title: 'Recommended Cost'
+    subTitle: 'TZS 200,000 one-time development; hosting, domain and email billed separately.'
+tableData:
+  - feature: ['Specification', 'Value']
+    description:
+      - ['Development fee', 'TZS 200,000']
+      - ['Primary outcome', 'Secure interface, dashboards, donor CRM']
+      - ['Billing', 'One-time, per approved module']
+      - ['Dependency', 'Hosting, domain and email billed separately']
+      - ['Acceptance', 'Authorized sign-in and role-limited donor management']
 blueprints:
   first: '@/images/blueprint-1.avif'
   second: '@/images/blueprint-2.avif'

@@ -6,16 +6,14 @@ export default function NotFound() {
   const pathname = usePathname();
   const isFr = pathname?.startsWith('/fr');
 
-  const pageTitle = isFr
-    ? 'Page Non Trouvée | ScrewFast'
-    : 'Page Not Found | ScrewFast';
+  const pageTitle = isFr ? 'Page Non Trouvée | Changia' : 'Page Not Found | Changia';
   const subTitle = isFr
-    ? "Oops, ce n'est pas l'outil que vous recherchiez!"
-    : "Oops, this isn't the tool you were looking for!";
+    ? "Oups, ce n'est pas la page de campagne que vous cherchiez !"
+    : "Oops, this isn't the campaign page you were looking for!";
   const content = isFr
-    ? "Ne laissez pas ce contretemps vous ralentir. Revenons à la construction de votre chef-d'œuvre."
-    : "Don't let this hiccup slow you down. Let's get you back to building your masterpiece.";
-  const btnTitle = isFr ? 'Retournez' : 'Go Back';
+    ? 'Ne laissez pas ce contretemps vous arrêter. Revenons à la collecte de fonds.'
+    : "Don't let this hiccup slow you down. Let's get you back to giving.";
+  const btnTitle = isFr ? 'Retour' : 'Go Back';
 
   return (
     <section className="grid h-svh place-content-center">

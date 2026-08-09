@@ -7,44 +7,44 @@ import TestimonialsSectionAlt from '@components/sections/testimonials/Testimonia
 import { getProductEntries } from '@/lib/content';
 
 export const metadata: Metadata = {
-  title: 'Produits',
+  title: 'Modules',
   description:
-    'Explorez la durabilité et la précision des outils ScrewFast, conçus aussi bien pour les professionnels que pour les passionnés.',
+    'Découvrez les trois modules du MVP Changia : plateforme de base et base de donateurs, distribution de liens de campagne et don par poussée instantanée.',
   openGraph: {
-    title: 'Outils Matériels | ScrewFast',
+    title: 'Modules du MVP Changia | Changia',
     description:
-      'Explorez la durabilité et la précision des outils ScrewFast, conçus aussi bien pour les professionnels que pour les passionnés.',
+      'Découvrez les trois modules du MVP Changia : plateforme de base et base de donateurs, distribution de liens de campagne et don par poussée instantanée.',
   },
 };
 
-const title = 'Produits';
+const title = 'Modules';
 const subTitle =
-  'Explorez la durabilité et la précision des outils ScrewFast, conçus aussi bien pour les professionnels que pour les amateurs. Chacun de nos produits est fabriqué avec précision et conçu pour durer, garantissant que vous disposez du bon outil pour chaque tâche.';
+  "Découvrez les trois modules indépendants et payables du MVP Changia. Chaque module produit un résultat clé — d'une plateforme de base sécurisée et d'une base de donateurs à la distribution de liens de campagne et aux dons pilotés par les responsables.";
 
 const testimonials = [
   {
     content:
-      "Depuis que nous avons adopté les outils matériels de ScrewFast, l'efficacité sur nos chantiers de construction a explosé. La durabilité des boulons hexagonaux et la précision des vis machine sont tout simplement inégalées. C'est rafraîchissant de travailler avec une entreprise qui comprend vraiment les exigences quotidiennes de l'industrie.",
-    author: 'Jason Clark',
-    role: 'Contremaître de chantier | TopBuild',
+      "En tant que partenaire de lancement, nous avons pu mettre en place un tableau de bord sécurisé, gérer les utilisateurs par rôle et tenir une base de donateurs prête pour l'audit dès le premier jour. Le module 1 nous a donné les fondations nécessaires pour mener des campagnes dignes de confiance.",
+    author: 'Dr Msuya',
+    role: "Administrateur d'organisation | Partenaire de lancement initial",
     avatarSrc:
       'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=1374&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=facearea&facepad=2&w=320&h=320&q=80',
     avatarAlt: "Description de l'image",
   },
   {
     content:
-      "En tant que designer d'intérieur, je suis toujours à la recherche de matériaux et d'outils de haute qualité qui m'aident à donner vie à mes visions. L'assortiment de vis mixtes de ScrewFast a révolutionné mes projets, offrant le mélange parfait de qualité et de variété. Le support client exceptionnel était la cerise sur le gâteau !",
-    author: 'Maria Gonzalez',
-    role: "Designer d'intérieur | Creative Spaces",
+      "Avec le module de distribution de liens, nous transformons les auditeurs de radio et de WhatsApp en donateurs. Un lien court, un QR code et une page de campagne mobile — dès TZS 1 000 — et chaque contribution vérifiée met à jour la barre de progression.",
+    author: 'Amadi Kimaro',
+    role: 'Responsable de campagne | Fonds communautaire pour la santé',
     avatarSrc:
       'https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=1376&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D8&auto=format&fit=facearea&facepad=2&w=320&h=320&q=80',
     avatarAlt: "Description de l'image",
   },
   {
     content:
-      "Je suis menuisier professionnel depuis plus de 15 ans, et je peux sincèrement dire que les boulons et écrous à tarauder de ScrewFast sont parmi les meilleurs que j'ai utilisés. Ils adhèrent comme aucun autre, et j'ai une confiance totale dans chaque joint et élément. De plus, le service est impeccable - ils se soucient vraiment du succès de mon projet.",
-    author: 'Richard Kim',
-    role: 'Menuisier-Maître | WoodWright',
+      "Le don par poussée instantanée est l'innovation que nous attendions. Après une conversation en face à face et un accord, le donateur reçoit une demande de paiement directe et confirme avec son propre PIN. Les callbacks vérifiés garantissent des totaux toujours exacts.",
+    author: 'Neema Mushi',
+    role: 'Responsable de la collecte de terrain',
     avatarSrc:
       'https://images.unsplash.com/photo-1474176857210-7287d38d27c6?q=80&w=1470&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D8&auto=format&fit=facearea&facepad=2&w=320&h=320&q=80',
     avatarAlt: "Description de l'image",
@@ -70,7 +70,7 @@ export default function FrenchProductsIndexPage() {
               </p>
             ) : null}
           </div>
-          <PrimaryCTA title="Histoires de clients" url="#testimonials" noArrow />
+          <PrimaryCTA title="Histoires de campagnes" url="#testimonials" noArrow />
         </div>
 
         <section className="grid grid-cols-1 gap-4 sm:grid-cols-3 md:gap-6 xl:gap-8">
@@ -85,16 +85,19 @@ export default function FrenchProductsIndexPage() {
       </div>
 
       <FeaturesStatsAlt
-        title="Pourquoi choisir ScrewFast ?"
-        subTitle="Transformez vos idées en résultats tangibles avec les outils ScrewFast. Que vous commenciez par un croquis sur un coin de table ou plongiez dans un projet de construction complet, nos outils sont conçus pour vous aider à construire en toute confiance."
+        title="Pourquoi choisir Changia ?"
+        subTitle="Changia est conçu dès le départ pour les flux de travail mobile money tanzaniens. Que vous lanciez votre première campagne ou meniez un appel national, la plateforme est pensée pour convertir la volonté d'aider en paiements effectués."
         benefits={[
-          'Outils robustes et fiables pour des performances durables.',
-          'Solutions innovantes adaptées aux besoins de construction modernes.',
-          'Support client dédié au succès de votre projet.',
+          'Une fondation sécurisée et mobile-first, adaptée aux réseaux à faible bande passante.',
+          "Gestion des donateurs respectueuse du consentement avec contrôles d'opt-out.",
+          'Callbacks vérifiés et enregistrements prêts pour l’audit que vos donateurs peuvent faire confiance.',
         ]}
       />
 
-      <TestimonialsSectionAlt title="Ce que disent nos clients" testimonials={testimonials} />
+      <TestimonialsSectionAlt
+        title="Ce que disent les propriétaires de campagnes"
+        testimonials={testimonials}
+      />
     </>
   );
 }

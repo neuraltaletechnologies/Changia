@@ -6,7 +6,7 @@ import SiteProvider from '@/components/SiteProvider';
 import { SITE, SEO } from '@/data_files/constants';
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://screwfast.uk'),
+  metadataBase: new URL('https://changia.co'),
   title: {
     default: SITE.title,
     template: `%s | ${SITE.title}`,
@@ -19,14 +19,14 @@ export const metadata: Metadata = {
     apple: '/icon.png',
   },
   openGraph: {
-    title: `${SITE.title}: : Hardware Tools & Construction Services`,
+    title: `${SITE.title}: Digital Fundraising & Mobile Money Contribution Platform`,
     description: SITE.description,
     siteName: SITE.title,
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: `${SITE.title}: : Hardware Tools & Construction Services`,
+    title: `${SITE.title}: Digital Fundraising & Mobile Money Contribution Platform`,
     description: SITE.description,
   },
 };

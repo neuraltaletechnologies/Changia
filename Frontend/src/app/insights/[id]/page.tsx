@@ -39,7 +39,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
     title: post.data.title,
     description: post.data.description,
     openGraph: {
-      title: `${post.data.title} | Insights | ScrewFast`,
+      title: `${post.data.title} | Insights | Changia`,
       description: post.data.description,
     },
   };

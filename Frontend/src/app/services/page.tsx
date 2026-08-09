@@ -12,13 +12,13 @@ import aerialView from '@images/aerial-view.avif';
 import usingTools from '@images/using-tools.avif';
 
 export const metadata: Metadata = {
-  title: 'Services',
+  title: 'How It Works',
   description:
-    'Uniting expertise with your vision, ScrewFast provides exceptional service and comprehensive solutions in the hardware and construction industry, from consultation to project completion.',
+    'See how Changia takes a campaign from draft to completed payment — from approved campaigns and donor journeys to manager-led push donations, with audit-ready transparency at every step.',
   openGraph: {
-    title: 'Expert Consultation Services | ScrewFast',
+    title: 'How It Works | Changia',
     description:
-      'Uniting expertise with your vision, ScrewFast provides exceptional service and comprehensive solutions in the hardware and construction industry, from consultation to project completion.',
+      'See how Changia takes a campaign from draft to completed payment — from approved campaigns and donor journeys to manager-led push donations, with audit-ready transparency at every step.',
   },
 };
 
@@ -41,47 +41,47 @@ interface Article {
 const articles: Article[] = [
   {
     isRightSection: true,
-    title: 'Delivering Expert Guidance',
+    title: 'From Draft to an Approved Campaign',
     subTitle:
-      'Embarking on a construction project can be overwhelming. With our professional consultation services, we guide you through every stage, ensuring you make informed decisions. Whether you are a DIY enthusiast or a skilled contractor, our experts are on hand to offer tailored advice on product selection, project scope, and compliance with local regulations.',
+      'Organization administrators create a campaign with a purpose amount, a configurable service fee, a public target, a deadline and a state that moves from draft to approved to active. Campaign managers are assigned per campaign, so every request stays tied to the right person and the right rules.',
     single: false,
     imgOne: blueprints,
-    imgOneAlt: 'Blueprints and digital tablet with construction plans.',
+    imgOneAlt: 'Campaign setup worksheet and digital planning tools.',
     imgTwo: personWorking,
-    imgTwoAlt: 'Person working in the office',
+    imgTwoAlt: 'Organization administrator approving a campaign',
   },
   {
     isRightSection: false,
-    title: 'Transforming Designs into Reality',
+    title: 'The Donor Journey to a Completed Payment',
     subTitle:
-      'Our skilled craftsmen bring precision and excellence to every construction project. From minor installations to substantial structural work, ScrewFast offers reliable construction services to turn your plans into tangible outcomes. We ensure the highest standards of safety and workmanship, utilizing top-quality tools and materials from our extensive inventory.',
+      "A donor opens a short link from SMS, WhatsApp, email or a QR poster, chooses or confirms an amount, and approves the payment in the gateway prompt with their own PIN. Only a verified callback creates the donation — donors get a receipt and a live progress update, and the campaign total is updated exactly once.",
     img: beforeAfter,
-    imgAlt: 'Construction site before and after',
+    imgAlt: 'Campaign progress before and after verified donations',
     btnExists: true,
-    btnTitle: 'Learn More',
-    btnURL: '#',
+    btnTitle: 'Explore the Modules',
+    btnURL: '/products',
   },
   {
     isRightSection: true,
-    title: 'Navigating Projects with Professional Oversight',
+    title: 'Manager-Led Field Fundraising',
     subTitle:
-      'Effective project management is at the heart of any successful build. ScrewFast provides thorough planning and robust management services that keep your project on time and within budget. Let us handle the complexities of workflow coordination, resource allocation, and stakeholder communication while you focus on your vision.',
+      'Campaign managers search or add consented donors, enter an agreed amount and send an instant push donation request. The donor confirms with their PIN, and rate limits plus a cooling period protect against duplicate or unwanted requests. Managers track their results without ever touching withdrawals.',
     single: false,
     imgOne: constructionWorkers,
-    imgOneAlt: 'Construction workers orchestrating a project',
+    imgOneAlt: 'Fundraising manager reviewing assigned campaigns',
     imgTwo: aerialView,
-    imgTwoAlt: 'Aerial view of managed construction',
+    imgTwoAlt: 'Overview of campaign progress and manager performance',
   },
   {
     isRightSection: false,
-    title: 'Ensuring Long-lasting Performance',
+    title: 'Trust, Audit and Ongoing Support',
     subTitle:
-      "Our commitment to your project doesn't end at completion. ScrewFast offers ongoing maintenance and support services to ensure your construction's longevity and performance. From regular check-ups to emergency assistance, our responsive team is there to provide seamless support.",
+      "Every request, attempt and callback is logged for reconciliation, with integer TZS amounts and immutable audit events. Our team is there after launch with training, a 30-day defect warranty and a clear path to the next module whenever you're ready.",
     img: usingTools,
-    imgAlt: 'Professionals using ScrewFast tools on a maintenance job',
+    imgAlt: 'Team monitoring verified callbacks and audit events',
     btnExists: true,
-    btnTitle: 'Schedule a Consultation',
-    btnURL: '#',
+    btnTitle: 'Contact the Team',
+    btnURL: '/contact',
   },
 ];
 
@@ -89,11 +89,11 @@ export default function ServicesPage() {
   return (
     <>
       <MainSection
-        title="Uniting Expertise with Your Vision"
-        subTitle="At ScrewFast, we take pride in providing comprehensive solutions and exceptional service in the hardware and construction industry. Our experienced team is dedicated to supporting your project from inception to completion with a range of specialized services."
+        title="Fundraising That Inspires Trust"
+        subTitle="Changia combines mass digital fundraising with manager-led field fundraising. From a clear campaign page to a verified mobile-money payment, every step is designed to reduce friction and keep the books transparent."
         btnExists
-        btnTitle="Schedule a Consultation"
-        btnURL="#"
+        btnTitle="Start a Campaign"
+        btnURL="/contact"
       />
 
       {articles.map((article) =>
@@ -126,14 +126,14 @@ export default function ServicesPage() {
       )}
 
       <FeaturesStats
-        title="By the Numbers"
-        subTitle="Our commitment to quality and reliability is evident in every project we undertake. At ScrewFast, we are dedicated to delivering industry-leading services that ensure your construction projects are built to last."
-        mainStatTitle="96%"
-        mainStatSubTitle="of our clients rate their experience with ScrewFast as exceptional"
+        title="Changia by the Numbers"
+        subTitle="Our commitment to transparency and reliability is built into every module. We design for verified payments, clear fees and audit-ready records."
+        mainStatTitle="TZS 1,000"
+        mainStatSubTitle="minimum donation set on every Changia campaign"
         stats={[
-          { stat: '99.8%', description: 'project completion rate' },
-          { stat: '5,000+', description: 'successful installations' },
-          { stat: '85%', description: 'client growth year-over-year' },
+          { stat: '5%', description: 'configurable campaign-level service fee' },
+          { stat: '600,000', description: 'total TZS development for the three-module MVP' },
+          { stat: '3', description: 'independent, payable MVP modules' },
         ]}
       />
     </>

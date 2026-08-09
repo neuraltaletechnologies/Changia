@@ -1,37 +1,38 @@
 ---
-title: "L'impact des pratiques durables"
-description: "Découvrez comment ScrewFast mène la charge en promouvant la durabilité dans l'industrie de la construction"
+title: 'Un modèle de frais de service transparent : pourquoi Changia facture au niveau de la campagne'
+description: "Comment des frais de service au niveau de la campagne préservent l'honnêteté de la progression des donateurs et la pérennité de la plateforme."
 cardImage: '@/images/insights/insight-3.avif'
-cardImageAlt: "Vue de dessus de l'agencement des outils mécaniques"
+cardImageAlt: 'Décomposition de l’objectif de campagne : montant prévu plus frais de service'
 ---
 
-L'industrie de la construction projette une longue ombre. Bien qu'elle fournisse l'infrastructure essentielle à nos vies, son impact environnemental est indéniable. De l'épuisement des ressources et la pollution à la consommation d'énergie et à la génération de déchets, les pratiques de construction traditionnelles pèsent lourdement sur notre planète. Mais une révolution est en marche, et à l'avant-garde se trouve ScrewFast, une entreprise qui change la donne de manière démonstrative avec son engagement envers des pratiques durables.
+La manière dont une plateforme de collecte facture son service en dit long sur ceux à qui elle s'adresse. Facturez par don et les donateurs verront leurs TZS 1 000 arriver comme TZS 950 — une progression qui érode silencieusement la confiance. Facturez par abonnement et le coût d'une organisation ne correspond à rien. Changia utilise un troisième modèle : des frais de service configurables ajoutés au montant requis de la campagne. Voici pourquoi cette seule décision maintient l'honnêteté de tout le modèle.
 
-## L'ampleur du défi
+## Le problème des frais par don
 
-Imaginez ceci : l'industrie de la construction est responsable de 36 % de la consommation énergétique mondiale et de 40 % des émissions totales de CO2 [1]. Et ce n'est pas tout. Les bâtiments et la construction sont des contributeurs majeurs à la génération de déchets solides, représentant jusqu'à 40 %, et consomment 30 % des matières premières mondiales [1]. Ces statistiques dressent un tableau clair : continuer comme avant est tout simplement insoutenable.
+Des frais déduits de chaque contribution sont invisibles sur le reçu du donateur mais visibles sur le solde de la campagne. Chaque don réduit avant d'atteindre l'objectif rend la barre de progression publique mensongère, et l'organisation doit expliquer pourquoi l'argent collecté ne correspond jamais à l'argent annoncé.
 
-## ScrewFast : construire avec responsabilité
+Les frais par don compliquent aussi la réconciliation : montants variables, arrondis et remboursements se multiplient. La charge comptable retombe exactement là où l'organisation est la moins équipée pour la gérer.
 
-ScrewFast est une entreprise fondée sur la responsabilité. Ils comprennent le coût environnemental de la construction et prennent des mesures décisives pour changer de cap. Leur engagement envers la durabilité imprègne tous les aspects de leurs opérations, des matériaux qu'ils utilisent aux processus de construction qu'ils mettent en œuvre.
+## Le modèle au niveau de la campagne
 
-- **Innovation matérielle :** ScrewFast privilégie l'utilisation de matériaux recyclés et recyclables. Cela réduit non seulement la dépendance aux ressources vierges, mais diminue également la charge environnementale associée à l'extraction des ressources.
-- **Efficacité énergétique :** ScrewFast défend les méthodes de construction écoénergétiques. Cela peut impliquer l'incorporation de matériaux d'isolation haute performance, l'optimisation de la conception des bâtiments pour la lumière naturelle et la ventilation, ou même l'intégration de sources d'énergie renouvelable comme les panneaux solaires. Le résultat ? Des bâtiments nécessitant moins d'énergie pour fonctionner, entraînant une réduction significative des émissions de gaz à effet de serre.
-- **Réduction des déchets :** ScrewFast planifie et exécute minutieusement des projets pour minimiser la génération de déchets. Cela peut impliquer l'utilisation de composants préfabriqués, l'emploi de techniques de construction modulaire et la mise en œuvre de programmes rigoureux de tri et de recyclage des déchets. En minimisant les déchets, ScrewFast conserve les ressources et réduit l'impact environnemental associé aux décharges.
-- **Approvisionnement durable :** ScrewFast adopte une approche responsable de l'approvisionnement en matériaux. Ils privilégient les fournisseurs qui partagent leur engagement envers la durabilité. Cela garantit que l'empreinte environnementale est prise en compte tout au long de la chaîne d'approvisionnement.
+Le modèle de Changia est simple. Lorsqu'une campagne est créée, des frais de service — par exemple 5 % — sont calculés à partir du montant prévu et ajoutés à celui-ci. L'objectif public de collecte inclut donc les frais de la plateforme dès le départ.
 
-## L'impact du changement
+Le résultat est une progression honnête. Chaque don individuel est crédité à sa pleine valeur, de sorte que TZS 1 000 donnés équivalent à TZS 1 000 affichés. Les donateurs voient l'objectif total, le montant collecté et la différence exacte — sans surprise arithmétique à la fin.
 
-L'engagement de ScrewFast envers les pratiques durables s'étend bien au-delà des murs de leur entreprise. L'effet d'entraînement de leurs actions est substantiel :
+## Un exemple concret : le Fonds pour la Chirurgie des Enfants
 
-- **Avantages environnementaux :** En promouvant la conservation des ressources, la réduction de la consommation d'énergie et la minimisation des déchets, ScrewFast contribue de manière significative à une planète plus saine. Cela se traduit par un air plus pur, un climat plus stable et la préservation des ressources naturelles pour les générations futures.
-- **Avantages économiques :** Les pratiques de construction durables conduisent souvent à des avantages économiques à long terme. Les bâtiments écoénergétiques ont des coûts opérationnels plus bas, et les matériaux durables peuvent parfois être étonnamment compétitifs en termes de coûts. ScrewFast démontre qu'être vert peut aussi être bon pour les résultats financiers.
-- **Responsabilité sociale :** ScrewFast reconnaît que la durabilité englobe plus que l'environnement. Ils s'engagent à créer des environnements de travail sûrs et sains pour leurs employés et à favoriser des relations positives avec les communautés dans lesquelles ils opèrent.
+Considérons une campagne avec un montant prévu de TZS 10 000 000 et des frais Changia de 5 %. Les frais de service s'élèvent à TZS 500 000 et l'objectif public de collecte devient TZS 10 500 000. Une fois l'objectif pleinement atteint, l'allocation du propriétaire est de TZS 10 000 000 et l'allocation de Changia de TZS 500 000.
 
-## Donner l'exemple
+Parce que les frais sont divulgués et fixés à l'avance, chaque partie prenante peut vérifier le calcul. Le propriétaire de la campagne voit exactement ce qu'il recevra ; les donateurs voient exactement ce que l'appel doit collecter.
 
-ScrewFast ne se contente pas de parler, ils agissent. Leur engagement envers la durabilité est évident dans chaque projet qu'ils entreprennent. En montrant les avantages tangibles de la construction durable, ScrewFast inspire un changement de paradigme au sein de l'industrie. Ils ouvrent la voie à un avenir où les bâtiments sont non seulement fonctionnels, mais aussi respectueux de l'environnement.
+## Ce qui reste hors des frais
 
-## La route à suivre
+La transparence signifie aussi clarifier ce que les frais ne couvrent pas. Les frais de la passerelle de paiement, les factures SMS et de messagerie, le domaine et l'hébergement, ainsi que les conseils juridiques et fiscaux sont des coûts externes traités avec les fournisseurs concernés. Sur la page de campagne et dans les écrans d'approbation du propriétaire, les frais de l'écosystème sont divulgués afin que personne ne reçoive de surprise au règlement.
 
-L'industrie de la construction est à la croisée des chemins. ScrewFast se dresse comme un phare, éclairant la voie vers un avenir plus durable. En adoptant des pratiques innovantes et en donnant la priorité à la responsabilité environnementale, ScrewFast ne se contente pas de construire des structures ; ils construisent un avenir meilleur. À mesure que de plus en plus d'entreprises emboîtent le pas, l'impact sera profond. Une industrie de la construction plus verte signifie une planète plus saine pour tous.
+## Obligations de transparence
+
+Un modèle de frais ne gagne la confiance que s'il est divulgué. La page publique de campagne et l'écran d'approbation du propriétaire doivent indiquer le montant prévu, les frais de service applicables, l'objectif public de collecte, les frais de passerelle ou de télécommunication applicables, ainsi que la politique de clôture et de versement. Lorsque chaque chiffre est visible, il n'y a plus rien à contester.
+
+## Conclusion
+
+Des frais au niveau de la campagne sont une petite décision de conception aux grandes conséquences. Ils rendent les barres de progression véridiques, la réconciliation simple et les discussions sur l'argent rares. Pour les organisations, c'est la différence entre une plateforme qui collecte des fonds et une qui construit une confiance durable.

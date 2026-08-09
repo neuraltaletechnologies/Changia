@@ -1,6 +1,6 @@
 {
-  "name": "screwfast-template",
-  "version": "0.0.1",
+  "name": "changia",
+  "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",

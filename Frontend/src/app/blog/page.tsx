@@ -7,20 +7,20 @@ import { getBlogEntries, getInsightEntries } from '@/lib/content';
 export const metadata: Metadata = {
   title: 'Blog',
   description:
-    "Stay up-to-date with the latest trends and developments in the construction industry with insights from ScrewFast's team of industry experts.",
+    'Stay up-to-date with the latest trends and developments in digital fundraising and mobile-money giving, with insights from the Changia team.',
   openGraph: {
-    title: 'Construction Industry Blog | ScrewFast',
+    title: 'Digital Fundraising Blog | Changia',
     description:
-      "Stay up-to-date with the latest trends and developments in the construction industry with insights from ScrewFast's team of industry experts.",
+      'Stay up-to-date with the latest trends and developments in digital fundraising and mobile-money giving, with insights from the Changia team.',
   },
 };
 
-const title = 'Your Gateway to Construction Excellence';
+const title = 'Stories from Changia & the Fundraising Community';
 const subTitle =
-  'Explore the latest news, tips, and insights from ScrewFast to enhance your construction projects. From product spotlights to project management strategies, our blog is your go-to resource for all things hardware and construction.';
+  'Explore the latest news, tips and insights from the Changia team. From campaign setup to mobile-money donor journeys, our blog helps you turn good intentions into completed payments.';
 const secondTitle = 'Insights';
 const secondSubTitle =
-  "Stay up-to-date with the latest trends and developments in the construction industry with insights from ScrewFast's team of industry experts.";
+  'Long reads on digital fundraising, donor trust and transparent mobile-money giving in Tanzania.';
 
 export default function BlogIndexPage() {
   const blogPosts = getBlogEntries('en').sort(

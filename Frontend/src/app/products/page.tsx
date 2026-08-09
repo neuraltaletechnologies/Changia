@@ -7,44 +7,44 @@ import TestimonialsSectionAlt from '@components/sections/testimonials/Testimonia
 import { getProductEntries } from '@/lib/content';
 
 export const metadata: Metadata = {
-  title: 'Products',
+  title: 'Modules',
   description:
-    'Explore the durability and precision of ScrewFast tools, designed for both professionals and enthusiasts.',
+    'Explore the three modules of the Changia MVP: Core Platform & Donor Pool, Campaign Link Distribution and Instant Push Donation.',
   openGraph: {
-    title: 'Hardware Tools | ScrewFast',
+    title: 'Changia MVP Modules | Changia',
     description:
-      'Explore the durability and precision of ScrewFast tools, designed for both professionals and enthusiasts.',
+      'Explore the three modules of the Changia MVP: Core Platform & Donor Pool, Campaign Link Distribution and Instant Push Donation.',
   },
 };
 
-const title = 'Products';
+const title = 'Modules';
 const subTitle =
-  'Explore the durability and precision of ScrewFast tools, designed for both professionals and enthusiasts. Each of our products is crafted with precision and built to last, ensuring you have the right tool for every job.';
+  'Explore the three independent, payable modules of the Changia MVP. Each module delivers a primary outcome — from a secure core platform and donor pool to campaign link distribution and manager-led push donations.';
 
 const testimonials = [
   {
     content:
-      '"Since switching to ScrewFast\'s hardware tools, the efficiency on our construction sites has skyrocketed. The durability of the hex bolts and precision of the machine screws are simply unmatched. It\'s refreshing to work with a company that truly understands the daily demands of the industry."',
-    author: 'Jason Clark',
-    role: 'Site Foreman | TopBuild',
+      'As our launch partner, we could set up a secure dashboard, manage users by role, and keep an audit-ready donor pool from day one. Module 1 gave us the foundation we needed to run campaigns people can trust.',
+    author: 'Dr. Msuya',
+    role: 'Organization Administrator | Initial Launch Partner',
     avatarSrc:
       'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=1374&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=facearea&facepad=2&w=320&h=320&q=80',
     avatarAlt: 'Image Description',
   },
   {
     content:
-      '"As an interior designer, I\'m always looking for high-quality materials and tools that help bring my visions to life. ScrewFast\'s mixed screws assortment has been a game-changer for my projects, providing the perfect blend of quality and variety. The outstanding customer support was just the cherry on top!"',
-    author: 'Maria Gonzalez',
-    role: 'Interior Designer | Creative Spaces',
+      'With the campaign link module, we turn radio and WhatsApp listeners into donors. A short link, a QR code and a mobile-first campaign page — from TZS 1,000 — and every verified contribution updates the progress bar.',
+    author: 'Amadi Kimaro',
+    role: 'Campaign Manager | Community Health Fund',
     avatarSrc:
       'https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=1376&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D8&auto=format&fit=facearea&facepad=2&w=320&h=320&q=80',
     avatarAlt: 'Image Description',
   },
   {
     content:
-      "\"I've been a professional carpenter for over 15 years, and I can sincerely say that ScrewFast's tap bolts and nuts are some of the best I've used. They grip like no other, and I have full confidence in every joint and fixture. Plus, the service is impeccable – they truly care about my project's success.\"",
-    author: 'Richard Kim',
-    role: 'Master Carpenter | WoodWright',
+      "The instant push donation is the innovation we've been waiting for. After a face-to-face conversation and agreement, the donor receives a direct payment request and confirms with their own PIN. Verified callbacks mean our totals are always exact.",
+    author: 'Neema Mushi',
+    role: 'Field Fundraising Lead',
     avatarSrc:
       'https://images.unsplash.com/photo-1474176857210-7287d38d27c6?q=80&w=1470&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D8&auto=format&fit=facearea&facepad=2&w=320&h=320&q=80',
     avatarAlt: 'Image Description',
@@ -70,7 +70,7 @@ export default function ProductsIndexPage() {
               </p>
             ) : null}
           </div>
-          <PrimaryCTA title="Customer Stories" url="#testimonials" noArrow />
+          <PrimaryCTA title="Campaign Stories" url="#testimonials" noArrow />
         </div>
 
         <section className="grid grid-cols-1 gap-4 sm:grid-cols-3 md:gap-6 xl:gap-8">
@@ -85,16 +85,16 @@ export default function ProductsIndexPage() {
       </div>
 
       <FeaturesStatsAlt
-        title="Why Choose ScrewFast?"
-        subTitle="Transform your ideas into tangible results with ScrewFast tools. Whether you're starting with a sketch on a napkin or diving into a comprehensive construction project, our tools are engineered to help you build with confidence."
+        title="Why Choose Changia?"
+        subTitle="Changia is built for Tanzanian mobile-money workflows from the ground up. Whether you're launching your first campaign or running a nation-wide appeal, the platform is engineered to convert willingness to help into completed payments."
         benefits={[
-          'Robust and reliable tools for long-lasting performance.',
-          'Innovative solutions tailored to modern construction needs.',
-          "Customer support dedicated to your project's success.",
+          'A secure, mobile-first foundation designed for low-bandwidth devices.',
+          'Consent-aware donor management with opt-out controls.',
+          'Verified callbacks and audit-ready records your donors can trust.',
         ]}
       />
 
-      <TestimonialsSectionAlt title="What Our Customers Say" testimonials={testimonials} />
+      <TestimonialsSectionAlt title="What Campaign Owners Say" testimonials={testimonials} />
     </>
   );
 }

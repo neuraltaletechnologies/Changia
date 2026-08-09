@@ -1,29 +1,29 @@
 {
-  "subTitle": "Ask us anything about our brand and products, and get factual responses.",
+  "subTitle": "Ask us anything about Changia and how the platform works.",
   "faqs": [
     {
-      "question": "What types of tools are included in the Starter Kit?",
-      "answer": "The Starter Kit features essential hand and power tools for diverse DIY projects, including hammers, drills, screwdrivers, and a variety of fasteners. It's a curated selection to help beginners and experienced DIYers alike tackle most home improvement tasks."
+      "question": "What is Changia?",
+      "answer": "Changia is a Tanzania-first digital fundraising platform that helps people and organizations collect small mobile-money contributions with less friction. It combines mass digital fundraising with manager-led field fundraising, giving campaign owners a stronger way to convert willingness to help into a completed payment."
     },
     {
-      "question": "Can I upgrade from the Starter Kit to the Professional Toolbox?",
-      "answer": "Absolutely! You can upgrade to the Professional Toolbox at any time to access a wider range of high-quality tools, enjoy priority customer support, and receive exclusive content. Contact our support team for a seamless transition."
+      "question": "Which mobile-money services can donors use?",
+      "answer": "Donors contribute through the supported mobile-money gateway selected for a campaign — for example M-Pesa, Tigo Pesa, Airtel Money and HaloPesa. Donors confirm payments with their own PIN in the gateway's approval prompt; Changia never sees or stores a PIN."
     },
     {
-      "question": "What discounts are available for bulk orders through the Professional Toolbox plan?",
-      "answer": "Professional Toolbox members are entitled to exclusive discounts on bulk orders, the percentage of which may vary depending on the order volume. Get in touch with us to discuss your needs, and we'll provide a tailored discount structure."
+      "question": "How does Changia charge for its service?",
+      "answer": "Changia does not deduct a fee from individual donations. A configurable service fee (for example 5%) is added to the required campaign amount when the campaign is created, so every contribution is credited at full face value and the public collection target includes the platform fee."
     },
     {
-      "question": "What kind of customer support can I expect?",
-      "answer": "All our customers receive dedicated email support. With the Starter Kit, you'll receive our standard support, while the Professional Toolbox plan upgrades you to priority support, meaning faster response times and specialized assistance."
+      "question": "What is an Instant Push Donation?",
+      "answer": "A campaign manager who has spoken to a donor and obtained agreement enters the donor's phone number and the agreed amount, then sends a payment request. The donor receives the authorized gateway prompt and confirms with their PIN. No donation is recorded until a verified callback confirms success."
     },
     {
-      "question": "How current are the online resources and tutorials?",
-      "answer": "We regularly update our online resources and tutorials to reflect the latest trends in DIY and construction, as well as introductions to new tools and techniques. Our material aims to be comprehensive and user-friendly for all skill levels."
+      "question": "How is a confirmed donation counted?",
+      "answer": "Only a verified successful callback creates a confirmed donation. Payment attempts use unique idempotency keys so the same gateway event is never counted twice, and campaign totals use confirmed donations only."
     },
     {
-      "question": "Does ScrewFast offer services for large-scale construction projects?",
-      "answer": "Yes, our Enterprise Solutions are designed for larger companies requiring comprehensive services. We provide consultation, planning, and supply of high-grade tools and materials, as well as staffing solutions for substantial construction needs. Contact us for a customized quote."
+      "question": "Can donors be sent promotional messages?",
+      "answer": "Only consented donors can receive promotional communication. Managers record consent status and preferred channel, and the platform provides opt-out and suppression management for SMS, WhatsApp and email campaigns."
     }
   ]
 }

@@ -8,7 +8,7 @@ import Icon from '@/components/ui/icons/Icon';
 
 const title = 'Contactez-nous';
 const subTitle =
-  "Vous avez des questions ou souhaitez discuter d'un projet ? Contactez-nous et laissons-nous élaborer la solution parfaite avec nos outils et services.";
+  "Vous avez une idée de campagne ou des questions sur la plateforme ? Contactez-nous et planifions ensemble votre déploiement Changia.";
 const formTitle = 'Remplissez le formulaire ci-dessous';
 const formSubTitle = 'Nous vous répondrons dans un délai de 1 à 2 jours ouvrables.';
 
@@ -34,7 +34,7 @@ export default function ContactSectionFr() {
               <div className="grid gap-4">
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <TextInput id="hs-firstname-contacts" label="Prénom" name="hs-firstname-contacts" />
-                  <TextInput id="hs-lastname-contacts" label="Nom" name="hs-firstname-contacts" />
+                  <TextInput id="hs-lastname-contacts" label="Nom" name="hs-lastname-contacts" />
                 </div>
                 <EmailContactInput id="hs-email-contacts" />
                 <PhoneInput id="hs-phone-number" />
@@ -51,8 +51,8 @@ export default function ContactSectionFr() {
 
           <div className="divide-y divide-neutral-300 dark:divide-neutral-700">
             <ContactIconBlock
-              heading="Base de connaissances"
-              content="Parcourez tous nos articles de base de connaissances."
+              heading="Guides et documentation"
+              content="Parcourez nos guides de la plateforme et nos bonnes pratiques de campagne."
               isLinkVisible
               linkTitle="Visiter les guides et tutoriels"
               linkURL="#"
@@ -62,7 +62,7 @@ export default function ContactSectionFr() {
             </ContactIconBlock>
             <ContactIconBlock
               heading="FAQ"
-              content="Explorez notre FAQ pour des réponses rapides et claires aux questions courantes."
+              content="Explorez notre FAQ pour des réponses claires sur les campagnes, les donateurs et les frais."
               isLinkVisible
               linkTitle="Visiter la FAQ"
               linkURL="#"
@@ -71,10 +71,10 @@ export default function ContactSectionFr() {
               <Icon name="chatBubble" />
             </ContactIconBlock>
             <ContactIconBlock
-              heading="Visitez notre bureau"
-              content="ScrewFast UK"
+              heading="Où nous travaillons"
+              content="Tanzanie — remote-first"
               isAddressVisible
-              addressContent="72 Union Terrace, E10 4PE London"
+              addressContent="Un accompagnement dans tout le pays"
             >
               <Icon name="mapPin" />
             </ContactIconBlock>
@@ -82,7 +82,7 @@ export default function ContactSectionFr() {
               heading="Contactez-nous par e-mail"
               content="Préférez-vous le texte écrit ? Envoyez-nous un e-mail à"
               isLinkVisible
-              linkTitle="support@screwfast.uk"
+              linkTitle="hello@changia.co"
               linkURL="#"
             >
               <Icon name="envelopeOpen" />

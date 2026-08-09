@@ -7,20 +7,20 @@ import { getBlogEntries, getInsightEntries } from '@/lib/content';
 export const metadata: Metadata = {
   title: 'Blog',
   description:
-    "Restez informé des dernières tendances et évolutions dans le secteur de la construction avec les analyses de l'équipe d'experts de ScrewFast.",
+    "Restez informé des dernières tendances et évolutions de la collecte de fonds numérique et du don mobile money, avec les analyses de l'équipe Changia.",
   openGraph: {
-    title: "Blog de l'Industrie de la Construction | ScrewFast",
+    title: 'Blog de la collecte de fonds numérique | Changia',
     description:
-      "Restez informé des dernières tendances et évolutions dans le secteur de la construction avec les analyses de l'équipe d'experts de ScrewFast.",
+      "Restez informé des dernières tendances et évolutions de la collecte de fonds numérique et du don mobile money, avec les analyses de l'équipe Changia.",
   },
 };
 
-const title = "Votre Passerelle vers l'Excellence en Construction";
+const title = "Histoires de Changia et de la communauté de collecte de fonds";
 const subTitle =
-  'Explorez les dernières actualités, astuces et analyses de ScrewFast pour améliorer vos projets de construction. Des mises en avant de produits aux stratégies de gestion de projet, notre blog est votre ressource incontournable pour tout ce qui concerne les outils et la construction.';
+  "Explorez les dernières actualités, astuces et analyses de l'équipe Changia. De la configuration des campagnes aux parcours de donateurs mobile money, notre blog vous aide à transformer les bonnes intentions en paiements effectués.";
 const secondTitle = 'Perspectives';
 const secondSubTitle =
-  "Restez à jour avec les dernières tendances et évolutions de l'industrie de la construction grâce aux analyses de l'équipe d'experts de ScrewFast.";
+  "Des lectures approfondies sur la collecte de fonds numérique, la confiance des donateurs et le don mobile money transparent en Tanzanie.";
 
 export default function FrenchBlogIndexPage() {
   const blogPosts = getBlogEntries('fr').sort(

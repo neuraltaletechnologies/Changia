@@ -26,9 +26,9 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   if (!post) return { title: 'Blog' };
   return {
     title: post.data.title,
-    description: post.data.contents[0] || `Read ${post.data.title} on ScrewFast's blog`,
+    description: post.data.contents[0] || `Read ${post.data.title} on the Changia blog`,
     openGraph: {
-      title: `${post.data.title} | Blog | ScrewFast`,
+      title: `${post.data.title} | Blog | Changia`,
       description: post.data.contents[0],
     },
   };

@@ -1,22 +1,22 @@
 [
   {
-    "heading": "Dedicated Teams",
-    "content": "Benefit from our committed teams who ensure your success is personal. Count on expert guidance and exceptional results throughout your project journey.",
+    "heading": "Consent-Aware Donor Pool",
+    "content": "Add, tag, import and search donors with recorded consent status, contact history and preferred channel — with opt-out controls for SMS, WhatsApp and email.",
     "svg": "groups"
   },
   {
-    "heading": "Simplicity and Affordability",
-    "content": "Find easy-to-use, affordable solutions with ScrewFast's line of tools and equipment. Our products make procurement simple and keep projects within budget.",
+    "heading": "Mobile-Money First",
+    "content": "Donors give with the payments they already use. Campaign pages open on any smartphone, and the PIN is entered only in the gateway's own approval prompt — never stored or seen by Changia.",
     "svg": "verified"
   },
   {
-    "heading": "Comprehensive Documentation",
-    "content": "Integrate with ease using ScrewFast's exhaustive guides and libraries. Achieve seamless product adoption with our full suite of documentation designed for your success.",
+    "heading": "Shareable Campaign Links",
+    "content": "Publish a campaign, generate a short link and QR code, and send approved SMS, WhatsApp or email templates to your consented donor pool in minutes.",
     "svg": "books"
   },
   {
-    "heading": "User-Centric Design",
-    "content": "Experience the difference with ScrewFast's user-focused design — where functionality meets practicality for an enhanced work experience.",
+    "heading": "Audit-Ready by Design",
+    "content": "Verified callbacks, idempotent payment handling, integer TZS amounts and immutable audit events keep every shilingi accountable.",
     "svg": "frame"
   }
 ]

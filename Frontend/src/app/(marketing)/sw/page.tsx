@@ -44,7 +44,7 @@ export default function SwahiliHomePage() {
         title='Kusanya michango midogo ya mobile money kwa <span class="text-yellow-500 dark:text-yellow-400">usumbufu mdogo</span>'
         subTitle="Changia ni jukwaa la kitanzania la ukusanyaji fedha, mobile money kwanza. Wamiliki wa kampeni huunda ukurasa wazi, hushiriki kiungo, na kubadilisha nia ya mfadhili ya kusaidia kuwa malipo yaliyofanyika."
         primaryBtn="Anzisha kampeni"
-        primaryBtnURL="/sw/contact"
+        primaryBtnURL="/login?redirect=%2Fdashboard%2Fcampaigns%2Fnew"
         secondaryBtn="Chunguza moduli"
         secondaryBtnURL="/sw/products"
         withReview

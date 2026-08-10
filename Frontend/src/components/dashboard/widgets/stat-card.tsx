@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { cn } from "@/lib/dashboard/utils";
 import { LucideIcon, TrendingUp, TrendingDown, Minus } from "lucide-react";
 
@@ -9,6 +10,7 @@ interface StatCardProps {
   trend?: number; // percentage
   iconBg?: string;
   iconColor?: string;
+  href?: string;
 }
 
 export function StatCard({
@@ -19,12 +21,13 @@ export function StatCard({
   trend,
   iconBg = "bg-primary/10",
   iconColor = "text-primary",
+  href,
 }: StatCardProps) {
   const trendPositive = trend !== undefined && trend > 0;
   const trendNeutral = trend === undefined || trend === 0;
 
-  return (
-    <div className="bg-card border border-border rounded-xl p-5 flex flex-col gap-3 shadow-sm hover:shadow-md transition-shadow">
+  const content = (
+    <>
       <div className="flex items-start justify-between">
         <div className={cn("w-9 h-9 rounded-lg flex items-center justify-center shrink-0", iconBg)}>
           <Icon className={cn("w-4 h-4", iconColor)} />
@@ -54,6 +57,20 @@ export function StatCard({
         <p className="text-xs text-muted-foreground mt-1">{label}</p>
         {sub && <p className="text-[11px] text-muted-foreground/70 mt-0.5">{sub}</p>}
       </div>
-    </div>
+    </>
   );
+
+  const cardClasses =
+    "bg-card border border-border rounded-xl p-5 flex flex-col gap-3 shadow-sm hover:shadow-md transition-shadow";
+
+  if (href) {
+    return (
+      <Link href={href} className={cardClasses}>
+        {content}
+      </Link>
+    );
+  }
+
+  return <div className={cardClasses}>{content}</div>;
 }
+

@@ -93,7 +93,7 @@ export default function ServicesPage() {
         subTitle="Changia combines mass digital fundraising with manager-led field fundraising. From a clear campaign page to a verified mobile-money payment, every step is designed to reduce friction and keep the books transparent."
         btnExists
         btnTitle="Start a Campaign"
-        btnURL="/contact"
+        btnURL="/login?redirect=%2Fdashboard%2Fcampaigns%2Fnew"
       />
 
       {articles.map((article) =>

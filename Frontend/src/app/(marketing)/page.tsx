@@ -44,7 +44,7 @@ export default function HomePage() {
         title='Collect small mobile-money contributions with <span class="text-yellow-500 dark:text-yellow-400">less friction</span>'
         subTitle="Changia is a Tanzania-first, mobile-money-first fundraising platform. Campaign owners create a clear campaign page, share a link, and turn a donor's willingness to help into a completed payment."
         primaryBtn="Start a Campaign"
-        primaryBtnURL="/contact"
+        primaryBtnURL="/login?redirect=%2Fdashboard%2Fcampaigns%2Fnew"
         secondaryBtn="Explore the Modules"
         secondaryBtnURL="/products"
         withReview

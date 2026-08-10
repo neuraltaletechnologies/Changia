@@ -35,6 +35,7 @@ export default function DashboardPage() {
           trend={8.3}
           iconBg="bg-sky-50"
           iconColor="text-sky-600"
+          href="/dashboard/donors"
         />
         <StatCard
           label="Active Campaigns"
@@ -44,6 +45,7 @@ export default function DashboardPage() {
           trend={25}
           iconBg="bg-emerald-50"
           iconColor="text-emerald-600"
+          href="/dashboard/campaigns"
         />
         <StatCard
           label="Total Raised"
@@ -53,6 +55,7 @@ export default function DashboardPage() {
           trend={12.4}
           iconBg="bg-amber-50"
           iconColor="text-amber-600"
+          href="/dashboard/campaigns"
         />
         <StatCard
           label="Avg Gift Size"
@@ -62,6 +65,7 @@ export default function DashboardPage() {
           trend={-3.1}
           iconBg="bg-rose-50"
           iconColor="text-rose-500"
+          href="/dashboard/donors"
         />
       </div>
 

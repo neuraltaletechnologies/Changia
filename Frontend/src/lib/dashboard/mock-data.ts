@@ -32,15 +32,21 @@ export interface Donor {
   notes?: string;
 }
 
+export type CampaignStatus = "active" | "draft" | "completed" | "paused" | "pending";
+
 export interface Campaign {
   id: string;
   name: string;
   goal: number;
   raised: number;
   donors: number;
-  status: "active" | "draft" | "completed" | "paused";
+  status: CampaignStatus;
   startDate: string;
   endDate: string;
+  description?: string;
+  category?: string;
+  contactPhone?: string;
+  submittedAt?: string;
 }
 
 export interface Donation {

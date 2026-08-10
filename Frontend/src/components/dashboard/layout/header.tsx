@@ -121,7 +121,7 @@ export function Header({ onMobileMenuToggle, mobileMenuOpen }: HeaderProps) {
         <DropdownMenu>
           <DropdownMenuTrigger className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-muted transition-colors">
             <Avatar className="w-7 h-7">
-              <AvatarFallback className="text-[11px] bg-primary text-white font-semibold">
+              <AvatarFallback className="text-[11px] bg-primary text-primary-foreground font-semibold">
                 AU
               </AvatarFallback>
             </Avatar>

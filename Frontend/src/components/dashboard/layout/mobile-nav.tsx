@@ -53,9 +53,9 @@ export function MobileNav({ open, onClose }: MobileNavProps) {
         <div className="flex items-center justify-between h-14 px-4 border-b border-sidebar-border shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary shrink-0">
-              <HeartHandshake className="w-4 h-4 text-white" />
+              <HeartHandshake className="w-4 h-4 text-primary-foreground" />
             </div>
-            <span className="font-semibold text-white text-[15px] tracking-tight">
+            <span className="font-semibold text-sidebar-foreground text-[15px] tracking-tight">
               Changia
             </span>
           </div>
@@ -96,7 +96,7 @@ export function MobileNav({ open, onClose }: MobileNavProps) {
                 className={cn(
                   "flex items-center gap-2.5 rounded-md px-3 py-2.5 text-sm transition-colors",
                   active
-                    ? "bg-primary text-white font-medium"
+                    ? "bg-primary text-primary-foreground font-medium"
                     : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                 )}
               >

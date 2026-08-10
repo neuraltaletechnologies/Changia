@@ -97,10 +97,10 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         )}
       >
         <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary shrink-0">
-          <HeartHandshake className="w-4 h-4 text-white" />
+          <HeartHandshake className="w-4 h-4 text-primary-foreground" />
         </div>
         {!collapsed && (
-          <span className="font-semibold text-white text-[15px] tracking-tight">
+          <span className="font-semibold text-sidebar-foreground text-[15px] tracking-tight">
             Changia
           </span>
         )}
@@ -146,7 +146,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                       "flex items-center gap-2.5 rounded-md px-2 py-2 text-sm transition-colors",
                       collapsed && "justify-center",
                       active
-                        ? "bg-primary text-white font-medium"
+                        ? "bg-primary text-primary-foreground font-medium"
                         : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                     )}
                   >

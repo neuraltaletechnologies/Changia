@@ -42,24 +42,19 @@ export const OG = {
 };
 
 export const partnersData = [
+ 
   {
-    icon: `<span class="mx-auto block rounded-xl border border-neutral-300 bg-white px-4 py-3 text-center text-lg font-bold text-neutral-600 sm:mx-0 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">M-Pesa</span>`,
-    name: 'M-Pesa',
+    icon: `<span class="mx-auto block rounded-xl border border-neutral-300 bg-white px-4 py-3 text-center text-lg font-bold text-neutral-600 sm:mx-0 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">Mobile Money</span>`,
+    name: 'Mobile Money',
     href: '#',
   },
   {
-    icon: `<span class="mx-auto block rounded-xl border border-neutral-300 bg-white px-4 py-3 text-center text-lg font-bold text-neutral-600 sm:mx-0 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">Tigo Pesa</span>`,
-    name: 'Tigo Pesa',
+    icon: `<span class="mx-auto block rounded-xl border border-neutral-300 bg-white px-4 py-3 text-center text-lg font-bold text-neutral-600 sm:mx-0 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">Bank</span>`,
+    name: 'Bank',
     href: '#',
-  },
-  {
-    icon: `<span class="mx-auto block rounded-xl border border-neutral-300 bg-white px-4 py-3 text-center text-lg font-bold text-neutral-600 sm:mx-0 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">Airtel Money</span>`,
-    name: 'Airtel Money',
-    href: '#',
-  },
-  {
-    icon: `<span class="mx-auto block rounded-xl border border-neutral-300 bg-white px-4 py-3 text-center text-lg font-bold text-neutral-600 sm:mx-0 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">HaloPesa</span>`,
-    name: 'HaloPesa',
+  },{
+    icon: `<span class="mx-auto block rounded-xl border border-neutral-300 bg-white px-4 py-3 text-center text-lg font-bold text-neutral-600 sm:mx-0 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">AzamPay</span>`,
+    name: 'AzamPay',
     href: '#',
   },
 ];

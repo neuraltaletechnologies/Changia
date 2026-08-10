@@ -1,12 +1,13 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import type { FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import EmailInput from './input/EmailInput';
 import PasswordInput from './input/PasswordInput';
 import Checkbox from './input/Checkbox';
 import AuthBtn from '../buttons/AuthBtn';
 import GoogleBtn from '../buttons/GoogleBtn';
+import { ApiClientError, loginRequest, setSession } from '@/lib/api-client';
 
 const config = {
   id: 'hs-toggle-between-modals-login-modal',
@@ -18,10 +19,29 @@ const config = {
 
 export default function LoginModal() {
   const router = useRouter();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    router.push('/dashboard');
+    setError(null);
+    setLoading(true);
+    try {
+      const { accessToken, user } = await loginRequest(email, password);
+      setSession(accessToken, user);
+      router.push('/dashboard');
+      router.refresh();
+    } catch (err) {
+      setError(
+        err instanceof ApiClientError
+          ? err.message
+          : 'Unable to sign in. Please try again.'
+      );
+      setLoading(false);
+    }
   };
 
   return (
@@ -53,6 +73,16 @@ export default function LoginModal() {
                   </button>
                 </p>
               </div>
+
+              {error ? (
+                <div
+                  className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800/50 dark:bg-red-950/30 dark:text-red-300"
+                  role="alert"
+                >
+                  {error}
+                </div>
+              ) : null}
+
               <div className="mt-5">
                 <GoogleBtn title="Sign in with Google" />
                 <div className="flex items-center py-3 text-xs text-neutral-400 uppercase before:me-6 before:flex-[1_1_0%] before:border-t before:border-neutral-200 after:ms-6 after:flex-[1_1_0%] after:border-t after:border-neutral-200 dark:text-neutral-500 dark:before:border-neutral-600 dark:after:border-neutral-600">
@@ -60,15 +90,30 @@ export default function LoginModal() {
                 </div>
                 <form onSubmit={handleSubmit}>
                   <div className="grid gap-y-4">
-                    <EmailInput id="login-email" errorId="login-email-error" />
+                    <EmailInput
+                      id="login-email"
+                      errorId="login-email-error"
+                      value={email}
+                      onChange={setEmail}
+                    />
                     <PasswordInput
                       forgot
                       id="password"
                       errorId="login-password-error"
                       content="8+ characters required"
+                      value={password}
+                      onChange={setPassword}
                     />
-                    <Checkbox id="remember-me" />
-                    <AuthBtn title="Sign in" />
+                    <Checkbox
+                      id="remember-me"
+                      label="Remember me"
+                      checked={rememberMe}
+                      onChange={setRememberMe}
+                    />
+                    <AuthBtn
+                      title={loading ? 'Signing in…' : 'Sign in'}
+                      disabled={loading}
+                    />
                   </div>
                 </form>
               </div>

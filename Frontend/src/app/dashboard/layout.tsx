@@ -7,6 +7,7 @@ import { Sidebar } from "@/components/dashboard/layout/sidebar";
 import { Header } from "@/components/dashboard/layout/header";
 import { MobileNav } from "@/components/dashboard/layout/mobile-nav";
 import { TooltipProvider } from "@/components/dashboard/ui/tooltip";
+import { AuthGuard } from "@/components/dashboard/auth-guard";
 
 export default function DashboardLayout({
   children,
@@ -18,6 +19,7 @@ export default function DashboardLayout({
 
   return (
     <TooltipProvider delay={200}>
+      <AuthGuard>
       <div className="flex h-screen overflow-hidden bg-background">
         {/* Desktop Sidebar */}
         <Sidebar
@@ -42,6 +44,7 @@ export default function DashboardLayout({
           </main>
         </div>
       </div>
+      </AuthGuard>
     </TooltipProvider>
   );
 }

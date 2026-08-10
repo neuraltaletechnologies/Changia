@@ -2,12 +2,16 @@ type EmailInputProps = {
   label?: string;
   id: string;
   errorId: string;
+  value?: string;
+  onChange?: (value: string) => void;
 };
 
 export default function EmailInput({
   label = 'Email address',
   id,
   errorId,
+  value,
+  onChange,
 }: EmailInputProps) {
   return (
     <div>
@@ -21,6 +25,8 @@ export default function EmailInput({
           name="email"
           autoComplete="email"
           placeholder="you@example.com"
+          value={value}
+          onChange={(e) => onChange?.(e.target.value)}
           className="block w-full rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-700 focus:border-neutral-200 focus:ring-3 focus:ring-neutral-400 focus:outline-hidden disabled:pointer-events-none disabled:opacity-50 dark:border-neutral-600 dark:bg-neutral-700/30 dark:text-neutral-300 dark:focus:ring-1"
           required
           aria-describedby={errorId}

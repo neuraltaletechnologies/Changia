@@ -1,5 +1,6 @@
 type AuthBtnProps = {
   title: string;
+  disabled?: boolean;
 };
 
 const baseClasses =
@@ -11,10 +12,11 @@ const fontSizeClasses = '2xl:text-base';
 const disabledClasses = 'disabled:pointer-events-none disabled:opacity-50';
 const ringClasses = 'ring-zinc-500 dark:ring-zinc-200';
 
-export default function AuthBtn({ title }: AuthBtnProps) {
+export default function AuthBtn({ title, disabled }: AuthBtnProps) {
   return (
     <button
       type="submit"
+      disabled={disabled}
       className={`${baseClasses} ${borderClasses} ${bgColorClasses} ${hoverClasses} ${fontSizeClasses} ${disabledClasses} ${ringClasses}`}
     >
       {title}

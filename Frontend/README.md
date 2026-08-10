@@ -1,4 +1,4 @@
-# Changia — Digital Fundraising & Mobile Money Contribution Platform
+    1111111111111111111111# Changia — Digital Fundraising & Mobile Money Contribution Platform
 
 A Tanzania-first, mobile-money-first platform for simple, transparent, auditable fundraising. This frontend is built with **Next.js 15 (App Router), Tailwind CSS v4, Preline UI, React 19** and content collections for modules, blog and insights (English + French).
 

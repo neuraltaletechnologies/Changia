@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 type LoginBtnProps = {
   title?: string;
 };
@@ -12,10 +14,9 @@ const txtSizeClasses = '2xl:text-base';
 
 export default function LoginBtn({ title = 'Log in' }: LoginBtnProps) {
   return (
-    <button
-      type="button"
+    <Link
+      href="/dashboard"
       className={`${baseClasses} ${hoverClasses} ${darkClasses} ${mdClasses} ${txtSizeClasses}`}
-      data-hs-overlay="#hs-toggle-between-modals-login-modal"
     >
       <svg
         className="h-4 w-4 shrink-0"
@@ -32,6 +33,6 @@ export default function LoginBtn({ title = 'Log in' }: LoginBtnProps) {
         <circle cx="12" cy="7" r="4" />
       </svg>
       {title}
-    </button>
+    </Link>
   );
 }

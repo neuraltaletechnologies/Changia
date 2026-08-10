@@ -1,9 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import '@/assets/styles/global.css';
-import Navbar from '@/components/sections/navbar&footer/Navbar';
-import FooterSection from '@/components/sections/navbar&footer/FooterSection';
-import SiteProvider from '@/components/SiteProvider';
-import { SITE, SEO } from '@/data_files/constants';
+import { SITE } from '@/data_files/constants';
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://changia.co'),
@@ -66,15 +63,7 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
-      <body className="flex min-h-screen flex-col bg-neutral-200 selection:bg-yellow-400 selection:text-neutral-700 dark:bg-neutral-800">
-        <SiteProvider>
-          <div className="mx-auto w-full max-w-(--breakpoint-2xl) grow px-4 sm:px-6 lg:px-8">
-            <Navbar />
-            <main>{children}</main>
-          </div>
-          <FooterSection />
-        </SiteProvider>
-      </body>
+      <body>{children}</body>
     </html>
   );
 }

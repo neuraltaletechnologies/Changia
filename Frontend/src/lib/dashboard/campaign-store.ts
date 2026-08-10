@@ -26,3 +26,12 @@ export function saveUserCampaign(campaign: Campaign): void {
 export function findUserCampaign(id: string): Campaign | undefined {
   return loadUserCampaigns().find((c) => c.id === id);
 }
+
+export function updateCampaign(id: string, patch: Partial<Campaign>): void {
+  if (typeof window === "undefined") return;
+  const list = loadUserCampaigns();
+  const idx = list.findIndex((c) => c.id === id);
+  if (idx === -1) return;
+  list[idx] = { ...list[idx], ...patch };
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+}

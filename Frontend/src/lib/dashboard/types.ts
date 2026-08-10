@@ -47,6 +47,11 @@ export interface Campaign {
   category?: string;
   contactPhone?: string;
   submittedAt?: string;
+  ownerName?: string;
+  ownerEmail?: string;
+  image?: string;
+  evidence?: string[];
+  memberIds?: string[];
 }
 
 export interface Donation {
@@ -55,6 +60,7 @@ export interface Donation {
   donorName: string;
   amount: number;
   campaign: string;
+  campaignId: string;
   channel: CommChannel;
   date: string;
   status: "completed" | "pending" | "failed";

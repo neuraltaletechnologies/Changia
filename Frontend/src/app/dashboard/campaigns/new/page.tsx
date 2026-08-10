@@ -8,6 +8,9 @@ import {
   CheckCircle2,
   Megaphone,
   Clock,
+  Plus,
+  X,
+  Image as ImageIcon,
 } from "lucide-react";
 import { Input } from "@/components/dashboard/ui/input";
 import { Label } from "@/components/dashboard/ui/label";
@@ -42,6 +45,9 @@ interface FormState {
   startDate: string;
   endDate: string;
   contactPhone: string;
+  ownerName: string;
+  image: string;
+  evidence: string[];
 }
 
 const initialForm: FormState = {
@@ -52,6 +58,9 @@ const initialForm: FormState = {
   startDate: "",
   endDate: "",
   contactPhone: "",
+  ownerName: "",
+  image: "",
+  evidence: [],
 };
 
 export default function NewCampaignPage() {
@@ -63,6 +72,25 @@ export default function NewCampaignPage() {
   const setField = (field: keyof FormState, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
     setErrors((prev) => ({ ...prev, [field]: undefined }));
+  };
+
+  const setEvidenceAt = (index: number, value: string) => {
+    setForm((prev) => {
+      const next = [...prev.evidence];
+      next[index] = value;
+      return { ...prev, evidence: next };
+    });
+  };
+
+  const addEvidence = () => {
+    setForm((prev) => ({ ...prev, evidence: [...prev.evidence, ""] }));
+  };
+
+  const removeEvidence = (index: number) => {
+    setForm((prev) => ({
+      ...prev,
+      evidence: prev.evidence.filter((_, i) => i !== index),
+    }));
   };
 
   const validate = (): boolean => {
@@ -96,6 +124,9 @@ export default function NewCampaignPage() {
       description: form.description.trim(),
       category: form.category,
       contactPhone: form.contactPhone.trim(),
+      ownerName: form.ownerName.trim() || undefined,
+      image: form.image.trim() || undefined,
+      evidence: form.evidence.map((u) => u.trim()).filter(Boolean),
       submittedAt: new Date().toISOString(),
     };
 
@@ -293,6 +324,80 @@ export default function NewCampaignPage() {
             />
             {errors.contactPhone && (
               <p className="text-xs text-destructive">{errors.contactPhone}</p>
+            )}
+          </div>
+
+          <div className="grid gap-1.5">
+            <Label htmlFor="campaign-owner">Campaign owner</Label>
+            <Input
+              id="campaign-owner"
+              placeholder="e.g. Jane Mwangi"
+              value={form.ownerName}
+              onChange={(e) => setField("ownerName", e.target.value)}
+              className="h-9"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              The person responsible for managing this campaign.
+            </p>
+          </div>
+
+          <div className="grid gap-1.5">
+            <Label htmlFor="campaign-image">Banner image URL</Label>
+            <Input
+              id="campaign-image"
+              type="url"
+              placeholder="https://example.com/campaign-banner.jpg"
+              value={form.image}
+              onChange={(e) => setField("image", e.target.value)}
+              className="h-9"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Optional. A cover image shown at the top of the campaign page.
+            </p>
+          </div>
+
+          <div className="grid gap-2">
+            <div className="flex items-center justify-between">
+              <Label>Evidence images</Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="xs"
+                onClick={addEvidence}
+              >
+                <Plus className="w-3 h-3 mr-1" />
+                Add image
+              </Button>
+            </div>
+            {form.evidence.length === 0 ? (
+              <p className="text-[11px] text-muted-foreground">
+                Optional. Add photos that prove how the funds are used.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {form.evidence.map((url, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <ImageIcon className="w-4 h-4 text-muted-foreground shrink-0" />
+                    <Input
+                      type="url"
+                      placeholder="https://example.com/evidence.jpg"
+                      value={url}
+                      onChange={(e) => setEvidenceAt(index, e.target.value)}
+                      className="h-9"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      className="shrink-0"
+                      onClick={() => removeEvidence(index)}
+                      aria-label="Remove image"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </div>

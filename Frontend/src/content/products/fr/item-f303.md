@@ -42,7 +42,7 @@ specificationsLeft:
     subTitle: 'TLS partout, secrets protégés, comptes administrateurs prêts pour MFA et journalisation sécurisée.'
 specificationsRight:
   - title: 'Confirmation du donateur'
-    subTitle: 'Les donateurs peuvent refuser, annuler ou ignorer une invite ; rien n'est enregistré jusqu'à vérification.'
+    subTitle: "Les donateurs peuvent refuser, annuler ou ignorer une invite ; rien n'est enregistré jusqu'à vérification."
   - title: 'Surfinancement bloqué'
     subTitle: "À l'objectif public, le lancement de nouveaux paiements est bloqué ; les excédents suivent une politique écrite."
   - title: 'Réconciliation'

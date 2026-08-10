@@ -1,5 +1,5 @@
 ---
-title: 'La collecte de fonds numérique en Tanzanie : l'opportunité du mobile money'
+title: "La collecte de fonds numérique en Tanzanie : l'opportunité du mobile money"
 description: "Comment le mobile money fait de la Tanzanie l'un des marchés de collecte les plus prometteurs d'Afrique — et pourquoi la friction bloque encore les donateurs."
 cardImage: '@/images/insights/insight-1.avif'
 cardImageAlt: 'Smartphone affichant une invite de paiement mobile money'

@@ -390,8 +390,8 @@ export default function ImportDonorsPage() {
             >
               Import Another File
             </Button>
-            <Button size="sm" asChild>
-              <Link href="/dashboard/donors">View Donor Pool</Link>
+            <Button size="sm" render={<Link href="/dashboard/donors" />}>
+              View Donor Pool
             </Button>
           </div>
         </div>

@@ -41,11 +41,9 @@ export default function DonorProfilePage({
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-3">
         <p className="text-muted-foreground text-sm">Donor not found.</p>
-        <Button variant="outline" size="sm" asChild>
-          <Link href="/dashboard/donors">
-            <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
-            Back to Donor Pool
-          </Link>
+        <Button variant="outline" size="sm" render={<Link href="/dashboard/donors" />}>
+          <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
+          Back to Donor Pool
         </Button>
       </div>
     );

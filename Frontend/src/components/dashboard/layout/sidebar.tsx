@@ -171,7 +171,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                   <li key={item.href}>
                     {collapsed ? (
                       <Tooltip>
-                        <TooltipTrigger asChild>{linkContent}</TooltipTrigger>
+                        <TooltipTrigger render={linkContent} />
                         <TooltipContent side="right" className="text-xs">
                           {item.label}
                         </TooltipContent>

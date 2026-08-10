@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { campaigns, type Campaign } from "@/lib/dashboard/mock-data";
+import { type Campaign } from "@/lib/dashboard/types";
 import { CampaignCard } from "@/components/dashboard/widgets/campaign-card";
 import { Button } from "@/components/dashboard/ui/button";
 import { loadUserCampaigns } from "@/lib/dashboard/campaign-store";
@@ -17,10 +17,10 @@ const statusChips: { status: Campaign["status"]; styles: string }[] = [
 ];
 
 export default function CampaignsPage() {
-  const [allCampaigns, setAllCampaigns] = useState<Campaign[]>(campaigns);
+  const [allCampaigns, setAllCampaigns] = useState<Campaign[]>([]);
 
   useEffect(() => {
-    setAllCampaigns([...loadUserCampaigns(), ...campaigns]);
+    setAllCampaigns(loadUserCampaigns());
   }, []);
 
   return (

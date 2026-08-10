@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/dashboard/ui/button";
 import { Progress } from "@/components/dashboard/ui/progress";
-import { campaigns, formatTZS, type Campaign } from "@/lib/dashboard/mock-data";
+import { formatTZS, type Campaign } from "@/lib/dashboard/types";
 import { loadUserCampaigns } from "@/lib/dashboard/campaign-store";
 import { campaignStatusMap } from "@/components/dashboard/widgets/campaign-card";
 import { cn } from "@/lib/dashboard/utils";
@@ -24,7 +24,7 @@ export default function CampaignDetailPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const found = [...loadUserCampaigns(), ...campaigns].find((c) => c.id === id);
+    const found = loadUserCampaigns().find((c) => c.id === id);
     setCampaign(found ?? null);
     setLoading(false);
   }, [id]);

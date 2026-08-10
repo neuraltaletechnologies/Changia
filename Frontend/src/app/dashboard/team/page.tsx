@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   UserPlus,
   MoreHorizontal,
@@ -34,7 +34,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/dashboard/ui/select";
-import { teamMembers, type TeamMember } from "@/lib/dashboard/mock-data";
+import { loadTeamMembers, saveTeamMember } from "@/lib/dashboard/team-store";
+import type { TeamMember } from "@/lib/dashboard/types";
 import { cn } from "@/lib/dashboard/utils";
 
 const roleColors: Record<TeamMember["role"], string> = {
@@ -81,13 +82,33 @@ const rolePermissions: Record<
 };
 
 export default function TeamPage() {
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteLoading, setInviteLoading] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<TeamMember["role"]>("viewer");
+
+  useEffect(() => {
+    setTeamMembers(loadTeamMembers());
+  }, []);
+
+  const refreshMembers = () => setTeamMembers(loadTeamMembers());
 
   const handleInvite = (e: React.FormEvent) => {
     e.preventDefault();
     setInviteLoading(true);
     setTimeout(() => {
+      saveTeamMember({
+        id: `t-${Date.now()}`,
+        name: inviteEmail.split("@")[0],
+        email: inviteEmail.trim(),
+        role: inviteRole,
+        status: "pending",
+        lastActive: "Invitation sent",
+      });
+      refreshMembers();
+      setInviteEmail("");
+      setInviteRole("viewer");
       setInviteLoading(false);
       setInviteOpen(false);
     }, 800);
@@ -154,6 +175,11 @@ export default function TeamPage() {
           </h2>
         </div>
         <div className="divide-y divide-border">
+          {teamMembers.length === 0 && (
+            <div className="py-12 text-center text-sm text-muted-foreground">
+              No team members yet. Click “Invite Member” to add the first one.
+            </div>
+          )}
           {teamMembers.map((member) => {
             const initials = member.name
               .split(" ")
@@ -177,11 +203,6 @@ export default function TeamPage() {
                     <p className="text-sm font-medium text-foreground">
                       {member.name}
                     </p>
-                    {member.id === "t1" && (
-                      <span className="text-[10px] text-muted-foreground bg-muted rounded px-1">
-                        You
-                      </span>
-                    )}
                   </div>
                   <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
                     <Mail className="w-3 h-3" />
@@ -220,8 +241,7 @@ export default function TeamPage() {
                 </div>
 
                 {/* Actions */}
-                {member.id !== "t1" && (
-                  <DropdownMenu>
+                <DropdownMenu>
                     <DropdownMenuTrigger className="flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
                       <MoreHorizontal className="w-4 h-4" />
                     </DropdownMenuTrigger>
@@ -240,7 +260,6 @@ export default function TeamPage() {
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
-                )}
               </div>
             );
           })}
@@ -265,12 +284,17 @@ export default function TeamPage() {
                 type="email"
                 placeholder="colleague@example.com"
                 required
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
                 className="h-9 text-sm"
               />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Role</Label>
-              <Select defaultValue="viewer">
+              <Select
+                value={inviteRole}
+                onValueChange={(v) => setInviteRole((v ?? "viewer") as TeamMember["role"])}
+              >
                 <SelectTrigger className="h-9 text-sm">
                   <SelectValue />
                 </SelectTrigger>

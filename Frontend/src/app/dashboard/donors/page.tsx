@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import {
   Search,
@@ -35,16 +35,24 @@ import {
   TagBadge,
 } from "@/components/dashboard/donors/donor-badges";
 import { AddDonorDialog } from "@/components/dashboard/donors/add-donor-dialog";
-import { donors, formatTZS, type DonorStatus } from "@/lib/dashboard/mock-data";
+import { loadDonors } from "@/lib/dashboard/donor-store";
+import { formatTZS, type Donor, type DonorStatus } from "@/lib/dashboard/types";
 
 const PAGE_SIZE = 8;
 
 export default function DonorsPage() {
+  const [donors, setDonors] = useState<Donor[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [consentFilter, setConsentFilter] = useState<string>("all");
   const [page, setPage] = useState(1);
   const [addOpen, setAddOpen] = useState(false);
+
+  useEffect(() => {
+    setDonors(loadDonors());
+  }, []);
+
+  const refreshDonors = () => setDonors(loadDonors());
 
   const filtered = useMemo(() => {
     return donors.filter((d) => {
@@ -59,7 +67,7 @@ export default function DonorsPage() {
         consentFilter === "all" || d.consentStatus === consentFilter;
       return matchSearch && matchStatus && matchConsent;
     });
-  }, [search, statusFilter, consentFilter]);
+  }, [donors, search, statusFilter, consentFilter]);
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -187,7 +195,9 @@ export default function DonorsPage() {
                     colSpan={8}
                     className="px-5 py-12 text-center text-sm text-muted-foreground"
                   >
-                    No donors match your filters.
+                    {donors.length === 0
+                      ? "No donors yet. Click “Add Donor” to create your first donor."
+                      : "No donors match your filters."}
                   </td>
                 </tr>
               )}
@@ -335,7 +345,11 @@ export default function DonorsPage() {
         </div>
       </div>
 
-      <AddDonorDialog open={addOpen} onOpenChange={setAddOpen} />
+      <AddDonorDialog
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        onCreated={refreshDonors}
+      />
     </div>
   );
 }

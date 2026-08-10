@@ -1,5 +1,5 @@
 import { cn } from "@/lib/dashboard/utils";
-import { DonorStatus, ConsentStatus, CommChannel, DonorTag } from "@/lib/dashboard/mock-data";
+import { DonorStatus, ConsentStatus, CommChannel, DonorTag } from "@/lib/dashboard/types";
 
 // ─── Status Badge ─────────────────────────────────────────────────────────────
 const statusStyles: Record<DonorStatus, string> = {

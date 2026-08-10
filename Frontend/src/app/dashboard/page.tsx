@@ -1,3 +1,7 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import {
   Users,
   Megaphone,
@@ -8,10 +12,31 @@ import { StatCard } from "@/components/dashboard/widgets/stat-card";
 import { CampaignCard } from "@/components/dashboard/widgets/campaign-card";
 import { RecentDonations } from "@/components/dashboard/widgets/recent-donations";
 import { ActivityFeed } from "@/components/dashboard/widgets/activity-feed";
-import { campaigns, statsOverview, formatTZS } from "@/lib/dashboard/mock-data";
+import { Button } from "@/components/dashboard/ui/button";
+import { loadUserCampaigns } from "@/lib/dashboard/campaign-store";
+import { loadDonors } from "@/lib/dashboard/donor-store";
+import { formatTZS, type Campaign, type Donor } from "@/lib/dashboard/types";
+import { Plus } from "lucide-react";
 
 export default function DashboardPage() {
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [donors, setDonors] = useState<Donor[]>([]);
+
+  useEffect(() => {
+    setCampaigns(loadUserCampaigns());
+    setDonors(loadDonors());
+  }, []);
+
   const activeCampaigns = campaigns.filter((c) => c.status === "active");
+  const totalRaised = campaigns.reduce((sum, c) => sum + c.raised, 0);
+  const givingDonors = donors.filter((d) => d.totalGiven > 0);
+  const avgGift =
+    givingDonors.length > 0
+      ? Math.round(
+          givingDonors.reduce((sum, d) => sum + d.lastGiftAmount, 0) /
+            givingDonors.length
+        )
+      : 0;
 
   return (
     <div className="space-y-6 max-w-[1400px]">
@@ -21,7 +46,7 @@ export default function DashboardPage() {
           Dashboard
         </h1>
         <p className="text-sm text-muted-foreground mt-0.5">
-          Welcome back, Admin. Here&apos;s what&apos;s happening today.
+          Welcome back. Here&apos;s what&apos;s happening today.
         </p>
       </div>
 
@@ -29,40 +54,36 @@ export default function DashboardPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           label="Total Donors"
-          value={statsOverview.totalDonors.toString()}
+          value={donors.length.toString()}
           sub="Across all campaigns"
           icon={Users}
-          trend={8.3}
           iconBg="bg-sky-50"
           iconColor="text-sky-600"
           href="/dashboard/donors"
         />
         <StatCard
           label="Active Campaigns"
-          value={statsOverview.activeCampaigns.toString()}
-          sub="3 ending this quarter"
+          value={activeCampaigns.length.toString()}
+          sub="Live right now"
           icon={Megaphone}
-          trend={25}
           iconBg="bg-emerald-50"
           iconColor="text-emerald-600"
           href="/dashboard/campaigns"
         />
         <StatCard
           label="Total Raised"
-          value={formatTZS(statsOverview.totalRaised)}
+          value={formatTZS(totalRaised)}
           sub="Across all time"
           icon={Wallet}
-          trend={12.4}
           iconBg="bg-amber-50"
           iconColor="text-amber-600"
           href="/dashboard/campaigns"
         />
         <StatCard
           label="Avg Gift Size"
-          value={formatTZS(statsOverview.avgGift)}
+          value={avgGift > 0 ? formatTZS(avgGift) : "—"}
           sub="Last 30 days"
           icon={TrendingUp}
-          trend={-3.1}
           iconBg="bg-rose-50"
           iconColor="text-rose-500"
           href="/dashboard/donors"
@@ -75,15 +96,32 @@ export default function DashboardPage() {
           <h2 className="text-sm font-semibold text-foreground">
             Active Campaigns
           </h2>
-          <a href="/dashboard/campaigns" className="text-xs text-primary hover:underline">
+          <Link href="/dashboard/campaigns" className="text-xs text-primary hover:underline">
             View all campaigns
-          </a>
+          </Link>
         </div>
-        <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
-          {activeCampaigns.map((c) => (
-            <CampaignCard key={c.id} campaign={c} />
-          ))}
-        </div>
+        {activeCampaigns.length === 0 ? (
+          <div className="bg-card border border-border rounded-xl p-8 text-center shadow-sm">
+            <p className="text-sm text-muted-foreground">
+              No active campaigns yet.
+            </p>
+            <Button
+              className="mt-4"
+              size="sm"
+              nativeButton={false}
+              render={<Link href="/dashboard/campaigns/new" />}
+            >
+              <Plus className="w-3.5 h-3.5 mr-1.5" />
+              Start a Campaign
+            </Button>
+          </div>
+        ) : (
+          <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
+            {activeCampaigns.map((c) => (
+              <CampaignCard key={c.id} campaign={c} />
+            ))}
+          </div>
+        )}
       </section>
 
       {/* Bottom grid */}

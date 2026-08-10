@@ -1,6 +1,6 @@
 'use client';
 
-import type { Campaign } from "@/lib/dashboard/mock-data";
+import type { Campaign } from "@/lib/dashboard/types";
 
 const STORAGE_KEY = "changia_user_campaigns";
 

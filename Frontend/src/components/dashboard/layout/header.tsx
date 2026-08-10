@@ -18,17 +18,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/dashboard/ui/popover";
-import { notifications } from "@/lib/dashboard/mock-data";
-import { cn } from "@/lib/dashboard/utils";
-import { NotificationIcon } from "@/components/dashboard/layout/notification-icon";
-
 interface HeaderProps {
   onMobileMenuToggle: () => void;
   mobileMenuOpen: boolean;
 }
 
 export function Header({ onMobileMenuToggle, mobileMenuOpen }: HeaderProps) {
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  const unreadCount = 0;
   const [notifOpen, setNotifOpen] = useState(false);
 
   return (
@@ -84,31 +80,9 @@ export function Header({ onMobileMenuToggle, mobileMenuOpen }: HeaderProps) {
               )}
             </div>
             <div className="divide-y divide-border max-h-80 overflow-y-auto">
-              {notifications.map((notif) => (
-                <div
-                  key={notif.id}
-                  className={cn(
-                    "flex gap-3 px-4 py-3 hover:bg-muted/50 cursor-pointer transition-colors",
-                    !notif.read && "bg-accent/20"
-                  )}
-                >
-                  <NotificationIcon type={notif.type} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-foreground leading-snug">
-                      {notif.title}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-0.5 leading-snug">
-                      {notif.description}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground/70 mt-1">
-                      {notif.time}
-                    </p>
-                  </div>
-                  {!notif.read && (
-                    <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
-                  )}
-                </div>
-              ))}
+              <div className="py-12 text-center text-sm text-muted-foreground">
+                No notifications yet.
+              </div>
             </div>
             <div className="px-4 py-2.5 border-t border-border">
               <button className="text-xs text-primary hover:underline">

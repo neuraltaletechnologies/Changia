@@ -17,7 +17,6 @@ import {
   HeartHandshake,
   ExternalLink,
 } from "lucide-react";
-import { Badge } from "@/components/dashboard/ui/badge";
 import {
   Tooltip,
   TooltipContent,
@@ -37,13 +36,11 @@ const navItems = [
         label: "Donor Pool",
         href: "/dashboard/donors",
         icon: Users,
-        badge: "12",
       },
       {
         label: "Campaigns",
         href: "/dashboard/campaigns",
         icon: Megaphone,
-        badge: "4",
       },
     ],
   },
@@ -152,17 +149,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                   >
                     <Icon className="w-4 h-4 shrink-0" />
                     {!collapsed && (
-                      <>
-                        <span className="flex-1 truncate">{item.label}</span>
-                        {item.badge && !active && (
-                          <Badge
-                            variant="secondary"
-                            className="text-[10px] h-4 px-1.5 bg-sidebar-accent text-sidebar-foreground/70 rounded-full"
-                          >
-                            {item.badge}
-                          </Badge>
-                        )}
-                      </>
+                      <span className="flex-1 truncate">{item.label}</span>
                     )}
                   </Link>
                 );

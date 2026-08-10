@@ -11,7 +11,7 @@ import {
   SelectValue,
 } from "@/components/dashboard/ui/select";
 import { Button } from "@/components/dashboard/ui/button";
-import { auditLogs, type AuditLog } from "@/lib/dashboard/mock-data";
+import type { AuditLog } from "@/lib/dashboard/types";
 import { cn } from "@/lib/dashboard/utils";
 
 const severityStyles: Record<AuditLog["severity"], string> = {
@@ -27,12 +27,13 @@ const severityDot: Record<AuditLog["severity"], string> = {
 };
 
 export default function AuditLogPage() {
+  const [logs] = useState<AuditLog[]>([]);
   const [search, setSearch] = useState("");
   const [severityFilter, setSeverityFilter] = useState("all");
   const [resourceFilter, setResourceFilter] = useState("all");
 
   const filtered = useMemo(() => {
-    return auditLogs.filter((log) => {
+    return logs.filter((log) => {
       const matchSearch =
         !search ||
         log.action.toLowerCase().includes(search.toLowerCase()) ||
@@ -44,9 +45,9 @@ export default function AuditLogPage() {
         resourceFilter === "all" || log.resource === resourceFilter;
       return matchSearch && matchSeverity && matchResource;
     });
-  }, [search, severityFilter, resourceFilter]);
+  }, [logs, search, severityFilter, resourceFilter]);
 
-  const resources = Array.from(new Set(auditLogs.map((l) => l.resource)));
+  const resources = Array.from(new Set(logs.map((l) => l.resource)));
 
   return (
     <div className="space-y-5 max-w-[1200px]">
@@ -69,7 +70,7 @@ export default function AuditLogPage() {
       {/* Summary chips */}
       <div className="flex flex-wrap gap-2">
         {(["info", "warning", "critical"] as const).map((s) => {
-          const count = auditLogs.filter((l) => l.severity === s).length;
+          const count = logs.filter((l) => l.severity === s).length;
           return (
             <button
               key={s}
@@ -173,7 +174,7 @@ export default function AuditLogPage() {
                     colSpan={7}
                     className="px-5 py-12 text-center text-sm text-muted-foreground"
                   >
-                    No log entries match your filters.
+                    No log entries yet.
                   </td>
                 </tr>
               )}
@@ -246,7 +247,7 @@ export default function AuditLogPage() {
 
         <div className="flex items-center justify-between px-5 py-3 border-t border-border bg-muted/20">
           <p className="text-xs text-muted-foreground">
-            {filtered.length} of {auditLogs.length} entries
+            {filtered.length} of {logs.length} entries
           </p>
           <p className="text-[10px] text-muted-foreground">
             Retained for 90 days

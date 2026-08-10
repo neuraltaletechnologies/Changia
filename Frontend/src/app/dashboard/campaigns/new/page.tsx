@@ -21,8 +21,8 @@ import {
   SelectValue,
 } from "@/components/dashboard/ui/select";
 import { saveUserCampaign } from "@/lib/dashboard/campaign-store";
-import type { Campaign } from "@/lib/dashboard/mock-data";
-import { formatTZS } from "@/lib/dashboard/mock-data";
+import type { Campaign } from "@/lib/dashboard/types";
+import { formatTZS } from "@/lib/dashboard/types";
 
 const CATEGORIES = [
   "Community",

@@ -20,23 +20,71 @@ import {
   SelectValue,
 } from "@/components/dashboard/ui/select";
 import { Separator } from "@/components/dashboard/ui/separator";
+import { saveDonor } from "@/lib/dashboard/donor-store";
+import type { Donor } from "@/lib/dashboard/types";
 
 interface AddDonorDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onCreated?: () => void;
 }
 
-export function AddDonorDialog({ open, onOpenChange }: AddDonorDialogProps) {
+export function AddDonorDialog({
+  open,
+  onOpenChange,
+  onCreated,
+}: AddDonorDialogProps) {
   const [loading, setLoading] = useState(false);
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [location, setLocation] = useState("");
+  const [status, setStatus] = useState<Donor["status"]>("prospect");
+  const [consentStatus, setConsentStatus] =
+    useState<Donor["consentStatus"]>("pending");
+  const [preferredChannel, setPreferredChannel] =
+    useState<Donor["preferredChannel"]>("email");
+  const [notes, setNotes] = useState("");
+
+  const reset = () => {
+    setFirstName("");
+    setLastName("");
+    setEmail("");
+    setPhone("");
+    setLocation("");
+    setStatus("prospect");
+    setConsentStatus("pending");
+    setPreferredChannel("email");
+    setNotes("");
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    // Simulate save
-    setTimeout(() => {
-      setLoading(false);
-      onOpenChange(false);
-    }, 800);
+    const donor: Donor = {
+      id: `d-${Date.now()}`,
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      email: email.trim(),
+      phone: phone.trim(),
+      location: location.trim(),
+      status,
+      consentStatus,
+      preferredChannel,
+      tags: [],
+      totalGiven: 0,
+      lastGift: "",
+      lastGiftAmount: 0,
+      giftCount: 0,
+      joinedDate: new Date().toISOString().slice(0, 10),
+      notes: notes.trim() || undefined,
+    };
+    saveDonor(donor);
+    setLoading(false);
+    reset();
+    onOpenChange(false);
+    onCreated?.();
   };
 
   return (
@@ -63,6 +111,8 @@ export function AddDonorDialog({ open, onOpenChange }: AddDonorDialogProps) {
                   id="firstName"
                   placeholder="e.g. Amina"
                   required
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
                   className="h-9 text-sm"
                 />
               </div>
@@ -74,6 +124,8 @@ export function AddDonorDialog({ open, onOpenChange }: AddDonorDialogProps) {
                   id="lastName"
                   placeholder="e.g. Hassan"
                   required
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
                   className="h-9 text-sm"
                 />
               </div>
@@ -87,6 +139,8 @@ export function AddDonorDialog({ open, onOpenChange }: AddDonorDialogProps) {
                 type="email"
                 placeholder="donor@example.com"
                 required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 className="h-9 text-sm"
               />
             </div>
@@ -98,6 +152,8 @@ export function AddDonorDialog({ open, onOpenChange }: AddDonorDialogProps) {
                 <Input
                   id="phone"
                   placeholder="+255 7XX XXX XXX"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
                   className="h-9 text-sm"
                 />
               </div>
@@ -108,6 +164,8 @@ export function AddDonorDialog({ open, onOpenChange }: AddDonorDialogProps) {
                 <Input
                   id="location"
                   placeholder="e.g. Dar es Salaam"
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
                   className="h-9 text-sm"
                 />
               </div>
@@ -124,7 +182,10 @@ export function AddDonorDialog({ open, onOpenChange }: AddDonorDialogProps) {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs">Status</Label>
-                <Select defaultValue="prospect">
+                <Select
+                  value={status}
+                  onValueChange={(v) => setStatus((v ?? "prospect") as Donor["status"])}
+                >
                   <SelectTrigger className="h-9 text-sm">
                     <SelectValue />
                   </SelectTrigger>
@@ -138,7 +199,12 @@ export function AddDonorDialog({ open, onOpenChange }: AddDonorDialogProps) {
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Consent Status</Label>
-                <Select defaultValue="pending">
+                <Select
+                  value={consentStatus}
+                  onValueChange={(v) =>
+                    setConsentStatus((v ?? "pending") as Donor["consentStatus"])
+                  }
+                >
                   <SelectTrigger className="h-9 text-sm">
                     <SelectValue />
                   </SelectTrigger>
@@ -152,7 +218,12 @@ export function AddDonorDialog({ open, onOpenChange }: AddDonorDialogProps) {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Preferred Communication Channel</Label>
-              <Select defaultValue="email">
+              <Select
+                value={preferredChannel}
+                onValueChange={(v) =>
+                  setPreferredChannel((v ?? "email") as Donor["preferredChannel"])
+                }
+              >
                 <SelectTrigger className="h-9 text-sm">
                   <SelectValue />
                 </SelectTrigger>
@@ -178,6 +249,8 @@ export function AddDonorDialog({ open, onOpenChange }: AddDonorDialogProps) {
               id="notes"
               placeholder="Any additional context about this donor…"
               rows={3}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
               className="text-sm resize-none"
             />
           </div>

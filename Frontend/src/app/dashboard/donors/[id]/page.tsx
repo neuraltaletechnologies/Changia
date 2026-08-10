@@ -1,6 +1,6 @@
 "use client";
 
-import { use } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -22,20 +22,31 @@ import {
   ChannelBadge,
   TagBadge,
 } from "@/components/dashboard/donors/donor-badges";
-import {
-  donors,
-  recentDonations,
-  formatTZSFull,
-  formatTZS,
-} from "@/lib/dashboard/mock-data";
+import { findDonor } from "@/lib/dashboard/donor-store";
+import { formatTZS, type Donor } from "@/lib/dashboard/types";
 
 export default function DonorProfilePage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { id } = use(params);
-  const donor = donors.find((d) => d.id === id);
+  const [donor, setDonor] = useState<Donor | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    params.then(({ id }) => {
+      setDonor(findDonor(id) ?? null);
+      setLoading(false);
+    });
+  }, [params]);
+
+  if (loading) {
+    return (
+      <div className="max-w-[900px]">
+        <div className="h-40 rounded-xl bg-card border border-border animate-pulse" />
+      </div>
+    );
+  }
 
   if (!donor) {
     return (
@@ -50,7 +61,6 @@ export default function DonorProfilePage({
   }
 
   const initials = `${donor.firstName[0]}${donor.lastName[0]}`;
-  const donorDonations = recentDonations.filter((d) => d.donorId === donor.id);
 
   return (
     <div className="space-y-6 max-w-[900px]">
@@ -239,40 +249,9 @@ export default function DonorProfilePage({
                 Donation History
               </h2>
             </div>
-            {donorDonations.length === 0 ? (
-              <div className="py-12 text-center text-sm text-muted-foreground">
-                No donations recorded yet.
-              </div>
-            ) : (
-              <div className="divide-y divide-border">
-                {donorDonations.map((d) => (
-                  <div
-                    key={d.id}
-                    className="flex items-center gap-4 px-5 py-3.5 hover:bg-muted/30 transition-colors"
-                  >
-                    <div className="w-7 h-7 rounded-full bg-emerald-50 flex items-center justify-center shrink-0">
-                      <Heart className="w-3.5 h-3.5 text-emerald-600" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium text-foreground">
-                        {d.campaign}
-                      </p>
-                      <p className="text-[11px] text-muted-foreground">
-                        {d.date} &middot; via {d.channel}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs font-semibold text-foreground">
-                        {formatTZSFull(d.amount)}
-                      </p>
-                      <span className="text-[10px] text-emerald-600 bg-emerald-50 rounded-full px-1.5 py-0.5">
-                        {d.status}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            <div className="py-12 text-center text-sm text-muted-foreground">
+              No donations recorded yet.
+            </div>
           </div>
         </div>
       </div>

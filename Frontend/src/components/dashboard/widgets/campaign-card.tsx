@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Campaign, formatTZS } from "@/lib/dashboard/mock-data";
+import { Campaign, formatTZS } from "@/lib/dashboard/types";
 import { Progress } from "@/components/dashboard/ui/progress";
 import { Badge } from "@/components/dashboard/ui/badge";
 import { cn } from "@/lib/dashboard/utils";

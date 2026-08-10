@@ -7,6 +7,7 @@ import { Avatar, AvatarFallback } from "@/components/dashboard/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -133,14 +134,16 @@ export function Header({ onMobileMenuToggle, mobileMenuOpen }: HeaderProps) {
             </div>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuLabel className="text-xs">My Account</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-xs cursor-pointer">
-              Profile
-            </DropdownMenuItem>
-            <DropdownMenuItem className="text-xs cursor-pointer">
-              Organisation Settings
-            </DropdownMenuItem>
+            <DropdownMenuGroup>
+              <DropdownMenuLabel className="text-xs">My Account</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem className="text-xs cursor-pointer">
+                Profile
+              </DropdownMenuItem>
+              <DropdownMenuItem className="text-xs cursor-pointer">
+                Organisation Settings
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem className="text-xs cursor-pointer text-destructive">
               Sign Out

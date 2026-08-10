@@ -82,6 +82,7 @@ export default function DonorsPage() {
           <Button
             variant="outline"
             size="sm"
+            nativeButton={false}
             render={<Link href="/dashboard/donors/import" />}
           >
             <Upload className="w-3.5 h-3.5 mr-1.5" />

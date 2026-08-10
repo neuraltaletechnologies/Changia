@@ -7,13 +7,13 @@ import Authentication from '@/components/sections/misc/Authentication';
 import BrandLogo from '@/components/BrandLogo';
 import LanguagePicker from '@/components/ui/LanguagePicker';
 import enStrings from '@/utils/navigation';
-import frStrings from '@/utils/fr/navigation';
+import swStrings from '@/utils/sw/navigation';
 
 export default function Navbar() {
   const pathname = usePathname();
-  const isFr = pathname?.startsWith('/fr');
-  const strings = isFr ? frStrings : enStrings;
-  const homeUrl = isFr ? '/fr' : '/';
+  const isSw = pathname?.startsWith('/sw');
+  const strings = isSw ? swStrings : enStrings;
+  const homeUrl = isSw ? '/sw' : '/';
 
   return (
     <header className="sticky inset-x-0 top-4 z-50 flex w-full flex-wrap text-sm md:flex-nowrap md:justify-start">

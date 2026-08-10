@@ -14,7 +14,7 @@ export default function CardInsight({
   insightLocale,
   label = 'Read more',
 }: CardInsightProps) {
-  const slug = insightEntry.id.replace(/^(en|fr)\//, '');
+  const slug = insightEntry.id.replace(/^(en|sw)\//, '');
   const href =
     insightLocale && insightLocale !== 'en'
       ? `/${insightLocale}/insights/${slug}/`

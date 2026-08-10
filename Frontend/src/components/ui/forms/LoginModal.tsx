@@ -1,3 +1,7 @@
+'use client';
+
+import { useRouter } from 'next/navigation';
+import type { FormEvent } from 'react';
 import EmailInput from './input/EmailInput';
 import PasswordInput from './input/PasswordInput';
 import Checkbox from './input/Checkbox';
@@ -13,10 +17,18 @@ const config = {
 };
 
 export default function LoginModal() {
+  const router = useRouter();
+
+  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    router.push('/dashboard');
+  };
+
   return (
     <div
       id={config.id}
       className="hs-overlay hs-overlay-backdrop-open:bg-neutral-900/90 absolute start-0 top-0 z-50 hidden h-full w-full"
+      data-lenis-prevent
     >
       <div className="hs-overlay-open:mt-7 hs-overlay-open:opacity-100 hs-overlay-open:duration-500 m-3 mt-0 opacity-0 transition-all ease-out sm:mx-auto sm:w-full sm:max-w-lg">
         <div className="mx-auto w-full max-w-md p-6">
@@ -46,7 +58,7 @@ export default function LoginModal() {
                 <div className="flex items-center py-3 text-xs text-neutral-400 uppercase before:me-6 before:flex-[1_1_0%] before:border-t before:border-neutral-200 after:ms-6 after:flex-[1_1_0%] after:border-t after:border-neutral-200 dark:text-neutral-500 dark:before:border-neutral-600 dark:after:border-neutral-600">
                   Or
                 </div>
-                <form>
+                <form onSubmit={handleSubmit}>
                   <div className="grid gap-y-4">
                     <EmailInput id="login-email" errorId="login-email-error" />
                     <PasswordInput

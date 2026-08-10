@@ -1,0 +1,29 @@
+{
+  "subTitle": "Tuulize maswali yoyote kuhusu Changia na jinsi jukwaa linavyofanya kazi.",
+  "faqs": [
+    {
+      "question": "Changia ni nini?",
+      "answer": "Changia ni jukwaa la kitanzania la ukusanyaji fedha wa kidijitali linalosaidia watu na mashirika kukusanya michango midogo ya mobile money kwa usumbufu mdogo. Linachanganya ukusanyaji wa kidijitali kwa wingi na ukusanyaji wa mbugani unaoendeshwa na maafisa, likiwapa wamiliki wa kampeni njia bora zaidi ya kubadilisha nia ya kusaidia kuwa malipo yaliyofanyika."
+    },
+    {
+      "question": "Huduma gani za mobile money wafadhili wanaweza kutumia?",
+      "answer": "Wafadhili huchangia kupitia lango la mobile money linalotumika na lililochaguliwa kwa kampeni — kwa mfano M-Pesa, Tigo Pesa, Airtel Money na HaloPesa. Wafadhili huthibitisha malipo kwa PIN yao wenyewe kwenye skrini ya idhini ya lango; Changia haioni wala haihifadhi PIN kamwe."
+    },
+    {
+      "question": "Changia inatozaje huduma yake?",
+      "answer": "Changia haikati ada kwenye kila mchango binafsi. Ada ya huduma inayoweza kusanidiwa (kwa mfano 5%) huongezwa kwenye kiasi kinachohitajika cha kampeni wakati wa kuiumba, hivyo kila mchango hukisiwa kwa thamani yake kamili na lengo la umma linajumuisha ada za jukwaa."
+    },
+    {
+      "question": "Mchango wa kusukuma wa papo hapo ni nini?",
+      "answer": "Afisa wa kampeni ambaye amezungumza na mfadhili na kupata ridhaa yake anaingiza namba ya simu ya mfadhili na kiasi kilichokubaliwa, kisha anatuma ombi la malipo. Mfadhili anapokea ombi la lango na kuthibitisha kwa PIN yake. Hakuna mchango unaorekodiwa hadi callback iliyothibitishwa ithibitishe kufanikiwa."
+    },
+    {
+      "question": "Mchango uliothibitishwa unahesabiwa vipi?",
+      "answer": "Callback iliyothibitishwa pekee inaunda mchango uliothibitishwa. Majaribio ya malipo hutumia funguo za kipekee za idempotency ili tukio lilelile la lango lisihesabiwe mara mbili, na jumla za kampeni hutumia michango iliyothibitishwa pekee."
+    },
+    {
+      "question": "Je, tunaweza kutuma ujumbe wa utangazaji kwa wafadhili?",
+      "answer": "Wafadhili walioidhinisha pekee wanaweza kupokea mawasiliano ya utangazaji. Maafisa hurekodi hali ya ridhaa na chaneli anayopendelea, na jukwaa hutoa usimamizi wa kujiondoa na kufutwa kwa kampeni za SMS, WhatsApp na barua pepe."
+    }
+  ]
+}

@@ -10,7 +10,7 @@ type CardBlogProps = {
 };
 
 export default function CardBlog({ blogEntry, blogLocale = '' }: CardBlogProps) {
-  const slug = blogEntry.id.replace(/^(en|fr)\//, '');
+  const slug = blogEntry.id.replace(/^(en|sw)\//, '');
   const href = blogLocale && blogLocale !== 'en' ? `/${blogLocale}/blog/${slug}/` : `/blog/${slug}/`;
 
   return (

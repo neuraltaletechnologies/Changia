@@ -1,5 +1,3 @@
-import Link from 'next/link';
-
 type LoginBtnProps = {
   title?: string;
 };
@@ -14,8 +12,10 @@ const txtSizeClasses = '2xl:text-base';
 
 export default function LoginBtn({ title = 'Log in' }: LoginBtnProps) {
   return (
-    <Link
-      href="/dashboard"
+    <button
+      type="button"
+      data-hs-overlay="#hs-toggle-between-modals-login-modal"
+      aria-haspopup="dialog"
       className={`${baseClasses} ${hoverClasses} ${darkClasses} ${mdClasses} ${txtSizeClasses}`}
     >
       <svg
@@ -33,6 +33,6 @@ export default function LoginBtn({ title = 'Log in' }: LoginBtnProps) {
         <circle cx="12" cy="7" r="4" />
       </svg>
       {title}
-    </Link>
+    </button>
   );
 }

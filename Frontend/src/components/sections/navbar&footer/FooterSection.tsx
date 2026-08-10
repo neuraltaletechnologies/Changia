@@ -6,20 +6,20 @@ import EmailFooterInput from '@/components/ui/forms/input/EmailFooterInput';
 import Icon from '@/components/ui/icons/Icon';
 import BrandLogo from '@/components/BrandLogo';
 import enStrings from '@/utils/navigation';
-import frStrings from '@/utils/fr/navigation';
+import swStrings from '@/utils/sw/navigation';
 import { SITE } from '@/data_files/constants';
 
 export default function FooterSection() {
   const pathname = usePathname();
-  const isFr = pathname?.startsWith('/fr');
-  const strings = isFr ? frStrings : enStrings;
+  const isSw = pathname?.startsWith('/sw');
+  const strings = isSw ? swStrings : enStrings;
 
-  const sectionThreeTitle = isFr ? 'Rester à jour' : 'Stay up to date';
-  const sectionThreeContent = isFr
-    ? 'Restez informé des nouvelles campagnes, fonctionnalités et lancements.'
+  const sectionThreeTitle = isSw ? 'Kaa na taarifa mpya' : 'Stay up to date';
+  const sectionThreeContent = isSw
+    ? 'Endelea kupata taarifa za kampeni mpya, vipengele na uzinduzi.'
     : 'Stay updated with new campaigns, features and launches.';
-  const giverLine = isFr
-    ? "Tanzanie d'abord. Mobile money d'abord."
+  const giverLine = isSw
+    ? 'Tanzania kwanza. Mobile money kwanza.'
     : 'Tanzania-first. Mobile-money-first.';
 
   return (

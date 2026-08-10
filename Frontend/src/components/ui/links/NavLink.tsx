@@ -12,7 +12,7 @@ export default function NavLink({ url, name }: NavLinkProps) {
   const isActive =
     pathname === url ||
     (url !== '/' && pathname?.startsWith(url)) ||
-    (url === '/' && (pathname === '/' || pathname === '/fr'));
+    (url === '/' && (pathname === '/' || pathname === '/sw'));
 
   const activeClasses =
     'text-orange-400 dark:text-orange-300';

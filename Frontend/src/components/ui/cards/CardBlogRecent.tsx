@@ -13,7 +13,7 @@ export default function CardBlogRecent({
   blogEntry,
   recentBlogLocale = '',
 }: CardBlogRecentProps) {
-  const slug = blogEntry.id.replace(/^(en|fr)\//, '');
+  const slug = blogEntry.id.replace(/^(en|sw)\//, '');
   const href =
     recentBlogLocale && recentBlogLocale !== 'en'
       ? `/${recentBlogLocale}/blog/${slug}/`

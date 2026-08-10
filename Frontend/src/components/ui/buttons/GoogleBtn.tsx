@@ -1,3 +1,7 @@
+'use client';
+
+import { useRouter } from 'next/navigation';
+
 type GoogleBtnProps = {
   title: string;
 };
@@ -11,9 +15,16 @@ const disableClasses = 'disabled:pointer-events-none disabled:opacity-50';
 const ringClasses = 'ring-zinc-500 dark:ring-zinc-200';
 
 export default function GoogleBtn({ title }: GoogleBtnProps) {
+  const router = useRouter();
+
+  const handleClick = () => {
+    router.push('/dashboard');
+  };
+
   return (
     <button
       type="button"
+      onClick={handleClick}
       className={`${baseClasses} ${borderClasses} ${bgColorClasses} ${disableClasses} ${ringClasses}`}
     >
       <svg

@@ -4,16 +4,16 @@ import { usePathname } from 'next/navigation';
 
 export default function NotFound() {
   const pathname = usePathname();
-  const isFr = pathname?.startsWith('/fr');
+  const isSw = pathname?.startsWith('/sw');
 
-  const pageTitle = isFr ? 'Page Non Trouvée | Changia' : 'Page Not Found | Changia';
-  const subTitle = isFr
-    ? "Oups, ce n'est pas la page de campagne que vous cherchiez !"
+  const pageTitle = isSw ? 'Ukurasa Haupatikani | Changia' : 'Page Not Found | Changia';
+  const subTitle = isSw
+    ? 'Samahani, hii si ukurasa wa kampeni uliokuwa unautafuta!'
     : "Oops, this isn't the campaign page you were looking for!";
-  const content = isFr
-    ? 'Ne laissez pas ce contretemps vous arrêter. Revenons à la collecte de fonds.'
+  const content = isSw
+    ? 'Usikate tamaa kwa tatizo hili. Turudi kwenye mchango.'
     : "Don't let this hiccup slow you down. Let's get you back to giving.";
-  const btnTitle = isFr ? 'Retour' : 'Go Back';
+  const btnTitle = isSw ? 'Rudi Nyuma' : 'Go Back';
 
   return (
     <section className="grid h-svh place-content-center">

@@ -12,7 +12,7 @@ const imageClass =
   'absolute inset-0 h-full w-full object-cover object-center transition duration-[600ms] ease-[cubic-bezier(0.45,0,0.55,1)] group-hover:scale-110';
 
 export default function CardWide({ product, productLocale = '' }: CardWideProps) {
-  const slug = product.id.replace(/^(en|fr)\//, '');
+  const slug = product.id.replace(/^(en|sw)\//, '');
   const href =
     productLocale && productLocale !== 'en'
       ? `/${productLocale}/products/${slug}/`

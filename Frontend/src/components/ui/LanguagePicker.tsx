@@ -4,7 +4,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import Icon from './icons/Icon';
 import { languages } from '@/utils/ui';
 
-const LANGS = ['en', 'fr'] as const;
+const LANGS = ['en', 'sw'] as const;
 type TLanguage = (typeof LANGS)[number];
 
 export default function LanguagePicker() {
@@ -21,7 +21,7 @@ export default function LanguagePicker() {
     let newPath = lang !== 'en' ? `/${lang}${currentPath ? '/' + currentPath : ''}` : `/${currentPath}`;
     newPath = newPath.replace(/\/+/g, '/');
     if (newPath === '') newPath = '/';
-    if (newPath === '/fr/') newPath = '/fr';
+    if (newPath === '/sw/') newPath = '/sw';
 
     router.push(`${newPath}${url.search}`);
   };

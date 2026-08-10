@@ -12,7 +12,7 @@ export type CollectionName = 'blog' | 'products' | 'insights';
 export interface ContentEntry<T = Record<string, unknown>> {
   /** Relative id, e.g. "en/post-1" (matching the old Astro collection id). */
   id: string;
-  /** Language prefix, e.g. "en" or "fr". */
+  /** Language prefix, e.g. "en" or "sw". */
   lang: string;
   /** Slug without the language prefix, e.g. "post-1". */
   slug: string;
@@ -123,19 +123,19 @@ function resolveInsight(entry: ContentEntry): ContentEntry<InsightData> {
   };
 }
 
-export function getBlogEntries(lang?: 'en' | 'fr'): ContentEntry<BlogData>[] {
+export function getBlogEntries(lang?: 'en' | 'sw'): ContentEntry<BlogData>[] {
   return getCollection('blog')
     .filter((e) => (lang ? e.lang === lang : true))
     .map(resolveBlog);
 }
 
-export function getProductEntries(lang?: 'en' | 'fr'): ContentEntry<ProductData>[] {
+export function getProductEntries(lang?: 'en' | 'sw'): ContentEntry<ProductData>[] {
   return getCollection('products')
     .filter((e) => (lang ? e.lang === lang : true))
     .map(resolveProduct);
 }
 
-export function getInsightEntries(lang?: 'en' | 'fr'): ContentEntry<InsightData>[] {
+export function getInsightEntries(lang?: 'en' | 'sw'): ContentEntry<InsightData>[] {
   return getCollection('insights')
     .filter((e) => (lang ? e.lang === lang : true))
     .map(resolveInsight);

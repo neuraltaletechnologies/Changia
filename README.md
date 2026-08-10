@@ -151,24 +151,40 @@ Tanzania-first, mobile-money-first platform for simple, transparent, auditable f
 
 ## Quick start
 
-**1. Create the database** — import `backend/database.sql` into your MySQL
+The repo is a **pnpm + Turborepo** monorepo: one install and one command boots both
+the backend API and the frontend at the same time.
+
+**1. Install dependencies** (from the repo root)
+
+```bash
+pnpm install
+```
+
+**2. Create the database** — import `backend/database.sql` into your MySQL
 (phpMyAdmin → Import, or `mysql -u root -p < database.sql`). It creates the
 `changia` database, all tables, and demo data.
 
-**2. Backend API** (see `backend/README.md`)
+**3. Copy the env examples** (only needed the first time)
 
 ```bash
-cd backend
-npm install
-npm run dev                  # http://localhost:5000
+cp Backend/.env.example  Backend/.env
+cp Frontend/.env.example Frontend/.env
 ```
 
-**3. Frontend** (see `Frontend/README.md`)
+**4. Run everything (backend + frontend together)**
 
 ```bash
-cd Frontend
-npm install
-npm run dev                  # http://localhost:3000
+pnpm dev        # backend → http://localhost:5000,  frontend → http://localhost:3000
+```
+
+Turbo runs each package's `dev` script in parallel (`next dev` for the frontend,
+`node --watch server.js` for the API). Other useful commands:
+
+```bash
+pnpm build      # build both (currently the frontend)
+pnpm lint       # lint all packages that define it
+pnpm turbo run dev --filter=changia      # run only the frontend
+pnpm turbo run dev --filter=changia-api  # run only the backend
 ```
 
 Visit `http://localhost:3000/login` and sign in with `admin@msuya.or.tz` / `Changia@2026`,

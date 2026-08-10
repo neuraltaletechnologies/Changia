@@ -1,0 +1,23 @@
+packages:
+  - Frontend
+  - Backend
+
+# pnpm treats every folder listed above as a workspace package so turbo can
+# orchestrate their `dev` / `build` / `start` scripts from the repo root.
+minimumReleaseAgeExclude:
+  - lucide-react@1.31.0
+
+# ─── Slow-network tuning ────────────────────────────────────────────────────
+# This machine downloads from the registry slowly, so give pnpm much more
+# time and retries than the 60s defaults when fetching tarballs.
+networkConcurrency: 8
+fetchRetries: 8
+fetchRetryMintimeout: 2000
+fetchRetryMaxtimeout: 120000
+fetchRetryFactor: 2
+fetchTimeout: 900000
+
+# ─── Build scripts ──────────────────────────────────────────────────────────
+# Run install/postinstall scripts for every dependency (esbuild, sharp, next,
+# etc.). pnpm 10+ skips these by default unless explicitly allowed.
+dangerouslyAllowAllBuilds: true

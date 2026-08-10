@@ -1,22 +1,32 @@
 [
   {
-    "heading": "Consent-Aware Donor Pool",
-    "content": "Add, tag, import and search donors with recorded consent status, contact history and preferred channel — with opt-out controls for SMS, WhatsApp and email.",
-    "svg": "groups"
-  },
-  {
-    "heading": "Mobile-Money First",
-    "content": "Donors give with the payments they already use. Campaign pages open on any smartphone, and the PIN is entered only in the gateway's own approval prompt — never stored or seen by Changia.",
-    "svg": "verified"
-  },
-  {
-    "heading": "Shareable Campaign Links",
-    "content": "Publish a campaign, generate a short link and QR code, and send approved SMS, WhatsApp or email templates to your consented donor pool in minutes.",
+    "heading": "Shareable Campaign Pages",
+    "content": "Mobile-first pages with your story, photo, live progress bar, and a simple donate button.",
     "svg": "books"
   },
   {
-    "heading": "Audit-Ready by Design",
-    "content": "Verified callbacks, idempotent payment handling, integer TZS amounts and immutable audit events keep every shilingi accountable.",
+    "heading": "One-Tap Push Requests",
+    "content": "Managers request donations directly from donors who've already said yes.",
+    "svg": "send"
+  },
+  {
+    "heading": "Donor Pool (CRM)",
+    "content": "Track supporters, their consent status, and their giving history in one place.",
+    "svg": "groups"
+  },
+  {
+    "heading": "Real Receipts & Updates",
+    "content": "Every donor gets an instant receipt and a progress update after they give.",
+    "svg": "verified"
+  },
+  {
+    "heading": "Full Transparency",
+    "content": "Public goal, service fee, and remaining balance are always visible — no hidden math.",
     "svg": "frame"
+  },
+  {
+    "heading": "Built-In Security",
+    "content": "Changia never sees or stores your mobile-money PIN. Every transaction is verified before it counts.",
+    "svg": "shield"
   }
 ]

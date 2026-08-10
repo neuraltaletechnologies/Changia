@@ -1,0 +1,19 @@
+{
+  "name": "changia",
+  "version": "1.0.0",
+  "private": true,
+  "packageManager": "pnpm@11.20.0",
+  "description": "Changia — Digital Fundraising & Mobile Money Contribution Platform (monorepo)",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "start": "turbo run start",
+    "lint": "turbo run lint",
+    "format:check": "turbo run format:check",
+    "format:fix": "turbo run format:fix",
+    "turbo": "turbo"
+  },
+  "devDependencies": {
+    "turbo": "^2.10.9"
+  }
+}

@@ -1,0 +1,170 @@
+import type { ApiUser } from "@/lib/api-client";
+
+/**
+ * Role-Based Access Control (RBAC) for the Changia dashboard.
+ *
+ * Roles come straight from the backend user object (ApiUser.role):
+ *   - SUPER_ADMIN        → platform config, fee/gateway settings, org setup,
+ *                          support + audit access
+ *   - ORG_ADMIN          → creates/approves campaigns, manages org users +
+ *                          donor pool, views reports, requests payouts
+ *   - CAMPAIGN_MANAGER   → works only on assigned campaigns, adds consented
+ *                          donors, sends approved push requests. NO withdrawal
+ *                          / payout access.
+ */
+
+export type Role = ApiUser["role"];
+
+export const ROLE = {
+  SUPER_ADMIN: "SUPER_ADMIN",
+  ORG_ADMIN: "ORG_ADMIN",
+  CAMPAIGN_MANAGER: "CAMPAIGN_MANAGER",
+} as const;
+
+export const ALL_ROLES: Role[] = [
+  ROLE.SUPER_ADMIN,
+  ROLE.ORG_ADMIN,
+  ROLE.CAMPAIGN_MANAGER,
+];
+
+// ─── Role metadata ───────────────────────────────────────────────────────────
+
+export interface RoleMeta {
+  /** Short human label used in the UI. */
+  label: string;
+  /** Label shown under the user's name in nav/header. */
+  shortLabel: string;
+  /** One-line welcome tagline on the dashboard. */
+  tagline: string;
+  /** Longer scope description for the role banner. */
+  scope: string;
+}
+
+export const ROLE_META: Record<Role, RoleMeta> = {
+  SUPER_ADMIN: {
+    label: "Super Administrator",
+    shortLabel: "Super Admin",
+    tagline: "Platform overview — config, fees, gateways and audit.",
+    scope:
+      "You have full platform access: configuration, fee & gateway settings, " +
+      "organisation setup, and support / audit access.",
+  },
+  ORG_ADMIN: {
+    label: "Organization Administrator",
+    shortLabel: "Org Admin",
+    tagline: "Run your campaigns, donor pool, team and payouts.",
+    scope:
+      "You can create and approve campaigns, manage your team and donor pool, " +
+      "view reports, and request payouts.",
+  },
+  CAMPAIGN_MANAGER: {
+    label: "Campaign Manager",
+    shortLabel: "Campaign Manager",
+    tagline: "Manage your assigned campaigns and their consented donors.",
+    scope:
+      "You work only on your assigned campaigns: add consented donors and send " +
+      "approved push requests. Withdrawals and payouts are not available to your role.",
+  },
+};
+
+export function getRoleMeta(role: Role | undefined): RoleMeta {
+  return (role && ROLE_META[role]) || {
+    label: "Member",
+    shortLabel: "Member",
+    tagline: "Welcome.",
+    scope: "",
+  };
+}
+
+// ─── Permissions ─────────────────────────────────────────────────────────────
+
+export type Permission =
+  | "dashboard:view"
+  | "campaign:view"
+  | "campaign:create"
+  | "campaign:approve"
+  | "donor:view"
+  | "donor:add" // add consented donors
+  | "donor:manage" // full donor CRUD + imports
+  | "team:manage"
+  | "audit:view"
+  | "settings:platform" // platform config, fees, gateways
+  | "settings:org" // organisation preferences
+  | "payout:request"
+  | "reports:view";
+
+export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
+  SUPER_ADMIN: [
+    "dashboard:view",
+    "campaign:view",
+    "campaign:create",
+    "campaign:approve",
+    "donor:view",
+    "donor:add",
+    "donor:manage",
+    "team:manage",
+    "audit:view",
+    "settings:platform",
+    "settings:org",
+    "payout:request",
+    "reports:view",
+  ],
+  ORG_ADMIN: [
+    "dashboard:view",
+    "campaign:view",
+    "campaign:create",
+    "campaign:approve",
+    "donor:view",
+    "donor:add",
+    "donor:manage",
+    "team:manage",
+    "settings:org",
+    "payout:request",
+    "reports:view",
+  ],
+  CAMPAIGN_MANAGER: [
+    "dashboard:view",
+    "campaign:view",
+    "donor:view",
+    "donor:add",
+  ],
+};
+
+export function hasPermission(role: Role | undefined, perm: Permission): boolean {
+  if (!role) return false;
+  return ROLE_PERMISSIONS[role].includes(perm);
+}
+
+// ─── Route access ────────────────────────────────────────────────────────────
+//
+// Kept in one place so the sidebar, mobile nav, route guard and dashboard all
+// agree on what every role may open.
+
+export const ROUTE_ACCESS: Record<string, Role[]> = {
+  "/dashboard": ALL_ROLES,
+  "/dashboard/campaigns": ALL_ROLES,
+  "/dashboard/campaigns/new": [ROLE.SUPER_ADMIN, ROLE.ORG_ADMIN],
+  "/dashboard/campaigns/approvals": [ROLE.SUPER_ADMIN, ROLE.ORG_ADMIN],
+  "/dashboard/donors": ALL_ROLES,
+  "/dashboard/donors/import": [ROLE.SUPER_ADMIN, ROLE.ORG_ADMIN],
+  "/dashboard/team": [ROLE.SUPER_ADMIN, ROLE.ORG_ADMIN],
+  "/dashboard/audit-log": [ROLE.SUPER_ADMIN],
+  "/dashboard/settings": [ROLE.SUPER_ADMIN, ROLE.ORG_ADMIN],
+  "/dashboard/payouts": [ROLE.SUPER_ADMIN, ROLE.ORG_ADMIN],
+};
+
+/** Whether a role may open the given pathname (longest-prefix match wins). */
+export function canAccessRoute(role: Role | undefined, pathname: string): boolean {
+  if (!role) return false;
+  const matched = Object.keys(ROUTE_ACCESS)
+    .filter((route) => pathname === route || pathname.startsWith(`${route}/`))
+    .sort((a, b) => b.length - a.length)[0];
+  if (!matched) return false;
+  return ROUTE_ACCESS[matched].includes(role);
+}
+
+/** The default landing route for a role when they have been blocked somewhere. */
+export function getRoleLanding(role: Role): string {
+  // Everyone can land on the dashboard overview.
+  return "/dashboard";
+}

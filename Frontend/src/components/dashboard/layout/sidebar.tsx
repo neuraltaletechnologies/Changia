@@ -17,11 +17,8 @@ import {
   HeartHandshake,
   ExternalLink,
 } from "lucide-react";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/dashboard/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/dashboard/ui/tooltip";
+import { useRole } from "@/hooks/use-role";
 
 const navItems = [
   {
@@ -73,6 +70,15 @@ interface SidebarProps {
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
+  const { canAccessRoute, meta } = useRole();
+
+  // Only show nav sections/items the current role is allowed to open.
+  const visibleSections = navItems
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => canAccessRoute(item.href)),
+    }))
+    .filter((section) => section.items.length > 0);
 
   const isActive = (href: string) => {
     if (href === "/dashboard") return pathname === "/dashboard";
@@ -115,7 +121,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                 Changia Foundation TZ
               </p>
               <p className="text-[10px] text-sidebar-foreground/60 truncate">
-                Admin
+                {meta.shortLabel}
               </p>
             </div>
           </div>
@@ -124,7 +130,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-3 px-2">
-        {navItems.map((section) => (
+        {visibleSections.map((section) => (
           <div key={section.section} className="mb-4">
             {!collapsed && (
               <p className="text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/40 px-2 mb-1.5">

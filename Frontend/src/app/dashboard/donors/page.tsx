@@ -37,6 +37,7 @@ import {
 import { AddDonorDialog } from "@/components/dashboard/donors/add-donor-dialog";
 import { loadDonors } from "@/lib/dashboard/donor-store";
 import { formatTZS, type Donor, type DonorStatus } from "@/lib/dashboard/types";
+import { useRole } from "@/hooks/use-role";
 
 const PAGE_SIZE = 8;
 
@@ -47,6 +48,8 @@ export default function DonorsPage() {
   const [consentFilter, setConsentFilter] = useState<string>("all");
   const [page, setPage] = useState(1);
   const [addOpen, setAddOpen] = useState(false);
+  const { hasPermission } = useRole();
+  const canManageDonors = hasPermission("donor:manage");
 
   useEffect(() => {
     setDonors(loadDonors());
@@ -87,15 +90,17 @@ export default function DonorsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            nativeButton={false}
-            render={<Link href="/dashboard/donors/import" />}
-          >
-            <Upload className="w-3.5 h-3.5 mr-1.5" />
-            Import
-          </Button>
+          {canManageDonors && (
+            <Button
+              variant="outline"
+              size="sm"
+              nativeButton={false}
+              render={<Link href="/dashboard/donors/import" />}
+            >
+              <Upload className="w-3.5 h-3.5 mr-1.5" />
+              Import
+            </Button>
+          )}
           <Button size="sm" onClick={() => setAddOpen(true)}>
             <Plus className="w-3.5 h-3.5 mr-1.5" />
             Add Donor

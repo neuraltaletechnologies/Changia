@@ -7,24 +7,24 @@ import TestimonialsSectionAlt from '@components/sections/testimonials/Testimonia
 import { getProductEntries } from '@/lib/content';
 
 export const metadata: Metadata = {
-  title: 'Modules',
+  title: 'Campaigns',
   description:
-    'Explore the three modules of the Changia MVP: Core Platform & Donor Pool, Campaign Link Distribution and Instant Push Donation.',
+    'Explore the three Campaigns of the Changia Campaign: Core Platform & Donor Pool, Campaign  Link Distribution and Instant Push Donation.',
   openGraph: {
-    title: 'Changia MVP Modules | Changia',
+    title: 'Changia Campaign Campaigns | Changia',
     description:
-      'Explore the three modules of the Changia MVP: Core Platform & Donor Pool, Campaign Link Distribution and Instant Push Donation.',
+      'Explore the three Campaigns of the Changia Campaign: Core Platform & Donor Pool, Campaign  Link Distribution and Instant Push Donation.',
   },
 };
 
-const title = 'Modules';
+const title = 'Campaigns';
 const subTitle =
-  'Explore the three independent, payable modules of the Changia MVP. Each module delivers a primary outcome — from a secure core platform and donor pool to campaign link distribution and manager-led push donations.';
+  'Explore the three independent, payable Campaigns of the Changia Campaign. Each Campaign delivers a primary outcome — from a secure core platform and donor pool to Campaign  link distribution and manager-led push donations.';
 
 const testimonials = [
   {
     content:
-      'As our launch partner, we could set up a secure dashboard, manage users by role, and keep an audit-ready donor pool from day one. Module 1 gave us the foundation we needed to run campaigns people can trust.',
+      'As our launch partner, we could set up a secure dashboard, manage users by role, and keep an audit-ready donor pool from day one. Campaign 1 gave us the foundation we needed to run Campaigns people can trust.',
     author: 'Dr. Msuya',
     role: 'Organization Administrator | Initial Launch Partner',
     avatarSrc:
@@ -33,9 +33,9 @@ const testimonials = [
   },
   {
     content:
-      'With the campaign link module, we turn radio and WhatsApp listeners into donors. A short link, a QR code and a mobile-first campaign page — from TZS 1,000 — and every verified contribution updates the progress bar.',
+      'With the Campaign  link Campaign, we turn radio and WhatsApp listeners into donors. A short link, a QR code and a mobile-first Campaign  page — from TZS 100 — and every verified contribution updates the progress bar.',
     author: 'Amadi Kimaro',
-    role: 'Campaign Manager | Community Health Fund',
+    role: 'Campaign  Manager | Community Health Fund',
     avatarSrc:
       'https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=1376&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D8&auto=format&fit=facearea&facepad=2&w=320&h=320&q=80',
     avatarAlt: 'Image Description',
@@ -70,7 +70,7 @@ export default function ProductsIndexPage() {
               </p>
             ) : null}
           </div>
-          <PrimaryCTA title="Campaign Stories" url="#testimonials" noArrow />
+          <PrimaryCTA title="Campaign  Stories" url="#testimonials" noArrow />
         </div>
 
         <section className="grid grid-cols-1 gap-4 sm:grid-cols-3 md:gap-6 xl:gap-8">
@@ -86,7 +86,7 @@ export default function ProductsIndexPage() {
 
       <FeaturesStatsAlt
         title="Why Choose Changia?"
-        subTitle="Changia is built for Tanzanian mobile-money workflows from the ground up. Whether you're launching your first campaign or running a nation-wide appeal, the platform is engineered to convert willingness to help into completed payments."
+        subTitle="Changia is built for Tanzanian mobile-money workflows from the ground up. Whether you're launching your first Campaign  or running a nation-wide appeal, the platform is engineered to convert willingness to help into completed payments."
         benefits={[
           'A secure, mobile-first foundation designed for low-bandwidth devices.',
           'Consent-aware donor management with opt-out controls.',
@@ -94,7 +94,7 @@ export default function ProductsIndexPage() {
         ]}
       />
 
-      <TestimonialsSectionAlt title="What Campaign Owners Say" testimonials={testimonials} />
+      <TestimonialsSectionAlt title="What Campaign  Owners Say" testimonials={testimonials} />
     </>
   );
 }

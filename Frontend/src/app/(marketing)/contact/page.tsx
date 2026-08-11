@@ -4,11 +4,11 @@ import ContactSection from '@components/sections/misc/ContactSection';
 export const metadata: Metadata = {
   title: 'Contact',
   description:
-    "Have a campaign idea or questions about the Changia platform? Reach out, and let's plan your mobile-money fundraising rollout.",
+    "Have a Campaign  idea or questions about the Changia platform? Reach out, and let's plan your mobile-money fundraising rollout.",
   openGraph: {
     title: 'Contact Us | Changia',
     description:
-      "Have a campaign idea or questions about the Changia platform? Reach out, and let's plan your mobile-money fundraising rollout.",
+      "Have a Campaign  idea or questions about the Changia platform? Reach out, and let's plan your mobile-money fundraising rollout.",
   },
 };
 

@@ -180,8 +180,8 @@ export default function SettingsPage() {
                 defaultChecked: true,
               },
               {
-                label: "Campaign milestone reached",
-                desc: "Notify when a campaign reaches 25%, 50%, 75% and 100%",
+                label: "Campaign  milestone reached",
+                desc: "Notify when a Campaign  reaches 25%, 50%, 75% and 100%",
                 defaultChecked: true,
               },
               {
@@ -196,7 +196,7 @@ export default function SettingsPage() {
               },
               {
                 label: "Weekly digest",
-                desc: "A weekly summary of donation activity and campaign progress",
+                desc: "A weekly summary of donation activity and Campaign  progress",
                 defaultChecked: true,
               },
             ].map((item) => (

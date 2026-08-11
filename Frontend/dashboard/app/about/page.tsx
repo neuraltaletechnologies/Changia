@@ -27,7 +27,7 @@ export default function AboutPage() {
               transition={{ delay: 0.1 }}
               className="text-base sm:text-lg text-muted-foreground leading-relaxed"
             >
-              Removing friction from charity. Helping everyday donors support local causes and foundations directly through local mobile money transactions.
+              Removing friction from charity. Helping everyday donors support local causes and foundations directly through local All money transfer transactions.
             </motion.p>
           </div>
         </section>
@@ -40,7 +40,7 @@ export default function AboutPage() {
               In Tanzania, millions of people contribute small sums daily to fund medical procedures, community infrastructure, school bursaries, and micro-loans. However, traditional payment menus are riddled with friction. Donors must manually remember business numbers, account details, and navigate complex USSD menus. This friction results in high drop-off rates between a donor's intention to give and the final transaction.
             </p>
             <p className="text-sm sm:text-base text-muted-foreground leading-relaxed">
-              Changia was built to bridge this gap. Partnering with Dr. Msuya to launch our first campaign, we engineered a secure, mobile-money-first payment gateway trigger. Through a single link or direct push request, donors receive a secure approval screen directly on their phone screen to enter their operator PIN.
+              Changia was built to bridge this gap. Partnering with Dr. Msuya to launch our first Campaign , we engineered a secure, fast campaign money payment gateway trigger. Through a single link or direct push request, donors receive a secure approval screen directly on their phone screen to enter their operator PIN.
             </p>
           </div>
 
@@ -62,7 +62,7 @@ export default function AboutPage() {
               </div>
               <h3 className="font-semibold text-sm">Full Transparency</h3>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                Configurable campaign service fees are disclosed up front, keeping calculations transparent and audit logs clean and immutable.
+                Configurable Campaign  service fees are disclosed up front, keeping calculations transparent and audit logs clean and immutable.
               </p>
             </div>
 
@@ -72,7 +72,7 @@ export default function AboutPage() {
               </div>
               <h3 className="font-semibold text-sm">PIN Security</h3>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                Changia never sees, requests, or stores a mobile money PIN. Authentication is handled strictly by the operator or gateway prompt.
+                Changia never sees, requests, or stores a All money transfer PIN. Authentication is handled strictly by the operator or gateway prompt.
               </p>
             </div>
           </div>

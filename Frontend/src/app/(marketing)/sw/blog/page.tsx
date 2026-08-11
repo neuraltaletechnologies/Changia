@@ -7,20 +7,20 @@ import { getBlogEntries, getInsightEntries } from '@/lib/content';
 export const metadata: Metadata = {
   title: 'Blogu',
   description:
-    'Endelea kufahamu mienendo na maendeleo ya hivi karibuni ya ukusanyaji fedha wa kidijitali na mchango wa mobile money, pamoja na uchambuzi wa timu ya Changia.',
+    'Endelea kufahamu mienendo na maendeleo ya hivi karibuni ya ukusanyaji fedha wa kidijitali na mchango wa All money transfer, pamoja na uchambuzi wa timu ya Changia.',
   openGraph: {
     title: 'Blogu ya ukusanyaji fedha wa kidijitali | Changia',
     description:
-      'Endelea kufahamu mienendo na maendeleo ya hivi karibuni ya ukusanyaji fedha wa kidijitali na mchango wa mobile money, pamoja na uchambuzi wa timu ya Changia.',
+      'Endelea kufahamu mienendo na maendeleo ya hivi karibuni ya ukusanyaji fedha wa kidijitali na mchango wa All money transfer, pamoja na uchambuzi wa timu ya Changia.',
   },
 };
 
 const title = "Hadithi za Changia na jamii ya ukusanyaji fedha";
 const subTitle =
-  "Chunguza habari, vidokezo na uchambuzi wa hivi karibuni kutoka timu ya Changia. Kutoka kusanidi kampeni hadi safari za wafadhili za mobile money, blogu yetu inakusaidia kubadilisha nia njema kuwa malipo yaliyofanyika.";
+  "Chunguza habari, vidokezo na uchambuzi wa hivi karibuni kutoka timu ya Changia. Kutoka kusanidi kampeni hadi safari za wafadhili za All money transfer, blogu yetu inakusaidia kubadilisha nia njema kuwa malipo yaliyofanyika.";
 const secondTitle = 'Uchambuzi';
 const secondSubTitle =
-  'Usomaji wa kina kuhusu ukusanyaji fedha wa kidijitali, imani ya wafadhili na mchango wa mobile money wenye uwazi nchini Tanzania.';
+  'Usomaji wa kina kuhusu ukusanyaji fedha wa kidijitali, imani ya wafadhili na mchango wa All money transfer wenye uwazi nchini Tanzania.';
 
 export default function SwahiliBlogIndexPage() {
   const blogPosts = getBlogEntries('sw').sort(

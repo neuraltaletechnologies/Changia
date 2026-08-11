@@ -7,24 +7,24 @@ import TestimonialsSectionAlt from '@components/sections/testimonials/Testimonia
 import { getProductEntries } from '@/lib/content';
 
 export const metadata: Metadata = {
-  title: 'Moduli',
+  title: 'Kampani',
   description:
-    'Gundua moduli tatu za MVP za Changia: jukwaa la msingi na hifadhidata ya wafadhili, usambazaji wa viungo vya kampeni na mchango wa kusukuma wa papo hapo.',
+    'Gundua kampani tatu za Campaign za Changia: jukwaa la msingi na hifadhidata ya wafadhili, usambazaji wa viungo vya kampeni na mchango wa kusukuma wa papo hapo.',
   openGraph: {
-    title: 'Moduli za MVP za Changia | Changia',
+    title: 'Kampani za Campaign za Changia | Changia',
     description:
-      'Gundua moduli tatu za MVP za Changia: jukwaa la msingi na hifadhidata ya wafadhili, usambazaji wa viungo vya kampeni na mchango wa kusukuma wa papo hapo.',
+      'Gundua kampani tatu za Campaign za Changia: jukwaa la msingi na hifadhidata ya wafadhili, usambazaji wa viungo vya kampeni na mchango wa kusukuma wa papo hapo.',
   },
 };
 
-const title = 'Moduli';
+const title = 'Kampani';
 const subTitle =
-  "Gundua moduli tatu huru na za kulipwa za MVP ya Changia. Kila moduli inatoa matokeo muhimu — kutoka jukwaa salama la msingi na hifadhidata ya wafadhili hadi usambazaji wa viungo vya kampeni na michango inayoendeshwa na maafisa.";
+  "Gundua kampani tatu huru na za kulipwa za Campaign ya Changia. Kila kampani inatoa matokeo muhimu — kutoka jukwaa salama la msingi na hifadhidata ya wafadhili hadi usambazaji wa viungo vya kampeni na michango inayoendeshwa na maafisa.";
 
 const testimonials = [
   {
     content:
-      "Kama mshirika wa uzinduzi, tuliweza kuanzisha dashibodi salama, kusimamia watumiaji kwa majukumu na kuweka hifadhidata ya wafadhili iliyoandaliwa kwa ukaguzi tangu siku ya kwanza. Moduli 1 ilitupa msingi wa kuendesha kampeni za kuaminika.",
+      "Kama mshirika wa uzinduzi, tuliweza kuanzisha dashibodi salama, kusimamia watumiaji kwa majukumu na kuweka hifadhidata ya wafadhili iliyoandaliwa kwa ukaguzi tangu siku ya kwanza. Kampani 1 ilitupa msingi wa kuendesha kampeni za kuaminika.",
     author: 'Dr Msuya',
     role: 'Msimamizi wa shirika | Mshirika wa awali wa uzinduzi',
     avatarSrc:
@@ -33,7 +33,7 @@ const testimonials = [
   },
   {
     content:
-      "Kwa moduli ya usambazaji wa viungo, tunawageuza wasikilizaji wa redio na WhatsApp kuwa wafadhili. Kiungo kifupi, msimbo wa QR na ukurasa wa kampeni wa simu — tangu TZS 1 000 — na kila mchango uliothibitishwa husasisha upau wa maendeleo.",
+      "Kwa kampani ya usambazaji wa viungo, tunawageuza wasikilizaji wa redio na WhatsApp kuwa wafadhili. Kiungo kifupi, msimbo wa QR na ukurasa wa kampeni wa simu — tangu TZS 100 — na kila mchango uliothibitishwa husasisha upau wa maendeleo.",
     author: 'Amadi Kimaro',
     role: 'Afisa wa kampeni | Mfuko wa afya wa jamii',
     avatarSrc:
@@ -86,7 +86,7 @@ export default function SwahiliProductsIndexPage() {
 
       <FeaturesStatsAlt
         title="Kwa nini uchague Changia?"
-        subTitle="Changia imeundwa tangu mwanzo kwa mtiririko wa kazi wa mobile money wa Tanzania. Ukiwa unazindua kampeni yako ya kwanza au kuendesha wito wa kitaifa, jukwaa limeundwa kubadilisha nia ya kusaidia kuwa malipo yaliyofanyika."
+        subTitle="Changia imeundwa tangu mwanzo kwa mtiririko wa kazi wa All money transfer wa Tanzania. Ukiwa unazindua kampeni yako ya kwanza au kuendesha wito wa kitaifa, jukwaa limeundwa kubadilisha nia ya kusaidia kuwa malipo yaliyofanyika."
         benefits={[
           'Msingi salama wa mobile-first, unaofaa kwa mitandao yenye mawimbi dhaifu.',
           'Usimamizi wa wafadhili unaoheshimu ridhaa kwa vidhibiti vya kujiondoa.',

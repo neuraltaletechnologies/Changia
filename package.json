@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "packageManager": "pnpm@11.20.0",
-  "description": "Changia — Digital Fundraising & Mobile Money Contribution Platform (monorepo)",
+  "description": "Changia — Digital Fundraising &  All money transfer Contribution Platform (monorepo)",
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",

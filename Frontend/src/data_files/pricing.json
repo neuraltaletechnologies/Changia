@@ -1,13 +1,13 @@
 {
   "title": "Simple, Transparent Pricing",
-  "subTitle": "A three-module MVP priced in TZS, with third-party costs billed separately.",
+  "subTitle": "A campaigns priced in TZS, with third-party costs billed separately.",
   "badge": "Best value",
   "thirdOption": "Need hosting, domain or messaging costs?",
   "btnText": "Download the Proposal",
 
   "starterKit": {
     "name": "Core Platform & Donor Pool",
-    "description": "Module 1 · Lay the foundation",
+    "description": "Campaign 1 · Lay the foundation",
     "price": "200,000",
     "cents": "",
     "billingFrequency": "TZS · one-time development",
@@ -17,23 +17,23 @@
       "Donor Pool (CRM) with consent tracking",
       "Audit log & reporting"
     ],
-    "purchaseBtnTitle": "Explore Module 1",
+    "purchaseBtnTitle": "Explore Campaign 1",
     "purchaseLink": "/products"
   },
 
   "professionalToolbox": {
-    "name": "Complete MVP",
-    "description": "All three modules · recommended",
+    "name": "Complete Campaign",
+    "description": "All three Campaigns · recommended",
     "price": "600,000",
     "cents": "",
     "billingFrequency": "TZS · one-time development",
     "features": [
       "Core Platform & Donor Pool",
-      "Campaign Link Distribution",
+      "Campaign  Link Distribution",
       "Instant Push Donation",
       "30-day defect warranty"
     ],
-    "purchaseBtnTitle": "Explore the Modules",
+    "purchaseBtnTitle": "Explore the Campaigns",
     "purchaseLink": "/products"
   }
 }

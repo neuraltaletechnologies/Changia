@@ -4,7 +4,7 @@ description: 'Platform Foundation'
 main:
   id: 4
   content: |
-    Beyond the three MVP modules, Changia keeps every shilingi accountable. Donations are confirmed only by verified callbacks, receipts are delivered on the permitted channel, and daily reconciliation is supported by immutable audit events across the platform.
+    Beyond the three Campaigns, Changia keeps every shilingi accountable. Donations are confirmed only by verified callbacks, receipts are delivered on the permitted channel, and daily reconciliation is supported by immutable audit events across the platform.
   imgCard: '@/images/product-image-4.avif'
   imgMain: '@/images/product-image-main-4.avif'
   imgAlt: 'Changia receipt and verified donation report'
@@ -21,12 +21,12 @@ tabs:
 longDescription:
   title: 'Transparency You Can Reconcile'
   subTitle: |
-    Every payment attempt uses unique idempotency keys, confirmed donations update campaigns exactly once, and receipts and campaign progress always match confirmed transactions — ready for reconciliation with gateway reports.
+    Every payment attempt uses unique idempotency keys, confirmed donations update Campaigns exactly once, and receipts and Campaign  progress always match confirmed transactions — ready for reconciliation with gateway reports.
   btnTitle: 'Contact the team to learn more'
   btnURL: '#'
 descriptionList:
   - title: 'Verified Money Flow'
-    subTitle: 'Payment initiated, pending, verified callback, confirmed donation, campaign progress updated, receipt and reconciliation.'
+    subTitle: 'Payment initiated, pending, verified callback, confirmed donation, Campaign  progress updated, receipt and reconciliation.'
   - title: 'Idempotent Payments'
     subTitle: 'The same gateway event can never be counted twice, and overfunding is blocked at the public target.'
   - title: 'Financial Integrity'
@@ -48,13 +48,13 @@ specificationsRight:
   - title: 'Reconciliation'
     subTitle: 'Confirmed donations, fees, payouts and settlements reconcile against gateway events.'
   - title: 'Recommended Cost'
-    subTitle: 'Included across the three modules; none separated unless contracted.'
+    subTitle: 'Included across the three Campaigns; none separated unless contracted.'
 tableData:
   - feature: ['Specification', 'Value']
     description:
-      - ['Linked module', 'All modules']
+      - ['Linked Campaign', 'All Campaigns']
       - ['Primary outcome', 'Verified, auditable financial records']
-      - ['Billing', 'Included in module fees']
+      - ['Billing', 'Included in Campaign fees']
       - ['Dependency', 'Production backup and monitored callbacks']
       - ['Acceptance', 'Receipts and progress match confirmed transactions']
 blueprints:

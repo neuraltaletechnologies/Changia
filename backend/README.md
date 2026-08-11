@@ -2,7 +2,7 @@
 
 The backend for the Changia fundraising platform — plain **Node.js + Express** in **JavaScript** (no TypeScript, no Docker), using **MySQL** with an importable `database.sql` file.
 
-It powers the frontend's login, registration, dashboards, campaigns, donor CRM, payments, and audit trail.
+It powers the frontend's login, registration, dashboards, Campaigns, donor CRM, payments, and audit trail.
 
 ---
 
@@ -62,7 +62,7 @@ All use the password **`Changia@2026`**:
 |------|-------|
 | Super admin | `admin@changia.co` |
 | Org admin | `admin@msuya.or.tz` |
-| Campaign manager | `manager@msuya.or.tz` |
+| Campaign  manager | `manager@msuya.or.tz` |
 
 > ⚠️ Change the `JWT_SECRET` in `config.js`/`.env` before any production use.
 
@@ -81,7 +81,7 @@ All use the password **`Changia@2026`**:
 | `DB_NAME` | `changia` | Database name |
 | `JWT_SECRET` | dev default | **Change this** — signs access tokens |
 | `JWT_EXPIRES_IN` | `7d` | Token lifetime |
-| `DEFAULT_SERVICE_FEE_PERCENT` | `5` | Campaign service fee (added on top of the goal) |
+| `DEFAULT_SERVICE_FEE_PERCENT` | `5` | Campaign  service fee (added on top of the goal) |
 
 You can set these as environment variables or edit `config.js` directly — no .env file is required.
 
@@ -106,7 +106,7 @@ backend/
     ├── auth/           # register, login, me, change-password
     ├── organization/   # org profile + dashboard stats
     ├── user/           # team management
-    ├── campaign/       # campaigns + service fee + approval flow
+    ├── Campaign /       # Campaigns + service fee + approval flow
     ├── donor/          # donor CRM + consents
     ├── donation/       # payment attempts + confirmed donations
     └── audit/          # immutable audit trail
@@ -127,11 +127,11 @@ Entities mirror the business proposal's core data entities:
 |-------|---------|
 | `organizations` | Tenant boundary (multi-organization ready) |
 | `users` | Identities + roles (`SUPER_ADMIN`, `ORG_ADMIN`, `CAMPAIGN_MANAGER`) |
-| `campaign_assignments` | Manager → campaign assignments |
+| `Campaign _assignments` | Manager → Campaign  assignments |
 | `donors` | Contact profile, phone-normalized + deduplicated per org |
 | `consents` | Per-channel opt-in/opt-out |
-| `campaigns` | Goal, service fee %, **public target = goal + fee**, status flow |
-| `message_batches` / `message_deliveries` | Bulk SMS/WhatsApp/email sends (Module 2) |
+| `Campaigns` | Goal, service fee %, **public target = goal + fee**, status flow |
+| `message_batches` / `message_deliveries` | Bulk SMS/WhatsApp/email sends (Campaign 2) |
 | `payment_attempts` | Every push/link request with **unique idempotency key** |
 | `gateway_events` | Raw provider callbacks |
 | `donations` | **Confirmed donations only** — receipt numbers `CHG-YYYY-NNNNNN` |
@@ -143,7 +143,7 @@ Entities mirror the business proposal's core data entities:
 - Amounts are **integer TZS** (`DECIMAL(14,0)`) — no float precision issues.
 - **Only a verified gateway callback creates a confirmed donation.**
 - The unique `payment_attempt_id` idempotency guard means the same gateway event is **never counted twice**.
-- Campaign progress uses **confirmed donations only**; the public target blocks new payment initiations.
+- Campaign  progress uses **confirmed donations only**; the public target blocks new payment initiations.
 - The platform **never stores or asks for a mobile-money PIN**.
 
 ---
@@ -169,17 +169,17 @@ Base URL: `http://localhost:5000/api/v1`
 | GET | `/organizations/stats` | Dashboard summary numbers |
 | GET / POST | `/users` | List / invite team members (returns temp password) |
 | PUT / DELETE | `/users/:id` | Update / remove team member (admin) |
-| GET / POST | `/campaigns` | List / create campaigns (auto fee calc) |
-| GET | `/campaigns/:id` | Detail + progress + recent donations |
-| PUT | `/campaigns/:id` | Edit draft/pending |
-| POST | `/campaigns/:id/submit` → `/approve` | Approval flow |
-| POST | `/campaigns/:id/status` | Pause / complete / cancel |
-| PUT | `/campaigns/:id/managers` | Assign campaign managers |
+| GET / POST | `/Campaigns` | List / create Campaigns (auto fee calc) |
+| GET | `/Campaigns/:id` | Detail + progress + recent donations |
+| PUT | `/Campaigns/:id` | Edit draft/pending |
+| POST | `/Campaigns/:id/submit` → `/approve` | Approval flow |
+| POST | `/Campaigns/:id/status` | Pause / complete / cancel |
+| PUT | `/Campaigns/:id/managers` | Assign Campaign  managers |
 | GET / POST | `/donors` | List / add donors (with consent) |
 | GET / PUT / DELETE | `/donors/:id` | Donor detail / update / remove |
 | GET | `/donations` | Confirmed donations |
-| POST | `/donations/campaigns/:campaignId/attempts` | Send a **push payment request** |
-| GET | `/donations/campaigns/:campaignId/attempts` | Payment request status |
+| POST | `/donations/Campaigns/:Campaign Id/attempts` | Send a **push payment request** |
+| GET | `/donations/Campaigns/:Campaign Id/attempts` | Payment request status |
 | POST | `/donations/simulate-callback` | ⚠️ Simulated gateway callback (dev only) |
 | GET | `/audit-logs` (+ `/recent`) | Immutable audit trail |
 
@@ -196,7 +196,7 @@ mysql -u root -p < database.sql   # (Re)import the database anytime
 ```
 
 ## What's next (roadmap)
-1. **Email/SMS providers** — invite emails, receipts, bulk campaigns (Module 2)
+1. **Email/SMS providers** — invite emails, receipts, bulk Campaigns (Campaign 2)
 2. **Real payment gateway** — replace `simulate-callback` with a signed webhook
 3. **Payouts & settlements** — approve and reconcile withdrawals
-4. **Public campaign pages** — shareable links with a donation flow
+4. **Public Campaign  pages** — shareable links with a donation flow

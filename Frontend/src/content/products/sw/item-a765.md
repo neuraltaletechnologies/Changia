@@ -1,10 +1,10 @@
 ---
 title: 'Usambazaji wa viungo vya kampeni'
-description: 'MVP Moduli 2'
+description: 'Campaign Kampani 2'
 main:
   id: 2
   content: |
-    Moduli 2 inaiwezesha shirika lako kuunda kampeni ya ukusanyaji wa fedha na kusambaza ujumbe rahisi, unaofaa kwa simu za msingi, kwa hifadhidata ya wafadhili au njia za umma. Wafadhili hufuata kiungo, hulipa kupitia njia ya lango linalotumika na hupokea risiti pamoja na taarifa ya maendeleo.
+    Kampani 2 inaiwezesha shirika lako kuunda kampeni ya ukusanyaji wa fedha na kusambaza ujumbe rahisi, unaofaa kwa simu za msingi, kwa hifadhidata ya wafadhili au njia za umma. Wafadhili hufuata kiungo, hulipa kupitia njia ya lango linalotumika na hupokea risiti pamoja na taarifa ya maendeleo.
   imgCard: '@/images/product-image-2.avif'
   imgMain: '@/images/product-image-main-2.avif'
   imgAlt: 'Ukurasa wa kampeni ya Changia wenye kiungo kifupi na msimbo wa QR'
@@ -54,7 +54,7 @@ tableData:
     description:
       - ['Gharama za maendeleo', 'TZS 200 000']
       - ['Matokeo makuu', 'Unda, sambaza na kusanya kupitia viungo vya kampeni']
-      - ['Malipo', 'Mara moja, kwa kila moduli iliyoidhinishwa']
+      - ['Malipo', 'Mara moja, kwa kila kampani iliyoidhinishwa']
       - ['Utegemezi', 'Akaunti za SMS/WhatsApp/barua pepe na sandbox ya lango']
       - ['Kukubalika', 'Kampeni iliyochapishwa kwa callback ya malipo iliyothibitishwa']
 blueprints:

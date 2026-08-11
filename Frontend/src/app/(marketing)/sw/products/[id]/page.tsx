@@ -17,7 +17,7 @@ function findProduct(id: string) {
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { id } = await params;
   const product = findProduct(id);
-  if (!product) return { title: 'Moduli' };
+  if (!product) return { title: 'Kampani' };
   return {
     title: product.data.title,
     description: product.data.description,

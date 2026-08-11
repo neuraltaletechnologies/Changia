@@ -20,7 +20,7 @@ import { partnersData } from '@/data_files/constants';
 export const metadata = {
   title: 'Changia',
   description:
-    'Changia ni jukwaa la kitanzania la ukusanyaji fedha wa kidijitali, linaloongozwa na mobile money. Unda kampeni, shiriki kiungo na kusanya michango ya mobile money kwa usumbufu mdogo.',
+    'Changia ni jukwaa la kitanzania la ukusanyaji fedha wa kidijitali, linaloongozwa na All money transfer. Unda kampeni, shiriki kiungo na kusanya michango ya All money transfer kwa usumbufu kabisa.',
 };
 
 const avatarSrcs: string[] = [
@@ -37,19 +37,19 @@ export default function SwahiliHomePage() {
         btnId="dismiss-button"
         btnTitle="Chunguza jukwaa"
         url="/sw/products"
-        title="Tunajenga jukwaa la kitanzania la ukusanyaji fedha, mobile money kwanza."
+        title="Tunajenga jukwaa la kitanzania la ukusanyaji fedha, All money transfer kwanza."
       />
 
       <HeroSection
-        title='Kusanya michango midogo ya mobile money kwa <span class="text-yellow-500 dark:text-yellow-400">usumbufu mdogo</span>'
-        subTitle="Changia ni jukwaa la kitanzania la ukusanyaji fedha, mobile money kwanza. Wamiliki wa kampeni huunda ukurasa wazi, hushiriki kiungo, na kubadilisha nia ya mfadhili ya kusaidia kuwa malipo yaliyofanyika."
+        title='Kusanya michango yako yote bila <span class="text-yellow-500 dark:text-yellow-400">usumbufu kabisa</span>'
+        subTitle="Changia ni jukwaa la kitanzania la ukusanyaji fedha, All money transfer kwanza. Wamiliki wa kampeni huunda ukurasa wazi, hushiriki kiungo, na kubadilisha nia ya mfadhili ya kusaidia kuwa malipo yaliyofanyika."
         primaryBtn="Anzisha kampeni"
-        primaryBtnURL="/login?redirect=%2Fdashboard%2Fcampaigns%2Fnew"
-        secondaryBtn="Chunguza moduli"
+        primaryBtnURL="/login?redirect=%2Fdashboard%2FCampaigns%2Fnew"
+        secondaryBtn="Chunguza kampani"
         secondaryBtnURL="/sw/products"
         withReview
         avatars={avatarSrcs}
-        rating='<span class="font-bold">TZS 1 000</span>'
+        rating='<span class="font-bold">TZS 100</span>'
         starCount={4}
         reviews="mchango wa chini zaidi kwenye kila kampeni ya Changia"
         src={heroImage}
@@ -57,7 +57,7 @@ export default function SwahiliHomePage() {
       />
 
       <ClientsSection
-        title="Inafanya kazi na mobile money ambayo wafadhili wako tayari wanaitumia"
+        title="Inafanya kazi na All money transfer ambayo wafadhili wako tayari wanaitumia"
         subTitle="Wafadhili hutoa kutoka simu yoyote ya mkononi na kuthibitisha kwa PIN yao wenyewe kwenye ombi la lango wanaloliamini."
         partners={partnersData}
       />
@@ -71,7 +71,7 @@ export default function SwahiliHomePage() {
       />
 
       <FeaturesNavs
-        title={'Moduli tatu za MVP za <span class="text-yellow-500 dark:text-yellow-400">Changia</span> hupeleka kampeni kutoka wazo hadi malipo yaliyofanyika.'}
+        title={'Kampani tatu za Campaign za <span class="text-yellow-500 dark:text-yellow-400">Changia</span> hupeleka kampeni kutoka wazo hadi malipo yaliyofanyika.'}
         tabs={[
           {
             heading: 'Jukwaa la msingi na hifadhidata ya wafadhili',
@@ -117,7 +117,7 @@ export default function SwahiliHomePage() {
         ]}
         statistics={[
           {
-            count: 'TZS 1 000',
+            count: 'TZS 100',
             description: 'mchango wa chini zaidi kwenye kila kampeni ya Changia',
           },
           {
@@ -126,11 +126,11 @@ export default function SwahiliHomePage() {
           },
           {
             count: '3',
-            description: 'moduli za MVP, zinazotolewa na kulipwa kwa kujitegemea',
+            description: 'kampani za Campaign, zinazotolewa na kulipwa kwa kujitegemea',
           },
           {
             count: 'TZS 200 000',
-            description: 'ada ya maendeleo kwa kila moduli iliyoidhinishwa',
+            description: 'ada ya maendeleo kwa kila kampani iliyoidhinishwa',
           },
         ]}
       />

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/dashboard/utils";
+import { useRole } from "@/hooks/use-role";
 import {
   LayoutDashboard,
   Users,
@@ -31,6 +32,8 @@ interface MobileNavProps {
 
 export function MobileNav({ open, onClose }: MobileNavProps) {
   const pathname = usePathname();
+  const { canAccessRoute, meta } = useRole();
+  const visibleItems = navItems.filter((item) => canAccessRoute(item.href));
 
   const isActive = (href: string) => {
     if (href === "/dashboard") return pathname === "/dashboard";
@@ -78,14 +81,14 @@ export function MobileNav({ open, onClose }: MobileNavProps) {
               <p className="text-xs font-medium text-sidebar-accent-foreground truncate">
                 Changia Foundation TZ
               </p>
-              <p className="text-[10px] text-sidebar-foreground/60">Admin</p>
+              <p className="text-[10px] text-sidebar-foreground/60">{meta.shortLabel}</p>
             </div>
           </div>
         </div>
 
         {/* Nav */}
         <nav className="flex-1 px-2 py-3 space-y-0.5">
-          {navItems.map((item) => {
+          {visibleItems.map((item) => {
             const active = isActive(item.href);
             const Icon = item.icon;
             return (

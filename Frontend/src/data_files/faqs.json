@@ -1,29 +1,29 @@
 {
-  "subTitle": "Ask us anything about Changia and how the platform works.",
+  "subTitle": "Common questions about Changia and how the platform works.",
   "faqs": [
     {
       "question": "What is Changia?",
-      "answer": "Changia is a Tanzania-first digital fundraising platform that helps people and organizations collect small mobile-money contributions with less friction. It combines mass digital fundraising with manager-led field fundraising, giving campaign owners a stronger way to convert willingness to help into a completed payment."
+      "answer": "Changia is a Tanzania-first, mobile-money-first digital fundraising platform. It lets organizations and campaign owners collect small mobile-money contributions with minimal friction — either by sharing a campaign link (SMS, WhatsApp, email, QR, social) or by having a field manager send a direct push payment request to a donor who has already agreed to give."
     },
     {
-      "question": "Which mobile-money services can donors use?",
-      "answer": "Donors contribute through the supported mobile-money gateway selected for a campaign — for example M-Pesa, Tigo Pesa, Airtel Money and HaloPesa. Donors confirm payments with their own PIN in the gateway's approval prompt; Changia never sees or stores a PIN."
+      "question": "How do donors pay?",
+      "answer": "Donors open the campaign link, choose an amount, and pay through their mobile-money gateway (M-Pesa, Tigo Pesa, Airtel Money, HaloPesa). The PIN is entered only in the secure gateway prompt — Changia never sees or stores it."
     },
     {
-      "question": "How does Changia charge for its service?",
-      "answer": "Changia does not deduct a fee from individual donations. A configurable service fee (for example 5%) is added to the required campaign amount when the campaign is created, so every contribution is credited at full face value and the public collection target includes the platform fee."
+      "question": "What is a Push Donation?",
+      "answer": "For face-to-face fundraising: a campaign manager gets a donor's agreement, enters their phone number and the amount, and sends a payment request. The donor just confirms with their own PIN in their mobile-money app."
     },
     {
-      "question": "What is an Instant Push Donation?",
-      "answer": "A campaign manager who has spoken to a donor and obtained agreement enters the donor's phone number and the agreed amount, then sends a payment request. The donor receives the authorized gateway prompt and confirms with their PIN. No donation is recorded until a verified callback confirms success."
+      "question": "How does the service fee work?",
+      "answer": "Changia adds its service fee on top of your campaign goal — not out of your donors' contributions. For example, a TZS 10,000,000 campaign with a 5% fee has a public target of TZS 10,500,000. Reach it, and you keep the full 10,000,000 — donors gave the rest to cover platform costs, transparently."
     },
     {
-      "question": "How is a confirmed donation counted?",
-      "answer": "Only a verified successful callback creates a confirmed donation. Payment attempts use unique idempotency keys so the same gateway event is never counted twice, and campaign totals use confirmed donations only."
+      "question": "Is my donation confirmed immediately?",
+      "answer": "Every donation is confirmed only after a verified payment callback from the mobile-money gateway. Payment attempts use unique idempotency keys so the same gateway event is never counted twice."
     },
     {
-      "question": "Can donors be sent promotional messages?",
-      "answer": "Only consented donors can receive promotional communication. Managers record consent status and preferred channel, and the platform provides opt-out and suppression management for SMS, WhatsApp and email campaigns."
+      "question": "Can I track donors and send updates?",
+      "answer": "Yes. The Donor Pool (CRM) lets you track supporters, their consent status, and giving history. Every donor gets an instant receipt and a progress update after they give."
     }
   ]
 }

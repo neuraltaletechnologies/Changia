@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Bell, Search, Menu, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Bell, Search, Menu, X, LogOut } from "lucide-react";
 import { Badge } from "@/components/dashboard/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/dashboard/ui/avatar";
 import {
@@ -18,14 +19,39 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/dashboard/ui/popover";
+import { useRole } from "@/hooks/use-role";
+import { clearSession } from "@/lib/api-client";
+
 interface HeaderProps {
   onMobileMenuToggle: () => void;
   mobileMenuOpen: boolean;
 }
 
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const letters = parts
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase() ?? "")
+    .join("");
+  return letters || "U";
+}
+
 export function Header({ onMobileMenuToggle, mobileMenuOpen }: HeaderProps) {
+  const router = useRouter();
+  const { user, meta } = useRole();
   const unreadCount = 0;
   const [notifOpen, setNotifOpen] = useState(false);
+
+  const displayName =
+    user && user.firstName
+      ? `${user.firstName} ${user.lastName ?? ""}`.trim()
+      : "User";
+  const displayRole = meta.shortLabel;
+
+  const handleSignOut = () => {
+    clearSession();
+    router.replace("/login");
+  };
 
   return (
     <header className="h-14 border-b border-border bg-card px-4 flex items-center justify-between gap-4 shrink-0 sticky top-0 z-30">
@@ -97,19 +123,24 @@ export function Header({ onMobileMenuToggle, mobileMenuOpen }: HeaderProps) {
           <DropdownMenuTrigger className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-muted transition-colors">
             <Avatar className="w-7 h-7">
               <AvatarFallback className="text-[11px] bg-primary text-primary-foreground font-semibold">
-                AU
+                {initials(displayName)}
               </AvatarFallback>
             </Avatar>
             <div className="hidden sm:block text-left leading-tight">
               <p className="text-xs font-medium text-foreground">
-                Admin User
+                {displayName}
               </p>
-              <p className="text-[10px] text-muted-foreground">Admin</p>
+              <p className="text-[10px] text-muted-foreground">{displayRole}</p>
             </div>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuGroup>
-              <DropdownMenuLabel className="text-xs">My Account</DropdownMenuLabel>
+              <DropdownMenuLabel className="text-xs">
+                <span className="block font-semibold">{displayName}</span>
+                <span className="block font-normal normal-case text-muted-foreground mt-0.5">
+                  {displayRole}
+                </span>
+              </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem className="text-xs cursor-pointer">
                 Profile
@@ -119,7 +150,11 @@ export function Header({ onMobileMenuToggle, mobileMenuOpen }: HeaderProps) {
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-xs cursor-pointer text-destructive">
+            <DropdownMenuItem
+              className="text-xs cursor-pointer text-destructive"
+              onSelect={handleSignOut}
+            >
+              <LogOut className="w-3.5 h-3.5 mr-2" />
               Sign Out
             </DropdownMenuItem>
           </DropdownMenuContent>

@@ -7,6 +7,7 @@ import { CampaignCard } from "@/components/dashboard/widgets/campaign-card";
 import { Button } from "@/components/dashboard/ui/button";
 import { loadUserCampaigns } from "@/lib/dashboard/campaign-store";
 import { Plus } from "lucide-react";
+import { useRole } from "@/hooks/use-role";
 
 const statusChips: { status: Campaign["status"]; styles: string }[] = [
   { status: "active", styles: "bg-emerald-50 text-emerald-700 border-emerald-200" },
@@ -18,6 +19,8 @@ const statusChips: { status: Campaign["status"]; styles: string }[] = [
 
 export default function CampaignsPage() {
   const [allCampaigns, setAllCampaigns] = useState<Campaign[]>([]);
+  const { hasPermission } = useRole();
+  const canCreate = hasPermission("campaign:create");
 
   useEffect(() => {
     setAllCampaigns(loadUserCampaigns());
@@ -34,10 +37,12 @@ export default function CampaignsPage() {
             {allCampaigns.length} campaigns &mdash; track goals and donor engagement
           </p>
         </div>
+        {canCreate && (
         <Button size="sm" nativeButton={false} render={<Link href="/dashboard/campaigns/new" />}>
           <Plus className="w-3.5 h-3.5 mr-1.5" />
           New Campaign
         </Button>
+        )}
       </div>
 
       {/* Tabs summary */}
@@ -58,6 +63,7 @@ export default function CampaignsPage() {
       {allCampaigns.length === 0 ? (
         <div className="text-center py-20 bg-card border border-border rounded-xl">
           <p className="text-sm text-muted-foreground">No campaigns yet.</p>
+          {canCreate && (
           <Button
             className="mt-4"
             size="sm"
@@ -67,6 +73,7 @@ export default function CampaignsPage() {
             <Plus className="w-3.5 h-3.5 mr-1.5" />
             Start a Campaign
           </Button>
+          )}
         </div>
       ) : (
         <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">

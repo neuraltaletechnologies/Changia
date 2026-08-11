@@ -8,6 +8,7 @@ import { Header } from "@/components/dashboard/layout/header";
 import { MobileNav } from "@/components/dashboard/layout/mobile-nav";
 import { TooltipProvider } from "@/components/dashboard/ui/tooltip";
 import { AuthGuard } from "@/components/dashboard/auth-guard";
+import { RoleGuard } from "@/components/dashboard/route-guard";
 
 export default function DashboardLayout({
   children,
@@ -40,7 +41,7 @@ export default function DashboardLayout({
             mobileMenuOpen={mobileMenuOpen}
           />
           <main className="flex-1 overflow-y-auto p-4 md:p-6">
-            {children}
+            <RoleGuard>{children}</RoleGuard>
           </main>
         </div>
       </div>

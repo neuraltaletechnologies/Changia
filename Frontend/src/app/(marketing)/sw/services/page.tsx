@@ -58,7 +58,7 @@ const articles: Article[] = [
     img: beforeAfter,
     imgAlt: 'Maendeleo ya kampeni kabla na baada ya michango iliyothibitishwa',
     btnExists: true,
-    btnTitle: 'Chunguza moduli',
+    btnTitle: 'Chunguza kampani',
     btnURL: '/sw/products',
   },
   {
@@ -76,7 +76,7 @@ const articles: Article[] = [
     isRightSection: false,
     title: 'Imani, ukaguzi na msaada unaoendelea',
     subTitle:
-      "Kila ombi, jaribio na callback linaandikwa kwa ajili ya upatanisho, kwa kiasi kamili cha TZS na matukio ya ukaguzi yasiyoweza kubadilishwa. Timu yetu iko hapo baada ya uzinduzi kwa mafunzo, dhamana ya siku 30 kwenye hitilafu, na njia wazi ya kuelekea moduli inayofuata ukipo tayari.",
+      "Kila ombi, jaribio na callback linaandikwa kwa ajili ya upatanisho, kwa kiasi kamili cha TZS na matukio ya ukaguzi yasiyoweza kubadilishwa. Timu yetu iko hapo baada ya uzinduzi kwa mafunzo, dhamana ya siku 30 kwenye hitilafu, na njia wazi ya kuelekea kampani inayofuata ukipo tayari.",
     img: usingTools,
     imgAlt: 'Timu inayofuatilia callbacks zilizothibitishwa na matukio ya ukaguzi',
     btnExists: true,
@@ -90,10 +90,10 @@ export default function ServicesPage() {
     <>
       <MainSection
         title="Ukusanyaji wa fedha unaojenga imani"
-        subTitle="Changia inachanganya ukusanyaji wa kidijitali kwa wingi na ukusanyaji wa mbugani unaoendeshwa na maafisa. Kutoka ukurasa wazi wa kampeni hadi malipo yaliyothibitishwa ya mobile money, kila hatua imeundwa kupunguza usumbufu na kuweka hesabu wazi."
+        subTitle="Changia inachanganya ukusanyaji wa kidijitali kwa wingi na ukusanyaji wa mbugani unaoendeshwa na maafisa. Kutoka ukurasa wazi wa kampeni hadi malipo yaliyothibitishwa ya All money transfer, kila hatua imeundwa kupunguza usumbufu na kuweka hesabu wazi."
         btnExists
         btnTitle="Anzisha kampeni"
-        btnURL="/login?redirect=%2Fdashboard%2Fcampaigns%2Fnew"
+        btnURL="/login?redirect=%2Fdashboard%2FCampaigns%2Fnew"
       />
 
       {articles.map((article) =>
@@ -127,13 +127,13 @@ export default function ServicesPage() {
 
       <FeaturesStats
         title="Changia kwa takwimu"
-        subTitle="Ahadi yetu ya uwazi na kuegemea imejengwa katika kila moduli. Tunabuni kwa malipo yaliyothibitishwa, ada wazi na rekodi zilizoandaliwa kwa ukaguzi."
-        mainStatTitle="TZS 1 000"
+        subTitle="Ahadi yetu ya uwazi na kuegemea imejengwa katika kila kampani. Tunabuni kwa malipo yaliyothibitishwa, ada wazi na rekodi zilizoandaliwa kwa ukaguzi."
+        mainStatTitle="TZS 100"
         mainStatSubTitle="mchango wa chini zaidi uliowekwa kwenye kila kampeni ya Changia"
         stats={[
           { stat: '5 %', description: 'ada ya huduma inayoweza kusanidiwa kwenye kiwango cha kampeni' },
-          { stat: '600 000', description: 'jumla ya TZS za maendeleo ya MVP katika moduli tatu' },
-          { stat: '3', description: 'moduli huru na za kulipwa za MVP' },
+          { stat: '600 000', description: 'jumla ya TZS za maendeleo ya Campaign katika kampani tatu' },
+          { stat: '3', description: 'kampani huru na za kulipwa za Campaign' },
         ]}
       />
     </>

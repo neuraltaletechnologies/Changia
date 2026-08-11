@@ -4,7 +4,7 @@ description: 'Msingi wa jukwaa'
 main:
   id: 4
   content: |
-    Zaidi ya moduli tatu za MVP, Changia hufanya kila shilingi ihesabike. Michango inathibitishwa tu na callbacks zilizothibitishwa, risiti hutolewa kupitia chaneli iliyoidhinishwa, na upatanisho wa kila siku unasaidiwa na matukio ya ukaguzi yasiyoweza kubadilishwa kwenye jukwaa lote.
+    Zaidi ya kampani tatu za Campaign, Changia hufanya kila shilingi ihesabike. Michango inathibitishwa tu na callbacks zilizothibitishwa, risiti hutolewa kupitia chaneli iliyoidhinishwa, na upatanisho wa kila siku unasaidiwa na matukio ya ukaguzi yasiyoweza kubadilishwa kwenye jukwaa lote.
   imgCard: '@/images/product-image-4.avif'
   imgMain: '@/images/product-image-main-4.avif'
   imgAlt: 'Risiti ya Changia na ripoti ya michango iliyothibitishwa'
@@ -48,13 +48,13 @@ specificationsRight:
   - title: 'Upatanisho'
     subTitle: 'Michango iliyothibitishwa, ada, uondoaji na makazi yanapatanishwa na matukio ya lango.'
   - title: 'Gharama inayopendekezwa'
-    subTitle: 'Imojumuishwa katika moduli tatu; hakuna gharama tofauti isipokuwa mkataba.'
+    subTitle: 'Imojumuishwa katika kampani tatu; hakuna gharama tofauti isipokuwa mkataba.'
 tableData:
   - feature: ['Maainisho', 'Thamani']
     description:
-      - ['Moduli inayohusiana', 'Moduli zote']
+      - ['Kampani inayohusiana', 'Kampani zote']
       - ['Matokeo makuu', 'Rekodi za kifedha zilizothibitishwa na kukaguliwa']
-      - ['Malipo', 'Imojumuishwa katika ada za moduli']
+      - ['Malipo', 'Imojumuishwa katika ada za kampani']
       - ['Utegemezi', 'Chelezo ya uzalishaji na callbacks zinazofuatiliwa']
       - ['Kukubalika', 'Risiti na maendeleo zinalingana na miamala iliyothibitishwa']
 blueprints:

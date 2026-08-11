@@ -17,10 +17,10 @@ export default function FooterSection() {
   const sectionThreeTitle = isSw ? 'Kaa na taarifa mpya' : 'Stay up to date';
   const sectionThreeContent = isSw
     ? 'Endelea kupata taarifa za kampeni mpya, vipengele na uzinduzi.'
-    : 'Stay updated with new campaigns, features and launches.';
+    : 'Stay updated with new Campaigns, features and launches.';
   const giverLine = isSw
     ? 'Tanzania kwanza. Mobile money kwanza.'
-    : 'Tanzania-first. Mobile-money-first.';
+    : 'Tanzania-first. fast campaign money.';
 
   return (
     <footer className="w-full bg-neutral-300 dark:bg-neutral-900">

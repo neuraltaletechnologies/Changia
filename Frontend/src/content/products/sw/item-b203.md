@@ -1,10 +1,10 @@
 ---
 title: 'Mchango wa kusukuma wa papo hapo'
-description: 'MVP Moduli 3'
+description: 'Campaign Kampani 3'
 main:
   id: 3
   content: |
-    Moduli 3 inasaidia ukusanyaji wa mbugani. Afisa wa kampeni anazungumza na mfadhili mtarajiwa, anapata makubaliano kwenye kiasi, anaingiza namba ya simu ya mfadhili na kiasi, kisha anatuma ombi la malipo. Mfadhili anapokea ombi lililoidhinishwa la lango la mobile money na anathibitisha tu kwa PIN yake.
+    Kampani 3 inasaidia ukusanyaji wa mbugani. Afisa wa kampeni anazungumza na mfadhili mtarajiwa, anapata makubaliano kwenye kiasi, anaingiza namba ya simu ya mfadhili na kiasi, kisha anatuma ombi la malipo. Mfadhili anapokea ombi lililoidhinishwa la lango la All money transfer na anathibitisha tu kwa PIN yake.
   imgCard: '@/images/product-image-3.avif'
   imgMain: '@/images/product-image-main-3.avif'
   imgAlt: 'Afisa anayetuma ombi la mchango wa kusukuma kutoka simu'
@@ -21,7 +21,7 @@ tabs:
 longDescription:
   title: 'Ukusanyaji unaokwenda kumkuta mfadhili'
   subTitle: |
-    Changia haihifadhi, haioni wala haiombi PIN ya mobile money ya mfadhili kamwe. PIN inaingizwa tu kwenye ombi linalodhibitiwa na opereta au lango, na hakuna mchango unaorekodiwa hadi callback iliyothibitishwa ithibitishe kufanikiwa.
+    Changia haihifadhi, haioni wala haiombi PIN ya All money transfer ya mfadhili kamwe. PIN inaingizwa tu kwenye ombi linalodhibitiwa na opereta au lango, na hakuna mchango unaorekodiwa hadi callback iliyothibitishwa ithibitishe kufanikiwa.
   btnTitle: 'Wasiliana na timu kujifunza zaidi'
   btnURL: '#'
 descriptionList:
@@ -54,7 +54,7 @@ tableData:
     description:
       - ['Gharama za maendeleo', 'TZS 200 000']
       - ['Matokeo makuu', 'Mchango wa kusukuma unaoendeshwa na afisa kwa callback iliyothibitishwa']
-      - ['Malipo', 'Mara moja, kwa kila moduli iliyoidhinishwa']
+      - ['Malipo', 'Mara moja, kwa kila kampani iliyoidhinishwa']
       - ['Utegemezi', 'Uwezo wa kusukuma wa lango na uandikishaji wa mfanyabiashara']
       - ['Kukubalika', 'Jaribio lililothibitishwa linalohesabiwa mara moja tu']
 blueprints:

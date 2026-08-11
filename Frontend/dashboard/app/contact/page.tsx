@@ -54,7 +54,7 @@ export default function ContactPage() {
               <div className="space-y-3">
                 <h2 className="text-xl sm:text-2xl font-bold tracking-tight">Contact Info</h2>
                 <p className="text-sm text-muted-foreground leading-relaxed">
-                  We are here to support hospitals, NGOs, community programs, and individual campaign managers.
+                  We are here to support hospitals, NGOs, community programs, and individual Campaign  managers.
                 </p>
               </div>
 

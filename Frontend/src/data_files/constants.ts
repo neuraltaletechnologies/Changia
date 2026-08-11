@@ -2,11 +2,11 @@ import ogImageSrc from '@images/social.png';
 
 export const SITE = {
   title: 'Changia',
-  tagline: 'Tanzania-first. Mobile-money-first. Built for everyday donors.',
+  tagline: 'Tanzania-first. fast campaign money. Built for everyday donors.',
   description:
-    'Changia is a Tanzania-first, mobile-money-first digital fundraising platform. It lets organizations and campaign owners collect small mobile-money contributions with minimal friction — either by sharing a campaign link (SMS, WhatsApp, email, QR, social) or by having a field manager send a direct push payment request to a donor who has already agreed to give. Donors never share their PIN with Changia — it is entered only in the secure gateway/mobile-money prompt. The platform is built for transparency: every campaign shows a public target, real-time progress, and an itemized service fee, and every donation is confirmed only after a verified payment callback.',
+    'Changia is a Tanzania-first, fast campaign money digital fundraising platform. It lets organizations and Campaign  owners collect contributions with minimal friction — either by sharing a Campaign  link (SMS, WhatsApp, email, QR, social) or by having a field manager send a direct push payment request to a donor who has already agreed to give. Donors never share their PIN with Changia — it is entered only in the secure gateway/mobile-money prompt. The platform is built for transparency: every Campaign  shows a public target, real-time progress, and an itemized service fee, and every donation is confirmed only after a verified payment callback.',
   description_short:
-    'Tanzania-first, mobile-money-first digital fundraising platform for simple, transparent, auditable contributions.',
+    'Tanzania-first, fast campaign money digital fundraising platform for simple, transparent, auditable contributions.',
   url: 'https://changia.co',
   author: 'Changia Development Team',
 };
@@ -37,7 +37,7 @@ export const OG = {
   url: 'https://changia.co',
   title: 'Changia | Turn "I\'ll help" into a completed donation',
   description:
-    'Changia makes it simple to raise money by mobile money — share a link, send a request, and watch your campaign fill up in real time.',
+    'Changia makes it simple to raise money by All money transfer — share a link, send a request, and watch your Campaign  fill up in real time.',
   image: ogImageSrc,
 };
 

@@ -32,7 +32,7 @@ export interface Donor {
   notes?: string;
 }
 
-export interface Campaign {
+export interface Campaign  {
   id: string;
   name: string;
   goal: number;
@@ -48,7 +48,7 @@ export interface Donation {
   donorId: string;
   donorName: string;
   amount: number;
-  campaign: string;
+  Campaign : string;
   channel: CommChannel;
   date: string;
   status: "completed" | "pending" | "failed";
@@ -60,7 +60,7 @@ export interface ActivityItem {
     | "donation"
     | "donor_added"
     | "donor_updated"
-    | "campaign_created"
+    | "Campaign _created"
     | "import"
     | "note_added";
   description: string;
@@ -98,7 +98,7 @@ export interface Notification {
   description: string;
   time: string;
   read: boolean;
-  type: "donation" | "campaign" | "system" | "team";
+  type: "donation" | "Campaign " | "system" | "team";
 }
 
 // ─── Donors ──────────────────────────────────────────────────────────────────
@@ -120,7 +120,7 @@ export const donors: Donor[] = [
     lastGiftAmount: 500000,
     giftCount: 12,
     joinedDate: "2022-03-10",
-    notes: "Prefers quarterly updates. Very engaged with education campaigns.",
+    notes: "Prefers quarterly updates. Very engaged with education Campaigns.",
   },
   {
     id: "d2",
@@ -190,7 +190,7 @@ export const donors: Donor[] = [
     lastGiftAmount: 0,
     giftCount: 0,
     joinedDate: "2026-07-01",
-    notes: "Referred by Amina Hassan. Interested in water access campaign.",
+    notes: "Referred by Amina Hassan. Interested in water access Campaign .",
   },
   {
     id: "d6",
@@ -315,7 +315,7 @@ export const donors: Donor[] = [
 
 // ─── Campaigns ───────────────────────────────────────────────────────────────
 
-export const campaigns: Campaign[] = [
+export const campaigns: Campaign [] = [
   {
     id: "c1",
     name: "Clean Water for Dodoma",
@@ -376,7 +376,7 @@ export const recentDonations: Donation[] = [
     donorId: "d12",
     donorName: "Ally Bwana",
     amount: 2000000,
-    campaign: "Clean Water for Dodoma",
+    Campaign : "Clean Water for Dodoma",
     channel: "email",
     date: "2026-07-31",
     status: "completed",
@@ -386,7 +386,7 @@ export const recentDonations: Donation[] = [
     donorId: "d6",
     donorName: "Rashid Mhina",
     amount: 750000,
-    campaign: "Education Bursary Fund 2026",
+    Campaign : "Education Bursary Fund 2026",
     channel: "whatsapp",
     date: "2026-07-28",
     status: "completed",
@@ -396,7 +396,7 @@ export const recentDonations: Donation[] = [
     donorId: "d9",
     donorName: "Zawadi Mgeni",
     amount: 150000,
-    campaign: "Farmers Micro-Grant Program",
+    Campaign : "Farmers Micro-Grant Program",
     channel: "sms",
     date: "2026-08-01",
     status: "completed",
@@ -406,7 +406,7 @@ export const recentDonations: Donation[] = [
     donorId: "d11",
     donorName: "Mariamu Ally",
     amount: 120000,
-    campaign: "Education Bursary Fund 2026",
+    Campaign : "Education Bursary Fund 2026",
     channel: "whatsapp",
     date: "2026-07-22",
     status: "completed",
@@ -416,7 +416,7 @@ export const recentDonations: Donation[] = [
     donorId: "d1",
     donorName: "Amina Hassan",
     amount: 500000,
-    campaign: "Clean Water for Dodoma",
+    Campaign : "Clean Water for Dodoma",
     channel: "email",
     date: "2026-07-15",
     status: "completed",
@@ -426,7 +426,7 @@ export const recentDonations: Donation[] = [
     donorId: "d2",
     donorName: "Juma Mwangi",
     amount: 200000,
-    campaign: "Education Bursary Fund 2026",
+    Campaign : "Education Bursary Fund 2026",
     channel: "whatsapp",
     date: "2026-07-20",
     status: "completed",
@@ -462,8 +462,8 @@ export const recentActivity: ActivityItem[] = [
   },
   {
     id: "a4",
-    type: "campaign_created",
-    description: "Campaign 'Farmers Micro-Grant Program' went live",
+    type: "Campaign _created",
+    description: "Campaign  'Farmers Micro-Grant Program' went live",
     user: "Admin",
     timestamp: "1 day ago",
   },
@@ -563,7 +563,7 @@ export const auditLogs: AuditLog[] = [
     ipAddress: "10.0.0.1",
     timestamp: "2026-08-03 11:40:01",
     severity: "info",
-    details: "Donation TZS 2,000,000 via M-Pesa for Clean Water campaign",
+    details: "Donation TZS 2,000,000 via M-Pesa for Clean Water Campaign ",
   },
   {
     id: "al3",
@@ -615,15 +615,15 @@ export const auditLogs: AuditLog[] = [
   },
   {
     id: "al7",
-    action: "campaign.launch",
-    resource: "Campaign",
+    action: "Campaign .launch",
+    resource: "Campaign ",
     resourceId: "c4",
     user: "Admin User",
     userId: "t1",
     ipAddress: "197.250.12.44",
     timestamp: "2026-07-15 08:00:00",
     severity: "info",
-    details: "Campaign 'Farmers Micro-Grant Program' launched",
+    details: "Campaign  'Farmers Micro-Grant Program' launched",
   },
   {
     id: "al8",
@@ -669,18 +669,18 @@ export const notifications: Notification[] = [
   {
     id: "n1",
     title: "New donation received",
-    description: "Ally Bwana donated TZS 2,000,000 to Clean Water campaign",
+    description: "Ally Bwana donated TZS 2,000,000 to Clean Water Campaign ",
     time: "2 min ago",
     read: false,
     type: "donation",
   },
   {
     id: "n2",
-    title: "Campaign milestone reached",
+    title: "Campaign  milestone reached",
     description: "'Education Bursary Fund 2026' is 76% funded",
     time: "1 hour ago",
     read: false,
-    type: "campaign",
+    type: "Campaign ",
   },
   {
     id: "n3",
@@ -728,8 +728,8 @@ export const totalRaised = recentDonations.reduce((sum, d) => sum + d.amount, 0)
 
 export const statsOverview = {
   totalDonors: donors.length,
-  activeCampaigns: campaigns.filter((c) => c.status === "active").length,
-  totalRaised: campaigns.reduce((sum, c) => sum + c.raised, 0),
+  activeCampaigns: Campaigns.filter((c) => c.status === "active").length,
+  totalRaised: Campaigns.reduce((sum, c) => sum + c.raised, 0),
   avgGift: Math.round(
     donors.filter((d) => d.totalGiven > 0).reduce((sum, d) => sum + d.lastGiftAmount, 0) /
       donors.filter((d) => d.totalGiven > 0).length

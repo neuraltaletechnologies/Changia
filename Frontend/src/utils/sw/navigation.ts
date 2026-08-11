@@ -1,6 +1,6 @@
 const navBarLinks = [
   { name: 'Mwanzo', url: '/sw' },
-  { name: 'Moduli', url: '/sw/products' },
+  { name: 'Kampani', url: '/sw/products' },
   { name: 'Inavyofanya Kazi', url: '/sw/services' },
   { name: 'Blogu', url: '/sw/blog' },
   { name: 'Wasiliana nasi', url: '/sw/contact' },
@@ -10,7 +10,7 @@ const footerLinks = [
   {
     section: 'Jukwaa',
     links: [
-      { name: 'Moduli', url: '/sw/products' },
+      { name: 'Kampani', url: '/sw/products' },
       { name: 'Inavyofanya Kazi', url: '/sw/services' },
       { name: 'Blogu', url: '/sw/blog' },
     ],

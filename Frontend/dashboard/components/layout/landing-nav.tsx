@@ -163,7 +163,7 @@ export function LandingFooter() {
               <span className="font-bold text-lg text-foreground">Changia</span>
             </div>
             <p className="text-sm text-muted-foreground max-w-sm leading-relaxed">
-              Tanzania-first, mobile-money-first digital fundraising platform. Supporting simple, transparent, and auditable collections for organizations and campaigns.
+              Tanzania-first, fast campaign money digital fundraising platform. Supporting simple, transparent, and auditable collections for organizations and Campaigns.
             </p>
             {/* Payment Networks */}
             <div className="pt-2">

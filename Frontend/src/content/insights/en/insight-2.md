@@ -21,7 +21,7 @@ Data minimization is deliberate. A donor can be stored with limited information 
 
 ## Marketing Consent vs. Payment Agreements
 
-Consent has two distinct flavors on Changia. The first is marketing consent: permission to include a donor in bulk SMS, WhatsApp or email campaigns. The second is a one-time payment agreement: a specific number agrees to a specific request for a specific amount.
+Consent has two distinct flavors on Changia. The first is marketing consent: permission to include a donor in bulk SMS, WhatsApp or email Campaigns. The second is a one-time payment agreement: a specific number agrees to a specific request for a specific amount.
 
 Mixing the two is a common fundraising error. A person may happily approve a single push donation yet have no wish to receive weekly broadcasts. Changia keeps these records separate, so a manager can honor a paid promise without enrolling the donor in a mailing list.
 
@@ -29,11 +29,11 @@ Mixing the two is a common fundraising error. A person may happily approve a sin
 
 Responsible outreach requires the ability to stop. The platform provides opt-out and suppression management per channel, and every bulk import is screened before sending — rejected records, duplicates and valid counts are shown to the operator first.
 
-When a donor opts out, the system remembers it. Suppression lists apply across campaigns, which means an organization never sends a welcome message to someone who explicitly asked to be left alone.
+When a donor opts out, the system remembers it. Suppression lists apply across Campaigns, which means an organization never sends a welcome message to someone who explicitly asked to be left alone.
 
 ## Audit-Ready by Design
 
-None of this discipline works if it is invisible. Consent status, contact history, campaign touches and request outcomes are recorded as audit events. When an organization needs to prove that it reached only consenting donors — to a partner, a regulator or the public — the evidence is a report away.
+None of this discipline works if it is invisible. Consent status, contact history, Campaign  touches and request outcomes are recorded as audit events. When an organization needs to prove that it reached only consenting donors — to a partner, a regulator or the public — the evidence is a report away.
 
 ## Conclusion
 

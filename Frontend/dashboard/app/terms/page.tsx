@@ -33,24 +33,24 @@ export default function TermsPage() {
           </div>
 
           <div className="space-y-4">
-            <h2 className="text-xl font-semibold">2. Campaign and Donor Rules</h2>
+            <h2 className="text-xl font-semibold">2. Campaign  and Donor Rules</h2>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Campaign owners and fundraisers using the manager app must adhere to these policies:
+              Campaign  owners and fundraisers using the manager app must adhere to these policies:
             </p>
             <ul className="list-disc pl-5 text-sm text-muted-foreground space-y-1">
               <li>Manager Push requests require verbal consent from the donor. Sending unauthorized requests is strictly prohibited.</li>
               <li>Promotional communications may only be sent to contacts listed as "Consented" inside the Donor Pool.</li>
-              <li>Campaign goals and service fees must be clearly and transparently disclosed on public pages.</li>
+              <li>Campaign  goals and service fees must be clearly and transparently disclosed on public pages.</li>
             </ul>
           </div>
 
           <div className="space-y-4">
             <h2 className="text-xl font-semibold">3. Platform Fees and Settlements</h2>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Changia uses a campaign-level service fee model:
+              Changia uses a Campaign -level service fee model:
             </p>
             <ul className="list-disc pl-5 text-sm text-muted-foreground space-y-1">
-              <li>Platform service fees (e.g. 5%) are added directly to the campaign collection goal, rather than deducted from individual donor sums.</li>
+              <li>Platform service fees (e.g. 5%) are added directly to the Campaign  collection goal, rather than deducted from individual donor sums.</li>
               <li>Settlements and payouts are subject to gateway reconciliation and telecom clearance.</li>
               <li>All transaction audits are permanent and immutable.</li>
             </ul>

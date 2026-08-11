@@ -10,7 +10,7 @@ export const servicesData = [
   {
     title: 'Discover Integrations',
     description:
-      'Supercharge your campaigns. Seamless integrations with mobile-money gateways, SMS, WhatsApp and email',
+      'Supercharge your Campaigns. Seamless integrations with mobile-money gateways, SMS, WhatsApp and email',
     icon: 'puzzle',
     url: '#',
   },
@@ -21,22 +21,22 @@ export const servicesData = [
     url: '#',
   },
   {
-    title: 'Campaign Leadership',
+    title: 'Campaign  Leadership',
     description:
-      "Launch shorter, trusted campaigns with Changia's manager-led field fundraising tools",
+      "Launch shorter, trusted Campaigns with Changia's manager-led field fundraising tools",
     icon: 'hammer',
     url: '#',
   },
   {
     title: 'Simple Fees',
     description:
-      "A transparent, campaign-level service fee — no deductions from individual donations",
+      "A transparent, Campaign -level service fee — no deductions from individual donations",
     icon: 'sparks',
     url: '#',
   },
   {
     title: 'Community Forum',
-    description: 'Learn, share, and connect with other Changia campaign owners',
+    description: 'Learn, share, and connect with other Changia Campaign  owners',
     icon: 'community',
     url: '#',
   },

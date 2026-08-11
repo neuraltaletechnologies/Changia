@@ -3,19 +3,19 @@
   "faqs": [
     {
       "question": "What is Changia?",
-      "answer": "Changia is a Tanzania-first, mobile-money-first digital fundraising platform. It lets organizations and campaign owners collect small mobile-money contributions with minimal friction — either by sharing a campaign link (SMS, WhatsApp, email, QR, social) or by having a field manager send a direct push payment request to a donor who has already agreed to give."
+      "answer": "Changia is a Tanzania-first, fast campaign money digital fundraising platform. It lets organizations and Campaign  owners collect contributions with minimal friction — either by sharing a Campaign  link (SMS, WhatsApp, email, QR, social) or by having a field manager send a direct push payment request to a donor who has already agreed to give."
     },
     {
       "question": "How do donors pay?",
-      "answer": "Donors open the campaign link, choose an amount, and pay through their mobile-money gateway (M-Pesa, Tigo Pesa, Airtel Money, HaloPesa). The PIN is entered only in the secure gateway prompt — Changia never sees or stores it."
+      "answer": "Donors open the Campaign  link, choose an amount, and pay through their mobile-money gateway (M-Pesa, Tigo Pesa, Airtel Money, HaloPesa). The PIN is entered only in the secure gateway prompt — Changia never sees or stores it."
     },
     {
       "question": "What is a Push Donation?",
-      "answer": "For face-to-face fundraising: a campaign manager gets a donor's agreement, enters their phone number and the amount, and sends a payment request. The donor just confirms with their own PIN in their mobile-money app."
+      "answer": "For face-to-face fundraising: a Campaign  manager gets a donor's agreement, enters their phone number and the amount, and sends a payment request. The donor just confirms with their own PIN in their mobile-money app."
     },
     {
       "question": "How does the service fee work?",
-      "answer": "Changia adds its service fee on top of your campaign goal — not out of your donors' contributions. For example, a TZS 10,000,000 campaign with a 5% fee has a public target of TZS 10,500,000. Reach it, and you keep the full 10,000,000 — donors gave the rest to cover platform costs, transparently."
+      "answer": "Changia adds its service fee on top of your Campaign  goal — not out of your donors' contributions. For example, a TZS 10,000,000 Campaign  with a 5% fee has a public target of TZS 10,500,000. Reach it, and you keep the full 10,000,000 — donors gave the rest to cover platform costs, transparently."
     },
     {
       "question": "Is my donation confirmed immediately?",

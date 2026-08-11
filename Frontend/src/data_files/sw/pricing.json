@@ -1,13 +1,13 @@
 {
   "title": "Bei rahisi na ya uwazi",
-  "subTitle": "MVP wa moduli tatu kwa bei ya TZS, na gharama za wakandarasi wa nje zinatozwa kando.",
+  "subTitle": "Campaign wa kampani tatu kwa bei ya TZS, na gharama za wakandarasi wa nje zinatozwa kando.",
   "badge": "Thamani bora",
   "thirdOption": "Unahitaji gharama za ukaribishaji (hosting), domain, au barua pepe?",
   "btnText": "Pakua pendekezo",
 
   "starterKit": {
     "name": "Jukwaa la msingi na hifadhidata ya wafadhili",
-    "description": "Moduli 1 · Weka msingi",
+    "description": "Kampani 1 · Weka msingi",
     "price": "200 000",
     "cents": "",
     "billingFrequency": "TZS · maendeleo ya mara moja",
@@ -17,13 +17,13 @@
       "Hifadhidata ya wafadhili (CRM) na ufuatiliaji wa ridhaa",
       "Jarida la ukaguzi na ripoti"
     ],
-    "purchaseBtnTitle": "Chunguza moduli 1",
+    "purchaseBtnTitle": "Chunguza kampani 1",
     "purchaseLink": "/sw/products"
   },
 
   "professionalToolbox": {
-    "name": "MVP kamili",
-    "description": "Moduli zote tatu · inapendekezwa",
+    "name": "Campaign kamili",
+    "description": "Kampani zote tatu · inapendekezwa",
     "price": "600 000",
     "cents": "",
     "billingFrequency": "TZS · maendeleo ya mara moja",
@@ -33,7 +33,7 @@
       "Mchango wa kusukuma wa papo hapo",
       "Dhamana ya siku 30 kwenye hitilafu"
     ],
-    "purchaseBtnTitle": "Chunguza moduli",
+    "purchaseBtnTitle": "Chunguza kampani",
     "purchaseLink": "/sw/products"
   }
 }

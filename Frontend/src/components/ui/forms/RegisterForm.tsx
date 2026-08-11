@@ -24,6 +24,7 @@ export default function RegisterForm() {
   });
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
 
   const setField = (field: keyof typeof form) => (value: string) =>
@@ -33,14 +34,37 @@ export default function RegisterForm() {
     e.preventDefault();
     setError(null);
 
-    if (form.password !== form.confirmPassword) {
-      setError('Passwords do not match.');
-      return;
-    }
-    if (!termsAccepted) {
-      setError('Please accept the terms and conditions to continue.');
-      return;
-    }
+    const nextErrors: Record<string, string> = {};
+    if (!form.firstName.trim()) nextErrors.firstName = 'First name is required.';
+    else if (form.firstName.trim().length < 2)
+      nextErrors.firstName = 'First name must be at least 2 characters.';
+    else if (form.firstName.trim().length > 100)
+      nextErrors.firstName = 'First name must be 100 characters or fewer.';
+    if (form.lastName && form.lastName.trim().length > 100)
+      nextErrors.lastName = 'Last name must be 100 characters or fewer.';
+    if (!form.email.trim()) nextErrors.email = 'Email is required.';
+    else if (!/.+@.+\..+/.test(form.email.trim()))
+      nextErrors.email = 'Please enter a valid email address.';
+    if (!form.phone.trim()) nextErrors.phone = 'Phone number is required.';
+    else if (!/^(\+?255|0)?[67][0-9]{8}$/.test(form.phone.replace(/[\s-]/g, '')))
+      nextErrors.phone = 'Enter a valid Tanzanian phone number.';
+    if (!form.organizationName.trim())
+      nextErrors.organizationName = 'Organization name is required.';
+    else if (form.organizationName.trim().length < 2)
+      nextErrors.organizationName = 'Organization name must be at least 2 characters.';
+    else if (form.organizationName.trim().length > 150)
+      nextErrors.organizationName = 'Organization name must be 150 characters or fewer.';
+    if (!form.password) nextErrors.password = 'Password is required.';
+    else if (form.password.length < 8)
+      nextErrors.password = 'Password must be at least 8 characters.';
+    else if (form.password.length > 128)
+      nextErrors.password = 'Password must be 128 characters or fewer.';
+    if (form.confirmPassword !== form.password)
+      nextErrors.confirmPassword = 'Passwords do not match.';
+    if (!termsAccepted) nextErrors.terms = 'Please accept the terms and conditions to continue.';
+
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) return;
 
     setLoading(true);
     try {
@@ -103,7 +127,7 @@ export default function RegisterForm() {
           Or
         </div>
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} noValidate>
           <div className="grid gap-y-4">
             <div className="grid gap-y-4 sm:grid-cols-2 sm:gap-x-4">
               <div>
@@ -118,10 +142,15 @@ export default function RegisterForm() {
                   name="firstName"
                   value={form.firstName}
                   onChange={(e) => setField('firstName')(e.target.value)}
+                  maxLength={100}
                   required
-                  className="block w-full rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-700 focus:border-neutral-200 focus:ring-3 focus:ring-neutral-400 focus:outline-hidden dark:border-neutral-600 dark:bg-neutral-700/30 dark:text-neutral-300 dark:focus:ring-1"
+                  aria-invalid={Boolean(errors.firstName)}
+                  className="block w-full rounded-lg border bg-neutral-50 px-4 py-3 text-sm text-neutral-700 focus:outline-hidden dark:bg-neutral-700/30 dark:text-neutral-300"
                   placeholder="Amina"
                 />
+                {errors.firstName ? (
+                  <p role="alert" className="mt-1 text-xs text-red-600">{errors.firstName}</p>
+                ) : null}
               </div>
               <div>
                 <label
@@ -135,9 +164,14 @@ export default function RegisterForm() {
                   name="lastName"
                   value={form.lastName}
                   onChange={(e) => setField('lastName')(e.target.value)}
-                  className="block w-full rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-700 focus:border-neutral-200 focus:ring-3 focus:ring-neutral-400 focus:outline-hidden dark:border-neutral-600 dark:bg-neutral-700/30 dark:text-neutral-300 dark:focus:ring-1"
+                  maxLength={100}
+                  aria-invalid={Boolean(errors.lastName)}
+                  className="block w-full rounded-lg border bg-neutral-50 px-4 py-3 text-sm text-neutral-700 focus:outline-hidden dark:bg-neutral-700/30 dark:text-neutral-300"
                   placeholder="Msuya"
                 />
+                {errors.lastName ? (
+                  <p role="alert" className="mt-1 text-xs text-red-600">{errors.lastName}</p>
+                ) : null}
               </div>
             </div>
 
@@ -153,10 +187,15 @@ export default function RegisterForm() {
                 name="organizationName"
                 value={form.organizationName}
                 onChange={(e) => setField('organizationName')(e.target.value)}
+                maxLength={150}
                 required
-                className="block w-full rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-700 focus:border-neutral-200 focus:ring-3 focus:ring-neutral-400 focus:outline-hidden dark:border-neutral-600 dark:bg-neutral-700/30 dark:text-neutral-300 dark:focus:ring-1"
+                aria-invalid={Boolean(errors.organizationName)}
+                className="block w-full rounded-lg border bg-neutral-50 px-4 py-3 text-sm text-neutral-700 focus:outline-hidden dark:bg-neutral-700/30 dark:text-neutral-300"
                 placeholder="Dr. Msuya Foundation"
               />
+              {errors.organizationName ? (
+                <p role="alert" className="mt-1 text-xs text-red-600">{errors.organizationName}</p>
+              ) : null}
             </div>
 
             <EmailInput
@@ -164,6 +203,7 @@ export default function RegisterForm() {
               errorId="register-email-error"
               value={form.email}
               onChange={setField('email')}
+              error={errors.email}
             />
 
             <div>
@@ -180,9 +220,13 @@ export default function RegisterForm() {
                 value={form.phone}
                 onChange={(e) => setField('phone')(e.target.value)}
                 required
+                aria-invalid={Boolean(errors.phone)}
                 placeholder="0712 345 678"
-                className="block w-full rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-700 focus:border-neutral-200 focus:ring-3 focus:ring-neutral-400 focus:outline-hidden dark:border-neutral-600 dark:bg-neutral-700/30 dark:text-neutral-300 dark:focus:ring-1"
+                className="block w-full rounded-lg border bg-neutral-50 px-4 py-3 text-sm text-neutral-700 focus:outline-hidden dark:bg-neutral-700/30 dark:text-neutral-300"
               />
+              {errors.phone ? (
+                <p role="alert" className="mt-1 text-xs text-red-600">{errors.phone}</p>
+              ) : null}
             </div>
 
             <PasswordInput
@@ -191,6 +235,7 @@ export default function RegisterForm() {
               content="8+ characters required"
               value={form.password}
               onChange={setField('password')}
+              error={errors.password}
             />
             <PasswordInput
               label="Confirm Password"
@@ -199,6 +244,7 @@ export default function RegisterForm() {
               content="Password does not match the password"
               value={form.confirmPassword}
               onChange={setField('confirmPassword')}
+              error={errors.confirmPassword}
             />
 
             <Checkbox
@@ -215,6 +261,9 @@ export default function RegisterForm() {
                 Terms and Conditions
               </Link>
             </Checkbox>
+            {errors.terms ? (
+              <p role="alert" className="-mt-2 text-xs text-red-600">{errors.terms}</p>
+            ) : null}
 
             <AuthBtn
               title={loading ? 'Creating account…' : 'Create account'}

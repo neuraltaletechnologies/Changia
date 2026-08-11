@@ -6,6 +6,7 @@ type PasswordInputProps = {
   content?: string;
   value?: string;
   onChange?: (value: string) => void;
+  error?: string;
 };
 
 export default function PasswordInput({
@@ -16,6 +17,7 @@ export default function PasswordInput({
   content,
   value,
   onChange,
+  error,
 }: PasswordInputProps) {
   return (
     <div>
@@ -40,13 +42,22 @@ export default function PasswordInput({
           name="password"
           value={value}
           onChange={(e) => onChange?.(e.target.value)}
-          className="block w-full rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-700 focus:border-neutral-200 focus:ring-3 focus:ring-neutral-400 focus:outline-hidden disabled:pointer-events-none disabled:opacity-50 dark:border-neutral-600 dark:bg-neutral-700/30 dark:text-neutral-300 dark:focus:ring-1"
+          aria-invalid={Boolean(error)}
+          aria-describedby={error ? errorId : undefined}
+          className={`block w-full rounded-lg border bg-neutral-50 px-4 py-3 text-sm text-neutral-700 focus:outline-hidden disabled:pointer-events-none disabled:opacity-50 dark:bg-neutral-700/30 dark:text-neutral-300 ${
+            error
+              ? 'border-red-500 focus:border-red-500 focus:ring-3 focus:ring-red-500/20 dark:border-red-500/70'
+              : 'border-neutral-200 focus:border-neutral-200 focus:ring-3 focus:ring-neutral-400 dark:border-neutral-600 dark:focus:ring-1'
+          }`}
           required
-          aria-describedby={errorId}
         />
       </div>
-      <p className="mt-2 hidden text-xs text-red-600" id={errorId}>
-        {content}
+      <p
+        className={`mt-2 text-xs text-red-600 ${error ? '' : 'hidden'}`}
+        id={errorId}
+        role="alert"
+      >
+        {error ?? content}
       </p>
     </div>
   );

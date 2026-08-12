@@ -1,7 +1,7 @@
 import SecondaryCTA from '@/components/ui/buttons/SecondaryCTA';
 import Icon from '@/components/ui/icons/Icon';
 
-type Product = {
+type Campaign = {
   name: string;
   description: string;
   price: string;
@@ -18,8 +18,8 @@ type PricingData = {
   badge: string;
   thirdOption?: string;
   btnText?: string;
-  starterKit: Product;
-  professionalToolbox: Product;
+  starterKit: Campaign;
+  professionalToolbox: Campaign;
 };
 
 type PricingSectionProps = {

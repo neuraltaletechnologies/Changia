@@ -4,7 +4,7 @@ import CardSmall from '@components/ui/cards/CardSmall';
 import CardWide from '@components/ui/cards/CardWide';
 import FeaturesStatsAlt from '@components/sections/features/FeaturesStatsAlt';
 import TestimonialsSectionAlt from '@components/sections/testimonials/TestimonialsSectionAlt';
-import { getProductEntries } from '@/lib/content';
+import { getCampaignEntries } from '@/lib/content';
 
 export const metadata: Metadata = {
   title: 'Campaigns',
@@ -51,8 +51,8 @@ const testimonials = [
   },
 ];
 
-export default function ProductsIndexPage() {
-  const product = getProductEntries('en').sort(
+export default function CampaignsIndexPage() {
+  const campaign = getCampaignEntries('en').sort(
     (a, b) => a.data.main.id - b.data.main.id
   );
 
@@ -74,12 +74,12 @@ export default function ProductsIndexPage() {
         </div>
 
         <section className="grid grid-cols-1 gap-4 sm:grid-cols-3 md:gap-6 xl:gap-8">
-          {product.map((p, index) => {
+          {campaign.map((p, index) => {
             const position = index % 4;
             if (position === 0 || position === 3) {
-              return <CardSmall key={p.id} product={p} />;
+              return <CardSmall key={p.id} campaign={p} />;
             }
-            return <CardWide key={p.id} product={p} />;
+            return <CardWide key={p.id} campaign={p} />;
           })}
         </section>
       </div>

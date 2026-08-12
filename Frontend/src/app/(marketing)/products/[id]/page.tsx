@@ -1,39 +1,39 @@
 import type { Metadata } from 'next';
 import Image from 'next/image';
 import { notFound } from 'next/navigation';
-import ProductTabs from '@components/products/ProductTabs';
-import { getProductEntries } from '@/lib/content';
+import CampaignTabs from '@components/campaigns/CampaignTabs';
+import { getCampaignEntries } from '@/lib/content';
 
 type Params = { params: Promise<{ id: string }> };
 
 export function generateStaticParams() {
-  return getProductEntries('en').map((p) => ({ id: p.slug }));
+  return getCampaignEntries('en').map((p) => ({ id: p.slug }));
 }
 
-function findProduct(id: string) {
-  return getProductEntries('en').find((p) => p.slug === id);
+function findCampaign(id: string) {
+  return getCampaignEntries('en').find((p) => p.slug === id);
 }
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { id } = await params;
-  const product = findProduct(id);
-  if (!product) return { title: 'Products' };
+  const campaign = findCampaign(id);
+  if (!campaign) return { title: 'Campaigns' };
   return {
-    title: product.data.title,
-    description: product.data.description,
+    title: campaign.data.title,
+    description: campaign.data.description,
     openGraph: {
-      title: `${product.data.title} | Changia Platform`,
-      description: product.data.description,
+      title: `${campaign.data.title} | Changia Platform`,
+      description: campaign.data.description,
     },
   };
 }
 
-export default async function ProductDetailPage({ params }: Params) {
+export default async function CampaignDetailPage({ params }: Params) {
   const { id } = await params;
-  const product = findProduct(id);
-  if (!product) notFound();
+  const campaign = findCampaign(id);
+  if (!campaign) notFound();
 
-  const data = product.data;
+  const data = campaign.data;
 
   return (
     <>
@@ -65,7 +65,7 @@ export default async function ProductDetailPage({ params }: Params) {
         </div>
       </section>
 
-      <ProductTabs product={data} />
+      <CampaignTabs campaign={data} />
     </>
   );
 }

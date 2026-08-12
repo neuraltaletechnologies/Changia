@@ -1,10 +1,10 @@
-# ScrewFast AI Guide
+# Changia  AI Guide
 
 For AI assistants (Cursor, Copilot, Claude, ChatGPT): this file describes project structure, conventions, and where to find or add code. See [README.md](README.md) for human-facing setup and features.
 
 ## Project Overview
 
-ScrewFast is an Astro + Tailwind CSS + Preline UI template for landing pages, blogs, documentation, and product/content pages. Stack: Astro 5, Tailwind v4 (via `@tailwindcss/vite`), Preline (modals, accordions), Starlight (docs), Lenis (smooth scroll), GSAP (animations).
+Changia  is an Astro + Tailwind CSS + Preline UI template for landing pages, blogs, documentation, and campaign/content pages. Stack: Astro 5, Tailwind v4 (via `@tailwindcss/vite`), Preline (modals, accordions), Starlight (docs), Lenis (smooth scroll), GSAP (animations).
 
 ## Path Aliases
 
@@ -32,7 +32,7 @@ Defined in [tsconfig.json](tsconfig.json).
 | Reusable UI & sections  | [src/components/](src/components/) | `sections/` for landing, features, navbar&footer, testimonials, pricing, misc; `ui/` for buttons, cards, forms, icons, etc.                                                                                               |
 | Layout                  | [src/layouts/](src/layouts/)       | [MainLayout.astro](src/layouts/MainLayout.astro) wraps Navbar, main slot, FooterSection.                                                                                                                                  |
 | Pages                   | [src/pages/](src/pages/)           | Astro file-based routing; `fr/` for French locale.                                                                                                                                                                        |
-| Content (collections)   | [src/content/](src/content/)       | `blog/`, `products/`, `insights/`; `docs/` for Starlight (i18n subdirs: guides, construction, tools, advanced, de, es, fa, fr, ja, zh-cn).                                                                                |
+| Content (collections)   | [src/content/](src/content/)       | `blog/`, `campaigns/`, `insights/`; `docs/` for Starlight (i18n subdirs: guides, construction, tools, advanced, de, es, fa, fr, ja, zh-cn).                                                                                |
 | Static assets           | [public/](public/)                 | Served as-is.                                                                                                                                                                                                             |
 | Navigation & UI helpers | [src/utils/](src/utils/)           | [navigation.ts](src/utils/navigation.ts) exports default `{ navBarLinks, footerLinks, socialLinks }`; [fr/navigation.ts](src/utils/fr/navigation.ts) for French. Navbar/Footer use `Astro.currentLocale` to pick strings. |
 | Site config & JSON data | [src/data_files/](src/data_files/) | [constants.ts](src/data_files/constants.ts): SITE, SEO, OG, partnersData; faqs.json, features.json, pricing.json, mega_link.ts; `fr/` for localized JSON.                                                                 |
@@ -51,7 +51,7 @@ Defined in [tsconfig.json](tsconfig.json).
 - **Styling:** Tailwind CSS only; use **Tailwind v4** syntax (refer to Tailwind v4 docs).
 - **Interactive UI:** Preline for modals, dropdowns, accordions (script loaded in MainLayout).
 - **Smooth scroll:** Lenis via [lenisSmoothScroll.js](src/assets/scripts/lenisSmoothScroll.js).
-- **Content collections:** Schemas in [content.config.ts](src/content.config.ts) (blog, products, insights, docs); use `getCollection('blog')` etc. in pages.
+- **Content collections:** Schemas in [content.config.ts](src/content.config.ts) (blog, campaigns, insights, docs); use `getCollection('blog')` etc. in pages.
 
 ## Development Commands
 

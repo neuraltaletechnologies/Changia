@@ -5,8 +5,8 @@ main:
   id: 4
   content: |
     Zaidi ya kampani tatu za Campaign, Changia hufanya kila shilingi ihesabike. Michango inathibitishwa tu na callbacks zilizothibitishwa, risiti hutolewa kupitia chaneli iliyoidhinishwa, na upatanisho wa kila siku unasaidiwa na matukio ya ukaguzi yasiyoweza kubadilishwa kwenye jukwaa lote.
-  imgCard: '@/images/product-image-4.avif'
-  imgMain: '@/images/product-image-main-4.avif'
+  imgCard: '@/images/campaign-image-4.avif'
+  imgMain: '@/images/campaign-image-main-4.avif'
   imgAlt: 'Risiti ya Changia na ripoti ya michango iliyothibitishwa'
 tabs:
   - id: 'tabs-with-card-item-1'

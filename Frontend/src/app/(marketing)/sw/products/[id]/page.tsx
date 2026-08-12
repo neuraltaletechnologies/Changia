@@ -1,38 +1,38 @@
 import type { Metadata } from 'next';
 import Image from 'next/image';
 import { notFound } from 'next/navigation';
-import ProductTabs from '@components/products/ProductTabs';
-import { getProductEntries } from '@/lib/content';
+import CampaignTabs from '@components/campaigns/CampaignTabs';
+import { getCampaignEntries } from '@/lib/content';
 
 type Params = { params: Promise<{ id: string }> };
 
 export function generateStaticParams() {
-  return getProductEntries('sw').map((p) => ({ id: p.slug }));
+  return getCampaignEntries('sw').map((p) => ({ id: p.slug }));
 }
 
-function findProduct(id: string) {
-  return getProductEntries('sw').find((p) => p.slug === id);
+function findCampaign(id: string) {
+  return getCampaignEntries('sw').find((p) => p.slug === id);
 }
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { id } = await params;
-  const product = findProduct(id);
-  if (!product) return { title: 'Kampani' };
+  const campaign = findCampaign(id);
+  if (!campaign) return { title: 'Kampani' };
   return {
-    title: product.data.title,
-    description: product.data.description,
+    title: campaign.data.title,
+    description: campaign.data.description,
     openGraph: {
-      title: `${product.data.title} | Jukwaa la Changia`,
-      description: product.data.description,
+      title: `${campaign.data.title} | Jukwaa la Changia`,
+      description: campaign.data.description,
     },
   };
 }
 
-export default async function SwahiliProductDetailPage({ params }: Params) {
+export default async function SwahiliCampaignDetailPage({ params }: Params) {
   const { id } = await params;
-  const product = findProduct(id);
-  if (!product) notFound();
-  const data = product.data;
+  const campaign = findCampaign(id);
+  if (!campaign) notFound();
+  const data = campaign.data;
 
   return (
     <>
@@ -64,7 +64,7 @@ export default async function SwahiliProductDetailPage({ params }: Params) {
         </div>
       </section>
 
-      <ProductTabs product={data} />
+      <CampaignTabs campaign={data} />
     </>
   );
 }

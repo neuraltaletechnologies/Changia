@@ -5,8 +5,8 @@ main:
   id: 1
   content: |
     Campaign 1 establishes the secure, responsive foundation used by administrators, managers and donors. It contains the common interface, access controls, donor CRM, dashboards and audit-ready management records required by Campaigns 2 and 3.
-  imgCard: '@/images/product-image-1.avif'
-  imgMain: '@/images/product-image-main-1.avif'
+  imgCard: '@/images/campaign-image-1.avif'
+  imgMain: '@/images/campaign-image-main-1.avif'
   imgAlt: 'Changia admin dashboard on a laptop'
 tabs:
   - id: 'tabs-with-card-item-1'

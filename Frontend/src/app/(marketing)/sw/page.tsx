@@ -36,7 +36,7 @@ export default function SwahiliHomePage() {
       <AnnouncementBanner
         btnId="dismiss-button"
         btnTitle="Chunguza jukwaa"
-        url="/sw/products"
+        url="/sw/campaigns"
         title="Tunajenga jukwaa la kitanzania la ukusanyaji fedha, All money transfer kwanza."
       />
 
@@ -46,7 +46,7 @@ export default function SwahiliHomePage() {
         primaryBtn="Anzisha kampeni"
         primaryBtnURL="/login?redirect=%2Fdashboard%2FCampaigns%2Fnew"
         secondaryBtn="Chunguza kampani"
-        secondaryBtnURL="/sw/products"
+        secondaryBtnURL="/sw/campaigns"
         withReview
         avatars={avatarSrcs}
         rating='<span class="font-bold">TZS 100</span>'

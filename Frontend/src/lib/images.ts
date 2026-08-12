@@ -13,15 +13,15 @@ import insight1 from '@/images/insights/insight-1.avif';
 import insight2 from '@/images/insights/insight-2.avif';
 import insight3 from '@/images/insights/insight-3.avif';
 
-// Product images
-import product1 from '@/images/product-image-1.avif';
-import product2 from '@/images/product-image-2.avif';
-import product3 from '@/images/product-image-3.avif';
-import product4 from '@/images/product-image-4.avif';
-import productMain1 from '@/images/product-image-main-1.avif';
-import productMain2 from '@/images/product-image-main-2.avif';
-import productMain3 from '@/images/product-image-main-3.avif';
-import productMain4 from '@/images/product-image-main-4.avif';
+// Campaign images
+import campaign1 from '@/images/campaign-image-1.avif';
+import campaign2 from '@/images/campaign-image-2.avif';
+import campaign3 from '@/images/campaign-image-3.avif';
+import campaign4 from '@/images/campaign-image-4.avif';
+import campaignMain1 from '@/images/campaign-image-main-1.avif';
+import campaignMain2 from '@/images/campaign-image-main-2.avif';
+import campaignMain3 from '@/images/campaign-image-main-3.avif';
+import campaignMain4 from '@/images/campaign-image-main-4.avif';
 import blueprint1 from '@/images/blueprint-1.avif';
 import blueprint2 from '@/images/blueprint-2.avif';
 
@@ -40,14 +40,14 @@ const imageRegistry: Record<string, StaticImageData> = {
   '@/images/insights/insight-1.avif': insight1,
   '@/images/insights/insight-2.avif': insight2,
   '@/images/insights/insight-3.avif': insight3,
-  '@/images/product-image-1.avif': product1,
-  '@/images/product-image-2.avif': product2,
-  '@/images/product-image-3.avif': product3,
-  '@/images/product-image-4.avif': product4,
-  '@/images/product-image-main-1.avif': productMain1,
-  '@/images/product-image-main-2.avif': productMain2,
-  '@/images/product-image-main-3.avif': productMain3,
-  '@/images/product-image-main-4.avif': productMain4,
+  '@/images/campaign-image-1.avif': campaign1,
+  '@/images/campaign-image-2.avif': campaign2,
+  '@/images/campaign-image-3.avif': campaign3,
+  '@/images/campaign-image-4.avif': campaign4,
+  '@/images/campaign-image-main-1.avif': campaignMain1,
+  '@/images/campaign-image-main-2.avif': campaignMain2,
+  '@/images/campaign-image-main-3.avif': campaignMain3,
+  '@/images/campaign-image-main-4.avif': campaignMain4,
   '@/images/blueprint-1.avif': blueprint1,
   '@/images/blueprint-2.avif': blueprint2,
 };

@@ -18,7 +18,7 @@
       "Jarida la ukaguzi na ripoti"
     ],
     "purchaseBtnTitle": "Chunguza kampani 1",
-    "purchaseLink": "/sw/products"
+    "purchaseLink": "/sw/campaigns"
   },
 
   "professionalToolbox": {
@@ -34,6 +34,6 @@
       "Dhamana ya siku 30 kwenye hitilafu"
     ],
     "purchaseBtnTitle": "Chunguza kampani",
-    "purchaseLink": "/sw/products"
+    "purchaseLink": "/sw/campaigns"
   }
 }

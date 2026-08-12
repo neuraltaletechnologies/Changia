@@ -1,32 +1,32 @@
 {
-  "title": "Simple, Transparent Pricing",
+  "title": "Simple, Transparent System",
   "subTitle": "A campaigns priced in TZS, with third-party costs billed separately.",
-  "badge": "Best value",
+  "badge": "Best of all",
   "thirdOption": "Need hosting, domain or messaging costs?",
-  "btnText": "Download the Proposal",
+  "btnText": "Download Document",
 
   "starterKit": {
     "name": "Core Platform & Donor Pool",
-    "description": "Campaign 1 · Lay the foundation",
-    "price": "200,000",
-    "cents": "",
-    "billingFrequency": "TZS · one-time development",
+    "description": "Lay the foundation",
+    "price": "100",
+    "cents": "%",
+    "billingFrequency": "Secure and Protected",
     "features": [
       "Secure web interface & dashboards",
       "User management with role limits",
       "Donor Pool (CRM) with consent tracking",
       "Audit log & reporting"
     ],
-    "purchaseBtnTitle": "Explore Campaign 1",
-    "purchaseLink": "/products"
+    "purchaseBtnTitle": "Create a Campaign",
+    "purchaseLink": "/login"
   },
 
   "professionalToolbox": {
-    "name": "Complete Campaign",
-    "description": "All three Campaigns · recommended",
-    "price": "600,000",
-    "cents": "",
-    "billingFrequency": "TZS · one-time development",
+    "name": "Suppoted  Campaign",
+    "description": "All Campaigns · recommended",
+    "price": "99.9",
+    "cents": "%",
+    "billingFrequency": "Availability and Up time",
     "features": [
       "Core Platform & Donor Pool",
       "Campaign  Link Distribution",
@@ -34,6 +34,6 @@
       "30-day defect warranty"
     ],
     "purchaseBtnTitle": "Explore the Campaigns",
-    "purchaseLink": "/products"
+    "purchaseLink": "/campaigns"
   }
 }

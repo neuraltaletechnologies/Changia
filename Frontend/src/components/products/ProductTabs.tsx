@@ -3,11 +3,11 @@
 import { useState } from 'react';
 import Image from 'next/image';
 import PrimaryCTA from '@/components/ui/buttons/PrimaryCTA';
-import type { ProductData } from '@/lib/types';
+import type { CampaignData } from '@/lib/types';
 
-export default function ProductTabs({ product }: { product: ProductData }) {
+export default function CampaignTabs({ campaign }: { campaign: CampaignData }) {
   const [active, setActive] = useState(0);
-  const tabs = product.tabs;
+  const tabs = campaign.tabs;
 
   return (
     <div className="mx-auto max-w-[85rem] px-4 pt-10 sm:px-6 lg:px-8 lg:pt-14">
@@ -48,17 +48,17 @@ export default function ProductTabs({ product }: { product: ProductData }) {
           <div className="grid gap-12 md:grid-cols-2">
             <div>
               <h2 className="text-2xl font-bold text-neutral-800 dark:text-neutral-200">
-                {product.longDescription.title}
+                {campaign.longDescription.title}
               </h2>
               <p className="mt-4 text-lg text-pretty text-neutral-700 dark:text-neutral-300">
-                {product.longDescription.subTitle}
+                {campaign.longDescription.subTitle}
               </p>
               <div className="mt-6">
-                <PrimaryCTA title={product.longDescription.btnTitle} url={product.longDescription.btnURL} />
+                <PrimaryCTA title={campaign.longDescription.btnTitle} url={campaign.longDescription.btnURL} />
               </div>
             </div>
             <div className="space-y-8">
-              {product.descriptionList.map((item) => (
+              {campaign.descriptionList.map((item) => (
                 <div key={item.title}>
                   <h3 className="text-xl font-bold text-neutral-800 dark:text-neutral-200">
                     {item.title}
@@ -75,7 +75,7 @@ export default function ProductTabs({ product }: { product: ProductData }) {
         {active === 1 && (
           <div className="grid gap-12 md:grid-cols-2">
             <div className="space-y-8">
-              {product.specificationsLeft.map((item) => (
+              {campaign.specificationsLeft.map((item) => (
                 <div key={item.title}>
                   <h3 className="text-lg font-bold text-neutral-800 dark:text-neutral-200">
                     {item.title}
@@ -86,9 +86,9 @@ export default function ProductTabs({ product }: { product: ProductData }) {
                 </div>
               ))}
             </div>
-            {product.specificationsRight?.length ? (
+            {campaign.specificationsRight?.length ? (
               <div className="space-y-8">
-                {product.specificationsRight.map((item) => (
+                {campaign.specificationsRight.map((item) => (
                   <div key={item.title}>
                     <h3 className="text-lg font-bold text-neutral-800 dark:text-neutral-200">
                       {item.title}
@@ -105,19 +105,19 @@ export default function ProductTabs({ product }: { product: ProductData }) {
 
         {active === 2 && (
           <div className="grid gap-6 sm:grid-cols-2">
-            {product.blueprints.first ? (
+            {campaign.blueprints.first ? (
               <Image
                 className="w-full rounded-xl"
-                src={product.blueprints.first}
+                src={campaign.blueprints.first}
                 alt="Blueprint 1"
                 width={800}
                 height={600}
               />
             ) : null}
-            {product.blueprints.second ? (
+            {campaign.blueprints.second ? (
               <Image
                 className="w-full rounded-xl"
-                src={product.blueprints.second}
+                src={campaign.blueprints.second}
                 alt="Blueprint 2"
                 width={800}
                 height={600}

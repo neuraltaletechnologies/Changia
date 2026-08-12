@@ -618,7 +618,7 @@ Authenticated (all roles). Returns the campaign with `raised`, `donors`, `progre
 
 ### `POST /campaigns` — create a campaign
 
-Authenticated (SUPER_ADMIN, ORG_ADMIN).
+Authenticated (SUPER_ADMIN, ORG_ADMIN, CAMPAIGN_MANAGER).
 
 **Request body:**
 
@@ -639,7 +639,7 @@ Authenticated (SUPER_ADMIN, ORG_ADMIN).
 
 > `serviceFeePercent` is taken from the org's platform config by default. The backend must compute `publicTarget = goal + goal * fee` and `serviceFeeAmount` and return them.
 
-**Response — `201 Created`:** returns the created `Campaign` with `status: "draft"`.
+**Response — `201 Created`:** returns the created `Campaign` with `status: "PENDING"`.
 
 **Errors:** `400 VALIDATION_ERROR`, `403 INSUFFICIENT_ROLE`.
 
@@ -840,7 +840,7 @@ Authenticated (all roles). Lists attempts for a campaign with current status and
 
 ### `POST /donations/simulate-callback` — simulate gateway callback (dev)
 
-Authenticated (SUPER_ADMIN, ORG_ADMIN). **Development only.** Simulates the payment gateway confirming (or failing) an attempt. Production must replace this with a signature-verified webhook.
+Authenticated (SUPER_ADMIN, ORG_ADMIN). **Development only.** Simulates the payment gateway confirming (or failing) an attempt. Campaignion must replace this with a signature-verified webhook.
 
 **Request body example:**
 

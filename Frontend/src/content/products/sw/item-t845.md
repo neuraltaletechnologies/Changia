@@ -5,8 +5,8 @@ main:
   id: 1
   content: |
     Kampani 1 inaweka msingi salama na wenye mwitikio unaotumiwa na wasimamizi, maafisa na wafadhili. Ina kiolesura cha kawaida, vidhibiti vya ufikiaji, CRM ya wafadhili, dashibodi na rekodi zilizoandaliwa kwa ukaguzi zinazohitajika na kampani 2 na 3.
-  imgCard: '@/images/product-image-1.avif'
-  imgMain: '@/images/product-image-main-1.avif'
+  imgCard: '@/images/campaign-image-1.avif'
+  imgMain: '@/images/campaign-image-main-1.avif'
   imgAlt: 'Dashibodi ya usimamizi ya Changia kwenye kompyuta ya mkononi'
 tabs:
   - id: 'tabs-with-card-item-1'

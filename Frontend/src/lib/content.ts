@@ -9,6 +9,17 @@ const CONTENT_ROOT = path.join(process.cwd(), 'src', 'content');
 
 export type CollectionName = 'blog' | 'campaigns' | 'insights';
 
+/**
+ * Maps a logical collection name to the on-disk sub-directory under
+ * `src/content`. Campaign content currently lives in the `products` folder
+ * (a legacy name), so the `campaigns` collection is backed by `products`.
+ */
+const COLLECTION_DIRS: Record<CollectionName, string> = {
+  blog: 'blog',
+  campaigns: 'products',
+  insights: 'insights',
+};
+
 export interface ContentEntry<T = Record<string, unknown>> {
   /** Relative id, e.g. "en/post-1" (matching the old Astro collection id). */
   id: string;
@@ -40,7 +51,7 @@ function toPosix(p: string): string {
 export function getCollection<T = Record<string, unknown>>(
   name: CollectionName
 ): ContentEntry<T>[] {
-  const dir = path.join(CONTENT_ROOT, name);
+  const dir = path.join(CONTENT_ROOT, COLLECTION_DIRS[name]);
   return listMarkdownFiles(dir).map((file) => {
     const raw = readFileSync(file, 'utf-8');
     const { data, content } = matter(raw);

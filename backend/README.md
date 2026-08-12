@@ -151,6 +151,8 @@ Entities mirror the business proposal's core data entities:
 ## API reference
 
 > 📖 **Full endpoint documentation — request payloads, required vs. optional fields, response shapes, and error codes — is in [`API_REFERENCE.md`](API_REFERENCE.md).** The table below is just the quick overview.
+>
+> 🧩 **Frontend contract — everything the dashboard (`http://localhost:3000/dashboard/...`) needs, including the Donor Pool filters, donor transactions, and team add/invite flows, with full detail, is in [`FRONTEND_API_REQUIREMENTS.md`](FRONTEND_API_REQUIREMENTS.md).**
 
 Base URL: `http://localhost:5000/api/v1`
 
@@ -175,13 +177,14 @@ Base URL: `http://localhost:5000/api/v1`
 | POST | `/Campaigns/:id/submit` → `/approve` | Approval flow |
 | POST | `/Campaigns/:id/status` | Pause / complete / cancel |
 | PUT | `/Campaigns/:id/managers` | Assign Campaign  managers |
-| GET / POST | `/donors` | List / add donors (with consent) |
-| GET / PUT / DELETE | `/donors/:id` | Donor detail / update / remove |
-| GET | `/donations` | Confirmed donations |
+| GET / POST | `/donors` | List (with search/status/consent/tag/channel filters + counts) / add donors (with consent) |
+| GET / PUT / DELETE | `/donors/:id` | Donor detail (+ donation history) / update / remove |
+| GET | `/donations` | Confirmed donations (filter by `campaignId`/`donorId`) |
+| POST | `/donations` | Record a manual/offline donation (bumps campaign progress atomically) |
 | POST | `/donations/Campaigns/:Campaign Id/attempts` | Send a **push payment request** |
 | GET | `/donations/Campaigns/:Campaign Id/attempts` | Payment request status |
 | POST | `/donations/simulate-callback` | ⚠️ Simulated gateway callback (dev only) |
-| GET | `/audit-logs` (+ `/recent`) | Immutable audit trail |
+| GET | `/audit-logs` (+ `/recent`, `/export`) | Immutable audit trail |
 
 > In production, `simulate-callback` is replaced by a signature-verified webhook from the payment provider. The idempotency + confirmed-only rules are identical.
 

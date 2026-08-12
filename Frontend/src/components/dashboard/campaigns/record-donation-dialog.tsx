@@ -55,12 +55,24 @@ export function RecordDonationDialog({
     e.preventDefault();
     const donor = donors.find((d) => d.id === donorId);
     const amt = Number(amount);
+    if (!amount.trim()) {
+      setError("Amount is required.");
+      return;
+    }
     if (!donor) {
       setError("Select a donor from the pool.");
       return;
     }
-    if (!amount.trim() || Number.isNaN(amt) || amt <= 0) {
+    if (Number.isNaN(amt) || amt <= 0) {
       setError("Enter an amount greater than 0.");
+      return;
+    }
+    if (!Number.isInteger(amt)) {
+      setError("Amount must be a whole TZS number.");
+      return;
+    }
+    if (amt > 1_000_000_000_000) {
+      setError("Amount is too large.");
       return;
     }
 

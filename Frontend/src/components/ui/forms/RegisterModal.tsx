@@ -32,6 +32,7 @@ export default function RegisterModal() {
   });
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
 
   const setField = (field: keyof typeof form) => (value: string) =>
@@ -41,14 +42,35 @@ export default function RegisterModal() {
     e.preventDefault();
     setError(null);
 
-    if (form.password !== form.confirmPassword) {
-      setError('Passwords do not match.');
-      return;
-    }
-    if (!termsAccepted) {
-      setError('Please accept the terms and conditions to continue.');
-      return;
-    }
+    const nextErrors: Record<string, string> = {};
+    if (!form.firstName.trim()) nextErrors.firstName = 'Full name is required.';
+    else if (form.firstName.trim().length < 2)
+      nextErrors.firstName = 'Full name must be at least 2 characters.';
+    else if (form.firstName.trim().length > 100)
+      nextErrors.firstName = 'Full name must be 100 characters or fewer.';
+    if (!form.organizationName.trim())
+      nextErrors.organizationName = 'Organization name is required.';
+    else if (form.organizationName.trim().length < 2)
+      nextErrors.organizationName = 'Organization name must be at least 2 characters.';
+    else if (form.organizationName.trim().length > 150)
+      nextErrors.organizationName = 'Organization name must be 150 characters or fewer.';
+    if (!form.email.trim()) nextErrors.email = 'Email is required.';
+    else if (!/.+@.+\..+/.test(form.email.trim()))
+      nextErrors.email = 'Please enter a valid email address.';
+    if (!form.phone.trim()) nextErrors.phone = 'Phone number is required.';
+    else if (!/^(\+?255|0)?[67][0-9]{8}$/.test(form.phone.replace(/[\s-]/g, '')))
+      nextErrors.phone = 'Enter a valid Tanzanian phone number.';
+    if (!form.password) nextErrors.password = 'Password is required.';
+    else if (form.password.length < 8)
+      nextErrors.password = 'Password must be at least 8 characters.';
+    else if (form.password.length > 128)
+      nextErrors.password = 'Password must be 128 characters or fewer.';
+    if (form.confirmPassword !== form.password)
+      nextErrors.confirmPassword = 'Passwords do not match.';
+    if (!termsAccepted) nextErrors.terms = 'Please accept the terms and conditions to continue.';
+
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) return;
 
     setLoading(true);
     try {
@@ -118,7 +140,7 @@ export default function RegisterModal() {
                 <div className="flex items-center py-3 text-xs text-neutral-400 uppercase before:me-6 before:flex-[1_1_0%] before:border-t before:border-neutral-200 after:ms-6 after:flex-[1_1_0%] after:border-t after:border-neutral-200 dark:text-neutral-500 dark:before:border-neutral-600 dark:after:border-neutral-600">
                   Or
                 </div>
-                <form onSubmit={handleSubmit}>
+                <form onSubmit={handleSubmit} noValidate>
                   <div className="grid gap-y-4">
                     <div>
                       <label
@@ -132,10 +154,15 @@ export default function RegisterModal() {
                         name="firstName"
                         value={form.firstName}
                         onChange={(e) => setField('firstName')(e.target.value)}
+                        maxLength={100}
                         required
+                        aria-invalid={Boolean(errors.firstName)}
                         className={inputClass}
                         placeholder="Amina Msuya"
                       />
+                      {errors.firstName ? (
+                        <p role="alert" className="mt-1 text-xs text-red-600">{errors.firstName}</p>
+                      ) : null}
                     </div>
                     <div>
                       <label
@@ -149,16 +176,22 @@ export default function RegisterModal() {
                         name="organizationName"
                         value={form.organizationName}
                         onChange={(e) => setField('organizationName')(e.target.value)}
+                        maxLength={150}
                         required
+                        aria-invalid={Boolean(errors.organizationName)}
                         className={inputClass}
                         placeholder="Dr. Msuya Foundation"
                       />
+                      {errors.organizationName ? (
+                        <p role="alert" className="mt-1 text-xs text-red-600">{errors.organizationName}</p>
+                      ) : null}
                     </div>
                     <EmailInput
                       id="register-email"
                       errorId="register-email-error"
                       value={form.email}
                       onChange={setField('email')}
+                      error={errors.email}
                     />
                     <div>
                       <label
@@ -174,9 +207,13 @@ export default function RegisterModal() {
                         value={form.phone}
                         onChange={(e) => setField('phone')(e.target.value)}
                         required
+                        aria-invalid={Boolean(errors.phone)}
                         className={inputClass}
                         placeholder="0712 345 678"
                       />
+                      {errors.phone ? (
+                        <p role="alert" className="mt-1 text-xs text-red-600">{errors.phone}</p>
+                      ) : null}
                     </div>
                     <PasswordInput
                       id="create-password"
@@ -184,6 +221,7 @@ export default function RegisterModal() {
                       content="8+ characters required"
                       value={form.password}
                       onChange={setField('password')}
+                      error={errors.password}
                     />
                     <PasswordInput
                       label="Confirm Password"
@@ -192,6 +230,7 @@ export default function RegisterModal() {
                       content="Password does not match the password"
                       value={form.confirmPassword}
                       onChange={setField('confirmPassword')}
+                      error={errors.confirmPassword}
                     />
                     <Checkbox
                       label="I accept the "
@@ -207,6 +246,9 @@ export default function RegisterModal() {
                         Terms and Conditions
                       </a>
                     </Checkbox>
+                    {errors.terms ? (
+                      <p role="alert" className="-mt-2 text-xs text-red-600">{errors.terms}</p>
+                    ) : null}
                     <AuthBtn
                       title={loading ? 'Creating account…' : 'Sign up'}
                       disabled={loading}

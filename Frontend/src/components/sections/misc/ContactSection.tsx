@@ -1,3 +1,6 @@
+'use client';
+
+import { useState, type FormEvent } from 'react';
 import AuthBtn from '@/components/ui/buttons/AuthBtn';
 import ContactIconBlock from '@/components/ui/blocks/ContactIconBlock';
 import TextInput from '@/components/ui/forms/input/TextInput';
@@ -12,7 +15,52 @@ const subTitle =
 const formTitle = 'Fill in the form below';
 const formSubTitle = "We'll get back to you in 1-2 business days.";
 
+const MAX_FIELD = 500;
+
 export default function ContactSection() {
+  const [form, setForm] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    details: '',
+  });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [sent, setSent] = useState(false);
+
+  const setField = (field: keyof typeof form) => (value: string) =>
+    setForm((prev) => ({ ...prev, [field]: value }));
+
+  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setSent(false);
+
+    const nextErrors: Record<string, string> = {};
+    if (!form.firstName.trim()) nextErrors.firstName = 'First name is required.';
+    else if (form.firstName.trim().length > 100)
+      nextErrors.firstName = 'First name must be 100 characters or fewer.';
+    if (!form.lastName.trim()) nextErrors.lastName = 'Last name is required.';
+    else if (form.lastName.trim().length > 100)
+      nextErrors.lastName = 'Last name must be 100 characters or fewer.';
+    if (!form.email.trim()) nextErrors.email = 'Email is required.';
+    else if (!/.+@.+\..+/.test(form.email.trim()))
+      nextErrors.email = 'Please enter a valid email address.';
+    if (!form.phone.trim()) nextErrors.phone = 'Phone number is required.';
+    else if (!/^(\+?255|0)?[67][0-9]{8}$/.test(form.phone.replace(/[\s-]/g, '')))
+      nextErrors.phone = 'Enter a valid Tanzanian phone number.';
+    if (!form.details.trim()) nextErrors.details = 'Details are required.';
+    else if (form.details.trim().length > MAX_FIELD)
+      nextErrors.details = `Details must be ${MAX_FIELD} characters or fewer.`;
+
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) return;
+
+    // All fields validated — proceed to submit
+    setErrors({});
+    setSent(true);
+    setForm({ firstName: '', lastName: '', email: '', phone: '', details: '' });
+  };
+
   return (
     <section className="mx-auto max-w-[85rem] px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
       <div className="mx-auto max-w-2xl lg:max-w-5xl">
@@ -30,19 +78,68 @@ export default function ContactSection() {
             <h2 className="mb-8 text-xl font-bold text-neutral-700 dark:text-neutral-300">
               {formTitle}
             </h2>
-            <form>
+            <form onSubmit={handleSubmit} noValidate>
               <div className="grid gap-4">
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <TextInput id="hs-firstname-contacts" label="First Name" name="hs-firstname-contacts" />
-                  <TextInput id="hs-lastname-contacts" label="Last Name" name="hs-lastname-contacts" />
+                  <TextInput
+                    id="hs-firstname-contacts"
+                    label="First Name"
+                    name="hs-firstname-contacts"
+                    value={form.firstName}
+                    onChange={setField('firstName')}
+                    required
+                    maxLength={100}
+                    error={errors.firstName}
+                  />
+                  <TextInput
+                    id="hs-lastname-contacts"
+                    label="Last Name"
+                    name="hs-lastname-contacts"
+                    value={form.lastName}
+                    onChange={setField('lastName')}
+                    required
+                    maxLength={100}
+                    error={errors.lastName}
+                  />
                 </div>
-                <EmailContactInput id="hs-email-contacts" />
-                <PhoneInput id="hs-phone-number" />
-                <TextAreaInput id="hs-about-contacts" label="Details" name="hs-about-contacts" />
+                <EmailContactInput
+                  id="hs-email-contacts"
+                  value={form.email}
+                  onChange={setField('email')}
+                  required
+                  error={errors.email}
+                />
+                <PhoneInput
+                  id="hs-phone-number"
+                  value={form.phone}
+                  onChange={setField('phone')}
+                  required
+                  error={errors.phone}
+                />
+                <TextAreaInput
+                  id="hs-about-contacts"
+                  label="Details"
+                  name="hs-about-contacts"
+                  value={form.details}
+                  onChange={setField('details')}
+                  required
+                  maxLength={MAX_FIELD}
+                  error={errors.details}
+                />
               </div>
-              <div className="mt-4 grid">
-                <AuthBtn title="Send Message" />
-              </div>
+              {sent ? (
+                <div
+                  role="status"
+                  className="mt-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 dark:border-green-800/50 dark:bg-green-950/30 dark:text-green-300"
+                >
+                  Thank you! Your message has been sent. We&apos;ll get back to you in 1-2
+                  business days.
+                </div>
+              ) : (
+                <div className="mt-4 grid">
+                  <AuthBtn title="Send Message" />
+                </div>
+              )}
               <div className="mt-3 text-center">
                 <p className="text-sm text-neutral-600 dark:text-neutral-400">{formSubTitle}</p>
               </div>

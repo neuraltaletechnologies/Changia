@@ -71,7 +71,7 @@ export default function HomePage() {
       />
 
       <FeaturesNavs
-        title='The three Campaigns of the <span class="text-yellow-500 dark:text-yellow-400">Changia</span> take a Campaign  from idea to completed payment.'
+        title='The  <span class="text-yellow-500 dark:text-yellow-400">Modules</span>  that take Campaigns from idea to completed payment.'
         tabs={[
           {
             heading: 'Core Platform & Donor Pool',
@@ -119,7 +119,7 @@ export default function HomePage() {
           { count: 'TZS 100', description: 'minimum donation on every Changia Campaign ' },
           { count: '5%', description: 'Campaign -level service fee' },
           { count: '99%', description: 'Campaigns, delivered and payable independently' },
-          { count: 'TZS 200,000', description: 'development fee per approved Campaign' },
+          { count: '10+', description: 'Created Campaigns for a single Manager' },
         ]}
       />
 

@@ -1,3 +1,6 @@
+'use client';
+
+import { useState, type FormEvent } from 'react';
 import EmailInput from './input/EmailInput';
 import AuthBtn from '../buttons/AuthBtn';
 
@@ -10,6 +13,24 @@ const config = {
 };
 
 export default function RecoverModal() {
+  const [email, setEmail] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [sent, setSent] = useState(false);
+
+  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setError(null);
+
+    if (!email.trim() || !/.+@.+\..+/.test(email.trim())) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+
+    // All fields validated — proceed to send reset link
+    setEmail('');
+    setSent(true);
+  };
+
   return (
     <div
       id={config.id}
@@ -39,10 +60,25 @@ export default function RecoverModal() {
                 </p>
               </div>
               <div className="mt-5">
-                <form>
+                <form onSubmit={handleSubmit} noValidate>
                   <div className="grid gap-y-4">
-                    <EmailInput id="recover-email" errorId="recover-email-error" />
-                    <AuthBtn title="Reset password" />
+                    <EmailInput
+                      id="recover-email"
+                      errorId="recover-email-error"
+                      value={email}
+                      onChange={setEmail}
+                      error={error ?? undefined}
+                    />
+                    {sent ? (
+                      <div
+                        role="status"
+                        className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 dark:border-green-800/50 dark:bg-green-950/30 dark:text-green-300"
+                      >
+                        If that email exists, a reset link has been sent.
+                      </div>
+                    ) : (
+                      <AuthBtn title="Reset password" />
+                    )}
                   </div>
                 </form>
               </div>

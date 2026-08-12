@@ -9,11 +9,11 @@ import { getProductEntries } from '@/lib/content';
 export const metadata: Metadata = {
   title: 'Campaigns',
   description:
-    'Explore the three Campaigns of the Changia Campaign: Core Platform & Donor Pool, Campaign  Link Distribution and Instant Push Donation.',
+    'Explore The three Modules of the Changia Campaign: Core Platform & Donor Pool, Campaign  Link Distribution and Instant Push Donation.',
   openGraph: {
     title: 'Changia Campaign Campaigns | Changia',
     description:
-      'Explore the three Campaigns of the Changia Campaign: Core Platform & Donor Pool, Campaign  Link Distribution and Instant Push Donation.',
+      'Explore The three Modules of the Changia Campaign: Core Platform & Donor Pool, Campaign  Link Distribution and Instant Push Donation.',
   },
 };
 

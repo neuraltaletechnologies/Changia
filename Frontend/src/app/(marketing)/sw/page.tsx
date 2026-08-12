@@ -121,16 +121,16 @@ export default function SwahiliHomePage() {
             description: 'mchango wa chini zaidi kwenye kila kampeni ya Changia',
           },
           {
-            count: '5 %',
-            description: 'ada ya huduma inayoweza kusanidiwa kwenye kiwango cha kampeni',
+            count: '5%',
+            description: 'ada ya huduma kwenye kiwango cha kampeni',
           },
           {
-            count: '3',
-            description: 'kampani za Campaign, zinazotolewa na kulipwa kwa kujitegemea',
+            count: '99%',
+            description: 'Kampeni, zinazotolewa na kulipwa kwa kujitegemea',
           },
           {
-            count: 'TZS 200 000',
-            description: 'ada ya maendeleo kwa kila kampani iliyoidhinishwa',
+            count: '10+',
+            description: 'Kampeni zilizoundwa kwa Meneja mmoja',
           },
         ]}
       />

@@ -1,36 +1,36 @@
 {
-  "title": "Bei rahisi na ya uwazi",
-  "subTitle": "Campaign wa kampani tatu kwa bei ya TZS, na gharama za wakandarasi wa nje zinatozwa kando.",
-  "badge": "Thamani bora",
+  "title": "Mfumo rahisi na wa uwazi",
+  "subTitle": "Kampeni zilizowekwa bei kwa TZS, na gharama za huduma za wahusika wa nje zinalipwa kando.",
+  "badge": "Bora kuliko zote",
   "thirdOption": "Unahitaji gharama za ukaribishaji (hosting), domain, au barua pepe?",
-  "btnText": "Pakua pendekezo",
+  "btnText": "Pakua Hati",
 
   "starterKit": {
-    "name": "Jukwaa la msingi na hifadhidata ya wafadhili",
-    "description": "Kampani 1 · Weka msingi",
-    "price": "200 000",
-    "cents": "",
-    "billingFrequency": "TZS · maendeleo ya mara moja",
+    "name": "Jukwaa la Msingi na Hifadhidata ya Wafadhili",
+    "description": "Weka msingi",
+    "price": "100",
+    "cents": "%",
+    "billingFrequency": "Salama na Inalindwa",
     "features": [
-      "Kiolesura cha wavuti chenye usalama na dashibodi",
+      "Kiolesura salama cha wavuti na dashibodi",
       "Usimamizi wa watumiaji kwa mipaka ya majukumu",
       "Hifadhidata ya wafadhili (CRM) na ufuatiliaji wa ridhaa",
       "Jarida la ukaguzi na ripoti"
     ],
-    "purchaseBtnTitle": "Chunguza kampani 1",
-    "purchaseLink": "/sw/campaigns"
+    "purchaseBtnTitle": "Anzisha kampeni",
+    "purchaseLink": "/login"
   },
 
   "professionalToolbox": {
-    "name": "Campaign kamili",
-    "description": "Kampani zote tatu · inapendekezwa",
-    "price": "600 000",
-    "cents": "",
-    "billingFrequency": "TZS · maendeleo ya mara moja",
+    "name": "Kampeni Inayoungwa Mkono",
+    "description": "Kampani zote · inapendekezwa",
+    "price": "99.9",
+    "cents": "%",
+    "billingFrequency": "Upatikanaji na Muda wa Kufanya Kazi",
     "features": [
-      "Jukwaa la msingi na hifadhidata ya wafadhili",
-      "Usambazaji wa viungo vya kampeni",
-      "Mchango wa kusukuma wa papo hapo",
+      "Jukwaa la Msingi na Hifadhidata ya Wafadhili",
+      "Usambazaji wa Viungo vya Kampeni",
+      "Mchango wa Kusukuma wa Papo Hapo",
       "Dhamana ya siku 30 kwenye hitilafu"
     ],
     "purchaseBtnTitle": "Chunguza kampani",

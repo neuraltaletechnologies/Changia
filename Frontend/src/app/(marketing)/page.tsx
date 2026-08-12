@@ -36,7 +36,7 @@ export default function HomePage() {
       <AnnouncementBanner
         btnId="dismiss-button"
         btnTitle="Explore the Platform"
-        url="/products"
+        url="/campaigns"
         title="We're building a Tanzania-first, fast campaign money fundraising platform."
       />
 
@@ -46,7 +46,7 @@ export default function HomePage() {
         primaryBtn="Start a Campaign "
         primaryBtnURL="/login?redirect=%2Fdashboard%2FCampaigns%2Fnew"
         secondaryBtn="Explore the Campaigns"
-        secondaryBtnURL="/products"
+        secondaryBtnURL="/campaigns"
         withReview
         avatars={avatarSrcs}
         rating='<span class="font-bold">TZS 100</span>'

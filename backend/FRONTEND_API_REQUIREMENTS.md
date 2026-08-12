@@ -30,6 +30,8 @@ This document covers the whole flow **from login and registration onward** and d
 
 ## 1. Conventions & base URL
 
+> **Backed by frontend pages:** the entire dashboard (`http://localhost:3000/dashboard/...`) reads this contract — login/registration at `/login` and `/register`.
+
 | Item | Value |
 |------|-------|
 | Base URL (dev) | `http://localhost:5000/api/v1` |
@@ -46,6 +48,8 @@ This document covers the whole flow **from login and registration onward** and d
 ---
 
 ## 2. Response envelope & error handling
+
+> **Backed by frontend pages:** error codes/messages surface on the auth forms (`/login`, `/register`) and the whole dashboard; a `401` force-redirects to `/login` with a `?redirect=` back to the originating page.
 
 ### Success (object payload)
 
@@ -144,6 +148,8 @@ Every request body and query must be validated **server-side** before it is proc
 
 ## 3. Roles & permissions
 
+> **Backed by frontend pages:** these roles gate the sidebar, mobile nav, route guard, and quick actions across every dashboard page (`/dashboard`, `/dashboard/campaigns`, `/dashboard/donors`, `/dashboard/team`, `/dashboard/audit-log`, `/dashboard/settings`, `/dashboard/payouts`).
+
 There are **three** platform roles. The user-facing names the customer uses map to the API role strings as follows:
 
 | Customer term | API role (`ApiUser.role`) | Scope |
@@ -175,6 +181,8 @@ There are **three** platform roles. The user-facing names the customer uses map 
 ---
 
 ## 4. Data models (types the API must use)
+
+> **Backed by frontend code:** these shapes mirror `Frontend/src/lib/dashboard/types.ts` (and `api-client.ts` for `ApiUser`) — every dashboard page maps them directly onto its components.
 
 These are the canonical shapes the frontend expects. Every list endpoint returns an array of these; every create/update returns the object back. Field names are `camelCase`.
 
@@ -364,6 +372,8 @@ Query params: `page` (1-based) and `limit` (default 25, max 100). Return the `pa
 
 ## 5. Auth — login & registration
 
+> **Backed by frontend pages:** `/login` and `/register` (plus the login/register modals), and session re-hydration via `GET /auth/me` on page load.
+
 All auth endpoints except `/login` and `/register` require a valid JWT in the `Authorization` header. On success the backend returns `data.accessToken` and `data.user` (an `ApiUser`). The frontend stores both in `localStorage` (`changia_access_token`, `changia_user`).
 
 > The frontend already calls these three endpoints in `api-client.ts` — **they must exist first** for the app to work at all.
@@ -453,6 +463,8 @@ Authenticated. Invalidates the current access token / clears the server session.
 
 ## 6. Organizations
 
+> **Backed by frontend pages:** `/dashboard` (org profile + dashboard stat cards via `GET /organizations/stats`) and the `/dashboard/settings` → Organisation tab.
+
 Routes are org-scoped: a user only ever reads/writes their own organization. `SUPER_ADMIN` has no org (`organizationId: null`) and is denied these routes unless it can specify an org to act on.
 
 ### `GET /organizations` — org profile
@@ -502,6 +514,8 @@ Authenticated (SUPER_ADMIN, ORG_ADMIN). `CAMPAIGN_MANAGER` is denied.
 ---
 ## 7. Users / Team
 
+> **Backed by frontend pages:** `/dashboard/team` — team list, "Invite Team Member", change role, resend invite, remove member.
+
 Routes manage the org's team members (all have `role` in `SUPER_ADMIN | ORG_ADMIN | CAMPAIGN_MANAGER`). Creating a user returns a **temporary password** (or an invite link) the admin shares with them. Invitation emails are required later — **[TO BUILD]**.
 
 ### `GET /users` — list team members
@@ -522,9 +536,9 @@ Authenticated (all roles). Org-scoped.
 }
 ```
 
-### `POST /users` — invite a team member
+### `POST /users` — invite a team member (the Team page "Invite Team Member")
 
-Authenticated (SUPER_ADMIN, ORG_ADMIN). `CAMPAIGN_MANAGER` denied.
+Authenticated (SUPER_ADMIN, ORG_ADMIN). `CAMPAIGN_MANAGER` denied. This backs the **"Invite Team Member"** dialog on `http://localhost:3000/dashboard/team` — enter an email, pick a role, and send the invite. The user is created with `status: "pending"` and an invitation/link is dispatched.
 
 **Request body:**
 
@@ -532,13 +546,32 @@ Authenticated (SUPER_ADMIN, ORG_ADMIN). `CAMPAIGN_MANAGER` denied.
 { "firstName": "Peter", "lastName": "John", "email": "peter@msuya.or.tz", "phone": "+255755123999", "role": "CAMPAIGN_MANAGER" }
 ```
 
+> **UI role label → API role mapping (the Team page offers these 4 choices):**
+
+| Team page label (`TeamMember.role`) | API `ApiUser.role` to store |
+|--------------------------------------|-----------------------------|
+| `admin`      | `ORG_ADMIN` (or `SUPER_ADMIN` when the org is being set up platform-wide) |
+| `manager`    | `ORG_ADMIN` |
+| `fundraiser` | `CAMPAIGN_MANAGER` |
+| `viewer`     | `CAMPAIGN_MANAGER` (read-only; enforced by a `viewer`/`readonly` user flag if you want stricter gating) |
+
+> The Team page can invite with **email + role only** (name is derived from the email address when a display name isn't supplied). The backend must accept a role label from the API enum (`ORG_ADMIN`/`CAMPAIGN_MANAGER`) and return both the canonical `ApiUser.role` **and** the friendly `TeamMember.role` label for the UI list.
+
 **Response — `201 Created`:** returns the new `ApiUser` plus `temporaryPassword` (shown once) or an `inviteUrl`.
 
 ```json
-{ "success": true, "data": { "user": { "...": "ApiUser" }, "temporaryPassword": "Xk9!qW2z", "inviteUrl": "https://changia.co/accept-invite/TOKEN" } }
+{ "success": true, "data": { "user": { "...": "ApiUser", "status": "PENDING" }, "temporaryPassword": "Xk9!qW2z", "inviteUrl": "https://changia.co/accept-invite/TOKEN" } }
 ```
 
 **Errors:** `409 EMAIL_TAKEN`, `400 VALIDATION_ERROR`.
+
+### `POST /users/:id/resend-invite` — resend an invite **[TO BUILD]**
+
+Authenticated (SUPER_ADMIN, ORG_ADMIN). Backs the Team page's **"Resend Invite"** action for a member still `pending`. Re-sends the invite email / regenerates the token.
+
+**Response — `200 OK`:** `{ "success": true, "message": "Invitation resent" }`
+
+**Errors:** `404 NOT_FOUND`, `400` (member is not `pending`).
 
 ### `PUT /users/:id` — update a team member
 
@@ -559,6 +592,8 @@ Authenticated (SUPER_ADMIN, ORG_ADMIN). Cannot self-delete or remove the last re
 ---
 
 ## 8. Campaigns
+
+> **Backed by frontend pages:** `/dashboard/campaigns` (list + status tabs), `/dashboard/campaigns/new` (create), `/dashboard/campaigns/approvals` (approve), and `/dashboard/campaigns/:id` (detail with Overview · Donors · Transactions · Evidence · Team tabs).
 
 Campaigns have an approval workflow and a status lifecycle. All authenticated org members can read; only `SUPER_ADMIN`/`ORG_ADMIN` can create/manage; managers only view campaigns they're assigned to.
 
@@ -603,22 +638,66 @@ Authenticated (all roles). Orgs see their own; managers additionally only get ca
 }
 ```
 
-### `GET /campaigns/:id` — campaign detail
+### `GET /campaigns/:id` — campaign detail (everything the campaign page renders)
 
-Authenticated (all roles). Returns the campaign with `raised`, `donors`, `progressPercent`, and a `recentDonations` list (latest confirmed donations).
+Authenticated (all roles). Returns the full campaign object the detail page at `http://localhost:3000/dashboard/campaigns/:id` needs. This page renders **a lot** — the status banner, header meta, progress card, and five tabs (Overview, Donors, Transactions, Evidence, Team) — so the response must include every field below.
 
 **Response — `200 OK`:**
 
 ```json
 {
   "success": true,
-  "data": { "campaign": { "...": "Campaign", "progressPercent": 62, "recentDonations": [ { "...": "Donation" } ] } }
+  "data": {
+    "campaign": {
+      "id": "1",
+      "organizationId": "2",
+      "name": "School Laboratory",
+      "category": "Education",
+      "description": "Build a science lab.",
+      "goal": 10000000,
+      "raised": 6200000,
+      "donors": 31,
+      "progressPercent": 62,
+      "status": "pending",
+      "startDate": "2026-02-01",
+      "endDate": "2026-06-30",
+      "contactPhone": "+255755123999",
+      "ownerName": "Neema Msuya",
+      "ownerEmail": "neema@msuya.or.tz",
+      "image": "https://…/lab.jpg",
+      "evidence": ["https://…/quote.pdf"],
+      "memberIds": ["4", "6"],
+      "submittedAt": "2026-08-12T09:00:00.000Z",
+      "recentDonations": [ { "...": "Donation" } ]
+    }
+  }
 }
 ```
 
+**Every field the page uses (and what it powers):**
+
+| Field | Rendered as |
+|-------|-------------|
+| `name` | Page title |
+| `category` | Header meta chip (with Megaphone icon); hidden if absent |
+| `startDate` → `endDate` | Header chip "`2026-02-01 → 2026-06-30`" (Calendar icon) |
+| `ownerName` | Header chip (UserRound) **and** the Overview "Owner" card + the Team tab's "Campaign owner" card |
+| `ownerEmail` | Overview "Owner" card subtitle (falls back to `contactPhone`, then "No contact set") |
+| `submittedAt` | "Submitted for approval on `<localized date>`" under the header — **only shown when present** |
+| `status` | Status badge. **Pending** also triggers the orange "Awaiting admin approval" banner: *"This campaign has been submitted but is not live yet. Once an admin approves it, it will be published and ready to share with donors."* The badge maps via `campaignStatusMap`: `active`→Active, `draft`→Draft, `completed`→Completed, `paused`→Paused, `pending`→Pending Approval |
+| `image` | Cover image at the top of the header card (hidden if absent) |
+| `raised` / `goal` / `donors` / `progressPercent` | Progress card: "`TZS raised` of `TZS goal`", `progressPercent% funded`, `donors` donors |
+| `description` | Overview → "About" paragraph (falls back to "No description provided.") |
+| `contactPhone` | Overview → "About" card (Phone icon) |
+| `evidence` | Overview → "Evidence" tab image grid (array of image URLs) |
+| `memberIds` | Overview → "Team" tab assign/remove list (which members are `assigned`) |
+| `recentDonations` | Overview → "Transactions" tab (donations with `donorName`, `date`, `channel`, `amount`) |
+
+> **Donors / Transactions tab data:** the Donors tab (distinct donors with total given, no. of gifts, last gift date) and Transactions tab (full list + "Total collected") are served by `GET /donations?campaignId=:id` — each `Donation` must carry `donorId`, `donorName`, `campaignId`, `campaign`, `channel`, `date`, `amount`. The UI aggregates distinct donors itself; you may alternatively return a `donors` aggregation array on the campaign if you prefer to precompute it.
+
 ### `POST /campaigns` — create a campaign
 
-Authenticated (SUPER_ADMIN, ORG_ADMIN).
+Authenticated (SUPER_ADMIN, ORG_ADMIN, CAMPAIGN_MANAGER).
 
 **Request body:**
 
@@ -639,7 +718,7 @@ Authenticated (SUPER_ADMIN, ORG_ADMIN).
 
 > `serviceFeePercent` is taken from the org's platform config by default. The backend must compute `publicTarget = goal + goal * fee` and `serviceFeeAmount` and return them.
 
-**Response — `201 Created`:** returns the created `Campaign` with `status: "draft"`.
+**Response — `201 Created`:** returns the created `Campaign` with `status: "PENDING"`.
 
 **Errors:** `400 VALIDATION_ERROR`, `403 INSUFFICIENT_ROLE`.
 
@@ -716,13 +795,27 @@ Every create/update/delete/submit/approve/status change must write an immutable 
 ---
 ## 9. Donors (CRM)
 
-A consent-aware donor pool. All roles can list and add donors; only `SUPER_ADMIN`/`ORG_ADMIN` can update/delete/import.
+> **Backed by frontend pages:** `/dashboard/donors` (Donor Pool with full filter set + counts), `/dashboard/donors/import`, and `/dashboard/donors/:id` (profile + donation history).
 
-### `GET /donors` — list donors
+A consent-aware donor pool. All roles can list and add donors; only `SUPER_ADMIN`/`ORG_ADMIN` can update/delete/import. This module powers the **Donor Pool** page at `http://localhost:3000/dashboard/donors` and the **donor profile** page at `http://localhost:3000/dashboard/donors/:id`.
 
-Authenticated (all roles). Org-scoped. Managers see the org's consented donors they may target.
+### `GET /donors` — list donors (with the full pool filter set)
 
-**Query params:** `search` (name/email/phone), `status`, `consentStatus`, `tag`, `channel`, plus `page`/`limit`.
+Authenticated (all roles). Org-scoped. Managers see the org's consented donors they may target. This is the **Donor Pool** list endpoint — it must support **every filter the UI exposes** and return accurate per-filter counts so the page can show "N donors total" and segmented chips.
+
+**Query params (the complete "ensure filter" set the Donor Pool page uses):**
+
+| Param | Values | Behaviour |
+|-------|--------|-----------|
+| `search` | free text | Case-insensitive **partial match** across `firstName`, `lastName`, `email`, `phone` **and** `location` — the pool page searches all of these at once |
+| `status` | `active` \| `inactive` \| `prospect` \| `lapsed` | Exact match on `Donor.status` |
+| `consentStatus` | `consented` \| `pending` \| `withdrawn` | Exact match on `Donor.consentStatus` — used for the consent-aware "ready to engage" count |
+| `tag` | any `DonorTag` (`major-donor`, `recurring`, `corporate`, `anonymous`, `volunteer`, `diaspora`, `first-time`) | Donor must carry the tag in its `tags` array |
+| `channel` | `email` \| `sms` \| `whatsapp` \| `phone` \| `post` | Exact match on `Donor.preferredChannel` (needed for "which push channel am I allowed to send on") |
+| `page` | integer ≥ 1 | 1-based page number |
+| `limit` | integer 1–100 (default 25) | Page size |
+
+> **Filter combination rule:** the frontend combines `search` with `status` and `consentStatus` filters together (e.g. search + status + consent at once), so the backend must treat every query param as an **AND** condition, never mutually exclusive.
 
 **Response — `200 OK`:**
 
@@ -731,16 +824,39 @@ Authenticated (all roles). Org-scoped. Managers see the org's consented donors t
   "success": true,
   "data": {
     "donors": [ { "...": "Donor" } ],
+    "counts": {
+      "total": 84,
+      "active": 50, "inactive": 6, "prospect": 20, "lapsed": 8,
+      "consented": 60, "pending": 12, "withdrawn": 12,
+      "channels": { "email": 30, "sms": 10, "whatsapp": 25, "phone": 12, "post": 7 }
+    },
     "pagination": { "page": 1, "limit": 25, "total": 84, "totalPages": 4 }
   }
 }
 ```
 
+> The `counts` object is **optional but recommended** — it lets the UI render the "N donors total", status/consent segmented chips and the manager's "X consented donors ready to engage" figure without N+1 requests. If you prefer separate lightweight endpoints, expose `GET /donors/stats` returning the same `counts` shape.
+
 ### `GET /donors/:id` — donor detail
 
-Authenticated (all roles).
+Authenticated (all roles). Returns the donor plus their **donation history** for the profile page (`http://localhost:3000/dashboard/donors/:id`).
 
-**Response — `200 OK`:** `{ "success": true, "data": { "donor": { "...": "Donor" } } }`
+**Response — `200 OK`:**
+
+```json
+{
+  "success": true,
+  "data": {
+    "donor": { "...": "Donor" },
+    "donations": [
+      { "id": "31", "campaignId": "1", "campaign": "School Laboratory", "amount": 200000, "channel": "whatsapp", "date": "2026-01-03", "status": "completed", "receiptNumber": "CHG-2026-000031" }
+    ],
+    "pagination": { "page": 1, "limit": 25, "total": 12, "totalPages": 1 }
+  }
+}
+```
+
+> The `donations` array is the donor's **transaction history** (the "Donation History" panel). It can alternatively be served by `GET /donations?donorId=:id` — the `Donation` objects returned must carry `campaignId` + `campaign` (name) so the UI can label each gift.
 
 ### `POST /donors` — add a donor (with consent)
 
@@ -794,13 +910,15 @@ Authenticated (SUPER_ADMIN, ORG_ADMIN). Accepts CSV/JSON array, dedupes by email
 
 ## 10. Donations & payments
 
+> **Backed by frontend pages:** the campaign detail **Transactions** tab (`/dashboard/campaigns/:id`), the campaign detail / donor-pool **"Record Donation"** action, and the donor profile **Donation History** panel (`/dashboard/donors/:id`).
+
 Donations are **only ever confirmed by a gateway callback** — never by the app body. The frontend won't double-count because of a unique `idempotencyKey` per payment attempt. Amounts are whole TZS integers. **The platform never stores or asks for a mobile-money PIN.**
 
 ### `GET /donations` — list confirmed donations
 
-Authenticated (all roles). Org-scoped, newest first.
+Authenticated (all roles). Org-scoped, newest first. Powers the campaign detail **Transactions** tab and the **Donation History** panel on a donor profile.
 
-**Query params:** `campaignId`, `channel`, `status`, `from`/`to` (ISO dates), plus `page`/`limit`.
+**Query params:** `campaignId`, `donorId` (donor's transaction history), `channel`, `status`, `from`/`to` (ISO dates), plus `page`/`limit`.
 
 **Response — `200 OK`:**
 
@@ -813,6 +931,42 @@ Authenticated (all roles). Org-scoped, newest first.
   }
 }
 ```
+
+> Each `Donation` must include `donorId`, `donorName`, `campaignId` and `campaign` (name) — the UI tabs show all of these columns (see the `Donation` model in section 4).
+
+### `POST /donations` — record a manual / offline donation
+
+Authenticated (SUPER_ADMIN, ORG_ADMIN). This is the **"Record Donation"** action on the campaign detail page (`http://localhost:3000/dashboard/campaigns/:id`) and the **"Record Donation"** menu item on the Donor Pool row. It creates a **confirmed** `completed` donation directly (e.g. cash, bank transfer, or a gift already collected offline), without going through a payment attempt. It must atomically bump the campaign's `raised` + `donor` counts in the **same transaction**.
+
+**Request body:**
+
+```json
+{ "campaignId": "1", "donorId": "12", "amount": 20000, "channel": "whatsapp", "date": "2026-01-03" }
+```
+
+| Field | Type | Required | Notes |
+|-------|------|:---:|-------|
+| `campaignId` | string | ✅ | Must belong to the caller's org; campaign must be `active` (not paused/completed) |
+| `donorId` | string | ✅ | Must belong to the caller's org |
+| `amount` | integer TZS | ✅ | Whole number ≥ 1 and ≤ configured max single donation |
+| `channel` | `email\|sms\|whatsapp\|phone\|post` | ✅ | Defaults to the donor's `preferredChannel` if omitted |
+| `date` | ISO date | ❌ | Defaults to now |
+| `isAnonymous` | boolean | ❌ | Default `false` |
+
+**Response — `201 Created`:** returns the created `Donation` with `status: "completed"`, a generated `receiptNumber` (`CHG-YYYY-NNNNNN`) and `confirmedAt` set.
+
+```json
+{
+  "success": true,
+  "data": {
+    "donation": { "id": "31", "donorId": "12", "donorName": "Peter John", "campaignId": "1", "campaign": "School Laboratory", "amount": 20000, "channel": "whatsapp", "date": "2026-01-03", "status": "completed", "method": "MANUAL", "receiptNumber": "CHG-2026-000031", "confirmedAt": "2026-01-03T10:00:00.000Z" }
+  }
+}
+```
+
+**Errors:** `400 VALIDATION_ERROR`, `403 INSUFFICIENT_ROLE`, `404 NOT_FOUND` (campaign/donor not in org), `409` (explicit duplicate transaction via an `idempotencyKey`).
+
+> **Guarantee:** this record-donation call and the `raised`/`donorCount` update on the campaign must be atomic — same transaction, confirmed-only logic, and a unique receipt number, exactly like a gateway-confirmed donation.
 
 ### `POST /donations/campaigns/:campaignId/attempts` — send a push payment request
 
@@ -840,7 +994,7 @@ Authenticated (all roles). Lists attempts for a campaign with current status and
 
 ### `POST /donations/simulate-callback` — simulate gateway callback (dev)
 
-Authenticated (SUPER_ADMIN, ORG_ADMIN). **Development only.** Simulates the payment gateway confirming (or failing) an attempt. Production must replace this with a signature-verified webhook.
+Authenticated (SUPER_ADMIN, ORG_ADMIN). **Development only.** Simulates the payment gateway confirming (or failing) an attempt. Campaignion must replace this with a signature-verified webhook.
 
 **Request body example:**
 
@@ -868,13 +1022,15 @@ Signature-verified callback from the live payment provider. Same idempotency and
 ---
 ## 11. Audit logs
 
+> **Backed by frontend pages:** `/dashboard/audit-log` (search / severity / resource filters + "Export CSV").
+
 Read-only, immutable security trail. Only `SUPER_ADMIN` may view it in the UI (the `audit:view` permission).
 
 ### `GET /audit-logs` — list audit entries
 
-Authenticated; **role-gated to `SUPER_ADMIN`** by default (mirror `audit:view`).
+Authenticated; **role-gated to `SUPER_ADMIN`** by default (mirror `audit:view`). This backs the Audit Log page at `http://localhost:3000/dashboard/audit-log`.
 
-**Query params:** `action` (partial), `severity` (`INFO|WARNING|CRITICAL`), `search` (actor email / resource), plus `page`/`limit`.
+**Query params:** `action` (partial), `severity` (`INFO|WARNING|CRITICAL`), `resource` (e.g. `donation`, `campaign`, `user`, `donor`, `organization`), `search` (actor email / resource / details), plus `page`/`limit`. All filters combine as AND.
 
 **Response — `200 OK`:**
 
@@ -888,6 +1044,10 @@ Authenticated; **role-gated to `SUPER_ADMIN`** by default (mirror `audit:view`).
 }
 ```
 
+### `GET /audit-logs/export` — export CSV `[TO BUILD]`
+
+Authenticated (`SUPER_ADMIN`). Backs the Audit Log **"Export CSV"** button. Returns a CSV download of the currently-filtered logs (same query params as `GET /audit-logs`), columns: `timestamp, action, resource, resourceId, user, userId, ipAddress, severity, details`. Retention: the page states entries are **retained for 90 days**.
+
 ### `GET /audit-logs/recent` — recent entries
 
 Authenticated (`SUPER_ADMIN`). The latest ~10 entries for the activity feed. Same log shape, no pagination.
@@ -899,6 +1059,8 @@ Authenticated (`SUPER_ADMIN`). The latest ~10 entries for the activity feed. Sam
 ---
 
 ## 12. Payouts `[TO BUILD]`
+
+> **Backed by frontend pages:** `/dashboard/payouts` (available to `SUPER_ADMIN` / `ORG_ADMIN` only).
 
 Org admins request withdrawals; the system/super-admin approves and reconciles them. Managers **never** access payouts.
 
@@ -929,6 +1091,10 @@ Authenticated (`SUPER_ADMIN`).
 ---
 ## 13. Settings `[TO BUILD]`
 
+> **Backed by frontend pages:** `/dashboard/settings` — Organisation, Notifications, Security and Localisation tabs, plus the "Delete Organisation" danger zone.
+
+Backs the **Settings** page at `http://localhost:3000/dashboard/settings`, which has four tabs: **Organisation**, **Notifications**, **Security** and **Localisation**.
+
 ### `GET/PUT /settings/platform` — platform config
 
 Authenticated (`SUPER_ADMIN`, mirrors the `settings:platform` permission).
@@ -939,22 +1105,48 @@ Authenticated (`SUPER_ADMIN`, mirrors the `settings:platform` permission).
 
 ### `GET/PUT /settings/org` — organization preferences
 
-Authenticated (SUPER_ADMIN, ORG_ADMIN). `CAMPAIGN_MANAGER` denied.
-
-**Request/response example:**
+Authenticated (SUPER_ADMIN, ORG_ADMIN). `CAMPAIGN_MANAGER` denied. These are the persisted fields for the Settings page:
 
 ```json
 {
   "brandName": "Dr. Msuya Foundation",
   "logoUrl": "https://…/logo.png",
+  "orgName": "Changia Foundation TZ",
+  "registrationNumber": "NGO-TZ-2021-004872",
+  "primaryEmail": "hello@changia.tz",
+  "phone": "+255755000111",
   "defaultChannel": "whatsapp",
-  "notifyOnDonation": true
+  "currency": "TZS",
+  "language": "en",
+  "timezone": "eat",
+  "dateFormat": "dmy",
+  "notifications": {
+    "notifyOnDonation": true,
+    "notifyOnCampaignStatus": true,
+    "notifyOnTeamInvite": true
+  },
+  "security": {
+    "twoFactorEnabled": false,
+    "loginAlerts": true
+  }
 }
 ```
+
+> **Enums the Settings page uses:** `currency` ∈ `TZS | USD | EUR | GBP`; `language` ∈ `en | sw`; `timezone` ∈ `eat | utc`; `dateFormat` ∈ `dmy | mdy | ymd`. The backend must validate these and store them so they can be re-served on reload.
+
+### `DELETE /organizations` — delete organization `[TO BUILD]`
+
+Authenticated (SUPER_ADMIN, ORG_ADMIN). Backs the Settings **"Delete Organisation"** danger-zone action. Permanently removes the org and all dependent data (campaigns, donors, donations, users, audit logs) — requires the caller's fresh password (`{ "password": "…" }`) as confirmation.
+
+**Response — `200 OK`:** `{ "success": true, "message": "Organization deleted" }`
+
+**Errors:** `401 INVALID_PASSWORD`, `403 INSUFFICIENT_ROLE`.
 
 ---
 
 ## 14. Public campaign page
+
+> **Backed by frontend pages:** the public shareable campaign page at `/c/:slug` (marketing site, no auth).
 
 The marketing/public site renders a shareable campaign page at `/c/:id` and a small donation flow **before authentication** (a donor can give without logging in). These endpoints are **public — no JWT**.
 
@@ -989,6 +1181,8 @@ Accepts a link-based donation. The backend creates a `LINK` payment attempt and 
 
 ---
 ## 15. Quick start / how to test
+
+> **Backed by frontend pages:** run the app local-first — API on `http://localhost:5000`, dashboard on `http://localhost:3000` (login at `/login`, register at `/register`).
 
 ```bash
 # 1. Create the database (from repo root, points at Backend/database.sql)
@@ -1032,11 +1226,11 @@ Then verify role gating with the demo accounts (password `Changia@2026`):
 | Organizations | `GET /organizations`, `GET /organizations/stats`, `PUT /organizations` | `[TO BUILD]` |
 | Team | `GET/POST /users`, `PUT/DELETE /users/:id` | `[TO BUILD]` |
 | Campaigns | `GET/POST /campaigns`, `GET/PUT/DELETE /campaigns/:id`, submit/approve/status/managers routes (edit/delete only before publish; stop via status after publish) | `[TO BUILD]` |
-| Donors | `GET/POST /donors`, `GET/PUT/DELETE /donors/:id`, `POST /donors/import` | `[TO BUILD]` |
-| Donations | `GET /donations`, payment attempts, `simulate-callback` | `[TO BUILD]` |
-| Audit | `GET /audit-logs`, `GET /audit-logs/recent` | `[TO BUILD]` |
+| Donors | `GET/POST /donors`, `GET/PUT/DELETE /donors/:id`, `POST /donors/import` — pool list **must support the full filter set** (`search`, `status`, `consentStatus`, `tag`, `channel`) + `counts` | `[TO BUILD]` |
+| Donations | `GET /donations` (with `campaignId`/`donorId` filters), **`POST /donations` (manual/offline record)** , payment attempts, `simulate-callback` | `[TO BUILD]` |
+| Audit | `GET /audit-logs` (with `resource` filter) , `GET /audit-logs/recent`, `GET /audit-logs/export` | `[TO BUILD]` |
 | Payouts | payouts CRUD | `[TO BUILD]` |
-| Settings | platform / org | `[TO BUILD]` |
+| Settings | platform / org (organisation, notifications, security, localisation) , `DELETE /organizations` | `[TO BUILD]` |
 | Public | `/public/campaigns/:slug` + public donate | `[TO BUILD]` |
 
 ---

@@ -59,7 +59,7 @@ const articles: Article[] = [
     imgAlt: 'Campaign  progress before and after verified donations',
     btnExists: true,
     btnTitle: 'Explore the Campaigns',
-    btnURL: '/products',
+    btnURL: '/campaigns',
   },
   {
     isRightSection: true,

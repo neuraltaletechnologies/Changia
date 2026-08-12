@@ -25,7 +25,7 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## Content
 
-- `src/content/products/` — the four Campaign pages (EN/FR)
+- `src/content/campaigns/` — the four Campaign pages (EN/FR)
 - `src/content/blog/` — fundraising stories and guides (EN/FR)
 - `src/content/insights/` — long-form articles (EN/FR)
 - `src/data_files/` — features, FAQs, pricing and site configuration (EN/FR)
@@ -40,4 +40,4 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ---
 
-> Originally forked from the MIT-licensed [ScrewFast](https://themewagon.com/themes/screwfast/) template by Emil Gulamov (distributed by ThemeWagon) and adapted for the Changia fundraising platform.
+> Originally forked from the MIT-licensed [Changia ](https://themewagon.com/themes/Changia /) template by Emil Gulamov (distributed by ThemeWagon) and adapted for the Changia fundraising platform.

@@ -59,7 +59,7 @@ const articles: Article[] = [
     imgAlt: 'Maendeleo ya kampeni kabla na baada ya michango iliyothibitishwa',
     btnExists: true,
     btnTitle: 'Chunguza kampani',
-    btnURL: '/sw/products',
+    btnURL: '/sw/campaigns',
   },
   {
     isRightSection: true,

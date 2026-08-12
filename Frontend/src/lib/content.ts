@@ -3,11 +3,22 @@ import path from 'node:path';
 import matter from 'gray-matter';
 import type { StaticImageData } from 'next/image';
 import { resolveImage, resolveImageRequired } from './images';
-import type { BlogData, ProductData, InsightData } from './types';
+import type { BlogData, CampaignData, InsightData } from './types';
 
 const CONTENT_ROOT = path.join(process.cwd(), 'src', 'content');
 
-export type CollectionName = 'blog' | 'products' | 'insights';
+export type CollectionName = 'blog' | 'campaigns' | 'insights';
+
+/**
+ * Maps a logical collection name to the on-disk sub-directory under
+ * `src/content`. Campaign content currently lives in the `products` folder
+ * (a legacy name), so the `campaigns` collection is backed by `products`.
+ */
+const COLLECTION_DIRS: Record<CollectionName, string> = {
+  blog: 'blog',
+  campaigns: 'products',
+  insights: 'insights',
+};
 
 export interface ContentEntry<T = Record<string, unknown>> {
   /** Relative id, e.g. "en/post-1" (matching the old Astro collection id). */
@@ -40,7 +51,7 @@ function toPosix(p: string): string {
 export function getCollection<T = Record<string, unknown>>(
   name: CollectionName
 ): ContentEntry<T>[] {
-  const dir = path.join(CONTENT_ROOT, name);
+  const dir = path.join(CONTENT_ROOT, COLLECTION_DIRS[name]);
   return listMarkdownFiles(dir).map((file) => {
     const raw = readFileSync(file, 'utf-8');
     const { data, content } = matter(raw);
@@ -77,7 +88,7 @@ function resolveBlog(entry: ContentEntry): ContentEntry<BlogData> {
   };
 }
 
-function resolveProduct(entry: ContentEntry): ContentEntry<ProductData> {
+function resolveCampaign(entry: ContentEntry): ContentEntry<CampaignData> {
   const main = entry.data.main as Record<string, unknown>;
   return {
     ...entry,
@@ -91,14 +102,14 @@ function resolveProduct(entry: ContentEntry): ContentEntry<ProductData> {
         imgMain: resolveImageRequired(main.imgMain),
         imgAlt: main.imgAlt as string,
       },
-      tabs: (main ? entry.data.tabs : []) as ProductData['tabs'],
-      longDescription: entry.data.longDescription as ProductData['longDescription'],
-      descriptionList: (entry.data.descriptionList ?? []) as ProductData['descriptionList'],
+      tabs: (main ? entry.data.tabs : []) as CampaignData['tabs'],
+      longDescription: entry.data.longDescription as CampaignData['longDescription'],
+      descriptionList: (entry.data.descriptionList ?? []) as CampaignData['descriptionList'],
       specificationsLeft: (entry.data.specificationsLeft ??
-        []) as ProductData['specificationsLeft'],
+        []) as CampaignData['specificationsLeft'],
       specificationsRight: (entry.data.specificationsRight ??
-        []) as ProductData['specificationsRight'],
-      tableData: entry.data.tableData as ProductData['tableData'],
+        []) as CampaignData['specificationsRight'],
+      tableData: entry.data.tableData as CampaignData['tableData'],
       blueprints: {
         first: resolveImage(
           (entry.data.blueprints as Record<string, unknown> | undefined)?.['first']
@@ -129,10 +140,10 @@ export function getBlogEntries(lang?: 'en' | 'sw'): ContentEntry<BlogData>[] {
     .map(resolveBlog);
 }
 
-export function getProductEntries(lang?: 'en' | 'sw'): ContentEntry<ProductData>[] {
-  return getCollection('products')
+export function getCampaignEntries(lang?: 'en' | 'sw'): ContentEntry<CampaignData>[] {
+  return getCollection('campaigns')
     .filter((e) => (lang ? e.lang === lang : true))
-    .map(resolveProduct);
+    .map(resolveCampaign);
 }
 
 export function getInsightEntries(lang?: 'en' | 'sw'): ContentEntry<InsightData>[] {

@@ -5,8 +5,8 @@ main:
   id: 2
   content: |
     Kampani 2 inaiwezesha shirika lako kuunda kampeni ya ukusanyaji wa fedha na kusambaza ujumbe rahisi, unaofaa kwa simu za msingi, kwa hifadhidata ya wafadhili au njia za umma. Wafadhili hufuata kiungo, hulipa kupitia njia ya lango linalotumika na hupokea risiti pamoja na taarifa ya maendeleo.
-  imgCard: '@/images/product-image-2.avif'
-  imgMain: '@/images/product-image-main-2.avif'
+  imgCard: '@/images/campaign-image-2.avif'
+  imgMain: '@/images/campaign-image-main-2.avif'
   imgAlt: 'Ukurasa wa kampeni ya Changia wenye kiungo kifupi na msimbo wa QR'
 tabs:
   - id: 'tabs-with-card-item-1'

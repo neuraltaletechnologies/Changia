@@ -13,27 +13,27 @@ interface FAQItem {
 const faqs: FAQItem[] = [
   {
     question: "What is Changia?",
-    answer: "Changia is a digital fundraising platform designed specifically for Tanzania, optimized to collect small contributions via mobile money with zero payment friction. It enables organizations to share direct donation links and send push payment requests directly to donors' phones.",
+    answer: "Changia is a digital fundraising platform designed specifically for Tanzania, optimized to collect small contributions via All money transfer with zero payment friction. It enables organizations to share direct donation links and send push payment requests directly to donors' phones.",
   },
   {
     question: "How do donors make a contribution?",
-    answer: "Donors can click a campaign link or receive a direct push payment request from a campaign manager. They select their mobile operator (M-Pesa, Tigo Pesa, Airtel Money, or Halopesa), input their phone number, and confirm the transaction by entering their PIN in their operator's secure approval popup.",
+    answer: "Donors can click a Campaign  link or receive a direct push payment request from a Campaign  manager. They select their mobile operator (M-Pesa, Tigo Pesa, Airtel Money, or Halopesa), input their phone number, and confirm the transaction by entering their PIN in their operator's secure approval popup.",
   },
   {
-    question: "Does Changia store, see, or ask for my mobile money PIN?",
-    answer: "No. Changia never stores, sees, or asks for your mobile money PIN. The PIN is entered only in the operator or payment gateway-controlled prompt. Your financial credentials are 100% secure.",
+    question: "Does Changia store, see, or ask for my All money transfer PIN?",
+    answer: "No. Changia never stores, sees, or asks for your All money transfer PIN. The PIN is entered only in the operator or payment gateway-controlled prompt. Your financial credentials are 100% secure.",
   },
   {
     question: "What are the platform service fees?",
-    answer: "Changia does not deduct fees from individual donations. Instead, we add a configurable service fee (e.g. 5%) to the campaign's overall collection target when created. This ensures donations are shown and credited at their full face value, keeping progress tracking transparent.",
+    answer: "Changia does not deduct fees from individual donations. Instead, we add a configurable service fee (e.g. 5%) to the Campaign 's overall collection target when created. This ensures donations are shown and credited at their full face value, keeping progress tracking transparent.",
   },
   {
     question: "Which mobile networks are supported in Tanzania?",
-    answer: "We support all major Tanzanian mobile money providers: Vodacom M-Pesa, Tigo Pesa, Airtel Money, and Halopesa. Payouts can be settled directly to your organization's bank account or authorized mobile money merchant account.",
+    answer: "We support all major Tanzanian All money transfer providers: Vodacom M-Pesa, Tigo Pesa, Airtel Money, and Halopesa. Payouts can be settled directly to your organization's bank account or authorized All money transfer merchant account.",
   },
   {
     question: "How do instant push donations work for field fundraisers?",
-    answer: "A campaign manager speaks with a potential donor in the field. Upon verbal agreement, the manager enters the donor's phone number and the agreed contribution amount. This triggers an instant payment prompt on the donor's handset, requiring only their PIN to complete.",
+    answer: "A Campaign  manager speaks with a potential donor in the field. Upon verbal agreement, the manager enters the donor's phone number and the agreed contribution amount. This triggers an instant payment prompt on the donor's handset, requiring only their PIN to complete.",
   },
 ];
 

@@ -1,10 +1,10 @@
 ---
 title: 'Jukwaa la msingi na hifadhidata ya wafadhili'
-description: 'MVP Moduli 1'
+description: 'Campaign Kampani 1'
 main:
   id: 1
   content: |
-    Moduli 1 inaweka msingi salama na wenye mwitikio unaotumiwa na wasimamizi, maafisa na wafadhili. Ina kiolesura cha kawaida, vidhibiti vya ufikiaji, CRM ya wafadhili, dashibodi na rekodi zilizoandaliwa kwa ukaguzi zinazohitajika na moduli 2 na 3.
+    Kampani 1 inaweka msingi salama na wenye mwitikio unaotumiwa na wasimamizi, maafisa na wafadhili. Ina kiolesura cha kawaida, vidhibiti vya ufikiaji, CRM ya wafadhili, dashibodi na rekodi zilizoandaliwa kwa ukaguzi zinazohitajika na kampani 2 na 3.
   imgCard: '@/images/product-image-1.avif'
   imgMain: '@/images/product-image-main-1.avif'
   imgAlt: 'Dashibodi ya usimamizi ya Changia kwenye kompyuta ya mkononi'
@@ -21,7 +21,7 @@ tabs:
 longDescription:
   title: 'Msingi salama kwa kila kampeni'
   subTitle: |
-    Moduli 1 inaipa shirika lako kuingia, dashibodi kwa majukumu, usimamizi wa watumiaji, hifadhidata ya wafadhili inayoheshimu ridhaa na jarida la ukaguzi — kila kitu kinachohitajika kabla ya moduli ya malipo kuanza.
+    Kampani 1 inaipa shirika lako kuingia, dashibodi kwa majukumu, usimamizi wa watumiaji, hifadhidata ya wafadhili inayoheshimu ridhaa na jarida la ukaguzi — kila kitu kinachohitajika kabla ya kampani ya malipo kuanza.
   btnTitle: 'Wasiliana na timu kujifunza zaidi'
   btnURL: '#'
 descriptionList:
@@ -45,7 +45,7 @@ specificationsRight:
     subTitle: "Wasifu wa shirika, chapa, violezo vya ujumbe, ripoti za msingi na kituo cha arifa."
   - title: 'Ripoti za msingi'
     subTitle: 'Muhtasari wa kampeni na michango kwa picha wazi ya kifedha kwa watumiaji walioidhinishwa.'
-  - title: 'Hakuna moduli ya malipo'
+  - title: 'Hakuna kampani ya malipo'
     subTitle: "Jukwaa linakubalika tu sheria za ufikiaji wa watumiaji na wafadhili zinapofanya kazi, kabla ya malipo yoyote."
   - title: 'Gharama inayopendekezwa'
     subTitle: 'TZS 200 000 kwa maendeleo ya mara moja; ukaribishaji, domain na barua pepe vinatozwa kando.'
@@ -54,7 +54,7 @@ tableData:
     description:
       - ['Gharama za maendeleo', 'TZS 200 000']
       - ['Matokeo makuu', 'Kiolesura salama, dashibodi, CRM ya wafadhili']
-      - ['Malipo', 'Mara moja, kwa kila moduli iliyoidhinishwa']
+      - ['Malipo', 'Mara moja, kwa kila kampani iliyoidhinishwa']
       - ['Utegemezi', 'Ukaribishaji, domain na barua pepe vinatozwa kando']
       - ['Kukubalika', 'Kuingia kuliidhinishwa na usimamizi wa wafadhili unaozuiliwa kwa majukumu']
 blueprints:

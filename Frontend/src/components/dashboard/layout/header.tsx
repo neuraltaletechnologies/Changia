@@ -72,7 +72,7 @@ export function Header({ onMobileMenuToggle, mobileMenuOpen }: HeaderProps) {
         {/* Search */}
         <div className="hidden sm:flex items-center gap-2 bg-muted rounded-md px-3 py-1.5 text-sm text-muted-foreground w-56 cursor-pointer hover:bg-muted/80 transition-colors">
           <Search className="w-3.5 h-3.5 shrink-0" />
-          <span className="text-xs">Search donors, campaigns…</span>
+          <span className="text-xs">Search donors, Campaigns…</span>
           <kbd className="ml-auto text-[10px] bg-background border border-border rounded px-1 py-0.5 font-mono">
             ⌘K
           </kbd>

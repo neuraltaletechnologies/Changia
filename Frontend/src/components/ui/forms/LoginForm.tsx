@@ -24,11 +24,23 @@ export default function LoginForm() {
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
+
+    const nextErrors: Record<string, string> = {};
+    if (!email.trim()) nextErrors.email = 'Email is required.';
+    else if (!/.+@.+\..+/.test(email.trim()))
+      nextErrors.email = 'Please enter a valid email address.';
+    if (!password) nextErrors.password = 'Password is required.';
+    else if (password.length < 8)
+      nextErrors.password = 'Password must be at least 8 characters.';
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) return;
+
     setLoading(true);
     try {
       const { accessToken, user } = await loginRequest(email, password);
@@ -76,13 +88,14 @@ export default function LoginForm() {
         <div className="flex items-center py-3 text-xs text-neutral-400 uppercase before:me-6 before:flex-[1_1_0%] before:border-t before:border-neutral-200 after:ms-6 after:flex-[1_1_0%] after:border-t after:border-neutral-200 dark:text-neutral-500 dark:before:border-neutral-600 dark:after:border-neutral-600">
           Or
         </div>
-        <form onSubmit={handleSubmit} className="grid gap-y-4">
+        <form onSubmit={handleSubmit} className="grid gap-y-4" noValidate>
           <div className="grid gap-y-4">
             <EmailInput
               id="login-email"
               errorId="login-email-error"
               value={email}
               onChange={setEmail}
+              error={errors.email}
             />
             <PasswordInput
               forgot
@@ -91,6 +104,7 @@ export default function LoginForm() {
               content="8+ characters required"
               value={password}
               onChange={setPassword}
+              error={errors.password}
             />
             <Checkbox
               id="remember-me"

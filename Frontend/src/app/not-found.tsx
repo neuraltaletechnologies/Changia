@@ -9,7 +9,7 @@ export default function NotFound() {
   const pageTitle = isSw ? 'Ukurasa Haupatikani | Changia' : 'Page Not Found | Changia';
   const subTitle = isSw
     ? 'Samahani, hii si ukurasa wa kampeni uliokuwa unautafuta!'
-    : "Oops, this isn't the campaign page you were looking for!";
+    : "Oops, this isn't the Campaign  page you were looking for!";
   const content = isSw
     ? 'Usikate tamaa kwa tatizo hili. Turudi kwenye mchango.'
     : "Don't let this hiccup slow you down. Let's get you back to giving.";

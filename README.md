@@ -1,10 +1,10 @@
 # Changia
 
-**Digital Fundraising & Mobile Money Contribution Platform**
+**Digital Fundraising &  All money transfer Contribution Platform**
 
-Tanzania-first. Mobile-money-first. Built for everyday donors.
+Tanzania-first. fast campaign money. Built for everyday donors.
 
-> Business Proposal, MVP Specification and Implementation Plan
+> Business Proposal, Campaign Specification and Implementation Plan
 > Prepared for: Dr. Msuya / Initial Launch Partner
 > Prepared by: Changia Development Team
 > Proposal date: 30 July 2026
@@ -14,53 +14,53 @@ Tanzania-first. Mobile-money-first. Built for everyday donors.
 
 ## Overview
 
-Changia is a digital fundraising platform that helps people and organizations collect small mobile-money contributions with less friction. It launches with Dr. Msuya as the first organization, with the data model designed so additional organizations can be added in a future multi-tenant module.
+Changia is a digital fundraising platform that helps people and organizations collect contributions with less friction. It launches with Dr. Msuya as the first organization, with the data model designed so additional organizations can be added in a future multi-tenant module.
 
 The platform combines two complementary donation methods:
 
-- **Campaign Link Distribution** — shareable links sent via SMS, WhatsApp, email, QR codes and social media; donors open the link and pay.
-- **Instant Push Donation** — a campaign manager who has already secured a donor's verbal agreement sends a direct payment request; the donor just confirms with their mobile-money PIN.
+- **Campaign  Link Distribution** — shareable links sent via SMS, WhatsApp, email, QR codes and social media; donors open the link and pay.
+- **Instant Push Donation** — a Campaign  manager who has already secured a donor's verbal agreement sends a direct payment request; the donor just confirms with their mobile-money PIN.
 
 **Important payment rule:** Changia never stores, sees, or asks a donor for a mobile-money PIN. The PIN is entered only in the operator- or gateway-controlled approval prompt.
 
-## MVP Modules
+## Campaign Campaigns
 
-The MVP is split into three independent, payable modules.
+The Campaign is split into three independent, payable modules.
 
-| Module | Primary outcome | Development fee (TZS) |
+| Campaign | Primary outcome | Development fee (TZS) |
 |---|---|---|
 | 1. Core Platform & Donor Pool | Secure interface, user management, dashboards, donor CRM | 200,000 |
-| 2. Campaign Link Distribution | Create campaigns, distribute via SMS/WhatsApp/email, collect via link | 200,000 |
+| 2. Campaign  Link Distribution | Create Campaigns, distribute via SMS/WhatsApp/email, collect via link | 200,000 |
 | 3. Instant Push Donation | Manager sends a direct payment request; donor confirms with PIN | 200,000 |
-| **Total MVP** | **All three approved modules** | **600,000** |
+| **Total Campaign** | **All three approved modules** | **600,000** |
 
-### Module 1 — Core Platform & Donor Pool
+### Campaign 1 — Core Platform & Donor Pool
 Public pages (landing, About, Contact, FAQ, Privacy, Terms), authentication, dashboards, user/role management, and a consent-aware Donor Pool (CRM) with import, dedupe, tagging, and channel opt-out support.
 
-### Module 2 — Campaign Link Distribution
-Campaign creation and approval, a mobile-first public campaign page, unique short links and QR codes, bulk SMS/WhatsApp/email sends to consented donors, delivery tracking, and post-payment receipts/progress updates.
+### Campaign 2 — Campaign  Link Distribution
+Campaign  creation and approval, a mobile-first public Campaign  page, unique short links and QR codes, bulk SMS/WhatsApp/email sends to consented donors, delivery tracking, and post-payment receipts/progress updates.
 
-### Module 3 — Instant Push Donation
-Manager workspace for assigned campaigns, donor search/capture, a push-request form, request status tracking, receipts, manager-level reporting, and full audit logging. Depends on the selected payment gateway supporting a compliant push/authorization flow.
+### Campaign 3 — Instant Push Donation
+Manager workspace for assigned Campaigns, donor search/capture, a push-request form, request status tracking, receipts, manager-level reporting, and full audit logging. Depends on the selected payment gateway supporting a compliant push/authorization flow.
 
 ## User Roles
 
 | Role | Scope |
 |---|---|
 | Super Administrator | Platform config, fee settings, org setup, gateway settings, support/audit access |
-| Organization Administrator (Dr. Msuya) | Creates/approves campaigns, manages org users and donor pool, views reports, requests payouts |
-| Campaign Manager | Works only on assigned campaigns; adds consented donors; sends approved push requests; no withdrawal access |
+| Organization Administrator (Dr. Msuya) | Creates/approves Campaigns, manages org users and donor pool, views reports, requests payouts |
+| Campaign  Manager | Works only on assigned Campaigns; adds consented donors; sends approved push requests; no withdrawal access |
 | Donor | Receives messages, opens links, donates, receives receipts |
 
 ## Revenue Model
 
-Changia does not deduct a fee from individual donations. Instead, a configurable service fee is added on top of the campaign's requested amount at creation, so every contribution counts at full face value toward the campaign owner's goal.
+Changia does not deduct a fee from individual donations. Instead, a configurable service fee is added on top of the Campaign 's requested amount at creation, so every contribution counts at full face value toward the Campaign  owner's goal.
 
 **Example (5% fee):**
 
 | Item | Amount (TZS) |
 |---|---|
-| Campaign purpose amount | 10,000,000 |
+| Campaign  purpose amount | 10,000,000 |
 | Changia service fee (5%) | 500,000 |
 | Public collection target | 10,500,000 |
 | Owner allocation at full target | 10,000,000 |
@@ -78,13 +78,13 @@ Admin/manager web ─┼─► Secure backend API ─► PostgreSQL + object sto
                     │                     ─► Gateway + SMS/WhatsApp/email providers
 ```
 
-**Core data entities:** organizations · users/roles/memberships · donors & consents · campaigns & campaign_managers · message_batches & deliveries · payment_attempts & gateway_events · donations/fees/payouts/settlements · receipts & audit_logs
+**Core data entities:** organizations · users/roles/memberships · donors & consents · Campaigns & Campaign _managers · message_batches & deliveries · payment_attempts & gateway_events · donations/fees/payouts/settlements · receipts & audit_logs
 
 ## Security, Privacy & Compliance
 
 - HTTPS/TLS everywhere; secrets in a managed store
 - No PIN capture; gateway callbacks validated by signature/reference/status
-- Role-based access, org boundaries, manager-to-campaign assignment, audit logs
+- Role-based access, org boundaries, manager-to-Campaign  assignment, audit logs
 - Data minimization, consent tracking, retention/deletion policy
 - Requires qualified Tanzanian legal, tax, privacy and payment advice before accepting public funds (this proposal is not legal/tax/regulatory advice)
 
@@ -94,9 +94,9 @@ Admin/manager web ─┼─► Secure backend API ─► PostgreSQL + object sto
 
 | Milestone | Trigger | Fee (TZS) |
 |---|---|---|
-| 1. Module 1 acceptance | Core interface, roles, donor pool, dashboard demo approved | 200,000 |
-| 2. Module 2 acceptance | Link distribution, messaging integration, payment callback demo approved | 200,000 |
-| 3. Module 3 acceptance | Push request test, verified callback, manager controls approved | 200,000 |
+| 1. Campaign 1 acceptance | Core interface, roles, donor pool, dashboard demo approved | 200,000 |
+| 2. Campaign 2 acceptance | Link distribution, messaging integration, payment callback demo approved | 200,000 |
+| 3. Campaign 3 acceptance | Push request test, verified callback, manager controls approved | 200,000 |
 | **Total** | **All modules delivered & handed over** | **600,000** |
 
 ### Indicative schedule
@@ -104,9 +104,9 @@ Admin/manager web ─┼─► Secure backend API ─► PostgreSQL + object sto
 | Phase | Duration |
 |---|---|
 | Discovery, gateway/provider selection, design | 1–2 weeks |
-| Module 1 | 2–3 weeks |
-| Module 2 | 2–3 weeks |
-| Module 3 | 2–3 weeks |
+| Campaign 1 | 2–3 weeks |
+| Campaign 2 | 2–3 weeks |
+| Campaign 3 | 2–3 weeks |
 | UAT, deployment, training | 1 week |
 
 ### Costs excluded from the development fee
@@ -115,30 +115,30 @@ Admin/manager web ─┼─► Secure backend API ─► PostgreSQL + object sto
 - SMS API / bulk SMS (per message, provider-specific)
 - Payment gateway merchant onboarding (gateway-specific)
 - Legal, accounting, tax, compliance, insurance
-- Paid advertising / campaign media production
+- Paid advertising / Campaign  media production
 
-## Roadmap (Future Modules)
+## Roadmap (Future Campaigns)
 
-| Module | Scope | Fee (TZS) |
+| Campaign | Scope | Fee (TZS) |
 |---|---|---|
 | Multi-user / multi-organization platform | Isolated data, branding, membership, approval, fee settings per org | 350,000 |
 | Mobile application | Native app for admins, managers and donors | 500,000 |
 
-Also planned: feature-phone SMS/USSD donation menus, recurring donations, campaign approval workflow, withdrawal controls, verified-org badges, donor segmentation, Swahili/English language support, and exportable financial reports.
+Also planned: feature-phone SMS/USSD donation menus, recurring donations, Campaign  approval workflow, withdrawal controls, verified-org badges, donor segmentation, Swahili/English language support, and exportable financial reports.
 
 ## Delivery & Ownership
 
 - A donation is only confirmed after a verified gateway callback; no double-counting.
 - Managers can never withdraw funds or change platform settings.
 - 30-day defect warranty within approved scope (excludes third-party/gateway outages).
-- Dr. Msuya owns his organization's data, campaigns, brand/content and reports. The development team retains reusable Changia source code and generic components unless full ownership/exclusivity is separately purchased.
+- Dr. Msuya owns his organization's data, Campaigns, brand/content and reports. The development team retains reusable Changia source code and generic components unless full ownership/exclusivity is separately purchased.
 
 ---
 
 *This README summarizes the full proposal document, `Changia_Fundraising_Platform_Proposal_Updated.docx`, which contains complete details including navigation flows, functional/non-functional requirements, data model, and appendices.*
-Digital Fundraising & Mobile Money Contribution Platform
+Digital Fundraising &  All money transfer Contribution Platform
 
-Tanzania-first, mobile-money-first platform for simple, transparent, auditable fundraising.
+Tanzania-first, fast campaign money platform for simple, transparent, auditable fundraising.
 
 ## Repository layout
 

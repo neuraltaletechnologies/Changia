@@ -20,7 +20,7 @@ import { partnersData } from '@/data_files/constants';
 export const metadata = {
   title: 'Changia',
   description:
-    'Changia is a Tanzania-first, mobile-money-first digital fundraising platform. Create a campaign, share a link, and collect mobile-money contributions with less friction.',
+    'Changia is a Tanzania-first, fast campaign money digital fundraising platform. Create a Campaign , share a link, and collect mobile-money contributions with less friction.',
 };
 
 const avatarSrcs: string[] = [
@@ -37,41 +37,41 @@ export default function HomePage() {
         btnId="dismiss-button"
         btnTitle="Explore the Platform"
         url="/products"
-        title="We're building a Tanzania-first, mobile-money-first fundraising platform."
+        title="We're building a Tanzania-first, fast campaign money fundraising platform."
       />
 
       <HeroSection
-        title='Collect small mobile-money contributions with <span class="text-yellow-500 dark:text-yellow-400">less friction</span>'
-        subTitle="Changia is a Tanzania-first, mobile-money-first fundraising platform. Campaign owners create a clear campaign page, share a link, and turn a donor's willingness to help into a completed payment."
-        primaryBtn="Start a Campaign"
-        primaryBtnURL="/login?redirect=%2Fdashboard%2Fcampaigns%2Fnew"
-        secondaryBtn="Explore the Modules"
+        title='Collect money contributions with <span class="text-yellow-500 dark:text-yellow-400">less friction</span>'
+        subTitle="Changia is a Tanzania-first, fast campaign money fundraising platform. Campaign  owners create a clear Campaign  page, share a link, and turn a donor's willingness to help into a completed payment."
+        primaryBtn="Start a Campaign "
+        primaryBtnURL="/login?redirect=%2Fdashboard%2FCampaigns%2Fnew"
+        secondaryBtn="Explore the Campaigns"
         secondaryBtnURL="/products"
         withReview
         avatars={avatarSrcs}
-        rating='<span class="font-bold">TZS 1,000</span>'
+        rating='<span class="font-bold">TZS 100</span>'
         starCount={4}
-        reviews='minimum donation on any Changia campaign'
+        reviews='minimum donation on any Changia Campaign '
         src={heroImage}
-        alt="A Changia campaign page shown on a smartphone"
+        alt="A Changia Campaign  page shown on a smartphone"
       />
 
       <ClientsSection
-        title="Works with the mobile money your donors already use"
+        title="Works with the All money transfer your donors already use"
         subTitle="Donors give from any smartphone and confirm with their own PIN in the gateway prompt they trust."
         partners={partnersData}
       />
 
       <FeaturesGeneral
         title="A Simpler Way to Give"
-        subTitle="Fundraising often loses donors between intention and payment. Changia reduces that friction with clear campaign pages, shareable links and a direct payment request."
+        subTitle="Fundraising often loses donors between intention and payment. Changia reduces that friction with clear Campaign  pages, shareable links and a direct payment request."
         src={featureImage}
         alt="The Changia dashboard on a laptop"
         features={features}
       />
 
       <FeaturesNavs
-        title='The three modules of the <span class="text-yellow-500 dark:text-yellow-400">Changia</span> MVP take a campaign from idea to completed payment.'
+        title='The  <span class="text-yellow-500 dark:text-yellow-400">Modules</span>  that take Campaigns from idea to completed payment.'
         tabs={[
           {
             heading: 'Core Platform & Donor Pool',
@@ -83,18 +83,18 @@ export default function HomePage() {
             first: true,
           },
           {
-            heading: 'Campaign Link Distribution',
+            heading: 'Campaign  Link Distribution',
             content:
-              'Create campaigns, set a required amount, generate a short link and QR code, and distribute approved SMS, WhatsApp or email messages to the donor pool or public channels.',
+              'Create Campaigns, set a required amount, generate a short link and QR code, and distribute approved SMS, WhatsApp or email messages to the donor pool or public channels.',
             svg: 'dashboard',
             src: dashboard,
-            alt: 'Changia campaign page with progress bar and donation options',
+            alt: 'Changia Campaign  page with progress bar and donation options',
             second: true,
           },
           {
             heading: 'Instant Push Donation',
             content:
-              "A campaign manager who has obtained a donor's agreement sends a direct payment request. The donor confirms with their PIN and the verified callback updates the campaign exactly once.",
+              "A Campaign  manager who has obtained a donor's agreement sends a direct payment request. The donor confirms with their PIN and the verified callback updates the Campaign  exactly once.",
             svg: 'house',
             src: construction,
             alt: 'A field fundraiser confirming a donation request on a phone',
@@ -116,10 +116,10 @@ export default function HomePage() {
           },
         ]}
         statistics={[
-          { count: 'TZS 1,000', description: 'minimum donation on every Changia campaign' },
-          { count: '5%', description: 'configurable campaign-level service fee' },
-          { count: '3', description: 'MVP modules, delivered and payable independently' },
-          { count: 'TZS 200,000', description: 'development fee per approved module' },
+          { count: 'TZS 100', description: 'minimum donation on every Changia Campaign ' },
+          { count: '5%', description: 'Campaign -level service fee' },
+          { count: '99%', description: 'Campaigns, delivered and payable independently' },
+          { count: '10+', description: 'Created Campaigns for a single Manager' },
         ]}
       />
 

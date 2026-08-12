@@ -5,7 +5,7 @@ cardImage: '@/images/insights/insight-3.avif'
 cardImageAlt: 'Uchanganuzi wa lengo la kampeni: kiasi kilichopangwa pamoja na ada ya huduma'
 ---
 
-Jinsi jukwaa la ukusanyaji linavyotoza kwa huduma yake husema mengi kuhusu anayehusika. Toza kwa kila mchango na wafadhili wataona TZS 1 000 yao ikifika kama TZS 950 — maendeleo yanayoharibu imani kimya kimya. Toza kwa usajili na gharama ya shirika hailingani na kitu. Changia inatumia mfano wa tatu: ada ya huduma inayoweza kusanidiwa inayoongezwa kwenye kiasi kinachohitajika cha kampeni. Hapa ni kwa nini uamuzi huu mmoja unaweka uaminifu wa mfano mzima.
+Jinsi jukwaa la ukusanyaji linavyotoza kwa huduma yake husema mengi kuhusu anayehusika. Toza kwa kila mchango na wafadhili wataona TZS 100 yao ikifika kama TZS 950 — maendeleo yanayoharibu imani kimya kimya. Toza kwa usajili na gharama ya shirika hailingani na kitu. Changia inatumia mfano wa tatu: ada ya huduma inayoweza kusanidiwa inayoongezwa kwenye kiasi kinachohitajika cha kampeni. Hapa ni kwa nini uamuzi huu mmoja unaweka uaminifu wa mfano mzima.
 
 ## Tatizo la ada kwa kila mchango
 
@@ -17,7 +17,7 @@ Ada kwa kila mchango pia inachanganya upatanisho: kiasi tofauti, kuzungusha na k
 
 Mfano wa Changia ni rahisi. Kampeni inapoundwa, ada ya huduma — kwa mfano 5% — inahesabiwa kutoka kiasi kilichopangwa na kuongezwa kwake. Lengo la umma la ukusanyaji linajumuisha ada za jukwaa tangu mwanzo.
 
-Matokeo ni maendeleo ya kweli. Kila mchango binafsi unakisiwa kwa thamani yake kamili, hivyo TZS 1 000 zilizotolewa ni sawa na TZS 1 000 zinazoonyeshwa. Wafadhili wanaona lengo la jumla, kiasi kilichokusanywa na tofauti kamili — bila mshangao wa hesabu mwishoni.
+Matokeo ni maendeleo ya kweli. Kila mchango binafsi unakisiwa kwa thamani yake kamili, hivyo TZS 100 zilizotolewa ni sawa na TZS 100 zinazoonyeshwa. Wafadhili wanaona lengo la jumla, kiasi kilichokusanywa na tofauti kamili — bila mshangao wa hesabu mwishoni.
 
 ## Mfano halisi: Mfuko wa Upasuaji wa Watoto
 

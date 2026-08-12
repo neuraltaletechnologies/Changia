@@ -82,11 +82,29 @@ export default function NewCampaignPage() {
     });
   };
 
+   const setCoverAt = (index: number, value: string) => {
+    setForm((prev) => {
+      const next = [...prev.evidence];
+      next[index] = value;
+      return { ...prev, evidence: next };
+    });
+  };
   const addEvidence = () => {
     setForm((prev) => ({ ...prev, evidence: [...prev.evidence, ""] }));
   };
 
+   const addCover = () => {
+    setForm((prev) => ({ ...prev, evidence: [...prev.evidence, ""] }));
+  };
+
   const removeEvidence = (index: number) => {
+    setForm((prev) => ({
+      ...prev,
+      evidence: prev.evidence.filter((_, i) => i !== index),
+    }));
+  };
+
+   const removeCover = (index: number) => {
     setForm((prev) => ({
       ...prev,
       evidence: prev.evidence.filter((_, i) => i !== index),
@@ -342,18 +360,48 @@ export default function NewCampaignPage() {
           </div>
 
           <div className="grid gap-1.5">
-            <Label htmlFor="campaign-image">Banner image URL</Label>
-            <Input
-              id="campaign-image"
-              type="url"
-              placeholder="https://example.com/campaign-banner.jpg"
-              value={form.image}
-              onChange={(e) => setField("image", e.target.value)}
-              className="h-9"
-            />
-            <p className="text-[11px] text-muted-foreground">
-              Optional. A cover image shown at the top of the campaign page.
-            </p>
+            <div className="flex items-center justify-between">
+               <Label htmlFor="campaign-image">Banner image </Label>
+            <Button
+                type="button"
+                variant="outline"
+                size="xs"
+                onClick={addCover}
+              >
+                <Plus className="w-3 h-3 mr-1" />
+                Add image
+              </Button>
+            </div>
+            {form.evidence.length === 0 ? (
+              <p className="text-[11px] text-muted-foreground">
+                Optional. A cover image shown at the top of the campaign page.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {form.evidence.map((url, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <ImageIcon className="w-4 h-4 text-muted-foreground shrink-0" />
+                    <Input
+                      type="url"
+                      placeholder="https://example.com/evidence.jpg"
+                      value={url}
+                      onChange={(e) => setCoverAt(index, e.target.value)}
+                      className="h-9"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      className="shrink-0"
+                      onClick={() => removeCover(index)}
+                      aria-label="Remove image"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="grid gap-2">

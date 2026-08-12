@@ -1,7 +1,7 @@
 // An array of links for navigation bar
 const navBarLinks = [
   { name: 'Home', url: '/' },
-  { name: 'Modules', url: '/products' },
+  { name: 'Campaigns', url: '/products' },
   { name: 'How It Works', url: '/services' },
   { name: 'Blog', url: '/blog' },
   { name: 'Contact', url: '/contact' },
@@ -11,7 +11,7 @@ const footerLinks = [
   {
     section: 'Platform',
     links: [
-      { name: 'Modules', url: '/products' },
+      { name: 'Campaigns', url: '/products' },
       { name: 'How It Works', url: '/services' },
       { name: 'Blog', url: '/blog' },
     ],

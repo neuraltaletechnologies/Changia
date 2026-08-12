@@ -46,6 +46,7 @@ export function AddDonorDialog({
   const [preferredChannel, setPreferredChannel] =
     useState<Donor["preferredChannel"]>("email");
   const [notes, setNotes] = useState("");
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const reset = () => {
     setFirstName("");
@@ -57,10 +58,33 @@ export function AddDonorDialog({
     setConsentStatus("pending");
     setPreferredChannel("email");
     setNotes("");
+    setErrors({});
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setErrors({});
+
+    const nextErrors: Record<string, string> = {};
+    if (!firstName.trim()) nextErrors.firstName = "First name is required.";
+    else if (firstName.trim().length > 100)
+      nextErrors.firstName = "First name must be 100 characters or fewer.";
+    if (!lastName.trim()) nextErrors.lastName = "Last name is required.";
+    else if (lastName.trim().length > 100)
+      nextErrors.lastName = "Last name must be 100 characters or fewer.";
+    if (!email.trim()) nextErrors.email = "Email is required.";
+    else if (!/.+@.+\..+/.test(email.trim()))
+      nextErrors.email = "Please enter a valid email address.";
+    if (phone.trim() && !/^(\+?255|0)?[67][0-9]{8}$/.test(phone.replace(/[\s-]/g, "")))
+      nextErrors.phone = "Enter a valid Tanzanian phone number.";
+    if (location.trim().length > 200)
+      nextErrors.location = "Location must be 200 characters or fewer.";
+    if (notes.trim().length > 5000)
+      nextErrors.notes = "Notes must be 5000 characters or fewer.";
+
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) return;
+
     setLoading(true);
     const donor: Donor = {
       id: `d-${Date.now()}`,
@@ -111,10 +135,15 @@ export function AddDonorDialog({
                   id="firstName"
                   placeholder="e.g. Amina"
                   required
+                  maxLength={100}
                   value={firstName}
                   onChange={(e) => setFirstName(e.target.value)}
-                  className="h-9 text-sm"
+                  aria-invalid={Boolean(errors.firstName)}
+                  className={`h-9 text-sm ${errors.firstName ? "border-destructive" : ""}`}
                 />
+                {errors.firstName ? (
+                  <p role="alert" className="text-xs text-destructive">{errors.firstName}</p>
+                ) : null}
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="lastName" className="text-xs">
@@ -124,10 +153,15 @@ export function AddDonorDialog({
                   id="lastName"
                   placeholder="e.g. Hassan"
                   required
+                  maxLength={100}
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
-                  className="h-9 text-sm"
+                  aria-invalid={Boolean(errors.lastName)}
+                  className={`h-9 text-sm ${errors.lastName ? "border-destructive" : ""}`}
                 />
+                {errors.lastName ? (
+                  <p role="alert" className="text-xs text-destructive">{errors.lastName}</p>
+                ) : null}
               </div>
             </div>
             <div className="space-y-1.5">
@@ -141,8 +175,12 @@ export function AddDonorDialog({
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="h-9 text-sm"
+                aria-invalid={Boolean(errors.email)}
+                className={`h-9 text-sm ${errors.email ? "border-destructive" : ""}`}
               />
+              {errors.email ? (
+                <p role="alert" className="text-xs text-destructive">{errors.email}</p>
+              ) : null}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
@@ -154,8 +192,12 @@ export function AddDonorDialog({
                   placeholder="+255 7XX XXX XXX"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  className="h-9 text-sm"
+                  aria-invalid={Boolean(errors.phone)}
+                  className={`h-9 text-sm ${errors.phone ? "border-destructive" : ""}`}
                 />
+                {errors.phone ? (
+                  <p role="alert" className="text-xs text-destructive">{errors.phone}</p>
+                ) : null}
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="location" className="text-xs">
@@ -164,10 +206,15 @@ export function AddDonorDialog({
                 <Input
                   id="location"
                   placeholder="e.g. Dar es Salaam"
+                  maxLength={200}
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
-                  className="h-9 text-sm"
+                  aria-invalid={Boolean(errors.location)}
+                  className={`h-9 text-sm ${errors.location ? "border-destructive" : ""}`}
                 />
+                {errors.location ? (
+                  <p role="alert" className="text-xs text-destructive">{errors.location}</p>
+                ) : null}
               </div>
             </div>
           </div>
@@ -249,10 +296,14 @@ export function AddDonorDialog({
               id="notes"
               placeholder="Any additional context about this donor…"
               rows={3}
+              maxLength={5000}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="text-sm resize-none"
+              className={`text-sm resize-none ${errors.notes ? "border-destructive" : ""}`}
             />
+              {errors.notes ? (
+                <p role="alert" className="text-xs text-destructive">{errors.notes}</p>
+              ) : null}
           </div>
 
           <DialogFooter>

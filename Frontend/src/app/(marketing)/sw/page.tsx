@@ -36,7 +36,7 @@ export default function SwahiliHomePage() {
       <AnnouncementBanner
         btnId="dismiss-button"
         btnTitle="Chunguza jukwaa"
-        url="/sw/products"
+        url="/sw/campaigns"
         title="Tunajenga jukwaa la kitanzania la ukusanyaji fedha, All money transfer kwanza."
       />
 
@@ -46,7 +46,7 @@ export default function SwahiliHomePage() {
         primaryBtn="Anzisha kampeni"
         primaryBtnURL="/login?redirect=%2Fdashboard%2FCampaigns%2Fnew"
         secondaryBtn="Chunguza kampani"
-        secondaryBtnURL="/sw/products"
+        secondaryBtnURL="/sw/campaigns"
         withReview
         avatars={avatarSrcs}
         rating='<span class="font-bold">TZS 100</span>'
@@ -121,16 +121,16 @@ export default function SwahiliHomePage() {
             description: 'mchango wa chini zaidi kwenye kila kampeni ya Changia',
           },
           {
-            count: '5 %',
-            description: 'ada ya huduma inayoweza kusanidiwa kwenye kiwango cha kampeni',
+            count: '5%',
+            description: 'ada ya huduma kwenye kiwango cha kampeni',
           },
           {
-            count: '3',
-            description: 'kampani za Campaign, zinazotolewa na kulipwa kwa kujitegemea',
+            count: '99%',
+            description: 'Kampeni, zinazotolewa na kulipwa kwa kujitegemea',
           },
           {
-            count: 'TZS 200 000',
-            description: 'ada ya maendeleo kwa kila kampani iliyoidhinishwa',
+            count: '10+',
+            description: 'Kampeni zilizoundwa kwa Meneja mmoja',
           },
         ]}
       />

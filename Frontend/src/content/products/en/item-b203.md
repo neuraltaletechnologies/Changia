@@ -5,8 +5,8 @@ main:
   id: 3
   content: |
     Campaign 3 supports field fundraising. A Campaign  manager speaks with a potential donor, obtains agreement for a stated amount, enters the donor's phone number and amount, then sends a payment request. The donor receives the authorized mobile-money/gateway prompt and confirms only with their PIN.
-  imgCard: '@/images/product-image-3.avif'
-  imgMain: '@/images/product-image-main-3.avif'
+  imgCard: '@/images/campaign-image-3.avif'
+  imgMain: '@/images/campaign-image-main-3.avif'
   imgAlt: 'Manager sending an instant push donation request from a phone'
 tabs:
   - id: 'tabs-with-card-item-1'

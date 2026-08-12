@@ -1,4 +1,4 @@
-type ProductTabBtnProps = {
+type CampaignTabBtnProps = {
   id: string;
   dataTab: string;
   title: string;
@@ -10,12 +10,12 @@ const BUTTON_CLASS =
 const HEADING_CLASS = 'block text-center font-bold';
 const INACTIVE_HEADING_CLASS = 'text-neutral-800 dark:text-neutral-200';
 
-export default function ProductTabBtn({
+export default function CampaignTabBtn({
   id,
   dataTab,
   title,
   first,
-}: ProductTabBtnProps) {
+}: CampaignTabBtnProps) {
   return (
     <button
       type="button"

@@ -15,7 +15,7 @@ export interface BlogData {
   tags?: string[];
 }
 
-export interface ProductData {
+export interface CampaignData {
   title: string;
   description: string;
   main: {

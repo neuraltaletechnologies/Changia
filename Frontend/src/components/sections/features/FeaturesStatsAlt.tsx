@@ -1,5 +1,5 @@
 import Image from 'next/image';
-import product5 from '@/images/features-image.avif';
+import campaign5 from '@/images/features-image.avif';
 
 type FeaturesStatsAltProps = {
   title: string;
@@ -21,7 +21,7 @@ export default function FeaturesStatsAlt({
         <div className="lg:col-span-7">
           <Image
             className="rounded-xl"
-            src={product5}
+            src={campaign5}
             alt="Mockup of floating boxes"
             width={1200}
             height={800}

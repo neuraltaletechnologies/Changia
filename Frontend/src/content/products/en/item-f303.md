@@ -5,8 +5,8 @@ main:
   id: 4
   content: |
     Beyond the three Campaigns, Changia keeps every shilingi accountable. Donations are confirmed only by verified callbacks, receipts are delivered on the permitted channel, and daily reconciliation is supported by immutable audit events across the platform.
-  imgCard: '@/images/product-image-4.avif'
-  imgMain: '@/images/product-image-main-4.avif'
+  imgCard: '@/images/campaign-image-4.avif'
+  imgMain: '@/images/campaign-image-main-4.avif'
   imgAlt: 'Changia receipt and verified donation report'
 tabs:
   - id: 'tabs-with-card-item-1'
@@ -55,7 +55,7 @@ tableData:
       - ['Linked Campaign', 'All Campaigns']
       - ['Primary outcome', 'Verified, auditable financial records']
       - ['Billing', 'Included in Campaign fees']
-      - ['Dependency', 'Production backup and monitored callbacks']
+      - ['Dependency', 'Campaignion backup and monitored callbacks']
       - ['Acceptance', 'Receipts and progress match confirmed transactions']
 blueprints:
   first: '@/images/blueprint-1.avif'

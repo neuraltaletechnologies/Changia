@@ -5,8 +5,8 @@ main:
   id: 2
   content: |
     Campaign 2 lets your organization create a fundraising Campaign  and distribute a simple, feature-phone-friendly message to the donor pool or to public channels. Donors follow the link, pay through the supported gateway journey and receive a receipt plus an update showing progress and remaining balance.
-  imgCard: '@/images/product-image-2.avif'
-  imgMain: '@/images/product-image-main-2.avif'
+  imgCard: '@/images/campaign-image-2.avif'
+  imgMain: '@/images/campaign-image-main-2.avif'
   imgAlt: 'Changia Campaign  page with a short link and QR code'
 tabs:
   - id: 'tabs-with-card-item-1'

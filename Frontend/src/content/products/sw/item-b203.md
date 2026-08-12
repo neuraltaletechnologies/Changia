@@ -5,8 +5,8 @@ main:
   id: 3
   content: |
     Kampani 3 inasaidia ukusanyaji wa mbugani. Afisa wa kampeni anazungumza na mfadhili mtarajiwa, anapata makubaliano kwenye kiasi, anaingiza namba ya simu ya mfadhili na kiasi, kisha anatuma ombi la malipo. Mfadhili anapokea ombi lililoidhinishwa la lango la All money transfer na anathibitisha tu kwa PIN yake.
-  imgCard: '@/images/product-image-3.avif'
-  imgMain: '@/images/product-image-main-3.avif'
+  imgCard: '@/images/campaign-image-3.avif'
+  imgMain: '@/images/campaign-image-main-3.avif'
   imgAlt: 'Afisa anayetuma ombi la mchango wa kusukuma kutoka simu'
 tabs:
   - id: 'tabs-with-card-item-1'

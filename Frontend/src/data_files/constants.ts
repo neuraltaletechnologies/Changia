@@ -7,7 +7,7 @@ export const SITE = {
     'Changia is a Tanzania-first, fast campaign money digital fundraising platform. It lets organizations and Campaign  owners collect contributions with minimal friction — either by sharing a Campaign  link (SMS, WhatsApp, email, QR, social) or by having a field manager send a direct push payment request to a donor who has already agreed to give. Donors never share their PIN with Changia — it is entered only in the secure gateway/mobile-money prompt. The platform is built for transparency: every Campaign  shows a public target, real-time progress, and an itemized service fee, and every donation is confirmed only after a verified payment callback.',
   description_short:
     'Tanzania-first, fast campaign money digital fundraising platform for simple, transparent, auditable contributions.',
-  url: 'https://changia.co',
+  url: 'https://changia.org.tz',
   author: 'Changia Development Team',
 };
 
@@ -18,8 +18,8 @@ export const SEO = {
     '@context': 'https://schema.org',
     '@type': 'Organization',
     inLanguage: 'en-US',
-    '@id': 'https://changia.co',
-    url: 'https://changia.co',
+    '@id': 'https://changia.org.tz',
+    url: 'https://changia.org.tz',
     name: 'Changia',
     description: SITE.description,
     isPartOf: {
@@ -34,7 +34,7 @@ export const SEO = {
 export const OG = {
   locale: 'en_US',
   type: 'website',
-  url: 'https://changia.co',
+  url: 'https://changia.org.tz',
   title: 'Changia | Turn "I\'ll help" into a completed donation',
   description:
     'Changia makes it simple to raise money by All money transfer — share a link, send a request, and watch your Campaign  fill up in real time.',

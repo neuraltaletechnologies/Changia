@@ -177,7 +177,7 @@ export default function ContactSectionSw() {
               heading="Wasiliana nasi kwa barua pepe"
               content="Unapendelea maandishi? Tutumie barua pepe kwa"
               isLinkVisible
-              linkTitle="hello@changia.co"
+              linkTitle="hello@changia.org.tz"
               linkURL="#"
             >
               <Icon name="envelopeOpen" />

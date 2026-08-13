@@ -182,7 +182,7 @@ Creates an organization + its first admin in **one transaction**. Returns a JWT 
 {
   "firstName": "Zawadi",
   "lastName": "Kileo",
-  "email": "zawadi@msuya.or.tz",
+  "email": "zawadi@msuya.org.tz",
   "phone": "0755987654",
   "password": "Password123",
   "confirmPassword": "Password123",
@@ -202,7 +202,7 @@ Creates an organization + its first admin in **one transaction**. Returns a JWT 
       "id": 2,
       "firstName": "Zawadi",
       "lastName": "Kileo",
-      "email": "zawadi@msuya.or.tz",
+      "email": "zawadi@msuya.org.tz",
       "phone": "+255755987654",
       "role": "ORG_ADMIN",
       "status": "ACTIVE",
@@ -237,7 +237,7 @@ Creates an organization + its first admin in **one transaction**. Returns a JWT 
       "id": 2,
       "firstName": "Zawadi",
       "lastName": "Kileo",
-      "email": "zawadi@msuya.or.tz",
+      "email": "zawadi@msuya.org.tz",
       "phone": "+255755987654",
       "role": "ORG_ADMIN",
       "status": "ACTIVE",
@@ -266,7 +266,7 @@ Returns the current user + their organization.
       "id": 2,
       "firstName": "Zawadi",
       "lastName": "Kileo",
-      "email": "zawadi@msuya.or.tz",
+      "email": "zawadi@msuya.org.tz",
       "phone": "+255755987654",
       "role": "ORG_ADMIN",
       "status": "ACTIVE",
@@ -277,7 +277,7 @@ Returns the current user + their organization.
       "id": 2,
       "name": "Msuya Charitable Trust",
       "slug": "msuya-charitable-trust-xxxxx",
-      "email": "zawadi@msuya.or.tz",
+      "email": "zawadi@msuya.org.tz",
       "phone": "+255755987654"
     }
   }
@@ -317,7 +317,7 @@ Returns the caller's organization profile + counts.
     "id": 2,
     "name": "Msuya Charitable Trust",
     "slug": "msuya-charitable-trust-xxxxx",
-    "email": "zawadi@msuya.or.tz",
+    "email": "zawadi@msuya.org.tz",
     "phone": "+255755987654",
     "address": null,
     "description": null,
@@ -390,7 +390,7 @@ Lists team members.
         "id": 4,
         "firstName": "Peter",
         "lastName": "John",
-        "email": "peter@msuya.or.tz",
+        "email": "peter@msuya.org.tz",
         "phone": "+255755987654",
         "role": "CAMPAIGN_MANAGER",
         "status": "ACTIVE",
@@ -418,7 +418,7 @@ Invites a team member. The system generates a **temporary password** (returned o
 {
   "firstName": "Peter",
   "lastName": "John",
-  "email": "peter@msuya.or.tz",
+  "email": "peter@msuya.org.tz",
   "phone": "0755123999",
   "role": "CAMPAIGN_MANAGER"
 }
@@ -434,7 +434,7 @@ Invites a team member. The system generates a **temporary password** (returned o
       "id": 4,
       "firstName": "Peter",
       "lastName": "John",
-      "email": "peter@msuya.or.tz",
+      "email": "peter@msuya.org.tz",
       "phone": "+255755123999",
       "role": "CAMPAIGN_MANAGER",
       "status": "ACTIVE",
@@ -509,7 +509,7 @@ Routes: `/campaigns` — all authenticated, org-scoped.
         "createdAt": "2026-01-01T00:00:00.000Z",
         "updatedAt": "2026-01-02T00:00:00.000Z",
         "assignments": [
-          { "user": { "id": 4, "firstName": "Peter", "lastName": "John", "email": "peter@msuya.or.tz" } }
+          { "user": { "id": 4, "firstName": "Peter", "lastName": "John", "email": "peter@msuya.org.tz" } }
         ]
       }
     ],
@@ -977,8 +977,8 @@ Routes: `/audit-logs` — all authenticated, org-scoped. The trail is **immutabl
         "action": "donation.confirmed",
         "resource": "donation",
         "resourceId": "31",
-        "actorEmail": "peter@msuya.or.tz",
-        "actor": { "id": 4, "firstName": "Peter", "lastName": "John", "email": "peter@msuya.or.tz" },
+        "actorEmail": "peter@msuya.org.tz",
+        "actor": { "id": 4, "firstName": "Peter", "lastName": "John", "email": "peter@msuya.org.tz" },
         "severity": "INFO",
         "details": null,
         "createdAt": "2026-01-03T10:00:00.000Z"

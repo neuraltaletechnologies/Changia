@@ -3,7 +3,7 @@ import '@/assets/styles/global.css';
 import { SITE } from '@/data_files/constants';
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://changia.co'),
+  metadataBase: new URL('https://changia.org.tz'),
   title: {
     default: SITE.title,
     template: `%s | ${SITE.title}`,

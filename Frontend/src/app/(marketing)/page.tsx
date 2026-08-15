@@ -41,7 +41,7 @@ export default function HomePage() {
       />
 
       <HeroSection
-        title='We bring people together to help people <span class="text-yellow-500 dark:text-yellow-400">in need</span>'
+        title='Connect people<span class="text-yellow-500 dark:text-yellow-400"> in need</span> with those who want <span class="text-yellow-500 dark:text-yellow-400">to help</span>'
         subTitle="Changia connects people who need help — whether it's a medical emergency, education, a family crisis, or a community need — with people who are willing to give. With money, with things, or both."
         primaryBtn="Start a Fundraiser"
         primaryBtnURL="/login?redirect=%2Fdashboard%2FCampaigns%2Fnew"

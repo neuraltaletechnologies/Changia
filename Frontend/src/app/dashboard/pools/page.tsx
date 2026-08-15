@@ -123,6 +123,7 @@ export default function PoolsPage() {
                 <SelectItem value="FAMILY">Family</SelectItem>
                 <SelectItem value="SCHOOL">School</SelectItem>
                 <SelectItem value="STUDENT">Student</SelectItem>
+                <SelectItem value="OFFICE">Office</SelectItem>
               </SelectContent>
             </Select>
             <Select value={sortBy} onValueChange={(v) => setSortBy(v ?? "created")}>

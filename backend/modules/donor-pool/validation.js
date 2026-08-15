@@ -9,14 +9,14 @@ const amountSchema = z
 const createPoolSchema = z.object({
   name: z.string().min(2, "Pool name is required").max(150),
   description: z.string().max(2000).optional().or(z.literal("")),
-  category: z.enum(["FAMILY", "SCHOOL", "STUDENT"]).optional(),
+  category: z.enum(["FAMILY", "SCHOOL", "STUDENT", "OFFICE"]).optional(),
   createdBy: poolIdSchema.optional(),
 });
 
 const updatePoolSchema = createPoolSchema.partial();
 
 const listPoolsQuerySchema = z.object({
-  category: z.enum(["FAMILY", "SCHOOL", "STUDENT"]).optional(),
+  category: z.enum(["FAMILY", "SCHOOL", "STUDENT", "OFFICE"]).optional(),
   search: z.string().max(100).optional(),
   status: z.enum(["ACTIVE", "ARCHIVED"]).optional(),
   createdBy: poolIdSchema.optional(),

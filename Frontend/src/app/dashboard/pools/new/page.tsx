@@ -116,6 +116,7 @@ export default function NewPoolPage() {
                   <SelectItem value="FAMILY">Family</SelectItem>
                   <SelectItem value="SCHOOL">School</SelectItem>
                   <SelectItem value="STUDENT">Student</SelectItem>
+                  <SelectItem value="OFFICE">Office</SelectItem>
                 </SelectContent>
               </Select>
             </div>

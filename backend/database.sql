@@ -112,7 +112,7 @@ CREATE TABLE donor_pools (
   created_by_id   BIGINT UNSIGNED NULL,
   name            VARCHAR(150) NOT NULL,
   description     TEXT NULL,
-  category        ENUM('FAMILY','SCHOOL','STUDENT') NOT NULL DEFAULT 'FAMILY',
+  category        ENUM('FAMILY','SCHOOL','STUDENT','OFFICE') NOT NULL DEFAULT 'FAMILY',
   is_system       TINYINT(1) NOT NULL DEFAULT 0,
   status          ENUM('ACTIVE','ARCHIVED') NOT NULL DEFAULT 'ACTIVE',
   created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

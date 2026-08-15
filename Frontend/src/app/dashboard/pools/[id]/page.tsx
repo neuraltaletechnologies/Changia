@@ -65,6 +65,7 @@ const CATEGORY_LABEL: Record<PoolCategory, string> = {
   FAMILY: "Family",
   SCHOOL: "School",
   STUDENT: "Student",
+  OFFICE: "Office",
 };
 
 type ReminderChannel = "SMS" | "WHATSAPP" | "EMAIL";

@@ -56,7 +56,7 @@ export interface DonorRecord {
   }[];
 }
 
-export type PoolCategory = "FAMILY" | "SCHOOL" | "STUDENT";
+export type PoolCategory = "FAMILY" | "SCHOOL" | "STUDENT" | "OFFICE";
 
 export interface PoolMemberDonor {
   id: number;
@@ -469,6 +469,7 @@ export const POOL_CATEGORY_META: Record<PoolCategory, { label: string; emoji: st
   FAMILY: { label: "Family", emoji: "b" },
   SCHOOL: { label: "School", emoji: "s" },
   STUDENT: { label: "Student", emoji: "p" },
+  OFFICE: { label: "Office", emoji: "o" },
 };
 
 export function donorFullName(d: {

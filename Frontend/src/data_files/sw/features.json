@@ -1,32 +1,32 @@
 [
   {
     "heading": "Kurasa za kampeni zinazoweza kushirikiwa",
-    "content": "Kurasa zilizoundwa kwa ajili ya simu zikiwa na hadithi yako, picha, upau wa maendeleo wa moja kwa moja na njia rahisi za kuchangia fedha au kutoa vitu vinavyohitajika.",
+    "content": "Simulia hadithi yako, shiriki unachohitaji — iwe ni fedha, chakula, nguo, au dawa. Wasaidizi wanaona sababu yako na wanaamua jinsi wanavyoweza kusaidia.",
     "svg": "books"
   },
   {
-    "heading": "Maombi ya kusukuma kwa tap moja",
-    "content": "Maafisa huomba michango ya fedha moja kwa moja kutoka kwa wafadhili ambao tayari wamekubali.",
+    "heading": "Maombi ya msaada kwa tap moja",
+    "content": "Mtu akikubali kusaidia, afisa anatuma ombi la malipo kwa tap moja. Msaidizi anathibitisha kwa PIN yake — hakuna usumbufu, hakuna vikwazo.",
     "svg": "send"
   },
   {
-    "heading": "Hifadhidata ya wafadhili (CRM)",
-    "content": "Fuatilia wafadhili, hali yao ya ridhaa na historia ya michango yao — ya fedha au ya vitu — mahali pamoja.",
+    "heading": "Hifadhidata ya wasaidizi (CRM)",
+    "content": "Fuatilia kila mtu anayejali sababu yako — ridhaa yao, historia yao, iwe walitoa fedha au waliacha vitu. Kila kitu mahali pamoja.",
     "svg": "groups"
   },
   {
     "heading": "Msaada wa fedha na wa vitu",
-    "content": "Kusanya fedha na uratibu vitu vilivyotolewa kwenye kampeni moja — mahali pamoja kwa misaada ya jamii.",
+    "content": "Kusanya fedha na uratibu vitu vilivyotolewa kwenye Kampeni moja. Mahali pamoja kwa msaada wa jamii — fedha, nguo, chakula, vitabu, vifaa, chochote kinachohitajika.",
     "svg": "frame"
   },
   {
     "heading": "Risiti halisi na sasisho",
-    "content": "Kila mfadhili hupokea risiti ya papo hapo na sasisho la maendeleo baada ya kuchangia.",
+    "content": "Kila msaidizi anapokea risiti ya papo hapo na sasisho la maendeleo baada ya kusaidia. Anaona jinsi mchango wake ulivyleta mabadiliko.",
     "svg": "verified"
   },
   {
     "heading": "Usalama uliojengewa ndani",
-    "content": "Changia haioni wala kuhifadhi PIN yako ya mobile money. Kila muamala unathibitishwa kabla ya kuhesabiwa.",
+    "content": "Changia haioni wala kuhifadhi PIN yako ya mobile money. Kila malipo yanachakatwa kupitia lango salama unaloamini.",
     "svg": "shield"
   }
 ]

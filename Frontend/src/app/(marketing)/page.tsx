@@ -20,7 +20,7 @@ import { partnersData } from '@/data_files/constants';
 export const metadata = {
   title: 'Changia',
   description:
-    'Changia is a Tanzania-first fundraising organization. Raise money and collect donated items for causes that matter — with mobile-money contributions as one of the ways to give.',
+    'Someone needs help today. You can be part of the answer. Changia brings people together — connecting those who need help with those who are willing to give, in cash or in kind.',
 };
 
 const avatarSrcs: string[] = [
@@ -37,12 +37,12 @@ export default function HomePage() {
         btnId="dismiss-button"
         btnTitle="Explore the Platform"
         url="/campaigns"
-        title="We're a Tanzania-first fundraising organization — raising money and collecting the things communities truly need."
+        title="Someone needs help today. You can be part of the answer."
       />
 
       <HeroSection
-        title='Fundraising that collects <span class="text-yellow-500 dark:text-yellow-400">more than money</span>'
-        subTitle="Changia is a Tanzania-first fundraising organization. Campaign owners create a clear campaign page, share a link, and turn a community's willingness to help into real support — whether that's a cash contribution or a donated item."
+        title='We bring people together to help people <span class="text-yellow-500 dark:text-yellow-400">in need</span>'
+        subTitle="Changia connects people who need help — whether it's a medical emergency, education, a family crisis, or a community need — with people who are willing to give. With money, with things, or both."
         primaryBtn="Start a Fundraiser"
         primaryBtnURL="/login?redirect=%2Fdashboard%2FCampaigns%2Fnew"
         secondaryBtn="Explore the Campaigns"
@@ -57,21 +57,21 @@ export default function HomePage() {
       />
 
       <ClientsSection
-        title="One platform for cash and goods"
-        subTitle="Donors give through the mobile-money wallets they already trust — and campaign organizers can coordinate donated items and in-kind support in the same place."
+        title="Connect people who need help with people who want to give"
+        subTitle="Through mobile-money wallets they already trust, supporters give what they can. Campaign organizers coordinate donated items and in-kind help too — all in one place, all for one cause."
         partners={partnersData}
       />
 
       <FeaturesGeneral
-        title="More Than Money"
-        subTitle="Fundraising often loses supporters between intention and action. Changia reduces that friction with clear campaign pages, shareable links, a direct payment request — and tools to collect donated items and in-kind support too."
+        title="Every contribution — cash or kind — makes a difference"
+        subTitle="Whether it's a medical bill, school fees, or food and clothes for a family, Changia makes giving simple. Campaign organizers share a page, supporters give with money or drop off what's needed — and someone's life changes."
         src={featureImage}
         alt="The Changia dashboard on a laptop"
         features={features}
       />
 
       <FeaturesNavs
-        title='The  <span class="text-yellow-500 dark:text-yellow-400">Modules</span>  that take a Campaign from idea to real impact.'
+        title='The  <span class="text-yellow-500 dark:text-yellow-400">Modules</span>  that turn goodwill into real help.'
         tabs={[
           {
             heading: 'Core Platform & Donor Pool',
@@ -103,8 +103,8 @@ export default function HomePage() {
       />
 
       <TestimonialsSection
-        title="Turn goodwill into real support"
-        subTitle="From radio, SMS and WhatsApp at scale to face-to-face manager-led giving, Changia bridges the gap between intention and contribution — in cash and in kind."
+        title="Real stories of people helping people"
+        subTitle="From emergency medical funds to school supply drives, Changia turns goodwill into real help — connecting people who need it with people who care."
         testimonials={[
           {
             content:
@@ -128,8 +128,8 @@ export default function HomePage() {
       <FAQ title="Frequently<br />asked questions" faqs={faqs} />
 
       <HeroSectionAlt
-        title="Let's Raise Together"
-        subTitle="Changia is a Tanzania-first fundraising organization: useful for our first partner today, and adaptable to hospitals, churches, schools, NGOs, community groups and individuals tomorrow — raising money and collecting the things communities need."
+        title="Someone needs help today. You can be part of the answer."
+        subTitle="Whether it's a medical emergency, a child's education, a family crisis, or a community in need — Changia connects you to people who care. Start a Campaign, share a link, and watch goodwill turn into real help. With money, with things, or both."
       />
     </>
   );

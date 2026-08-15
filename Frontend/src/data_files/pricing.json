@@ -1,5 +1,5 @@
 {
-  "title": "Simple, Transparent System",
+  "title": "Simple, Transparent Fundraising",
   "subTitle": "Fundraising campaigns priced in TZS, with third-party costs billed separately.",
   "badge": "Best of all",
   "thirdOption": "Need hosting, domain or messaging costs?",
@@ -7,7 +7,7 @@
 
   "starterKit": {
     "name": "Core Platform & Donor Pool",
-    "description": "Lay the foundation",
+    "description": "Start raising support",
     "price": "100",
     "cents": "%",
     "billingFrequency": "Secure and Protected",
@@ -22,8 +22,8 @@
   },
 
   "professionalToolbox": {
-    "name": "Suppoted  Campaign",
-    "description": "All Campaigns · recommended",
+    "name": "All Campaigns",
+    "description": "Everything you need · recommended",
     "price": "99.9",
     "cents": "%",
     "billingFrequency": "Availability and Up time",

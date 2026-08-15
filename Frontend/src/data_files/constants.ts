@@ -2,11 +2,11 @@ import ogImageSrc from '@images/social.png';
 
 export const SITE = {
   title: 'Changia',
-  tagline: 'Tanzania-first fundraising. Money and things. Built for everyday giving.',
+  tagline: 'Bringing people together to help people in need — with money and the things that matter.',
   description:
-    'Changia is a Tanzania-first fundraising organization. It helps organizations and campaign owners collect the support they need — mobile-money contributions, donated items and in-kind help — with minimal friction, either by sharing a Campaign link (SMS, WhatsApp, email, QR, social) or by having a field manager send a direct push payment request to a supporter who has already agreed to give. Donors never share their PIN with Changia — it is entered only in the secure gateway/mobile-money prompt. The platform is built for transparency: every Campaign shows a public target, real-time progress, and an itemized service fee, and every donation is confirmed only after a verified callback.',
+    'Changia brings people together. We connect those who need help — whether it\'s a medical emergency, education, a family crisis, or a community need — with people who are willing to give. Through mobile-money contributions, donated items, and in-kind support, every Campaign turns goodwill into real help. Campaigns work through shareable links (SMS, WhatsApp, email, QR, social) or direct push payment requests from field managers to supporters who have already agreed to help. Donors never share their PIN with Changia — it is entered only in the secure gateway/mobile-money prompt. The platform is built for transparency: every Campaign shows a public target, real-time progress, and an itemized service fee, and every donation is confirmed only after a verified callback.',
   description_short:
-    'Tanzania-first fundraising organization for simple, transparent giving — in cash and in kind.',
+    'Bringing people together to help people in need. Someone needs help today — you can be part of the answer.',
   url: 'https://changia.org.tz',
   author: 'Changia Development Team',
 };
@@ -35,9 +35,9 @@ export const OG = {
   locale: 'en_US',
   type: 'website',
   url: 'https://changia.org.tz',
-  title: 'Changia | Fundraising that collects money and what communities need',
+  title: 'Changia | Bringing people together to help people in need',
   description:
-    'Changia is a Tanzania-first fundraising organization. Share a link, send a request, and collect cash and donated items for your Campaign in real time.',
+    'Someone needs help today. You can be part of the answer. Changia connects people who need help — medical, education, family, community — with people who are willing to give, in cash or in kind.',
   image: ogImageSrc,
 };
 

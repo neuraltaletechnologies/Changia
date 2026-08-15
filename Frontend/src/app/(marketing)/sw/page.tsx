@@ -20,7 +20,7 @@ import { partnersData } from '@/data_files/constants';
 export const metadata = {
   title: 'Changia',
   description:
-    'Changia ni shirika la kitanzania la ukusanyaji misaada. Kusanya fedha na ukusanye vitu vinavyohitajika kwa ajili ya kampeni zinazojalisha — michango ya mobile money ikiwa ni njia mojawapo ya kusaidia.',
+    'Kuna mtu anahitaji msaada leo. Unaweza kuwa sehemu ya jibu. Changia inaleta watu pamoja — kuwaunganisha wanaohitaji msaada na wale walio tayari kusaidia, kwa fedha au kwa vitu.',
 };
 
 const avatarSrcs: string[] = [
@@ -37,12 +37,12 @@ export default function SwahiliHomePage() {
         btnId="dismiss-button"
         btnTitle="Chunguza jukwaa"
         url="/sw/campaigns"
-        title="Tunapanga misaada kwa Tanzania — fedha na vitu kwa ajili ya jamii."
+        title="Kuna mtu anahitaji msaada leo. Unaweza kuwa sehemu ya jibu."
       />
 
       <HeroSection
-        title='Ukusanyaji misaada unaokusanya <span class="text-yellow-500 dark:text-yellow-400">zaidi ya fedha</span>'
-        subTitle="Changia ni shirika la kitanzania la ukusanyaji misaada. Wamiliki wa kampeni huunda ukurasa wazi, hushiriki kiungo, na kubadilisha nia ya jamii ya kusaidia kuwa msaada halisi — iwe mchango wa fedha au kitu kilichotolewa."
+        title='Tunaleta watu pamoja kusaidia watu <span class="text-yellow-500 dark:text-yellow-400">wanahitaji msaada</span>'
+        subTitle="Changia inawaunganisha wanaohitaji msaada — iwe ni dharura ya matibabu, elimu, mgogoro wa kifamilia, au hitaji la jamii — na watu walio tayari kusaidia. Kwa fedha, kwa vitu, au zote mbili."
         primaryBtn="Anzisha kampeni ya misaada"
         primaryBtnURL="/login?redirect=%2Fdashboard%2FCampaigns%2Fnew"
         secondaryBtn="Chunguza kampani"
@@ -57,21 +57,21 @@ export default function SwahiliHomePage() {
       />
 
       <ClientsSection
-        title="Jukwaa moja kwa fedha na vitu"
-        subTitle="Wafadhili hutoa kupitia pochi za mobile money wanazoziamini — na waandaaji wa kampeni huweza kuratibu vitu vilivyotolewa na msaada wa aina nyingine mahali pamoja."
+        title="Unganisha watu wanaohitaji msaada na watu wanaotaka kusaidia"
+        subTitle="Kupitia pochi za mobile money wanazoziamini, wasaidizi hutoa wanachoweza. Waandaaji wa kampeni huratibu vitu vilivyotolewa na msaada wa aina nyingine pia — mahali pamoja, kwa sababu moja."
         partners={partnersData}
       />
 
       <FeaturesGeneral
-        title="Zaidi ya Fedha"
-        subTitle="Ukusanyaji wa misaada mara nyingi hupoteza wafadhili kati ya nia na hatua. Changia hupunguza usumbufu huo kwa kurasa wazi za kampeni, viungo vinavyoweza kushirikiwa, ombi la malipo la moja kwa moja — na zana za kukusanya vitu vilivyotolewa na msaada wa aina nyingine pia."
+        title="Kila mchango — fedha au kitu — unaleta mabadiliko"
+        subTitle="Iwe ni bili ya matibabu, ada ya shule, au chakula na nguo kwa familia, Changia hurahisisha kusaidia. Waandaaji hushiriki ukurasa, wasaidizi hutoa kwa fedha au kuacha vitu vinavyohitajika — na maisha ya mtu yanabadilika."
         src={featureImage}
         alt="Dashibodi ya Changia kwenye kompyuta ya mkononi"
         features={features}
       />
 
       <FeaturesNavs
-        title={'Moduli za <span class="text-yellow-500 dark:text-yellow-400">Changia</span> hupeleka kampeni kutoka wazo hadi athari halisi.'}
+        title={'Moduli za <span class="text-yellow-500 dark:text-yellow-400">Changia</span> zinazogeuza nia njema kuwa msaada halisi.'}
         tabs={[
           {
             heading: 'Jukwaa la msingi na hifadhidata ya wafadhili',
@@ -103,8 +103,8 @@ export default function SwahiliHomePage() {
       />
 
       <TestimonialsSection
-        title="Kubadilisha nia ya kusaidia kuwa msaada halisi"
-        subTitle="Kutoka redio, SMS na WhatsApp kwa kiwango kikubwa hadi ukusanyaji wa mbugani unaoendeshwa na maafisa, Changia huunganisha nia na mchango — wa fedha na wa vitu."
+        title="Hadithi halisi za watu kusaidia watu"
+        subTitle="Kutoka fedha za dharura za matibabu hadi misaada ya vifaa vya shule, Changia hugeuza nia njema kuwa msaada halisi — kuwaunganisha wanaohitaji na watu wanaojali."
         testimonials={[
           {
             content:
@@ -140,8 +140,8 @@ export default function SwahiliHomePage() {
       <FAQ title="Maswali yanayoulizwa<br />mara kwa mara" faqs={faqs} />
 
       <HeroSectionAlt
-        title="Tukusanye pamoja"
-        subTitle="Changia ni shirika la kitanzania la ukusanyaji misaada: muhimu kwa mshirika wetu wa kwanza leo, na linaloweza kubadilika kesho kwa hospitali, makanisa, shule, NGO, vikundi vya jamii na watu binafsi — kukusanya fedha na vitu vinavyohitajika na jamii."
+        title="Kuna mtu anahitaji msaada leo. Unaweza kuwa sehemu ya jibu."
+        subTitle="Iwe ni dharura ya matibabu, elimu ya mtoto, mgogoro wa kifamilia, au jamii inayohitaji — Changia inakuunganisha na watu wanaojali. Anzisha Kampeni, shiriki kiungo, na tazama nia njema ikigeuka kuwa msaada halisi. Kwa fedha, kwa vitu, au zote mbili."
       />
     </>
   );

@@ -1,33 +1,33 @@
 {
-  "subTitle": "Common questions about Changia and how the platform works.",
+  "subTitle": "Common questions about Changia and how we bring people together to help.",
   "faqs": [
     {
       "question": "What is Changia?",
-      "answer": "Changia is a Tanzania-first fundraising organization — not just a money collection platform. It helps organizations, families and community groups raise the support they need, from mobile-money contributions to donated items and in-kind help. Money collection is one powerful feature within a platform built around the idea of contributing to a cause."
+      "answer": "Changia brings people together. We connect those who need help — whether it's a medical emergency, school fees, a family crisis, or a community need — with people who are willing to give. It's not just about money. It's about people helping people, with whatever they can give — cash, food, clothes, medicine, or their time."
     },
     {
-      "question": "Do you collect only money, or also things?",
-      "answer": "Both. Changia is a fundraising organization that collects money and coordinates donated items — food, clothes, books, medicine, equipment and more — on the same campaign. Organizers can list the items they need, and contributors can support in cash or in kind."
+      "question": "Do you help with only money, or also things?",
+      "answer": "Both. Changia is built for people who want to help however they can. Some give money through mobile-money. Others drop off food, clothes, books, medicine, or equipment. Organizers list what they need, and supporters decide how they can help."
     },
     {
-      "question": "How do donors pay?",
-      "answer": "Donors open the Campaign  link, choose an amount, and pay through their mobile-money gateway (M-Pesa, Tigo Pesa, Airtel Money, HaloPesa). The PIN is entered only in the secure gateway prompt — Changia never sees or stores it."
+      "question": "How do people give money?",
+      "answer": "Supporters open the Campaign link, choose an amount, and pay through their mobile-money gateway (M-Pesa, Tigo Pesa, Airtel Money, HaloPesa). The PIN is entered only in the secure gateway prompt — Changia never sees or stores it."
     },
     {
       "question": "What is a Push Donation?",
-      "answer": "For face-to-face fundraising: a Campaign  manager gets a supporter's agreement, enters their phone number and the amount, and sends a payment request. The donor just confirms with their own PIN in their mobile-money app."
+      "answer": "For face-to-face help: a Campaign manager speaks with a supporter who agrees to help, enters their phone number and the amount, and sends a payment request. The supporter just confirms with their own PIN in their mobile-money app. Simple, fast, and secure."
     },
     {
       "question": "How does the service fee work?",
-      "answer": "Changia adds its service fee on top of your Campaign  goal — not out of your donors' contributions. For example, a TZS 10,000,000 Campaign  with a 5% fee has a public target of TZS 10,500,000. Reach it, and you keep the full 10,000,000 — donors gave the rest to cover platform costs, transparently."
+      "answer": "Changia adds its service fee on top of your Campaign goal — not out of people's contributions. For example, a TZS 10,000,000 Campaign with a 5% fee has a public target of TZS 10,500,000. Reach it, and you keep the full 10,000,000 — supporters gave the rest to cover platform costs, transparently."
     },
     {
-      "question": "Is my donation confirmed immediately?",
-      "answer": "Every donation is confirmed only after a verified payment callback from the mobile-money gateway. Payment attempts use unique idempotency keys so the same gateway event is never counted twice."
+      "question": "Is my contribution confirmed immediately?",
+      "answer": "Every contribution is confirmed only after a verified payment callback from the mobile-money gateway. Payment attempts use unique idempotency keys so the same gateway event is never counted twice."
     },
     {
-      "question": "Can I track donors and send updates?",
-      "answer": "Yes. The Donor Pool (CRM) lets you track supporters, their consent status, and giving history — in cash or in kind. Every donor gets an instant receipt and a progress update after they give."
+      "question": "Can I track supporters and send updates?",
+      "answer": "Yes. The Supporter Pool (CRM) lets you keep in touch with everyone who cares about your cause — their consent status, and their helping history, in cash or in kind. Every supporter gets an instant receipt and a progress update after they help."
     }
   ]
 }

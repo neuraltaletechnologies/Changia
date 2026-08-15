@@ -16,14 +16,14 @@ export const metadata: Metadata = {
     apple: '/icon.png',
   },
   openGraph: {
-    title: `${SITE.title}: Digital Fundraising &  All money transfer Contribution Platform`,
+    title: `${SITE.title}: Tanzania-first Fundraising Organization`,
     description: SITE.description,
     siteName: SITE.title,
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: `${SITE.title}: Digital Fundraising &  All money transfer Contribution Platform`,
+    title: `${SITE.title}: Tanzania-first Fundraising Organization`,
     description: SITE.description,
   },
 };

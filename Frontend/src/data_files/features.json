@@ -1,28 +1,28 @@
 [
   {
-    "heading": "Shareable Campaign  Pages",
-    "content": "Mobile-first pages with your story, photo, live progress bar, and a simple donate button.",
+    "heading": "Shareable Campaign Pages",
+    "content": "Mobile-first pages with your story, photo, live progress bar, and simple ways to donate money or drop off what's needed.",
     "svg": "books"
   },
   {
     "heading": "One-Tap Push Requests",
-    "content": "Managers request donations directly from donors who've already said yes.",
+    "content": "Managers request cash contributions directly from supporters who've already said yes.",
     "svg": "send"
   },
   {
     "heading": "Donor Pool (CRM)",
-    "content": "Track supporters, their consent status, and their giving history in one place.",
+    "content": "Track supporters, their consent status, and their giving history — in cash or in kind — in one place.",
     "svg": "groups"
+  },
+  {
+    "heading": "Cash & In-Kind Support",
+    "content": "Collect money and coordinate donated items on the same Campaign — one place for community giving.",
+    "svg": "frame"
   },
   {
     "heading": "Real Receipts & Updates",
     "content": "Every donor gets an instant receipt and a progress update after they give.",
     "svg": "verified"
-  },
-  {
-    "heading": "Full Transparency",
-    "content": "Public goal, service fee, and remaining balance are always visible — no hidden math.",
-    "svg": "frame"
   },
   {
     "heading": "Built-In Security",

@@ -1,18 +1,23 @@
 [
   {
     "heading": "Kurasa za kampeni zinazoweza kushirikiwa",
-    "content": "Kurasa zilizoundwa kwa ajili ya simu zikiwa na hadithi yako, picha, upau wa maendeleo wa moja kwa moja na kitufe rahisi cha kuchangia.",
+    "content": "Kurasa zilizoundwa kwa ajili ya simu zikiwa na hadithi yako, picha, upau wa maendeleo wa moja kwa moja na njia rahisi za kuchangia fedha au kutoa vitu vinavyohitajika.",
     "svg": "books"
   },
   {
     "heading": "Maombi ya kusukuma kwa tap moja",
-    "content": "Maafisa huomba michango moja kwa moja kutoka kwa wafadhili ambao tayari wamekubali.",
+    "content": "Maafisa huomba michango ya fedha moja kwa moja kutoka kwa wafadhili ambao tayari wamekubali.",
     "svg": "send"
   },
   {
     "heading": "Hifadhidata ya wafadhili (CRM)",
-    "content": "Fuatilia wafadhili, hali yao ya ridhaa na historia ya michango yao mahali pamoja.",
+    "content": "Fuatilia wafadhili, hali yao ya ridhaa na historia ya michango yao — ya fedha au ya vitu — mahali pamoja.",
     "svg": "groups"
+  },
+  {
+    "heading": "Msaada wa fedha na wa vitu",
+    "content": "Kusanya fedha na uratibu vitu vilivyotolewa kwenye kampeni moja — mahali pamoja kwa misaada ya jamii.",
+    "svg": "frame"
   },
   {
     "heading": "Risiti halisi na sasisho",
@@ -20,13 +25,8 @@
     "svg": "verified"
   },
   {
-    "heading": "Uwazi kamili",
-    "content": "Lengo la umma, ada ya huduma na salio linalobaki huonekana daima — hakuna hesabu iliyofichwa.",
-    "svg": "frame"
-  },
-  {
     "heading": "Usalama uliojengewa ndani",
-    "content": "Changia haioni wala kuhifadhi PIN yako ya All money transfer. Kila muamala unathibitishwa kabla ya kuhesabiwa.",
+    "content": "Changia haioni wala kuhifadhi PIN yako ya mobile money. Kila muamala unathibitishwa kabla ya kuhesabiwa.",
     "svg": "shield"
   }
 ]

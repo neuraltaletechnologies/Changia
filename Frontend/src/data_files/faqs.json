@@ -3,7 +3,11 @@
   "faqs": [
     {
       "question": "What is Changia?",
-      "answer": "Changia is a Tanzania-first, fast campaign money digital fundraising platform. It lets organizations and Campaign  owners collect contributions with minimal friction — either by sharing a Campaign  link (SMS, WhatsApp, email, QR, social) or by having a field manager send a direct push payment request to a donor who has already agreed to give."
+      "answer": "Changia is a Tanzania-first fundraising organization — not just a money collection platform. It helps organizations, families and community groups raise the support they need, from mobile-money contributions to donated items and in-kind help. Money collection is one powerful feature within a platform built around the idea of contributing to a cause."
+    },
+    {
+      "question": "Do you collect only money, or also things?",
+      "answer": "Both. Changia is a fundraising organization that collects money and coordinates donated items — food, clothes, books, medicine, equipment and more — on the same campaign. Organizers can list the items they need, and contributors can support in cash or in kind."
     },
     {
       "question": "How do donors pay?",
@@ -11,7 +15,7 @@
     },
     {
       "question": "What is a Push Donation?",
-      "answer": "For face-to-face fundraising: a Campaign  manager gets a donor's agreement, enters their phone number and the amount, and sends a payment request. The donor just confirms with their own PIN in their mobile-money app."
+      "answer": "For face-to-face fundraising: a Campaign  manager gets a supporter's agreement, enters their phone number and the amount, and sends a payment request. The donor just confirms with their own PIN in their mobile-money app."
     },
     {
       "question": "How does the service fee work?",
@@ -23,7 +27,7 @@
     },
     {
       "question": "Can I track donors and send updates?",
-      "answer": "Yes. The Donor Pool (CRM) lets you track supporters, their consent status, and giving history. Every donor gets an instant receipt and a progress update after they give."
+      "answer": "Yes. The Donor Pool (CRM) lets you track supporters, their consent status, and giving history — in cash or in kind. Every donor gets an instant receipt and a progress update after they give."
     }
   ]
 }

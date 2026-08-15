@@ -8,6 +8,8 @@ const {
   listCampaignsQuerySchema,
   setManagersSchema,
   campaignStatusSchema,
+  poolExpectedSchema,
+  targetExpectedSchema,
 } = require("./validation");
 
 const router = Router();
@@ -17,6 +19,34 @@ router.use(authenticate);
 // All authenticated org members can view campaigns
 router.get("/", validate({ query: listCampaignsQuerySchema }), controller.listCampaigns);
 router.get("/:id", controller.getCampaign);
+router.get("/:id/donor-targets", controller.getDonorTargets);
+
+// Donor pool import into a campaign (start of campaign or mid-campaign)
+router.post(
+  "/:id/pools/preview",
+  authorize("SUPER_ADMIN", "ORG_ADMIN", "CAMPAIGN_MANAGER"),
+  validate({ body: poolExpectedSchema }),
+  controller.previewPools
+);
+router.post(
+  "/:id/pools/import",
+  authorize("SUPER_ADMIN", "ORG_ADMIN", "CAMPAIGN_MANAGER"),
+  validate({ body: poolExpectedSchema }),
+  controller.importPools
+);
+
+// Manage tracked donors (expected pledge / removal) on a campaign
+router.put(
+  "/:id/donor-targets/:donorId",
+  authorize("SUPER_ADMIN", "ORG_ADMIN", "CAMPAIGN_MANAGER"),
+  validate({ body: targetExpectedSchema }),
+  controller.setDonorTarget
+);
+router.delete(
+  "/:id/donor-targets/:donorId",
+  authorize("SUPER_ADMIN", "ORG_ADMIN", "CAMPAIGN_MANAGER"),
+  controller.removeDonorTarget
+);
 
 // Creation and management are org-admin/super-admin only
 router.post(

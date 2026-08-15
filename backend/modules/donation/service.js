@@ -2,6 +2,7 @@ const { randomUUID } = require("crypto");
 const db = require("../../db");
 const { ApiError } = require("../../utils/ApiError");
 const { normalizePhone } = require("../../utils/phone");
+const poolService = require("../donor-pool/service");
 
 const MIN_PUSH_AMOUNT = 1000;
 
@@ -48,8 +49,11 @@ async function recordConfirmedDonation(data) {
     throw ApiError.badRequest("This campaign has reached its target", "CAMPAIGN_FULL");
   }
 
-  // Look up the donor by phone if not provided, else create a minimal record
+  // Look up the donor by phone if not provided.
+  // Unmatched payments (unknown or anonymous senders) are parked in the
+  // organization's anomalous pool so they can be re-attached to a known donor.
   let donorId = data.donorId;
+  let anomalousDonorCreated = false;
   if (!donorId && data.donorPhone) {
     const phone = normalizePhone(data.donorPhone);
     const existingDonor = await db.query(
@@ -60,16 +64,33 @@ async function recordConfirmedDonation(data) {
       donorId = existingDonor[0].id;
     } else {
       const created = await db.execute(
-        `INSERT INTO donors (organization_id, phone, first_name, status, consent_status, preferred_channel)
-         VALUES (?, ?, ?, 'ACTIVE', 'PENDING', 'SMS')`,
+        `INSERT INTO donors
+           (organization_id, phone, first_name, last_name, status, consent_status, preferred_channel, is_anomalous)
+         VALUES (?, ?, ?, ?, 'ACTIVE', 'PENDING', 'SMS', 1)`,
         [
           data.organizationId,
           phone,
-          data.donorName && !data.isAnonymous ? data.donorName : null,
+          data.donorName && !data.isAnonymous ? data.donorName : "Unknown",
+          data.isAnonymous ? null : null,
         ]
       );
       donorId = created.insertId;
+      anomalousDonorCreated = true;
     }
+  } else if (!donorId) {
+    // Anonymous / no phone: create an anomalous bucket donor.
+    const created = await db.execute(
+      `INSERT INTO donors
+         (organization_id, first_name, status, consent_status, preferred_channel, is_anomalous)
+       VALUES (?, 'Anonymous', 'ACTIVE', 'PENDING', 'SMS', 1)`,
+      [data.organizationId]
+    );
+    donorId = created.insertId;
+    anomalousDonorCreated = true;
+  }
+
+  if (anomalousDonorCreated) {
+    await poolService.ensureAnomalousPoolMember(data.organizationId, donorId);
   }
 
   const receiptNumber = nextReceiptNumber(new Date().getFullYear());

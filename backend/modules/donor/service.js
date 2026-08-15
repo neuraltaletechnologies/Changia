@@ -12,7 +12,11 @@ function parseTags(tags) {
   }
 }
 
-function serializeDonor(d) {
+function num(value) {
+  return value === null || value === undefined ? 0 : Number(value);
+}
+
+function serializeDonor(d, opts = {}) {
   return {
     id: d.id,
     firstName: d.first_name,
@@ -20,36 +24,99 @@ function serializeDonor(d) {
     email: d.email,
     phone: d.phone,
     location: d.location,
+    gender: d.gender,
+    position: d.position,
     status: d.status,
     consentStatus: d.consent_status,
     preferredChannel: d.preferred_channel,
+    isAnomalous: Boolean(d.is_anomalous),
     tags: parseTags(d.tags),
     notes: d.notes,
     createdAt: d.created_at,
     updatedAt: d.updated_at,
+    totalPaid: num(d.total_paid ?? d.donation_total),
     donationCount: d.donation_count || 0,
+    paymentMethods: opts.paymentMethods || [],
   };
 }
 
-async function listDonors(organizationId, filters) {
-  const where = ["organization_id = ?"];
+async function loadPaymentMethods(donorId) {
+  const rows = await db.query(
+    `SELECT id, method, account_ref, details, is_primary, created_at
+     FROM donor_payment_methods WHERE donor_id = ? ORDER BY created_at DESC`,
+    [donorId]
+  );
+  return rows.map((m) => ({
+    id: m.id,
+    method: m.method,
+    accountRef: m.account_ref,
+    details: m.details,
+    isPrimary: Boolean(m.is_primary),
+    createdAt: m.created_at,
+  }));
+}
+
+async function assertPoolAddable(organizationId, user, poolId) {
+  const pools = await db.query(
+    "SELECT * FROM donor_pools WHERE id = ? AND organization_id = ?",
+    [poolId, organizationId]
+  );
+  if (pools.length === 0) throw ApiError.notFound("Donor pool not found");
+  const pool = pools[0];
+  const isAdmin = user && (user.role === "SUPER_ADMIN" || user.role === "ORG_ADMIN");
+  if (pool.is_system === 1 && !isAdmin) {
+    throw ApiError.badRequest("Use the merge flow to manage the anomalous pool", "SYSTEM_POOL");
+  }
+  if (!isAdmin && Number(pool.created_by_id) !== user.id) {
+    throw ApiError.forbidden("You can only add donors to your own pools", "POOL_ACCESS_DENIED");
+  }
+}
+
+async function listDonors(organizationId, filters, user) {
+  const where = ["d.organization_id = ?"];
   const values = [organizationId];
+
+  if (filters.anomalous === "true") {
+    where.push("d.is_anomalous = 1");
+  } else if (filters.anomalous === "false") {
+    where.push("d.is_anomalous = 0");
+  } else {
+    where.push("d.is_anomalous = 0");
+  }
 
   if (filters.search) {
     where.push(
-      "(first_name LIKE ? OR last_name LIKE ? OR email LIKE ? OR phone LIKE ?)"
+      "(d.first_name LIKE ? OR d.last_name LIKE ? OR d.email LIKE ? OR d.phone LIKE ? OR d.position LIKE ?)"
     );
     const like = `%${filters.search}%`;
-    values.push(like, like, like, like);
+    values.push(like, like, like, like, like);
   }
   if (filters.status) {
-    where.push("status = ?");
+    where.push("d.status = ?");
     values.push(filters.status);
   }
   if (filters.consent) {
-    where.push("consent_status = ?");
+    where.push("d.consent_status = ?");
     values.push(filters.consent);
   }
+  if (filters.gender) {
+    where.push("d.gender = ?");
+    values.push(filters.gender);
+  }
+  if (filters.poolId) {
+    where.push(
+      "d.id IN (SELECT dpm.donor_id FROM donor_pool_members dpm WHERE dpm.pool_id = ?)"
+    );
+    values.push(filters.poolId);
+  }
+
+  const sortColumn = {
+    name: "d.first_name",
+    created: "d.created_at",
+    total: "total_paid",
+  }[filters.sortBy || "created"];
+
+  const sortDir = filters.sortDir === "asc" ? "ASC" : "DESC";
 
   const whereSql = where.join(" AND ");
   const page = filters.page || 1;
@@ -57,19 +124,22 @@ async function listDonors(organizationId, filters) {
   const offset = (page - 1) * limit;
 
   const donors = await db.query(
-    `SELECT d.*, (SELECT COUNT(*) FROM donations dd WHERE dd.donor_id = d.id) AS donation_count
+    `SELECT d.*,
+       (SELECT COUNT(*) FROM donations dd WHERE dd.donor_id = d.id AND dd.status = 'CONFIRMED') AS donation_count,
+       (SELECT COALESCE(SUM(dd.amount),0) FROM donations dd WHERE dd.donor_id = d.id AND dd.status = 'CONFIRMED') AS total_paid
      FROM donors d
      WHERE ${whereSql}
-     ORDER BY d.created_at DESC LIMIT ? OFFSET ?`,
+     ORDER BY ${sortColumn} ${sortDir}, d.id DESC
+     LIMIT ? OFFSET ?`,
     [...values, limit, offset]
   );
 
   const [[countRow]] = await db
-    .query(`SELECT COUNT(*) AS total FROM donors WHERE ${whereSql}`, values)
+    .query(`SELECT COUNT(*) AS total FROM donors d WHERE ${whereSql}`, values)
     .then((rows) => [rows]);
 
   return {
-    donors: donors.map(serializeDonor),
+    donors: donors.map((d) => serializeDonor(d)),
     pagination: {
       page,
       limit,
@@ -81,14 +151,16 @@ async function listDonors(organizationId, filters) {
 
 async function getDonor(organizationId, donorId) {
   const donors = await db.query(
-    `SELECT d.*, (SELECT COUNT(*) FROM donations dd WHERE dd.donor_id = d.id) AS donation_count
+    `SELECT d.*,
+       (SELECT COUNT(*) FROM donations dd WHERE dd.donor_id = d.id AND dd.status = 'CONFIRMED') AS donation_count,
+       (SELECT COALESCE(SUM(dd.amount),0) FROM donations dd WHERE dd.donor_id = d.id AND dd.status = 'CONFIRMED') AS total_paid
      FROM donors d WHERE d.id = ? AND d.organization_id = ?`,
     [donorId, organizationId]
   );
   const donor = donors[0];
   if (!donor) throw ApiError.notFound("Donor not found");
 
-  const [consents, donations] = await Promise.all([
+  const [consents, donations, paymentMethods, pools] = await Promise.all([
     db.query(
       `SELECT id, channel, status, source, granted_at, revoked_at
        FROM consents WHERE donor_id = ?`,
@@ -100,13 +172,28 @@ async function getDonor(organizationId, donorId) {
        FROM donations d
        JOIN campaigns c ON c.id = d.campaign_id
        WHERE d.donor_id = ?
-       ORDER BY d.created_at DESC LIMIT 20`,
+       ORDER BY d.created_at DESC LIMIT 50`,
+      [donorId]
+    ),
+    loadPaymentMethods(donorId),
+    db.query(
+      `SELECT p.id, p.name, p.category, p.is_system
+       FROM donor_pool_members dpm
+       JOIN donor_pools p ON p.id = dpm.pool_id
+       WHERE dpm.donor_id = ?
+       ORDER BY p.created_at`,
       [donorId]
     ),
   ]);
 
   return {
-    ...serializeDonor(donor),
+    ...serializeDonor(donor, { paymentMethods }),
+    pools: pools.map((p) => ({
+      id: p.id,
+      name: p.name,
+      category: p.category,
+      isSystem: Boolean(p.is_system),
+    })),
     consents: consents.map((c) => ({
       id: c.id,
       channel: c.channel,
@@ -127,7 +214,7 @@ async function getDonor(organizationId, donorId) {
   };
 }
 
-async function createDonor(organizationId, data) {
+async function createDonor(organizationId, data, user) {
   const phone = normalizePhone(data.phone);
 
   const existing = await db.query(
@@ -144,9 +231,9 @@ async function createDonor(organizationId, data) {
 
   const result = await db.execute(
     `INSERT INTO donors
-       (organization_id, first_name, last_name, email, phone, location, status,
-        consent_status, preferred_channel, tags, notes)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (organization_id, first_name, last_name, email, phone, location, gender,
+        position, status, consent_status, preferred_channel, is_anomalous, tags, notes)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
     [
       organizationId,
       data.firstName || null,
@@ -154,6 +241,8 @@ async function createDonor(organizationId, data) {
       data.email ? data.email.toLowerCase() : null,
       phone,
       data.location || null,
+      data.gender || null,
+      data.position || null,
       data.status || "PROSPECT",
       consentStatus,
       preferredChannel,
@@ -169,6 +258,34 @@ async function createDonor(organizationId, data) {
       `INSERT IGNORE INTO consents (donor_id, channel, status, source, granted_at)
        VALUES (?, ?, 'CONSENTED', 'manual', NOW())`,
       [donorId, preferredChannel]
+    );
+  }
+
+  // Optional payment methods captured at creation
+  if (data.paymentMethods && data.paymentMethods.length > 0) {
+    for (const pm of data.paymentMethods) {
+      await db.execute(
+        `INSERT INTO donor_payment_methods
+           (donor_id, organization_id, method, account_ref, details, is_primary)
+         VALUES (?, ?, ?, ?, ?, 0)`,
+        [
+          donorId,
+          organizationId,
+          pm.method,
+          pm.accountRef || null,
+          pm.details ? JSON.stringify(pm.details) : null,
+        ]
+      );
+    }
+  }
+
+  // Optionally drop the new donor straight into a pool
+  if (data.poolId) {
+    await assertPoolAddable(organizationId, user, data.poolId);
+    await db.execute(
+      `INSERT IGNORE INTO donor_pool_members (pool_id, donor_id, added_by_id)
+       VALUES (?, ?, ?)`,
+      [data.poolId, donorId, user ? user.id : null]
     );
   }
 
@@ -190,6 +307,8 @@ async function updateDonor(organizationId, donorId, data) {
   if (data.email !== undefined) { fields.push("email = ?"); values.push(data.email ? data.email.toLowerCase() : null); }
   if (data.phone !== undefined) { fields.push("phone = ?"); values.push(normalizePhone(data.phone)); }
   if (data.location !== undefined) { fields.push("location = ?"); values.push(data.location); }
+  if (data.gender !== undefined) { fields.push("gender = ?"); values.push(data.gender); }
+  if (data.position !== undefined) { fields.push("position = ?"); values.push(data.position); }
   if (data.status !== undefined) { fields.push("status = ?"); values.push(data.status); }
   if (data.consentStatus !== undefined) { fields.push("consent_status = ?"); values.push(data.consentStatus); }
   if (data.preferredChannel !== undefined) { fields.push("preferred_channel = ?"); values.push(data.preferredChannel); }
@@ -217,6 +336,23 @@ async function updateDonor(organizationId, donorId, data) {
     );
   }
 
+  if (data.paymentMethods && data.paymentMethods.length > 0) {
+    for (const pm of data.paymentMethods) {
+      await db.execute(
+        `INSERT INTO donor_payment_methods
+           (donor_id, organization_id, method, account_ref, details, is_primary)
+         VALUES (?, ?, ?, ?, ?, 0)`,
+        [
+          donorId,
+          organizationId,
+          pm.method,
+          pm.accountRef || null,
+          pm.details ? JSON.stringify(pm.details) : null,
+        ]
+      );
+    }
+  }
+
   return getDonor(organizationId, donorId);
 }
 
@@ -229,4 +365,45 @@ async function deleteDonor(organizationId, donorId) {
   await db.execute("DELETE FROM donors WHERE id = ?", [donorId]);
 }
 
-module.exports = { listDonors, getDonor, createDonor, updateDonor, deleteDonor };
+async function addPaymentMethod(organizationId, donorId, data) {
+  const existing = await db.query(
+    "SELECT id FROM donors WHERE id = ? AND organization_id = ? AND is_anomalous = 0",
+    [donorId, organizationId]
+  );
+  if (existing.length === 0) throw ApiError.notFound("Known donor not found");
+
+  const result = await db.execute(
+    `INSERT INTO donor_payment_methods
+       (donor_id, organization_id, method, account_ref, details, is_primary)
+     VALUES (?, ?, ?, ?, ?, 0)`,
+    [
+      donorId,
+      organizationId,
+      data.method,
+      data.accountRef || null,
+      data.details ? JSON.stringify(data.details) : null,
+    ]
+  );
+
+  return loadPaymentMethods(donorId);
+}
+
+async function removePaymentMethod(organizationId, donorId, methodId) {
+  await db.query(
+    `DELETE pm FROM donor_payment_methods pm
+     JOIN donors d ON d.id = pm.donor_id
+     WHERE pm.id = ? AND pm.donor_id = ? AND d.organization_id = ?`,
+    [methodId, donorId, organizationId]
+  );
+  return loadPaymentMethods(donorId);
+}
+
+module.exports = {
+  listDonors,
+  getDonor,
+  createDonor,
+  updateDonor,
+  deleteDonor,
+  addPaymentMethod,
+  removePaymentMethod,
+};

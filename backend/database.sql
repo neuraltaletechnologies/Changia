@@ -19,6 +19,10 @@ CREATE DATABASE IF NOT EXISTS changia
 USE changia;
 
 SET FOREIGN_KEY_CHECKS = 0;
+DROP TABLE IF EXISTS campaign_donor_targets;
+DROP TABLE IF EXISTS donor_pool_members;
+DROP TABLE IF EXISTS donor_pools;
+DROP TABLE IF EXISTS donor_payment_methods;
 DROP TABLE IF EXISTS audit_logs;
 DROP TABLE IF EXISTS payouts;
 DROP TABLE IF EXISTS receipts;
@@ -80,11 +84,14 @@ CREATE TABLE donors (
   first_name        VARCHAR(100) NULL,
   last_name         VARCHAR(100) NULL,
   email             VARCHAR(255) NULL,
-  phone             VARCHAR(32)  NOT NULL,
+  phone             VARCHAR(32)  NULL,
   location          VARCHAR(200) NULL,
+  gender            ENUM('MALE','FEMALE','UNSPECIFIED') NULL,
+  position          VARCHAR(150) NULL,
   status            ENUM('ACTIVE','PROSPECT','LAPSED','INACTIVE') NOT NULL DEFAULT 'PROSPECT',
   consent_status    ENUM('CONSENTED','PENDING','WITHDRAWN') NOT NULL DEFAULT 'PENDING',
   preferred_channel ENUM('SMS','WHATSAPP','EMAIL','PHONE') NULL DEFAULT 'SMS',
+  is_anomalous      TINYINT(1) NOT NULL DEFAULT 0,
   tags              JSON NULL,
   notes             TEXT NULL,
   created_at        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -92,6 +99,54 @@ CREATE TABLE donors (
   CONSTRAINT fk_donors_org FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
   UNIQUE KEY uq_donors_org_phone (organization_id, phone),
   INDEX idx_donors_org_status (organization_id, status)
+) ENGINE=InnoDB;
+
+-- ─── Donor pools (segmented lists owned by a campaign manager) ──────────────
+-- A pool created by one manager is only visible to that manager (and admins).
+-- Every organization automatically gets one system "anomalous" pool that holds
+-- donors who paid without a registered profile so they can be re-attached later.
+
+CREATE TABLE donor_pools (
+  id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  organization_id BIGINT UNSIGNED NOT NULL,
+  created_by_id   BIGINT UNSIGNED NULL,
+  name            VARCHAR(150) NOT NULL,
+  description     TEXT NULL,
+  category        ENUM('FAMILY','SCHOOL','STUDENT') NOT NULL DEFAULT 'FAMILY',
+  is_system       TINYINT(1) NOT NULL DEFAULT 0,
+  status          ENUM('ACTIVE','ARCHIVED') NOT NULL DEFAULT 'ACTIVE',
+  created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_pools_org FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+  CONSTRAINT fk_pools_creator FOREIGN KEY (created_by_id) REFERENCES users(id) ON DELETE SET NULL,
+  INDEX idx_pools_org_owner (organization_id, created_by_id)
+) ENGINE=InnoDB;
+
+CREATE TABLE donor_pool_members (
+  id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  pool_id         BIGINT UNSIGNED NOT NULL,
+  donor_id        BIGINT UNSIGNED NOT NULL,
+  expected_amount DECIMAL(14,0) NULL,
+  added_by_id     BIGINT UNSIGNED NULL,
+  added_at        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_dpm_pool FOREIGN KEY (pool_id) REFERENCES donor_pools(id) ON DELETE CASCADE,
+  CONSTRAINT fk_dpm_donor FOREIGN KEY (donor_id) REFERENCES donors(id) ON DELETE CASCADE,
+  UNIQUE KEY uq_dpm_pool_donor (pool_id, donor_id)
+) ENGINE=InnoDB;
+
+-- Payment methods a donor can be reached/paid through (matching also lets a
+-- previously-unmatched payment be re-attached to a known donor).
+CREATE TABLE donor_payment_methods (
+  id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  donor_id        BIGINT UNSIGNED NOT NULL,
+  organization_id BIGINT UNSIGNED NOT NULL,
+  method          ENUM('MOMO','TIGO_PESA','AIRTEL_MONEY','HALOPESA','BANK_TRANSFER','CREDIT_CARD','CASH','OTHER') NOT NULL,
+  account_ref     VARCHAR(100) NULL,
+  details         JSON NULL,
+  is_primary      TINYINT(1) NOT NULL DEFAULT 0,
+  created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_dpmtd_donor FOREIGN KEY (donor_id) REFERENCES donors(id) ON DELETE CASCADE,
+  CONSTRAINT fk_dpmtd_org FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 CREATE TABLE consents (
@@ -148,6 +203,23 @@ CREATE TABLE campaign_assignments (
   CONSTRAINT fk_ca_campaign FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE,
   CONSTRAINT fk_ca_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   UNIQUE KEY uq_ca_campaign_user (campaign_id, user_id)
+) ENGINE=InnoDB;
+
+-- Donors tracked for a campaign (imported from pools or added directly) with
+-- an optional expected pledge. Payment status (UNPAID / PARTIAL / PAID_FULL)
+-- is derived by comparing confirmed donations against expected_amount.
+CREATE TABLE campaign_donor_targets (
+  id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  campaign_id     BIGINT UNSIGNED NOT NULL,
+  donor_id        BIGINT UNSIGNED NOT NULL,
+  pool_id         BIGINT UNSIGNED NULL,
+  expected_amount DECIMAL(14,0) NULL,
+  added_by_id     BIGINT UNSIGNED NULL,
+  created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_cdt_campaign FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE,
+  CONSTRAINT fk_cdt_donor FOREIGN KEY (donor_id) REFERENCES donors(id) ON DELETE CASCADE,
+  CONSTRAINT fk_cdt_pool FOREIGN KEY (pool_id) REFERENCES donor_pools(id) ON DELETE SET NULL,
+  UNIQUE KEY uq_cdt_campaign_donor (campaign_id, donor_id)
 ) ENGINE=InnoDB;
 
 -- ─── Message batches and deliveries ──────────────────────────────────────────
@@ -325,11 +397,20 @@ VALUES
 INSERT INTO campaign_assignments (campaign_id, user_id) VALUES (1, 3);
 
 -- Donors
-INSERT INTO donors (organization_id, first_name, last_name, phone, status, consent_status, preferred_channel, tags) VALUES
-  (1, 'Neema', 'Lema', '255744000001', 'ACTIVE', 'CONSENTED', 'SMS', JSON_ARRAY('first-time')),
-  (1, 'James', 'Mdoe', '255755000002', 'ACTIVE', 'CONSENTED', 'SMS', JSON_ARRAY('first-time')),
-  (1, 'Grace', 'Komba', '255767000003', 'PROSPECT', 'PENDING', 'SMS', JSON_ARRAY('first-time')),
-  (1, 'Emmanuel', 'Swai', '255784000004', 'ACTIVE', 'WITHDRAWN', 'SMS', JSON_ARRAY('first-time'));
+INSERT INTO donors (organization_id, first_name, last_name, phone, gender, position, status, consent_status, preferred_channel, tags) VALUES
+  (1, 'Neema', 'Lema', '255744000001', 'FEMALE', 'Teacher', 'ACTIVE', 'CONSENTED', 'SMS', JSON_ARRAY('first-time')),
+  (1, 'James', 'Mdoe', '255755000002', 'MALE', 'Engineer', 'ACTIVE', 'CONSENTED', 'SMS', JSON_ARRAY('first-time')),
+  (1, 'Grace', 'Komba', '255767000003', 'FEMALE', 'Nurse', 'PROSPECT', 'PENDING', 'SMS', JSON_ARRAY('first-time')),
+  (1, 'Emmanuel', 'Swai', '255784000004', 'MALE', 'Farmer', 'ACTIVE', 'WITHDRAWN', 'SMS', JSON_ARRAY('first-time'));
+
+-- Anomalous pool: holds donors who paid without a registered profile so they
+-- can be re-attached to a known donor later.
+INSERT INTO donor_pools (organization_id, created_by_id, name, category, is_system, status) VALUES
+  (1, NULL, 'Anomalous / Unmatched', 'FAMILY', 1, 'ACTIVE');
+
+INSERT INTO donor_pool_members (pool_id, donor_id, expected_amount, added_by_id) VALUES
+  (1, 1, 100000, 3),
+  (1, 2, 100000, 3);
 
 INSERT INTO consents (donor_id, channel, status, source, granted_at) VALUES
   (1, 'SMS', 'CONSENTED', 'manual', NOW()),

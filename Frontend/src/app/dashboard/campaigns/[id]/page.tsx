@@ -1,26 +1,45 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/dashboard/ui/dropdown-menu";
+import {
   ArrowLeft,
+  BellRing,
   Calendar,
   Check,
-  Clock,
+  FileWarning,
   Heart,
-  Image as ImageIcon,
+  Import,
+  Loader2,
   Megaphone,
+  MoreHorizontal,
   Phone,
-  Plus,
-  ReceiptText,
+  Target,
+  Trash2,
   UserRound,
-  Users,
 } from "lucide-react";
 import { Button } from "@/components/dashboard/ui/button";
 import { Progress } from "@/components/dashboard/ui/progress";
 import { Avatar, AvatarFallback } from "@/components/dashboard/ui/avatar";
-import { Badge } from "@/components/dashboard/ui/badge";
+import { Input } from "@/components/dashboard/ui/input";
+import { Label } from "@/components/dashboard/ui/label";
+import { Textarea } from "@/components/dashboard/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/dashboard/ui/dialog";
 import {
   Tabs,
   TabsList,
@@ -28,61 +47,111 @@ import {
   TabsContent,
 } from "@/components/dashboard/ui/tabs";
 import {
-  formatTZS,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/dashboard/ui/select";
+import {
+  campaignApi,
+  poolApi,
+  donorFullName,
   formatTZSFull,
-  type Campaign,
-  type Donation,
-  type Donor,
-  type TeamMember,
-} from "@/lib/dashboard/types";
-import {
-  loadUserCampaigns,
-  updateCampaign,
-} from "@/lib/dashboard/campaign-store";
-import {
-  findCampaignTransactions,
-  saveTransaction,
-} from "@/lib/dashboard/transaction-store";
-import { loadDonors } from "@/lib/dashboard/donor-store";
-import { loadTeamMembers } from "@/lib/dashboard/team-store";
-import { campaignStatusMap } from "@/components/dashboard/widgets/campaign-card";
-import { RecordDonationDialog } from "@/components/dashboard/campaigns/record-donation-dialog";
+  formatTZSCompact,
+  PAY_STATUS_META,
+  type CampaignRecord,
+  type CampaignTargetsResponse,
+  type CampaignTarget,
+  type PoolImportPreview,
+  type DonorPool,
+} from "@/lib/dashboard/api";
+import { useRole } from "@/hooks/use-role";
 import { cn } from "@/lib/dashboard/utils";
 
-const channelColors: Record<string, string> = {
-  email: "bg-sky-50 text-sky-700",
-  sms: "bg-amber-50 text-amber-700",
-  whatsapp: "bg-emerald-50 text-emerald-700",
-  phone: "bg-slate-50 text-slate-600",
-  post: "bg-rose-50 text-rose-700",
+const STATUS_BADGE: Record<string, string> = {
+  DRAFT: "bg-slate-50 text-slate-600 border-slate-200",
+  PENDING: "bg-orange-50 text-orange-700 border-orange-200",
+  ACTIVE: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  PAUSED: "bg-amber-50 text-amber-700 border-amber-200",
+  COMPLETED: "bg-sky-50 text-sky-700 border-sky-200",
+  CANCELLED: "bg-rose-50 text-rose-700 border-rose-200",
 };
 
 export default function CampaignDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const [campaign, setCampaign] = useState<Campaign | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [transactions, setTransactions] = useState<Donation[]>([]);
-  const [donors, setDonors] = useState<Donor[]>([]);
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
-  const [recordOpen, setRecordOpen] = useState(false);
+  const { isSuperAdmin, isOrgAdmin } = useRole();
+  const isAdmin = isSuperAdmin || isOrgAdmin;
 
-  const reloadCampaignData = () => {
-    setCampaign(loadUserCampaigns().find((c) => c.id === id) ?? null);
-    setTransactions(findCampaignTransactions(id));
-  };
+  const [campaign, setCampaign] = useState<CampaignRecord | null>(null);
+  const [board, setBoard] = useState<CampaignTargetsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [actError, setActError] = useState<string | null>(null);
+  const [acting, setActing] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [reminderOpen, setReminderOpen] = useState(false);
+
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+
+  const refresh = useCallback(async () => {
+    try {
+      setError(null);
+      const [c, b] = await Promise.all([
+        campaignApi.get(id),
+        campaignApi.donorTargets(id),
+      ]);
+      setCampaign(c);
+      setBoard(b);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load the campaign.");
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
 
   useEffect(() => {
-    reloadCampaignData();
-    setDonors(loadDonors());
-    setTeamMembers(loadTeamMembers());
-    setLoading(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+    refresh();
+  }, [refresh]);
+
+  const selectableTargets = useMemo(
+    () =>
+      board?.targets.filter(
+        (t) => t.status === "UNPAID" || t.status === "PARTIAL"
+      ) ?? [],
+    [board]
+  );
+
+  const toggleSelect = (donorId: number) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(donorId)) next.delete(donorId);
+      else next.add(donorId);
+      return next;
+    });
+
+  const toggleAll = () =>
+    setSelected((prev) =>
+      prev.size === selectableTargets.length ? new Set<number>() : new Set(selectableTargets.map((t) => t.donor.id))
+    );
+
+  const act = async (fn: () => Promise<unknown>) => {
+    setActing(true);
+    setActError(null);
+    try {
+      await fn();
+      await refresh();
+    } catch (e) {
+      setActError(e instanceof Error ? e.message : "Action failed.");
+    } finally {
+      setActing(false);
+    }
+  };
 
   if (loading) {
     return (
-      <div className="max-w-[900px]">
-        <div className="h-40 rounded-xl bg-card border border-border animate-pulse" />
+      <div className="max-w-[1200px]">
+        <div className="h-48 bg-card border border-border rounded-xl animate-pulse" />
       </div>
     );
   }
@@ -104,197 +173,192 @@ export default function CampaignDetailPage() {
     );
   }
 
-  const raisedFromTx = transactions.reduce((sum, t) => sum + t.amount, 0);
-  const donorCount = new Set(transactions.map((t) => t.donorId)).size;
-  const pct =
-    campaign.goal > 0
-      ? Math.min(100, Math.round((raisedFromTx / campaign.goal) * 100))
+  const progress =
+    campaign.publicTarget > 0
+      ? Math.min(100, Math.round((campaign.raisedAmount / campaign.publicTarget) * 100))
       : 0;
-  const s = campaignStatusMap[campaign.status];
-
-  const donorMap = new Map<
-    string,
-    { donor: Donor | undefined; total: number; gifts: number; lastDate: string }
-  >();
-  transactions.forEach((t) => {
-    const entry = donorMap.get(t.donorId) ?? {
-      donor: donors.find((d) => d.id === t.donorId),
-      total: 0,
-      gifts: 0,
-      lastDate: "",
-    };
-    entry.total += t.amount;
-    entry.gifts += 1;
-    entry.lastDate = t.date;
-    donorMap.set(t.donorId, entry);
-  });
-  const campaignDonors = Array.from(donorMap.values());
-
-  const assignedIds = campaign.memberIds ?? [];
-  const assignedMembers = teamMembers.filter((m) => assignedIds.includes(m.id));
-
-  const handleRecorded = (tx: Donation) => {
-    saveTransaction(tx);
-    const nextDonorCount = new Set([
-      ...transactions.map((t) => t.donorId),
-      tx.donorId,
-    ]).size;
-    updateCampaign(campaign.id, {
-      raised: campaign.raised + tx.amount,
-      donors: nextDonorCount,
-    });
-    reloadCampaignData();
-  };
-
-  const toggleMember = (memberId: string) => {
-    const next = assignedIds.includes(memberId)
-      ? assignedIds.filter((m) => m !== memberId)
-      : [...assignedIds, memberId];
-    updateCampaign(campaign.id, { memberIds: next });
-    reloadCampaignData();
-  };
+  const summary = board?.summary;
 
   return (
-    <div className="space-y-6 max-w-[900px]">
-      <Button
-        variant="outline"
-        size="sm"
-        nativeButton={false}
-        render={<Link href="/dashboard/campaigns" />}
-      >
-        <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
-        Back to Campaigns
-      </Button>
+    <div className="space-y-6 max-w-[1200px]">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Button
+          variant="outline"
+          size="sm"
+          nativeButton={false}
+          render={<Link href="/dashboard/campaigns" />}
+        >
+          <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
+          Back to Campaigns
+        </Button>
+        <div className="flex items-center gap-2">
+          {isAdmin && (
+            <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
+              <Import className="w-3.5 h-3.5 mr-1.5" />
+              Import Pool
+            </Button>
+          )}
+          {summary && summary.totalTargets > 0 && (
+            <Button size="sm" onClick={() => setReminderOpen(true)}>
+              <BellRing className="w-3.5 h-3.5 mr-1.5" />
+              Send Reminder
+              {selected.size > 0 ? ` (${selected.size})` : ""}
+            </Button>
+          )}
+        </div>
+      </div>
 
-      {campaign.status === "pending" && (
-        <div className="rounded-xl border border-orange-200 bg-orange-50 p-4 flex items-start gap-3 dark:border-orange-500/40 dark:bg-orange-500/10">
-          <Clock className="w-5 h-5 text-orange-600 shrink-0 mt-0.5" />
-          <div>
-            <p className="text-sm font-semibold text-orange-800 dark:text-orange-200">
-              Awaiting admin approval
-            </p>
-            <p className="text-xs text-orange-700/80 dark:text-orange-200/70 mt-0.5">
-              This campaign has been submitted but is not live yet. Once an admin
-              approves it, it will be published and ready to share with donors.
-            </p>
-          </div>
+      {error && (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          {error}
+        </div>
+      )}
+      {actError && (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          {actError}
         </div>
       )}
 
       {/* Header */}
-      <div className="bg-card border border-border rounded-xl p-6 shadow-sm overflow-hidden">
-        {campaign.image && (
-          <div className="-mx-6 -mt-6 mb-5">
+      <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
+        {campaign.imageUrl && (
+          <div className="relative h-48 w-full">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={campaign.image}
+              src={campaign.imageUrl}
               alt={campaign.name}
               className="h-48 w-full object-cover"
             />
           </div>
         )}
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h1 className="text-xl font-semibold text-foreground tracking-tight">
-              {campaign.name}
-            </h1>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-muted-foreground">
-              {campaign.category && (
-                <span className="inline-flex items-center gap-1">
-                  <Megaphone className="w-3.5 h-3.5" />
-                  {campaign.category}
-                </span>
-              )}
-              <span className="inline-flex items-center gap-1">
-                <Calendar className="w-3.5 h-3.5" />
-                {campaign.startDate} → {campaign.endDate}
+        <div className="p-6">
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+            <div>
+              <h1 className="text-xl font-semibold text-foreground tracking-tight">
+                {campaign.name}
+              </h1>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-muted-foreground">
+                {campaign.category && (
+                  <span className="inline-flex items-center gap-1">
+                    <Megaphone className="w-3.5 h-3.5" />
+                    {campaign.category}
+                  </span>
+                )}
+                {campaign.startDate && campaign.endDate && (
+                  <span className="inline-flex items-center gap-1">
+                    <Calendar className="w-3.5 h-3.5" />
+                    {new Date(campaign.startDate).toLocaleDateString()} →{" "}
+                    {new Date(campaign.endDate).toLocaleDateString()}
+                  </span>
+                )}
+                {campaign.contactPhone && (
+                  <span className="inline-flex items-center gap-1">
+                    <Phone className="w-3.5 h-3.5" />
+                    {campaign.contactPhone}
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span
+                className={cn(
+                  "text-[10px] font-medium border rounded-full px-2.5 py-1",
+                  STATUS_BADGE[campaign.status]
+                )}
+              >
+                {campaign.status}
               </span>
-              {campaign.ownerName && (
-                <span className="inline-flex items-center gap-1">
-                  <UserRound className="w-3.5 h-3.5" />
-                  {campaign.ownerName}
-                </span>
+              {isAdmin && campaign.status === "DRAFT" && (
+                <Button
+                  size="sm"
+                  disabled={acting}
+                  onClick={() => act(() => campaignApi.submit(id))}
+                >
+                  {acting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5 mr-1" />}
+                  Submit for approval
+                </Button>
+              )}
+              {isAdmin && campaign.status === "PENDING" && (
+                <Button
+                  size="sm"
+                  disabled={acting}
+                  onClick={() => act(() => campaignApi.approve(id))}
+                >
+                  {acting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5 mr-1" />}
+                  Approve
+                </Button>
               )}
             </div>
           </div>
-          <span
-            className={cn(
-              "text-[10px] font-medium border rounded-full px-2.5 py-1 shrink-0",
-              s.className
-            )}
-          >
-            {s.label}
-          </span>
-        </div>
 
-        {campaign.submittedAt && (
-          <p className="text-[11px] text-muted-foreground mt-3">
-            Submitted for approval on{" "}
-            {new Date(campaign.submittedAt).toLocaleDateString()}
-          </p>
-        )}
-      </div>
+          <div className="mt-5">
+            <div className="flex justify-between text-sm mb-2">
+              <span className="font-medium text-foreground">
+                {formatTZSFull(campaign.raisedAmount)}
+              </span>
+              <span className="text-muted-foreground">
+                of {formatTZSFull(campaign.publicTarget)} target
+              </span>
+            </div>
+            <Progress value={progress} className="h-2" />
+            <div className="flex justify-between text-xs text-muted-foreground mt-3">
+              <span>{progress}% funded</span>
+              <span>{campaign.donorCount} donors</span>
+            </div>
+          </div>
 
-      {/* Progress */}
-      <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
-        <h2 className="text-sm font-semibold text-foreground mb-4">Progress</h2>
-        <div className="flex justify-between text-sm mb-2">
-          <span className="font-medium text-foreground">{formatTZS(raisedFromTx)}</span>
-          <span className="text-muted-foreground">of {formatTZS(campaign.goal)}</span>
-        </div>
-        <Progress value={pct} className="h-2" />
-        <div className="flex justify-between text-xs text-muted-foreground mt-3">
-          <span>{pct}% funded</span>
-          <span>{donorCount} donors</span>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5 pt-5 border-t border-border">
+            <Stat label="Tracked donors" value={summary ? String(summary.totalTargets) : "—"} />
+            <Stat label="Expected" value={summary ? formatTZSCompact(summary.expectedTotal) : "—"} />
+            <Stat label="Paid of tracked" value={summary ? formatTZSCompact(summary.paidTotal) : "—"} />
+            <Stat
+              label="Fully paid"
+              value={summary ? `${summary.paidFull}/${summary.totalTargets}` : "—"}
+            />
+          </div>
         </div>
       </div>
 
       <Tabs defaultValue="overview">
         <TabsList className="flex-wrap h-auto w-full sm:w-auto gap-1 py-1">
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="donors">
-            Donors ({donorCount})
+          <TabsTrigger value="board">
+            Donor Board ({board?.targets.length ?? 0})
           </TabsTrigger>
-          <TabsTrigger value="transactions">
-            Transactions ({transactions.length})
+          <TabsTrigger value="donations">
+            Donations ({campaign.donations?.length ?? 0})
           </TabsTrigger>
-          <TabsTrigger value="evidence">Evidence</TabsTrigger>
-          <TabsTrigger value="team">Team ({assignedMembers.length})</TabsTrigger>
+          <TabsTrigger value="team">
+            Team ({campaign.assignments?.length ?? 0})
+          </TabsTrigger>
         </TabsList>
 
-        {/* Overview */}
         <TabsContent value="overview" className="pt-2">
           <div className="space-y-4">
             <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
-              <h2 className="text-sm font-semibold text-foreground mb-2">About</h2>
+              <h2 className="text-sm font-semibold text-foreground mb-2">Story</h2>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                {campaign.description || "No description provided."}
+                {campaign.story || "No story provided."}
               </p>
-              {campaign.contactPhone && (
-                <p className="inline-flex items-center gap-1.5 text-xs text-muted-foreground mt-4">
-                  <Phone className="w-3.5 h-3.5" />
-                  {campaign.contactPhone}
-                </p>
-              )}
             </div>
             <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
               <h2 className="text-sm font-semibold text-foreground mb-4">Owner</h2>
               <div className="flex items-center gap-3">
                 <Avatar className="w-10 h-10">
                   <AvatarFallback className="text-xs bg-primary/10 text-primary font-semibold">
-                    {(campaign.ownerName || "CO")
-                      .split(" ")
-                      .map((n) => n[0])
-                      .join("")
-                      .slice(0, 2)}
+                    {(campaign.assignments?.[0]?.user.firstName || "CO")[0]}
                   </AvatarFallback>
                 </Avatar>
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-foreground">
-                    {campaign.ownerName || "Unassigned"}
+                    {campaign.assignments?.[0]
+                      ? donorFullName(campaign.assignments[0].user)
+                      : "Unassigned"}
                   </p>
                   <p className="text-[11px] text-muted-foreground truncate">
-                    {campaign.ownerEmail || campaign.contactPhone || "No contact set"}
+                    {campaign.assignments?.[0]?.user.email ||
+                      campaign.contactPhone ||
+                      "No contact set"}
                   </p>
                 </div>
               </div>
@@ -302,313 +366,794 @@ export default function CampaignDetailPage() {
           </div>
         </TabsContent>
 
-        {/* Donors */}
-        <TabsContent value="donors" className="pt-2">
-          <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
-            <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-foreground">
-                Donors for this campaign
-              </h2>
-              <span className="text-xs text-muted-foreground">
-                {donorCount} donor{donorCount !== 1 ? "s" : ""}
-              </span>
-            </div>
-            {campaignDonors.length === 0 ? (
-              <div className="py-12 text-center">
-                <Users className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground">
-                  No donors for this campaign yet.
-                </p>
-                <Button
-                  className="mt-4"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setRecordOpen(true)}
-                >
-                  <Plus className="w-3.5 h-3.5 mr-1.5" />
-                  Record a donation
-                </Button>
-              </div>
-            ) : (
-              <div className="divide-y divide-border">
-                {campaignDonors.map(({ donor, total, gifts, lastDate }) => {
-                  const initials = donor
-                    ? `${donor.firstName[0]}${donor.lastName[0]}`
-                    : "??";
-                  return (
-                    <div
-                      key={donor?.id ?? total}
-                      className="flex items-center gap-3 px-5 py-3.5"
-                    >
-                      <Avatar className="w-8 h-8 shrink-0">
-                        <AvatarFallback className="text-[11px] bg-primary/10 text-primary font-semibold">
-                          {initials}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium text-foreground truncate">
-                          {donor
-                            ? `${donor.firstName} ${donor.lastName}`
-                            : "Unknown donor"}
-                        </p>
-                        <p className="text-[11px] text-muted-foreground truncate">
-                          {donor?.email || "No profile"}
-                        </p>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <p className="text-xs font-semibold text-foreground">
-                          {formatTZS(total)}
-                        </p>
-                        <p className="text-[10px] text-muted-foreground">
-                          {gifts} gift{gifts !== 1 ? "s" : ""}
-                          {lastDate ? ` · ${lastDate}` : ""}
-                        </p>
-                      </div>
-                      {donor && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          nativeButton={false}
-                          render={<Link href={`/dashboard/donors/${donor.id}`} />}
-                          className="text-xs"
-                        >
-                          View
-                        </Button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+        <TabsContent value="board" className="pt-2">
+          <DonorBoardTab
+            board={board}
+            selected={selected}
+            selectableCount={selectableTargets.length}
+            onToggleSelect={toggleSelect}
+            onToggleAll={toggleAll}
+            onUpdated={refresh}
+            canManage={isAdmin}
+            onSetExpected={(donorId, amount) =>
+              act(() => campaignApi.setTargetExpected(id, donorId, amount))
+            }
+            onRemoveTarget={(donorId) =>
+              act(() => campaignApi.removeTarget(id, donorId))
+            }
+          />
         </TabsContent>
 
-        {/* Transactions */}
-        <TabsContent value="transactions" className="pt-2">
-          <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
-            <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-foreground">
-                All transactions
-              </h2>
-              <Button size="sm" onClick={() => setRecordOpen(true)}>
-                <Plus className="w-3.5 h-3.5 mr-1.5" />
-                Record Donation
-              </Button>
-            </div>
-            {transactions.length === 0 ? (
-              <div className="py-12 text-center">
-                <ReceiptText className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground">
-                  No transactions yet. Record the first donation for this
-                  campaign.
-                </p>
-                {donors.length === 0 && (
-                  <p className="text-[11px] text-muted-foreground mt-1">
-                    You need donors in your pool first —{" "}
-                    <Link
-                      href="/dashboard/donors"
-                      className="text-primary hover:underline"
-                    >
-                      add donors
-                    </Link>
-                    .
-                  </p>
-                )}
-              </div>
-            ) : (
-              <div className="divide-y divide-border">
-                {transactions.map((t) => (
-                  <div
-                    key={t.id}
-                    className="flex items-center gap-3 px-5 py-3.5"
-                  >
-                    <div className="w-7 h-7 rounded-full bg-emerald-50 flex items-center justify-center shrink-0">
-                      <Heart className="w-3.5 h-3.5 text-emerald-600" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium text-foreground truncate">
-                        {t.donorName}
-                      </p>
-                      <p className="text-[11px] text-muted-foreground">
-                        {t.date} &middot; {t.channel}
-                      </p>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <p className="text-xs font-semibold text-foreground">
-                        {formatTZSFull(t.amount)}
-                      </p>
-                      <span
-                        className={cn(
-                          "text-[10px] font-medium rounded-full px-1.5 py-0.5",
-                          channelColors[t.channel] || "bg-slate-50 text-slate-600"
-                        )}
-                      >
-                        {t.channel}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-            {transactions.length > 0 && (
-              <div className="flex items-center justify-between px-5 py-3 border-t border-border bg-muted/20">
-                <p className="text-xs text-muted-foreground">
-                  Total collected
-                </p>
-                <p className="text-xs font-semibold text-foreground">
-                  {formatTZSFull(raisedFromTx)}
-                </p>
-              </div>
-            )}
-          </div>
+        <TabsContent value="donations" className="pt-2">
+          <DonationsList donations={campaign.donations ?? []} campaignId={id} />
         </TabsContent>
 
-        {/* Evidence */}
-        <TabsContent value="evidence" className="pt-2">
-          <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
-            <div className="px-5 py-4 border-b border-border">
-              <h2 className="text-sm font-semibold text-foreground">
-                Evidence images
-              </h2>
-            </div>
-            {!campaign.evidence || campaign.evidence.length === 0 ? (
-              <div className="py-12 text-center">
-                <ImageIcon className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground">
-                  No evidence images uploaded yet.
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-5">
-                {campaign.evidence.map((url, i) => (
-                  <a
-                    key={i}
-                    href={url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="group block rounded-lg overflow-hidden border border-border"
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={url}
-                      alt={`Evidence ${i + 1}`}
-                      className="h-32 w-full object-cover transition-transform group-hover:scale-105"
-                    />
-                  </a>
-                ))}
-              </div>
-            )}
-          </div>
-        </TabsContent>
-
-        {/* Team */}
         <TabsContent value="team" className="pt-2">
-          <div className="space-y-4">
-            <div className="bg-card border border-border rounded-xl p-5 shadow-sm flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
-                <UserRound className="w-4 h-4 text-primary" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-foreground">
-                  {campaign.ownerName || "No owner assigned"}
-                </p>
-                <p className="text-[11px] text-muted-foreground">
-                  Campaign owner
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
-              <div className="px-5 py-4 border-b border-border">
-                <h2 className="text-sm font-semibold text-foreground">
-                  Team members on this campaign
-                </h2>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Assign members from your organisation to work on this campaign.
-                </p>
-              </div>
-              {teamMembers.length === 0 ? (
-                <div className="py-12 text-center text-sm text-muted-foreground">
-                  No team members yet.{" "}
-                  <Link
-                    href="/dashboard/team"
-                    className="text-primary hover:underline"
-                  >
-                    Invite members
-                  </Link>
-                  .
-                </div>
-              ) : (
-                <div className="divide-y divide-border">
-                  {teamMembers.map((member) => {
-                    const assigned = assignedIds.includes(member.id);
-                    const initials = member.name
-                      .split(" ")
-                      .map((n) => n[0])
-                      .join("")
-                      .slice(0, 2);
-                    return (
-                      <div
-                        key={member.id}
-                        className="flex items-center gap-3 px-5 py-3.5"
-                      >
-                        <Avatar className="w-8 h-8 shrink-0">
-                          <AvatarFallback className="text-[11px] bg-primary/10 text-primary font-semibold">
-                            {initials}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium text-foreground truncate">
-                            {member.name}
-                          </p>
-                          <p className="text-[11px] text-muted-foreground truncate">
-                            {member.email} &middot; {member.role}
-                          </p>
-                        </div>
-                        {assigned ? (
-                          <Badge
-                            className="bg-emerald-50 text-emerald-700 border-emerald-200 shrink-0"
-                            variant="outline"
-                          >
-                            Assigned
-                          </Badge>
-                        ) : null}
-                        <Button
-                          size="xs"
-                          variant={assigned ? "outline" : "default"}
-                          onClick={() => toggleMember(member.id)}
-                          className="shrink-0"
-                        >
-                          {assigned ? (
-                            <>
-                              <Check className="w-3 h-3 mr-1" />
-                              Remove
-                            </>
-                          ) : (
-                            <>
-                              <Plus className="w-3 h-3 mr-1" />
-                              Assign
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
+          <TeamTab
+            assignments={campaign.assignments ?? []}
+            onRefresh={refresh}
+          />
         </TabsContent>
       </Tabs>
 
-      <RecordDonationDialog
-        open={recordOpen}
-        onOpenChange={setRecordOpen}
-        campaignId={campaign.id}
-        campaignName={campaign.name}
-        donors={donors}
-        onRecorded={handleRecorded}
-      />
+      {importOpen && (
+        <ImportPoolDialog
+          campaignId={id}
+          onClose={() => setImportOpen(false)}
+          onImported={() => {
+            setImportOpen(false);
+            refresh();
+          }}
+        />
+      )}
+
+      {reminderOpen && board && (
+        <ReminderDialog
+          campaignId={id}
+          campaignName={campaign.name}
+          donorIds={[...selected]}
+          donors={board.targets
+            .filter((t) => selected.has(t.donor.id))
+            .map((t) => t.donor)}
+          onClose={() => setReminderOpen(false)}
+          onSent={() => {
+            setReminderOpen(false);
+            refresh();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-[11px] text-muted-foreground">{label}</p>
+      <p className="text-sm font-semibold text-foreground mt-0.5">{value}</p>
+    </div>
+  );
+}
+
+// ─── Donor Board tab ───────────────────────────────────────────────────────────
+
+function DonorBoardTab({
+  board,
+  selected,
+  selectableCount,
+  onToggleSelect,
+  onToggleAll,
+  onUpdated,
+  canManage,
+  onSetExpected,
+  onRemoveTarget,
+}: {
+  board: CampaignTargetsResponse | null;
+  selected: Set<number>;
+  selectableCount: number;
+  onToggleSelect: (donorId: number) => void;
+  onToggleAll: () => void;
+  onUpdated: () => void;
+  canManage: boolean;
+  onSetExpected: (donorId: number, amount: number | null) => void;
+  onRemoveTarget: (donorId: number) => void;
+}) {
+  const [inline, setInline] = useState<{ donorId: number; value: string } | null>(null);
+
+  if (!board || board.targets.length === 0) {
+    return (
+      <div className="bg-card border border-border rounded-xl py-16 text-center">
+        <FileWarning className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
+        <p className="text-sm text-muted-foreground">
+          No tracked donors yet. Import a donor pool to start tracking who pays.
+        </p>
+        <Button size="sm" className="mt-4" variant="outline" onClick={onUpdated}>
+          Refresh
+        </Button>
+      </div>
+    );
+  }
+
+  const sorted = [...board.targets].sort((a, b) => {
+    const order = { PAID_FULL: 2, PARTIAL: 1, UNPAID: 0 } as const;
+    return order[b.status] - order[a.status];
+  });
+
+  return (
+    <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
+      <div className="px-5 py-4 border-b border-border flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-baseline gap-3">
+          <h2 className="text-sm font-semibold text-foreground">Donor Board</h2>
+          {selectableCount > 0 && (
+            <p className="text-[11px] text-muted-foreground">
+              {selectableCount} unpaid / partial — select to remind
+            </p>
+          )}
+        </div>
+        {selectableCount > 0 && (
+          <Button size="xs" variant="outline" onClick={onToggleAll}>
+            {selected.size === selectableCount && selected.size > 0
+              ? "Clear selection"
+              : "Select all unpaid"}
+          </Button>
+        )}
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[640px]">
+          <thead>
+            <tr className="border-b border-border bg-muted/40">
+              <th className="w-10 px-4 py-3">
+                {selectableCount > 0 && selected.size === selectableCount && selected.size > 0 ? (
+                  <input type="checkbox" checked readOnly className="accent-primary" />
+                ) : (
+                  <input type="checkbox" checked={false} readOnly className="accent-primary" />
+                )}
+              </th>
+              <th className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-3">
+                Donor
+              </th>
+              <th className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-3 hidden md:table-cell">
+                Pool
+              </th>
+              <th className="text-right text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-3">
+                Expected
+              </th>
+              <th className="text-right text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-3">
+                Paid
+              </th>
+              <th className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-3 hidden sm:table-cell">
+                Status
+              </th>
+              <th className="text-right px-3 py-3" />
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {sorted.map((t) => (
+              <BoardRow
+                key={t.id}
+                target={t}
+                checked={selected.has(t.donor.id)}
+                selectable={t.status !== "PAID_FULL"}
+                inline={inline}
+                setInline={setInline}
+                canManage={canManage}
+                onCheckedChange={() => onToggleSelect(t.donor.id)}
+                onSetExpected={onSetExpected}
+                onRemoveTarget={onRemoveTarget}
+              />
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {board.poolTotals.length > 0 && (
+        <div className="border-t border-border px-5 py-4">
+          <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+            Per pool
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {board.poolTotals.map((pt) => (
+              <div
+                key={pt.pool?.id ?? 0}
+                className="text-[11px] border border-border rounded-lg px-3 py-1.5 flex items-center gap-2"
+              >
+                <span className="font-medium text-foreground">
+                  {pt.pool?.name ?? "No pool"}
+                </span>
+                <span className="text-muted-foreground">
+                  {pt.count} · {formatTZSCompact(pt.expectedTotal)} expected
+                </span>
+                <span className="text-emerald-600">
+                  {formatTZSCompact(pt.paidTotal)} paid
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BoardRow({
+  target,
+  checked,
+  selectable,
+  inline,
+  setInline,
+  canManage,
+  onCheckedChange,
+  onSetExpected,
+  onRemoveTarget,
+}: {
+  target: CampaignTarget;
+  checked: boolean;
+  selectable: boolean;
+  inline: { donorId: number; value: string } | null;
+  setInline: (s: { donorId: number; value: string } | null) => void;
+  canManage: boolean;
+  onCheckedChange: () => void;
+  onSetExpected: (donorId: number, amount: number | null) => void;
+  onRemoveTarget: (donorId: number) => void;
+}) {
+  const [saving, setSaving] = useState(false);
+  const meta = PAY_STATUS_META[target.status];
+
+  const submitExpected = async () => {
+    const v = inline?.value;
+    setSaving(true);
+    try {
+      await onSetExpected(target.donor.id, v === "" || v == null ? null : Number(v));
+    } finally {
+      setSaving(false);
+      setInline(null);
+    }
+  };
+
+  return (
+    <tr className="hover:bg-muted/30 transition-colors">
+      <td className="px-4 py-3">
+        {selectable ? (
+          <input
+            type="checkbox"
+            checked={checked}
+            onChange={onCheckedChange}
+            className="accent-primary"
+          />
+        ) : null}
+      </td>
+      <td className="px-3 py-3">
+        <Link
+          href={`/dashboard/donors/${target.donor.id}`}
+          className="flex items-center gap-3 group"
+        >
+          <Avatar className="w-8 h-8 shrink-0">
+            <AvatarFallback className="text-[11px] bg-primary/10 text-primary font-semibold">
+              {`${(target.donor.firstName || "?")[0]}${(target.donor.lastName || "?")[0]}`}
+            </AvatarFallback>
+          </Avatar>
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-foreground group-hover:text-primary transition-colors truncate">
+              {donorFullName(target.donor)}
+            </p>
+            <p className="text-[11px] text-muted-foreground truncate">
+              {target.donor.phone || target.donor.email || "No contact"}
+            </p>
+          </div>
+        </Link>
+      </td>
+      <td className="px-3 py-3 hidden md:table-cell">
+        {target.pool ? (
+          <span className="text-[11px] border border-border rounded-full px-2 py-0.5 text-muted-foreground">
+            {target.pool.name}
+          </span>
+        ) : (
+          <span className="text-[11px] text-muted-foreground">—</span>
+        )}
+      </td>
+      <td className="px-3 py-3 text-right">
+        {inline?.donorId === target.donor.id ? (
+          <div className="flex items-center justify-end gap-1.5">
+            <Input
+              autoFocus
+              inputMode="numeric"
+              placeholder="Amount"
+              className="h-8 w-24 text-right text-xs"
+              value={inline.value}
+              onChange={(e) => setInline({ donorId: target.donor.id, value: e.target.value })}
+              onKeyDown={(e) => e.key === "Enter" && submitExpected()}
+            />
+            <Button size="xs" variant="outline" onClick={submitExpected} disabled={saving}>
+              {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : "Save"}
+            </Button>
+          </div>
+        ) : (
+          <button
+            onClick={() => canManage && setInline({ donorId: target.donor.id, value: target.expectedAmount?.toString() ?? "" })}
+            className={cn(
+              "text-xs font-medium tabular-nums",
+              canManage ? "hover:text-primary cursor-pointer" : "cursor-default",
+            )}
+            title={canManage ? "Click to edit expected amount" : undefined}
+          >
+            {target.expectedAmount == null
+              ? "—"
+              : formatTZSCompact(target.expectedAmount)}
+          </button>
+        )}
+      </td>
+      <td className="px-3 py-3 text-right">
+        {target.paidAmount > 0 ? (
+          <span className="text-xs font-semibold text-emerald-600 tabular-nums">
+            {formatTZSCompact(target.paidAmount)}
+          </span>
+        ) : (
+          <span className="text-xs text-muted-foreground">—</span>
+        )}
+      </td>
+      <td className="px-3 py-3 hidden sm:table-cell">
+        <span
+          className={cn(
+            "text-[10px] font-medium border rounded-full px-2 py-0.5",
+            meta.className
+          )}
+        >
+          {meta.label}
+          {target.donationCount > 0 ? ` · ${target.donationCount} gift${target.donationCount > 1 ? "s" : ""}` : ""}
+        </span>
+      </td>
+      <td className="px-3 py-3 text-right">
+        {canManage && (
+          <DropdownMenu>
+            <DropdownMenuTrigger className="flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
+              <MoreHorizontal className="w-4 h-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuItem
+                onSelect={() => setInline({ donorId: target.donor.id, value: target.expectedAmount?.toString() ?? "" })}
+              >
+                <Target className="w-3.5 h-3.5 mr-1.5" />
+                Edit expected
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onSelect={() => onRemoveTarget(target.donor.id)}
+              >
+                <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                Remove from campaign
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </td>
+    </tr>
+  );
+}
+
+// ─── Donations tab ────────────────────────────────────────────────────────────
+
+function DonationsList({
+  donations,
+  campaignId,
+}: {
+  donations: CampaignRecord["donations"];
+  campaignId: string;
+}) {
+  const total = (donations ?? []).reduce((s, d) => s + d.amount, 0);
+  if (!donations || donations.length === 0) {
+    return (
+      <div className="bg-card border border-border rounded-xl py-16 text-center">
+        <Heart className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
+        <p className="text-sm text-muted-foreground">
+          No donations recorded for this campaign yet.
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
+      <div className="px-5 py-4 border-b border-border">
+        <h2 className="text-sm font-semibold text-foreground">All donations</h2>
+        <p className="text-[11px] text-muted-foreground mt-0.5">
+          Total {formatTZSFull(total)}
+        </p>
+      </div>
+      <div className="divide-y divide-border">
+        {donations.map((d) => (
+          <div key={d.id} className="flex items-center gap-3 px-5 py-3.5">
+            <div className="w-7 h-7 rounded-full bg-emerald-50 flex items-center justify-center shrink-0">
+              <Heart className="w-3.5 h-3.5 text-emerald-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-foreground truncate">
+                {d.donorName || "Anonymous"}
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                {d.method} · {new Date(d.createdAt).toLocaleDateString()}
+                {d.receiptNumber ? ` · ${d.receiptNumber}` : ""}
+              </p>
+            </div>
+            <div className="text-right shrink-0">
+              <p className="text-xs font-semibold text-foreground">
+                {formatTZSFull(d.amount)}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Team tab ─────────────────────────────────────────────────────────────────
+
+function TeamTab({
+  assignments,
+  onRefresh,
+}: {
+  assignments: CampaignRecord["assignments"];
+  onRefresh: () => void;
+}) {
+  if (!assignments || assignments.length === 0) {
+    return (
+      <div className="bg-card border border-border rounded-xl py-16 text-center">
+        <UserRound className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
+        <p className="text-sm text-muted-foreground">No team members assigned.</p>
+        <Button size="sm" className="mt-4" variant="outline" onClick={onRefresh}>
+          Refresh
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
+      <div className="px-5 py-4 border-b border-border">
+        <h2 className="text-sm font-semibold text-foreground">Team members</h2>
+      </div>
+      <div className="divide-y divide-border">
+        {assignments.map((a) => (
+          <div key={a.user.id} className="flex items-center gap-3 px-5 py-3.5">
+            <Avatar className="w-8 h-8 shrink-0">
+              <AvatarFallback className="text-[11px] bg-primary/10 text-primary font-semibold">
+                {`${a.user.firstName[0]}${(a.user.lastName || "?")[0]}`}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-foreground truncate">
+                {donorFullName(a.user)}
+              </p>
+              <p className="text-[11px] text-muted-foreground truncate">
+                {a.user.email}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Import Pool dialog ────────────────────────────────────────────────────────
+
+function ImportPoolDialog({
+  campaignId,
+  onClose,
+  onImported,
+}: {
+  campaignId: string;
+  onClose: () => void;
+  onImported: () => void;
+}) {
+  const [pools, setPools] = useState<DonorPool[]>([]);
+  const [poolIds, setPoolIds] = useState<number[]>([]);
+  const [preview, setPreview] = useState<PoolImportPreview | null>(null);
+  const [loadingPools, setLoadingPools] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const toggle = (id: number) =>
+    setPoolIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+
+  useEffect(() => {
+    setLoadingPools(true);
+    poolApi
+      .list({ limit: 100 })
+      .then((r) => setPools(r.pools.filter((p) => !p.isSystem)))
+      .catch(() => undefined)
+      .finally(() => setLoadingPools(false));
+  }, []);
+
+  const runPreview = async () => {
+    if (poolIds.length === 0) return;
+    setPreviewing(true);
+    setError(null);
+    try {
+      const p = await campaignApi.previewPools(campaignId, poolIds);
+      setPreview(p);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Preview failed.");
+    } finally {
+      setPreviewing(false);
+    }
+  };
+
+  const runImport = async () => {
+    setImporting(true);
+    setError(null);
+    try {
+      await campaignApi.importPools(campaignId, { poolIds });
+      onImported();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Import failed.");
+      setImporting(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-base font-semibold">Import donors into campaign</DialogTitle>
+          <DialogDescription className="text-xs">
+            Track donor-by-donor expected amounts and payment status for this
+            campaign. Donors already tracked are skipped.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label className="text-xs">Select pools to import</Label>
+            {loadingPools ? (
+              <div className="h-20 bg-muted/40 rounded-lg animate-pulse" />
+            ) : pools.length === 0 ? (
+              <p className="text-xs text-muted-foreground py-4 text-center border border-dashed border-border rounded-lg">
+                No custom donor pools available.
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto">
+                {pools.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => toggle(p.id)}
+                    className={cn(
+                      "flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs transition-colors",
+                      poolIds.includes(p.id)
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:bg-muted/40"
+                    )}
+                  >
+                    <input type="checkbox" checked={poolIds.includes(p.id)} readOnly className="accent-primary" />
+                    <span className="font-medium text-foreground truncate flex-1">{p.name}</span>
+                    <span className="text-[10px] text-muted-foreground">{p.memberCount}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={runPreview}
+            disabled={poolIds.length === 0 || previewing}
+          >
+            {previewing ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <Target className="w-3.5 h-3.5 mr-1" />}
+            Preview import
+          </Button>
+
+          {preview && (
+            <div className="rounded-lg border border-border divide-y divide-border">
+              <div className="px-4 py-3">
+                <p className="text-xs font-medium text-foreground">
+                  {preview.donors.length} donors to add
+                </p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  {preview.duplicateGroups.length} donor(s) appear in more than one
+                  pool — they will be merged (all pools kept).
+                </p>
+              </div>
+              <div className="max-h-48 overflow-y-auto px-4 py-2 divide-y divide-border">
+                {preview.donors.map((d) => (
+                  <div key={d.donorId} className="flex items-center justify-between py-2">
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-foreground truncate">
+                        {donorFullName(d)}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground truncate">
+                        {d.phone || d.email || "No contact"}
+                      </p>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground shrink-0 ml-2">
+                      will be tracked
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {error && (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+              {error}
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button size="sm" variant="outline" onClick={onClose} disabled={importing}>
+            Cancel
+          </Button>
+          <Button size="sm" onClick={runImport} disabled={poolIds.length === 0 || importing}>
+            {importing ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <Import className="w-3.5 h-3.5 mr-1" />}
+            Import {poolIds.length > 0 ? `(${poolIds.length} pool${poolIds.length > 1 ? "s" : ""})` : ""}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Reminder dialog ───────────────────────────────────────────────────────────
+
+function ReminderDialog({
+  campaignId,
+  campaignName,
+  donorIds,
+  donors,
+  onClose,
+  onSent,
+}: {
+  campaignId: string;
+  campaignName: string;
+  donorIds: number[];
+  donors: CampaignTargetsResponse["targets"][number]["donor"][];
+  onClose: () => void;
+  onSent: () => void;
+}) {
+  const [channel, setChannel] = useState<"SMS" | "WHATSAPP" | "EMAIL">("SMS");
+  const [subject, setSubject] = useState("");
+  const [message, setMessage] = useState("");
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [sent, setSent] = useState<{ recipientCount: number } | null>(null);
+
+  const ready =
+    donorIds.length > 0 &&
+    (channel === "SMS" || channel === "WHATSAPP"
+      ? message.trim().length >= 2
+      : subject.trim().length >= 2 && message.trim().length >= 2);
+
+  const send = async () => {
+    setSending(true);
+    setError(null);
+    try {
+      const r = await poolApi.sendReminder({
+        campaignId: Number(campaignId),
+        donorIds,
+        channel,
+        subject: channel === "EMAIL" ? subject : undefined,
+        message,
+      });
+      setSent({ recipientCount: r.batch.recipientCount });
+      onSent();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to send reminders.");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-base font-semibold">
+            Send reminder to {donorIds.length} donor{donorIds.length !== 1 ? "s" : ""}
+          </DialogTitle>
+          <DialogDescription className="text-xs">
+            We&apos;ll only message donors with consent and a working contact for the
+            chosen channel.
+          </DialogDescription>
+        </DialogHeader>
+
+        {sent ? (
+          <ReminderSent recipientCount={sent.recipientCount} onClose={onClose} />
+        ) : (
+          <div className="space-y-4">
+            <div className="max-h-32 overflow-y-auto rounded-lg border border-border divide-y divide-border">
+              {donors.map((d) => (
+                <div key={d.id} className="px-3 py-2 flex items-center justify-between">
+                  <span className="text-xs font-medium text-foreground truncate">
+                    {donorFullName(d)}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground shrink-0 ml-2">
+                    {d.phone || d.email || "no contact"}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs">Channel</Label>
+              <Select value={channel} onValueChange={(v) => setChannel((v ?? "SMS") as "SMS" | "WHATSAPP" | "EMAIL")}>
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="SMS">SMS</SelectItem>
+                  <SelectItem value="WHATSAPP">WhatsApp</SelectItem>
+                  <SelectItem value="EMAIL">Email</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {channel === "EMAIL" && (
+              <div className="space-y-1.5">
+                <Label className="text-xs">Subject</Label>
+                <Input
+                  className="h-9 text-sm"
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
+                  placeholder={`Reminder about ${campaignName}`}
+                />
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <Label className="text-xs">Message</Label>
+              <Textarea
+                rows={4}
+                className="text-sm resize-none"
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                placeholder="Friendly note prompting them to complete their pledge."
+              />
+            </div>
+
+            {error && (
+              <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+                {error}
+              </div>
+            )}
+
+            <DialogFooter>
+              <Button size="sm" variant="outline" onClick={onClose} disabled={sending}>
+                Cancel
+              </Button>
+              <Button size="sm" onClick={send} disabled={!ready || sending}>
+                {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <BellRing className="w-3.5 h-3.5 mr-1" />}
+                Send reminders
+              </Button>
+            </DialogFooter>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ReminderSent({
+  recipientCount,
+  onClose,
+}: {
+  recipientCount: number;
+  onClose: () => void;
+}) {
+  return (
+    <div className="py-6 text-center">
+      <div className="w-12 h-12 rounded-full bg-emerald-50 mx-auto flex items-center justify-center mb-3">
+        <Check className="w-6 h-6 text-emerald-600" />
+      </div>
+      <p className="text-sm font-semibold text-foreground">Reminders sent</p>
+      <p className="text-xs text-muted-foreground mt-1 mb-4">
+        {recipientCount} reminder{recipientCount !== 1 ? "s" : ""} queued for delivery.
+      </p>
+      <Button size="sm" onClick={onClose}>Done</Button>
     </div>
   );
 }

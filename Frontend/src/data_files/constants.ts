@@ -4,9 +4,9 @@ export const SITE = {
   title: 'Changia',
   tagline: 'Bringing people together to help people in need — with money and the things that matter.',
   description:
-    'Changia brings people together. We connect those who need help — whether it\'s a medical emergency, education, a family crisis, or a community need — with people who are willing to give. Through mobile-money contributions, donated items, and in-kind support, every Campaign turns goodwill into real help. Campaigns work through shareable links (SMS, WhatsApp, email, QR, social) or direct push payment requests from field managers to supporters who have already agreed to help. Donors never share their PIN with Changia — it is entered only in the secure gateway/mobile-money prompt. The platform is built for transparency: every Campaign shows a public target, real-time progress, and an itemized service fee, and every donation is confirmed only after a verified callback.',
+    'Help someone. Change a life. Changia brings people together to support those facing medical emergencies, family crises, education needs, and challenges in our communities. Through mobile-money contributions, donated items, and in-kind support, every campaign turns goodwill into real help. Campaigns work through shareable links (SMS, WhatsApp, email, QR, social) or direct push payment requests from field managers to supporters who have already agreed to help. Donors never share their PIN with Changia — it is entered only in the secure gateway/mobile-money prompt. The platform is built for transparency: every campaign shows a public target, real-time progress, and an itemized service fee, and every contribution is confirmed only after a verified callback.',
   description_short:
-    'Bringing people together to help people in need. Someone needs help today — you can be part of the answer.',
+    'Help someone. Change a life. Bringing people together to support what matters.',
   url: 'https://changia.org.tz',
   author: 'Changia Development Team',
 };
@@ -35,9 +35,9 @@ export const OG = {
   locale: 'en_US',
   type: 'website',
   url: 'https://changia.org.tz',
-  title: 'Changia | Bringing people together to help people in need',
+  title: 'Changia | Help Someone. Change a Life.',
   description:
-    'Someone needs help today. You can be part of the answer. Changia connects people who need help — medical, education, family, community — with people who are willing to give, in cash or in kind.',
+    'Help someone. Change a life. Changia brings people together to support medical emergencies, families, education, and community needs — with cash or in kind.',
   image: ogImageSrc,
 };
 

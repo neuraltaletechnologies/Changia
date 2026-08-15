@@ -20,7 +20,7 @@ import { partnersData } from '@/data_files/constants';
 export const metadata = {
   title: 'Changia',
   description:
-    'Changia ni jukwaa la kitanzania la ukusanyaji fedha wa kidijitali, linaloongozwa na All money transfer. Unda kampeni, shiriki kiungo na kusanya michango ya All money transfer kwa usumbufu kabisa.',
+    'Kuna mtu anahitaji msaada leo. Unaweza kuwa sehemu ya jibu. Changia inaleta watu pamoja — kuwaunganisha wanaohitaji msaada na wale walio tayari kusaidia, kwa fedha au kwa vitu.',
 };
 
 const avatarSrcs: string[] = [
@@ -37,13 +37,13 @@ export default function SwahiliHomePage() {
         btnId="dismiss-button"
         btnTitle="Chunguza jukwaa"
         url="/sw/campaigns"
-        title="Tunajenga jukwaa la kitanzania la ukusanyaji fedha, All money transfer kwanza."
+        title="Kuna mtu anahitaji msaada leo. Unaweza kuwa sehemu ya jibu."
       />
 
       <HeroSection
-        title='Kusanya michango yako yote bila <span class="text-yellow-500 dark:text-yellow-400">usumbufu kabisa</span>'
-        subTitle="Changia ni jukwaa la kitanzania la ukusanyaji fedha, All money transfer kwanza. Wamiliki wa kampeni huunda ukurasa wazi, hushiriki kiungo, na kubadilisha nia ya mfadhili ya kusaidia kuwa malipo yaliyofanyika."
-        primaryBtn="Anzisha kampeni"
+        title='Tunaleta watu pamoja kusaidia watu <span class="text-yellow-500 dark:text-yellow-400">wanahitaji msaada</span>'
+        subTitle="Changia inawaunganisha wanaohitaji msaada — iwe ni dharura ya matibabu, elimu, mgogoro wa kifamilia, au hitaji la jamii — na watu walio tayari kusaidia. Kwa fedha, kwa vitu, au zote mbili."
+        primaryBtn="Anzisha kampeni ya misaada"
         primaryBtnURL="/login?redirect=%2Fdashboard%2FCampaigns%2Fnew"
         secondaryBtn="Chunguza kampani"
         secondaryBtnURL="/sw/campaigns"
@@ -57,21 +57,21 @@ export default function SwahiliHomePage() {
       />
 
       <ClientsSection
-        title="Inafanya kazi na All money transfer ambayo wafadhili wako tayari wanaitumia"
-        subTitle="Wafadhili hutoa kutoka simu yoyote ya mkononi na kuthibitisha kwa PIN yao wenyewe kwenye ombi la lango wanaloliamini."
+        title="Unganisha watu wanaohitaji msaada na watu wanaotaka kusaidia"
+        subTitle="Kupitia pochi za mobile money wanazoziamini, wasaidizi hutoa wanachoweza. Waandaaji wa kampeni huratibu vitu vilivyotolewa na msaada wa aina nyingine pia — mahali pamoja, kwa sababu moja."
         partners={partnersData}
       />
 
       <FeaturesGeneral
-        title="Njia rahisi ya kutoa"
-        subTitle="Ukusanyaji wa fedha mara nyingi hupoteza wafadhili kati ya nia na malipo. Changia hupunguza usumbufu huo kwa kurasa wazi za kampeni, viungo vinavyoweza kushirikiwa na ombi la malipo la moja kwa moja."
+        title="Kila mchango — fedha au kitu — unaleta mabadiliko"
+        subTitle="Iwe ni bili ya matibabu, ada ya shule, au chakula na nguo kwa familia, Changia hurahisisha kusaidia. Waandaaji hushiriki ukurasa, wasaidizi hutoa kwa fedha au kuacha vitu vinavyohitajika — na maisha ya mtu yanabadilika."
         src={featureImage}
         alt="Dashibodi ya Changia kwenye kompyuta ya mkononi"
         features={features}
       />
 
       <FeaturesNavs
-        title={'Kampani tatu za Campaign za <span class="text-yellow-500 dark:text-yellow-400">Changia</span> hupeleka kampeni kutoka wazo hadi malipo yaliyofanyika.'}
+        title={'Moduli za <span class="text-yellow-500 dark:text-yellow-400">Changia</span> zinazogeuza nia njema kuwa msaada halisi.'}
         tabs={[
           {
             heading: 'Jukwaa la msingi na hifadhidata ya wafadhili',
@@ -85,16 +85,16 @@ export default function SwahiliHomePage() {
           {
             heading: 'Usambazaji wa viungo vya kampeni',
             content:
-              "Unda kampeni, weka kiasi kinachohitajika, tengeneza kiungo kifupi na msimbo wa QR, kisha sambaza SMS, WhatsApp au barua pepe zilizoidhinishwa kwa wafadhili au njia za umma.",
+              "Unda kampeni, weka kiasi kinachohitajika au orodhesha vitu unavyohitaji, tengeneza kiungo kifupi na msimbo wa QR, kisha sambaza SMS, WhatsApp au barua pepe zilizoidhinishwa kwa wafadhili au njia za umma.",
             svg: 'dashboard',
             src: dashboard,
             alt: 'Ukurasa wa kampeni ya Changia wenye upau wa maendeleo na chaguo za mchango',
             second: true,
           },
           {
-            heading: 'Mchango wa kusukuma wa papo hapo',
+            heading: 'Mchango wa fedha na wa vitu',
             content:
-              "Afisa wa kampeni aliyeidhinishwa na mfadhili hutuma ombi la malipo la moja kwa moja. Mfadhili huthibitisha kwa PIN yake na callback iliyothibitishwa inasasisha kampeni mara moja tu.",
+              "Wafadhili wanaweza kuchangia fedha kupitia ombi la malipo la moja kwa moja wanalolithibitisha kwa PIN yao — na wasimamizi wa kampeni wanaweza kufuatilia vitu, bidhaa na msaada wa aina nyingine, huku kila mchango uliothibitishwa ukisasisha kampeni mara moja tu.",
             svg: 'house',
             src: construction,
             alt: 'Mkusanyaji wa mbugani akithibitisha ombi la mchango kwenye simu',
@@ -103,8 +103,8 @@ export default function SwahiliHomePage() {
       />
 
       <TestimonialsSection
-        title="Kubadilisha nia ya kusaidia kuwa malipo yaliyofanyika"
-        subTitle="Kutoka redio, SMS na WhatsApp kwa kiwango kikubwa hadi ukusanyaji wa mbugani unaoendeshwa na maafisa, Changia huunganisha nia na mchango."
+        title="Hadithi halisi za watu kusaidia watu"
+        subTitle="Kutoka fedha za dharura za matibabu hadi misaada ya vifaa vya shule, Changia hugeuza nia njema kuwa msaada halisi — kuwaunganisha wanaohitaji na watu wanaojali."
         testimonials={[
           {
             content:
@@ -140,8 +140,8 @@ export default function SwahiliHomePage() {
       <FAQ title="Maswali yanayoulizwa<br />mara kwa mara" faqs={faqs} />
 
       <HeroSectionAlt
-        title="Tukusanye pamoja"
-        subTitle="Changia imeundwa kwa Tanzania: muhimu kwa shirika letu la kwanza leo, na inayoweza kubadilika kesho kwa hospitali, makanisa, shule, NGO, vikundi vya jamii na watu binafsi."
+        title="Kuna mtu anahitaji msaada leo. Unaweza kuwa sehemu ya jibu."
+        subTitle="Iwe ni dharura ya matibabu, elimu ya mtoto, mgogoro wa kifamilia, au jamii inayohitaji — Changia inakuunganisha na watu wanaojali. Anzisha Kampeni, shiriki kiungo, na tazama nia njema ikigeuka kuwa msaada halisi. Kwa fedha, kwa vitu, au zote mbili."
       />
     </>
   );

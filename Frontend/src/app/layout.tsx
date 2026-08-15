@@ -3,7 +3,7 @@ import '@/assets/styles/global.css';
 import { SITE } from '@/data_files/constants';
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://changia.co'),
+  metadataBase: new URL('https://changia.org.tz'),
   title: {
     default: SITE.title,
     template: `%s | ${SITE.title}`,
@@ -16,14 +16,14 @@ export const metadata: Metadata = {
     apple: '/icon.png',
   },
   openGraph: {
-    title: `${SITE.title}: Digital Fundraising &  All money transfer Contribution Platform`,
+    title: `${SITE.title}: Tanzania-first Fundraising Organization`,
     description: SITE.description,
     siteName: SITE.title,
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: `${SITE.title}: Digital Fundraising &  All money transfer Contribution Platform`,
+    title: `${SITE.title}: Tanzania-first Fundraising Organization`,
     description: SITE.description,
   },
 };

@@ -132,8 +132,8 @@ export default function ServicesPage() {
         mainStatSubTitle="minimum donation set on every Changia Campaign "
         stats={[
           { stat: '5%', description: 'Campaign -level service fee' },
-          { stat: '600,000', description: 'total TZS development for the campaigns' },
-          { stat: '3', description: 'independent, payable Campaigns' },
+          { stat: '99%', description: 'Campaigns, delivered and payable independently' },
+          { stat: '10+', description: 'independent, payable Campaigns' },
         ]}
       />
     </>

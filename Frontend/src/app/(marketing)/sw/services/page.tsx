@@ -133,7 +133,7 @@ export default function ServicesPage() {
         stats={[
           { stat: '5 %', description: 'ada ya huduma inayoweza kusanidiwa kwenye kiwango cha kampeni' },
           { stat: '600 000', description: 'jumla ya TZS za maendeleo ya Campaign katika kampani tatu' },
-          { stat: '3', description: 'kampani huru na za kulipwa za Campaign' },
+          { stat: '10+', description: 'Kampeni zilizoundwa kwa Meneja mmoja' },
         ]}
       />
     </>

@@ -20,7 +20,7 @@ import { partnersData } from '@/data_files/constants';
 export const metadata = {
   title: 'Changia',
   description:
-    'Changia is a Tanzania-first, fast campaign money digital fundraising platform. Create a Campaign , share a link, and collect mobile-money contributions with less friction.',
+    'Someone needs help today. You can be part of the answer. Changia brings people together — connecting those who need help with those who are willing to give, in cash or in kind.',
 };
 
 const avatarSrcs: string[] = [
@@ -37,13 +37,13 @@ export default function HomePage() {
         btnId="dismiss-button"
         btnTitle="Explore the Platform"
         url="/campaigns"
-        title="We're building a Tanzania-first, fast campaign money fundraising platform."
+        title="Someone needs help today. You can be part of the answer."
       />
 
       <HeroSection
-        title='Collect money contributions with <span class="text-yellow-500 dark:text-yellow-400">less friction</span>'
-        subTitle="Changia is a Tanzania-first, fast campaign money fundraising platform. Campaign  owners create a clear Campaign  page, share a link, and turn a donor's willingness to help into a completed payment."
-        primaryBtn="Start a Campaign "
+        title='Connect people<span class="text-yellow-500 dark:text-yellow-400"> in need</span> with those who want <span class="text-yellow-500 dark:text-yellow-400">to help</span>'
+        subTitle="Changia connects people who need help — whether it's a medical emergency, education, a family crisis, or a community need — with people who are willing to give. With money, with things, or both."
+        primaryBtn="Start a Fundraiser"
         primaryBtnURL="/login?redirect=%2Fdashboard%2FCampaigns%2Fnew"
         secondaryBtn="Explore the Campaigns"
         secondaryBtnURL="/campaigns"
@@ -57,21 +57,21 @@ export default function HomePage() {
       />
 
       <ClientsSection
-        title="Works with the All money transfer your donors already use"
-        subTitle="Donors give from any smartphone and confirm with their own PIN in the gateway prompt they trust."
+        title="Connect people who need help with people who want to give"
+        subTitle="Through mobile-money wallets they already trust, supporters give what they can. Campaign organizers coordinate donated items and in-kind help too — all in one place, all for one cause."
         partners={partnersData}
       />
 
       <FeaturesGeneral
-        title="A Simpler Way to Give"
-        subTitle="Fundraising often loses donors between intention and payment. Changia reduces that friction with clear Campaign  pages, shareable links and a direct payment request."
+        title="Every contribution — cash or kind — makes a difference"
+        subTitle="Whether it's a medical bill, school fees, or food and clothes for a family, Changia makes giving simple. Campaign organizers share a page, supporters give with money or drop off what's needed — and someone's life changes."
         src={featureImage}
         alt="The Changia dashboard on a laptop"
         features={features}
       />
 
       <FeaturesNavs
-        title='The  <span class="text-yellow-500 dark:text-yellow-400">Modules</span>  that take Campaigns from idea to completed payment.'
+        title='The  <span class="text-yellow-500 dark:text-yellow-400">Modules</span>  that turn goodwill into real help.'
         tabs={[
           {
             heading: 'Core Platform & Donor Pool',
@@ -85,16 +85,16 @@ export default function HomePage() {
           {
             heading: 'Campaign  Link Distribution',
             content:
-              'Create Campaigns, set a required amount, generate a short link and QR code, and distribute approved SMS, WhatsApp or email messages to the donor pool or public channels.',
+              'Create Campaigns, set a required amount or list the items you need, generate a short link and QR code, and distribute approved SMS, WhatsApp or email messages to the donor pool or public channels.',
             svg: 'dashboard',
             src: dashboard,
             alt: 'Changia Campaign  page with progress bar and donation options',
             second: true,
           },
           {
-            heading: 'Instant Push Donation',
+            heading: 'Cash & In-Kind Giving',
             content:
-              "A Campaign  manager who has obtained a donor's agreement sends a direct payment request. The donor confirms with their PIN and the verified callback updates the Campaign  exactly once.",
+              "Donors can contribute money through a direct payment request they confirm with their own PIN — and campaign managers can equally track donated items, goods and in-kind support, with every verified contribution updating the Campaign exactly once.",
             svg: 'house',
             src: construction,
             alt: 'A field fundraiser confirming a donation request on a phone',
@@ -103,8 +103,8 @@ export default function HomePage() {
       />
 
       <TestimonialsSection
-        title="Convert willingness into completed payments"
-        subTitle="From radio, SMS and WhatsApp at scale to face-to-face manager-led giving, Changia bridges the gap between intention and contribution."
+        title="Real stories of people helping people"
+        subTitle="From emergency medical funds to school supply drives, Changia turns goodwill into real help — connecting people who need it with people who care."
         testimonials={[
           {
             content:
@@ -128,8 +128,8 @@ export default function HomePage() {
       <FAQ title="Frequently<br />asked questions" faqs={faqs} />
 
       <HeroSectionAlt
-        title="Let's Raise Together"
-        subTitle="Changia is designed for Tanzania: useful for our first organization today, and adaptable to hospitals, churches, schools, NGOs, community groups and individuals tomorrow."
+        title="Someone needs help today. You can be part of the answer."
+        subTitle="Whether it's a medical emergency, a child's education, a family crisis, or a community in need — Changia connects you to people who care. Start a Campaign, share a link, and watch goodwill turn into real help. With money, with things, or both."
       />
     </>
   );

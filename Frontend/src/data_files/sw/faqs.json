@@ -1,29 +1,33 @@
 {
-  "subTitle": "Tuulize maswali yoyote kuhusu Changia na jinsi jukwaa linavyofanya kazi.",
+  "subTitle": "Maswali ya kawaida kuhusu Changia na jinsi tunavyowaleta watu pamoja kusaidiana.",
   "faqs": [
     {
       "question": "Changia ni nini?",
-      "answer": "Changia ni jukwaa la kitanzania la ukusanyaji fedha wa kidijitali linalosaidia watu na mashirika kukusanya michango midogo ya All money transfer kwa usumbufu kabisa. Linachanganya ukusanyaji wa kidijitali kwa wingi na ukusanyaji wa mbugani unaoendeshwa na maafisa, likiwapa wamiliki wa kampeni njia bora zaidi ya kubadilisha nia ya kusaidia kuwa malipo yaliyofanyika."
+      "answer": "Changia inaleta watu pamoja. Tunawaunganisha wanaohitaji msaada — iwe ni dharura ya matibabu, ada ya shule, mgogoro wa kifamilia, au hitaji la jamii — na watu walio tayari kusaidia. Sio fedha tu. Ni watu kusaidia watu, kwa chochote wanachoweza kutoa — fedha, chakula, nguo, dawa, au muda wao."
     },
     {
-      "question": "Huduma gani za All money transfer wafadhili wanaweza kutumia?",
-      "answer": "Wafadhili huchangia kupitia lango la All money transfer linalotumika na lililochaguliwa kwa kampeni — kwa mfano M-Pesa, Tigo Pesa, Airtel Money na HaloPesa. Wafadhili huthibitisha malipo kwa PIN yao wenyewe kwenye skrini ya idhini ya lango; Changia haioni wala haihifadhi PIN kamwe."
+      "question": "Mnasidia kwa fedha tu, au pia vitu?",
+      "answer": "Zote mbili. Changia imejengwa kwa ajili ya watu wanaotaka kusaidia kwa namna wanavyoweza. Wengine hutoa fedha kupitia mobile money. Wengine huacha chakula, nguo, vitabu, dawa, au vifaa. Waandaaji huorodhesha wanachohitaji, na wasaidizi wanaamua jinsi wanavyoweza kusaidia."
     },
     {
-      "question": "Changia inatozaje huduma yake?",
-      "answer": "Changia haikati ada kwenye kila mchango binafsi. Ada ya huduma inayoweza kusanidiwa (kwa mfano 5%) huongezwa kwenye kiasi kinachohitajika cha kampeni wakati wa kuiumba, hivyo kila mchango hukisiwa kwa thamani yake kamili na lengo la umma linajumuisha ada za jukwaa."
+      "question": "Watu hutoaje fedha?",
+      "answer": "Wasaidizi hufungua kiungo cha kampeni, wanachagua kiasi, na hulipa kupitia lango la mobile money (M-Pesa, Tigo Pesa, Airtel Money, HaloPesa). PIN inaingizwa tu kwenye skrini ya lango salama — Changia haioni wala kuhifadhi kamwe."
     },
     {
       "question": "Mchango wa kusukuma wa papo hapo ni nini?",
-      "answer": "Afisa wa kampeni ambaye amezungumza na mfadhili na kupata ridhaa yake anaingiza namba ya simu ya mfadhili na kiasi kilichokubaliwa, kisha anatuma ombi la malipo. Mfadhili anapokea ombi la lango na kuthibitisha kwa PIN yake. Hakuna mchango unaorekodiwa hadi callback iliyothibitishwa ithibitishe kufanikiwa."
+      "answer": "Kwa msaada wa ana kwa ana: afisa wa kampeni anazungumza na msaidizi anayekubali kusaidia, anaingiza namba ya simu na kiasi, kisha anatuma ombi la malipo. Msaidizi anathibitisha tu kwa PIN yake kwenye app ya mobile money. Rahisi, haraka, na salama."
     },
     {
-      "question": "Mchango uliothibitishwa unahesabiwa vipi?",
-      "answer": "Callback iliyothibitishwa pekee inaunda mchango uliothibitishwa. Majaribio ya malipo hutumia funguo za kipekee za idempotency ili tukio lilelile la lango lisihesabiwe mara mbili, na jumla za kampeni hutumia michango iliyothibitishwa pekee."
+      "question": "Ada ya huduma inafanyaje kazi?",
+      "answer": "Changia huongeza ada ya huduma juu ya lengo la kampeni yako — si kutoka kwa michango ya watu. Kwa mfano, Kampeni ya TZS 10,000,000 yenye ada ya 5% ina lengo la umma la TZS 10,500,000. Ukilifikia, unachukua 10,000,000 kamili — wasaidizi walitoa iliyobaki kulipa gharama za jukwaa, kwa uwazi."
     },
     {
-      "question": "Je, tunaweza kutuma ujumbe wa utangazaji kwa wafadhili?",
-      "answer": "Wafadhili walioidhinisha pekee wanaweza kupokea mawasiliano ya utangazaji. Maafisa hurekodi hali ya ridhaa na chaneli anayopendelea, na jukwaa hutoa usimamizi wa kujiondoa na kufutwa kwa kampeni za SMS, WhatsApp na barua pepe."
+      "question": "Mchango wangu unathibitishwa mara moja?",
+      "answer": "Kila mchango unathibitishwa tu baada ya callback iliyothibitishwa kutoka kwa lango la mobile money. Majaribio ya malipo hutumia funguo za kipekee za idempotency ili tukio lilelile la lango lisihesabiwe mara mbili."
+    },
+    {
+      "question": "Je, naweza kufuatilia wasaidizi na kutuma taarifa?",
+      "answer": "Ndiyo. Hifadhidata ya Wasaidizi (CRM) hukuruhusu kuwasiliana na kila mtu anayejali sababu yako — hali yao ya ridhaa, na historia ya misaada yao, ya fedha au ya vitu. Kila msaidizi anapokea risiti ya papo hapo na sasisho la maendeleo baada ya kusaidia."
     }
   ]
 }

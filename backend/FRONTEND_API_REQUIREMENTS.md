@@ -388,7 +388,7 @@ Public. Creates an organization and its first `ORG_ADMIN` (the "owner"), then re
 {
   "firstName": "Neema",
   "lastName": "Msuya",
-  "email": "neema@msuya.or.tz",
+  "email": "neema@msuya.org.tz",
   "phone": "+255755000111",
   "password": "StrongPass@2026",
   "confirmPassword": "StrongPass@2026",
@@ -404,7 +404,7 @@ Public. Creates an organization and its first `ORG_ADMIN` (the "owner"), then re
   "success": true,
   "data": {
     "accessToken": "<jwt>",
-    "user": { "id": "1", "firstName": "Neema", "lastName": "Msuya", "email": "neema@msuya.or.tz", "phone": "+255755000111", "role": "ORG_ADMIN", "status": "ACTIVE", "avatarUrl": null, "organizationId": "2" },
+    "user": { "id": "1", "firstName": "Neema", "lastName": "Msuya", "email": "neema@msuya.org.tz", "phone": "+255755000111", "role": "ORG_ADMIN", "status": "ACTIVE", "avatarUrl": null, "organizationId": "2" },
     "organization": { "id": "2", "name": "Dr. Msuya Foundation", "slug": "dr-msuya-foundation" }
   }
 }
@@ -419,7 +419,7 @@ Public. **Required by the frontend login page.**
 **Request body:**
 
 ```json
-{ "email": "neema@msuya.or.tz", "password": "StrongPass@2026" }
+{ "email": "neema@msuya.org.tz", "password": "StrongPass@2026" }
 ```
 
 **Response — `200 OK`:** same `data` shape as register (accessToken + user). `organization` may be omitted/`null` for a `SUPER_ADMIN`.
@@ -530,7 +530,7 @@ Authenticated (all roles). Org-scoped.
 {
   "success": true,
   "data": {
-    "users": [ { "id": "4", "firstName": "Peter", "lastName": "John", "name": "Peter John", "email": "peter@msuya.or.tz", "role": "CAMPAIGN_MANAGER", "status": "ACTIVE", "lastActive": "2026-01-03T10:00:00.000Z", "avatar": null } ],
+    "users": [ { "id": "4", "firstName": "Peter", "lastName": "John", "name": "Peter John", "email": "peter@msuya.org.tz", "role": "CAMPAIGN_MANAGER", "status": "ACTIVE", "lastActive": "2026-01-03T10:00:00.000Z", "avatar": null } ],
     "pagination": { "page": 1, "limit": 25, "total": 3, "totalPages": 1 }
   }
 }
@@ -543,7 +543,7 @@ Authenticated (SUPER_ADMIN, ORG_ADMIN). `CAMPAIGN_MANAGER` denied. This backs th
 **Request body:**
 
 ```json
-{ "firstName": "Peter", "lastName": "John", "email": "peter@msuya.or.tz", "phone": "+255755123999", "role": "CAMPAIGN_MANAGER" }
+{ "firstName": "Peter", "lastName": "John", "email": "peter@msuya.org.tz", "phone": "+255755123999", "role": "CAMPAIGN_MANAGER" }
 ```
 
 > **UI role label → API role mapping (the Team page offers these 4 choices):**
@@ -560,7 +560,7 @@ Authenticated (SUPER_ADMIN, ORG_ADMIN). `CAMPAIGN_MANAGER` denied. This backs th
 **Response — `201 Created`:** returns the new `ApiUser` plus `temporaryPassword` (shown once) or an `inviteUrl`.
 
 ```json
-{ "success": true, "data": { "user": { "...": "ApiUser", "status": "PENDING" }, "temporaryPassword": "Xk9!qW2z", "inviteUrl": "https://changia.co/accept-invite/TOKEN" } }
+{ "success": true, "data": { "user": { "...": "ApiUser", "status": "PENDING" }, "temporaryPassword": "Xk9!qW2z", "inviteUrl": "https://changia.org.tz/accept-invite/TOKEN" } }
 ```
 
 **Errors:** `409 EMAIL_TAKEN`, `400 VALIDATION_ERROR`.
@@ -663,7 +663,7 @@ Authenticated (all roles). Returns the full campaign object the detail page at `
       "endDate": "2026-06-30",
       "contactPhone": "+255755123999",
       "ownerName": "Neema Msuya",
-      "ownerEmail": "neema@msuya.or.tz",
+      "ownerEmail": "neema@msuya.org.tz",
       "image": "https://…/lab.jpg",
       "evidence": ["https://…/quote.pdf"],
       "memberIds": ["4", "6"],
@@ -1204,16 +1204,16 @@ Smoke-test the auth contract first — the rest of the app depends on it:
 ```bash
 curl -X POST http://localhost:5000/api/v1/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"admin@msuya.or.tz","password":"Changia@2026"}'
+  -d '{"email":"admin@msuya.org.tz","password":"Changia@2026"}'
 ```
 
 Then verify role gating with the demo accounts (password `Changia@2026`):
 
 | Role | Email |
 |------|-------|
-| Super admin (system) | `admin@changia.co` |
-| Org admin (admin) | `admin@msuya.or.tz` |
-| Campaign manager (manager) | `manager@msuya.or.tz` |
+| Super admin (system) | `admin@changia.org.tz` |
+| Org admin (admin) | `admin@msuya.org.tz` |
+| Campaign manager (manager) | `manager@msuya.org.tz` |
 
 ---
 

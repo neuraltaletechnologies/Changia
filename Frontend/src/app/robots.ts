@@ -23,6 +23,6 @@ export default function robots(): MetadataRoute.Robots {
         disallow: '/',
       },
     ],
-    sitemap: 'https://changia.co/sitemap.xml',
+    sitemap: 'https://changia.org.tz/sitemap.xml',
   };
 }

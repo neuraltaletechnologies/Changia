@@ -426,21 +426,71 @@ export const campaignApi = {
 
 // ─── Team members (used for the admin "per manager" filter) ──────────────────
 
+export type UserRole = "SUPER_ADMIN" | "ORG_ADMIN" | "CAMPAIGN_MANAGER";
+
 export interface TeamMemberRecord {
   id: number;
   firstName: string;
   lastName: string | null;
   email: string;
   phone: string | null;
-  role: "SUPER_ADMIN" | "ORG_ADMIN" | "CAMPAIGN_MANAGER";
-  status: string;
+  role: UserRole;
+  status: "ACTIVE" | "PENDING" | "INACTIVE";
+  lastLoginAt: string | null;
+  createdAt: string;
+  organizationId: number | null;
+  organizationName: string | null;
+}
+
+export interface UserListParams {
+  search?: string;
+  role?: string;
+  status?: string;
+  organizationId?: string | number;
+  sortBy?: "name" | "email" | "role" | "status" | "created" | "lastLogin";
+  sortDir?: "asc" | "desc";
+  page?: number;
+  limit?: number;
 }
 
 export const userApi = {
-  list: (params?: { role?: string; search?: string; page?: number; limit?: number }) =>
+  list: (params?: UserListParams) =>
     api
       .get<{ success: boolean; data: { users: TeamMemberRecord[]; pagination: unknown } }>(
         `/users${qs(params || {})}`
+      )
+      .then(unwrap),
+  create: (body: Record<string, unknown>) =>
+    api
+      .post<{
+        success: boolean;
+        data: { user: TeamMemberRecord; temporaryPassword: string };
+      }>(`/users`, body)
+      .then(unwrap),
+  update: (id: string | number, body: Record<string, unknown>) =>
+    api
+      .put<{ success: boolean; data: TeamMemberRecord }>(`/users/${id}`, body)
+      .then(unwrap),
+  remove: (id: string | number) =>
+    api.delete<{ success: boolean; message: string }>(`/users/${id}`),
+};
+
+// ─── Organizations (platform admin org picker / filter) ──────────────────────
+
+export interface OrganizationBrief {
+  id: number;
+  name: string;
+  slug: string;
+  status: string;
+  createdAt: string;
+  userCount: number;
+}
+
+export const organizationApi = {
+  listAll: () =>
+    api
+      .get<{ success: boolean; data: { organizations: OrganizationBrief[] } }>(
+        "/organizations/all"
       )
       .then(unwrap),
 };

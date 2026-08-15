@@ -2,6 +2,16 @@ const db = require("../../db");
 const { ApiError } = require("../../utils/ApiError");
 const { normalizePhone } = require("../../utils/phone");
 
+/** Lists every organization (platform admin use) with a member count. */
+async function listOrganizations() {
+  return db.query(
+    `SELECT o.id, o.name, o.slug, o.email, o.phone, o.status, o.created_at,
+            (SELECT COUNT(*) FROM users u WHERE u.organization_id = o.id) AS user_count
+     FROM organizations o
+     ORDER BY o.created_at DESC`
+  );
+}
+
 async function getOrganization(organizationId) {
   const orgs = await db.query(
     `SELECT id, name, slug, email, phone, address, description, logo_url, currency, status, created_at
@@ -78,4 +88,4 @@ async function getOrganizationStats(organizationId) {
   };
 }
 
-module.exports = { getOrganization, updateOrganization, getOrganizationStats };
+module.exports = { listOrganizations, getOrganization, updateOrganization, getOrganizationStats };

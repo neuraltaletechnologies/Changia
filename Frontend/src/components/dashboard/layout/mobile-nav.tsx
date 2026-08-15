@@ -6,7 +6,6 @@ import { cn } from "@/lib/dashboard/utils";
 import { useRole } from "@/hooks/use-role";
 import {
   LayoutDashboard,
-  Users,
   Megaphone,
   Settings,
   ClipboardList,
@@ -14,11 +13,12 @@ import {
   HeartHandshake,
   Building2,
   X,
+  Layers,
 } from "lucide-react";
 
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Donor Pool", href: "/dashboard/donors", icon: Users },
+  { label: "Donor Pools", href: "/dashboard/pools", icon: Layers },
   { label: "Campaigns", href: "/dashboard/campaigns", icon: Megaphone },
   { label: "Team", href: "/dashboard/team", icon: UserCog },
   { label: "Audit Log", href: "/dashboard/audit-log", icon: ClipboardList },

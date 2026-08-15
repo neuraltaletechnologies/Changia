@@ -108,7 +108,8 @@ export default function RegisterForm() {
           </Link>
         </p>
         <p className="mt-3 text-xs text-neutral-500 dark:text-neutral-500">
-          One account creates your organization and makes you its administrator.
+          Your account is created as a campaign manager. An administrator can
+          promote you to admin roles later.
         </p>
       </div>
 

@@ -48,16 +48,17 @@ router.delete(
   controller.removeDonorTarget
 );
 
-// Creation and management are org-admin/super-admin only
+// Creation is available to everyone in the org; a CM creates the campaign and
+// an admin approves it (submit/approve remain administrator-only).
 router.post(
   "/",
-  authorize("SUPER_ADMIN", "ORG_ADMIN"),
+  authorize("SUPER_ADMIN", "ORG_ADMIN", "CAMPAIGN_MANAGER"),
   validate({ body: createCampaignSchema }),
   controller.createCampaign
 );
 router.put(
   "/:id",
-  authorize("SUPER_ADMIN", "ORG_ADMIN"),
+  authorize("SUPER_ADMIN", "ORG_ADMIN", "CAMPAIGN_MANAGER"),
   validate({ body: updateCampaignSchema }),
   controller.updateCampaign
 );

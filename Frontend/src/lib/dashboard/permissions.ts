@@ -42,38 +42,30 @@ export interface RoleMeta {
 
 export const ROLE_META: Record<Role, RoleMeta> = {
   SUPER_ADMIN: {
-    label: "Super Administrator",
+    label: "Super Admin",
     shortLabel: "Super Admin",
-    tagline: "Platform overview — config, fees, gateways and audit.",
+    tagline: "Platform control, organisation setup and compliance.",
     scope:
-      "You have full platform access: configuration, fee & gateway settings, " +
-      "organisation setup, and support / audit access.",
+      "Full platform access: organisation setup, donor pools, campaign approvals, team management, payouts and audit logs.",
   },
   ORG_ADMIN: {
-    label: "Organization Administrator",
+    label: "Org Admin",
     shortLabel: "Org Admin",
-    tagline: "Run your campaigns, donor pool, team and payouts.",
+    tagline: "Campaigns, donors, teams and payouts for your organisation.",
     scope:
-      "You can create and approve campaigns, manage your team and donor pool, " +
-      "view reports, and request payouts.",
+      "Create and approve campaigns, manage donors and donor pools, manage your team and request payouts.",
   },
   CAMPAIGN_MANAGER: {
     label: "Campaign Manager",
     shortLabel: "Campaign Manager",
-    tagline: "Manage your assigned campaigns and their consented donors.",
+    tagline: "Run campaigns and manage your consented donors.",
     scope:
-      "You work only on your assigned campaigns: add consented donors and send " +
-      "approved push requests. Withdrawals and payouts are not available to your role.",
+      "Create campaigns, manage donor pools and add consented donors. Approvals, team management and payouts need an admin.",
   },
 };
 
-export function getRoleMeta(role: Role | undefined): RoleMeta {
-  return (role && ROLE_META[role]) || {
-    label: "Member",
-    shortLabel: "Member",
-    tagline: "Welcome.",
-    scope: "",
-  };
+export function getRoleMeta(role?: Role): RoleMeta {
+  return (role && ROLE_META[role]) || ROLE_META.CAMPAIGN_MANAGER;
 }
 
 // ─── Permissions ─────────────────────────────────────────────────────────────
@@ -125,6 +117,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   CAMPAIGN_MANAGER: [
     "dashboard:view",
     "campaign:view",
+    "campaign:create",
     "donor:view",
     "donor:add",
   ],
@@ -143,10 +136,13 @@ export function hasPermission(role: Role | undefined, perm: Permission): boolean
 export const ROUTE_ACCESS: Record<string, Role[]> = {
   "/dashboard": ALL_ROLES,
   "/dashboard/campaigns": ALL_ROLES,
-  "/dashboard/campaigns/new": [ROLE.SUPER_ADMIN, ROLE.ORG_ADMIN],
+  "/dashboard/campaigns/new": ALL_ROLES,
   "/dashboard/campaigns/approvals": [ROLE.SUPER_ADMIN, ROLE.ORG_ADMIN],
   "/dashboard/donors": ALL_ROLES,
   "/dashboard/donors/import": [ROLE.SUPER_ADMIN, ROLE.ORG_ADMIN],
+  "/dashboard/pools": ALL_ROLES,
+  "/dashboard/pools/new": ALL_ROLES,
+  "/dashboard/pools/anomalous": ALL_ROLES,
   "/dashboard/team": [ROLE.SUPER_ADMIN, ROLE.ORG_ADMIN],
   "/dashboard/audit-log": [ROLE.SUPER_ADMIN],
   "/dashboard/settings": [ROLE.SUPER_ADMIN, ROLE.ORG_ADMIN],

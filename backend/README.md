@@ -61,8 +61,8 @@ All use the password **`Changia@2026`**:
 | Role | Email |
 |------|-------|
 | Super admin | `admin@changia.org.tz` |
-| Org admin | `admin@msuya.org.tz` |
-| Campaign  manager | `manager@msuya.org.tz` |
+| Org admin | `admin@changia.org.tz` |
+| Campaign  manager | `manager@changia.org.tz` |
 
 > ⚠️ Change the `JWT_SECRET` in `config.js`/`.env` before any production use.
 

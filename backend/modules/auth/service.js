@@ -28,7 +28,9 @@ function serializeUser(user) {
 }
 
 /**
- * Registers a new organization together with its first Administrator.
+ * Registers a new organization together with its first member.
+ * Every registered user is created as a CAMPAIGN_MANAGER by default — an
+ * administrator (SUPER_ADMIN / ORG_ADMIN) later assigns other roles.
  * Both rows are created in one transaction — if either fails, nothing is saved.
  */
 async function registerOrganization(data) {
@@ -54,7 +56,7 @@ async function registerOrganization(data) {
 
     const userResult = await tx.execute(
       `INSERT INTO users (organization_id, first_name, last_name, email, phone, password_hash, role, status)
-       VALUES (?, ?, ?, ?, ?, ?, 'ORG_ADMIN', 'ACTIVE')`,
+       VALUES (?, ?, ?, ?, ?, ?, 'CAMPAIGN_MANAGER', 'ACTIVE')`,
       [
         organizationId,
         data.firstName,
@@ -77,7 +79,7 @@ async function registerOrganization(data) {
 
   const token = signAccessToken({
     sub: String(organization.userId),
-    role: "ORG_ADMIN",
+    role: "CAMPAIGN_MANAGER",
     orgId: String(organization.organizationId),
   });
 
@@ -89,7 +91,7 @@ async function registerOrganization(data) {
       lastName: data.lastName || null,
       email: data.email,
       phone: normalizePhone(data.phone),
-      role: "ORG_ADMIN",
+      role: "CAMPAIGN_MANAGER",
       status: "ACTIVE",
       avatarUrl: null,
       organizationId: organization.organizationId,

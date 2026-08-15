@@ -6,7 +6,6 @@ import { useState } from "react";
 import { cn } from "@/lib/dashboard/utils";
 import {
   LayoutDashboard,
-  Users,
   Megaphone,
   Settings,
   ChevronLeft,
@@ -16,6 +15,7 @@ import {
   Building2,
   HeartHandshake,
   ExternalLink,
+  Layers,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/dashboard/ui/tooltip";
 import { useRole } from "@/hooks/use-role";
@@ -30,9 +30,9 @@ const navItems = [
         icon: LayoutDashboard,
       },
       {
-        label: "Donor Pool",
-        href: "/dashboard/donors",
-        icon: Users,
+        label: "Donor Pools",
+        href: "/dashboard/pools",
+        icon: Layers,
       },
       {
         label: "Campaigns",

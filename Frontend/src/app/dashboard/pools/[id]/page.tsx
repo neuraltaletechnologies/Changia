@@ -231,12 +231,6 @@ export default function PoolDetailPage() {
             <p className="text-sm text-muted-foreground mt-1">
               {pool.description || "No description provided."}
             </p>
-            <p className="text-[11px] text-muted-foreground mt-2">
-              Owner:{" "}
-              <span className="text-foreground">
-                {pool.createdBy ? donorFullName(pool.createdBy) : "System"}
-              </span>
-            </p>
           </div>
           <div className="flex gap-2 shrink-0">
             {!pool.isSystem && (

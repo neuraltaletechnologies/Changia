@@ -187,5 +187,5 @@ pnpm turbo run dev --filter=changia      # run only the frontend
 pnpm turbo run dev --filter=changia-api  # run only the backend
 ```
 
-Visit `http://localhost:3000/login` and sign in with `admin@msuya.org.tz` / `Changia@2026`,
+Visit `http://localhost:3000/login` and sign in with `admin@changia.org.tz` / `Changia@2026`,
 or create a new organization at `http://localhost:3000/register`.

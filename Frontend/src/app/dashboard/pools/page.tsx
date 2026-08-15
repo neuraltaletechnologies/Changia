@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, Plus, Users, Wallet, Target, Search } from "lucide-react";
+import { AlertTriangle, Plus, Users, Wallet, Target, Search, UserPlus } from "lucide-react";
 import { Button } from "@/components/dashboard/ui/button";
 import { Input } from "@/components/dashboard/ui/input";
 import {
@@ -25,6 +25,7 @@ import {
   type TeamMemberRecord,
 } from "@/lib/dashboard/api";
 import { useRole } from "@/hooks/use-role";
+import { DonorsSection } from "@/components/dashboard/donors/donors-section";
 
 export default function PoolsPage() {
   const { isSuperAdmin, isOrgAdmin } = useRole();
@@ -79,7 +80,8 @@ export default function PoolsPage() {
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             {pools.length} pools &middot; {totalMembers} donors &middot;{" "}
-            {formatTZSCompact(totalPaid)} collected
+            {formatTZSCompact(totalPaid)} collected &mdash; manage your segments
+            and the donors within them
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -255,6 +257,18 @@ export default function PoolsPage() {
           })}
         </div>
       )}
+
+      {/* Donors within the pools */}
+      <div className="flex items-center gap-3 pt-1">
+        <div className="flex items-center gap-2">
+          <UserPlus className="w-4 h-4 text-muted-foreground" />
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            Donors inside your pools
+          </span>
+        </div>
+        <div className="flex-1 h-px bg-border" />
+      </div>
+      <DonorsSection />
     </div>
   );
 }

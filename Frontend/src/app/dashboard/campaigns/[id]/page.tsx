@@ -56,6 +56,7 @@ import {
 import {
   campaignApi,
   poolApi,
+  templateApi,
   donorFullName,
   formatTZSFull,
   formatTZSCompact,
@@ -65,6 +66,8 @@ import {
   type CampaignTarget,
   type PoolImportPreview,
   type DonorPool,
+  type MessageTemplate,
+  type ReminderChannel,
 } from "@/lib/dashboard/api";
 import { useRole } from "@/hooks/use-role";
 import { cn } from "@/lib/dashboard/utils";
@@ -848,6 +851,7 @@ function ImportPoolDialog({
   const [pools, setPools] = useState<DonorPool[]>([]);
   const [poolIds, setPoolIds] = useState<number[]>([]);
   const [preview, setPreview] = useState<PoolImportPreview | null>(null);
+  const [duplicateChoices, setDuplicateChoices] = useState<Record<number, number>>({});
   const [loadingPools, setLoadingPools] = useState(false);
   const [previewing, setPreviewing] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -874,6 +878,11 @@ function ImportPoolDialog({
     try {
       const p = await campaignApi.previewPools(campaignId, poolIds);
       setPreview(p);
+      const defaults: Record<number, number> = {};
+      p.duplicateGroups.forEach((g) => {
+        defaults[g.donorId] = g.pools[0]?.id;
+      });
+      setDuplicateChoices(defaults);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Preview failed.");
     } finally {
@@ -885,7 +894,14 @@ function ImportPoolDialog({
     setImporting(true);
     setError(null);
     try {
-      await campaignApi.importPools(campaignId, { poolIds });
+      const choices = Object.entries(duplicateChoices).map(([donorId, poolId]) => ({
+        donorId: Number(donorId),
+        poolId,
+      }));
+      await campaignApi.importPools(campaignId, {
+        poolIds,
+        duplicateChoices: choices.length > 0 ? choices : undefined,
+      });
       onImported();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Import failed.");
@@ -952,10 +968,12 @@ function ImportPoolDialog({
                 <p className="text-xs font-medium text-foreground">
                   {preview.donors.length} donors to add
                 </p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  {preview.duplicateGroups.length} donor(s) appear in more than one
-                  pool — they will be merged (all pools kept).
-                </p>
+                {preview.duplicateGroups.length > 0 && (
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    {preview.duplicateGroups.length} donor(s) appear in more than one
+                    selected pool — choose which pool each should stay in below.
+                  </p>
+                )}
               </div>
               <div className="max-h-48 overflow-y-auto px-4 py-2 divide-y divide-border">
                 {preview.donors.map((d) => (
@@ -974,6 +992,41 @@ function ImportPoolDialog({
                   </div>
                 ))}
               </div>
+
+              {preview.duplicateGroups.length > 0 && (
+                <div className="px-4 py-3 space-y-3 bg-amber-50/50">
+                  <p className="text-[11px] font-semibold text-amber-800 uppercase tracking-wide">
+                    Resolve duplicates
+                  </p>
+                  {preview.duplicateGroups.map((g) => {
+                    const donor = preview.donors.find((d) => d.donorId === g.donorId);
+                    return (
+                      <div key={g.donorId} className="space-y-1">
+                        <p className="text-xs font-medium text-foreground">
+                          {donor ? donorFullName(donor) : `Donor #${g.donorId}`}
+                        </p>
+                        <Select
+                          value={String(duplicateChoices[g.donorId] ?? "")}
+                          onValueChange={(v) =>
+                            setDuplicateChoices((prev) => ({ ...prev, [g.donorId]: Number(v) }))
+                          }
+                        >
+                          <SelectTrigger className="h-8 w-full text-xs">
+                            <SelectValue placeholder="Choose pool to keep" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {g.pools.map((p) => (
+                              <SelectItem key={p.id} value={String(p.id)}>
+                                {p.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 
@@ -1015,12 +1068,31 @@ function ReminderDialog({
   onClose: () => void;
   onSent: () => void;
 }) {
-  const [channel, setChannel] = useState<"SMS" | "WHATSAPP" | "EMAIL">("SMS");
+  const [channel, setChannel] = useState<ReminderChannel>("SMS");
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
+  const [templates, setTemplates] = useState<MessageTemplate[]>([]);
+  const [templateId, setTemplateId] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState<{ recipientCount: number } | null>(null);
+
+  useEffect(() => {
+    setTemplateId("");
+    templateApi
+      .list({ channel, limit: 100 })
+      .then((r) => setTemplates(r.templates))
+      .catch(() => setTemplates([]));
+  }, [channel]);
+
+  const applyTemplate = (id: string) => {
+    setTemplateId(id);
+    const tpl = templates.find((t) => String(t.id) === id);
+    if (tpl) {
+      setMessage(tpl.body);
+      if (tpl.subject) setSubject(tpl.subject);
+    }
+  };
 
   const ready =
     donorIds.length > 0 &&
@@ -1080,7 +1152,7 @@ function ReminderDialog({
 
             <div className="space-y-1.5">
               <Label className="text-xs">Channel</Label>
-              <Select value={channel} onValueChange={(v) => setChannel((v ?? "SMS") as "SMS" | "WHATSAPP" | "EMAIL")}>
+              <Select value={channel} onValueChange={(v) => setChannel((v ?? "SMS") as ReminderChannel)}>
                 <SelectTrigger className="h-9 text-sm">
                   <SelectValue />
                 </SelectTrigger>
@@ -1091,6 +1163,24 @@ function ReminderDialog({
                 </SelectContent>
               </Select>
             </div>
+
+            {templates.length > 0 && (
+              <div className="space-y-1.5">
+                <Label className="text-xs">Use a saved template (optional)</Label>
+                <Select value={templateId} onValueChange={(v) => applyTemplate(v ?? "")}>
+                  <SelectTrigger className="h-9 text-sm">
+                    <SelectValue placeholder="Write my own message" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {templates.map((t) => (
+                      <SelectItem key={t.id} value={String(t.id)}>
+                        {t.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             {channel === "EMAIL" && (
               <div className="space-y-1.5">

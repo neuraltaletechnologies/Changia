@@ -118,7 +118,7 @@ export default function RegisterModal() {
                 <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
                   {config.subTitle}{' '}
                   <button
-                    className="rounded-lg p-1 font-medium text-blue-600 decoration-2 ring-zinc-500 outline-hidden hover:underline focus-visible:ring-3 dark:text-blue-400 dark:ring-zinc-200 dark:focus:outline-hidden"
+                    className="rounded-lg p-1 font-medium text-emerald-600 decoration-2 ring-zinc-500 outline-hidden hover:underline focus-visible:ring-3 dark:text-emerald-400 dark:ring-zinc-200 dark:focus:outline-hidden"
                     data-hs-overlay={config.loginBtnDataHS}
                   >
                     {config.loginBtn}
@@ -239,7 +239,7 @@ export default function RegisterModal() {
                       onChange={setTermsAccepted}
                     >
                       <a
-                        className="font-medium text-blue-600 decoration-2 hover:underline dark:text-blue-400 dark:focus:outline-hidden"
+                        className="font-medium text-emerald-600 decoration-2 hover:underline dark:text-emerald-400 dark:focus:outline-hidden"
                         href="/terms"
                         target="_blank"
                       >

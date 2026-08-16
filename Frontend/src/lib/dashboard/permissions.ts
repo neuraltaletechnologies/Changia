@@ -83,7 +83,8 @@ export type Permission =
   | "settings:platform" // platform config, fees, gateways
   | "settings:org" // organisation preferences
   | "payout:request"
-  | "reports:view";
+  | "reports:view"
+  | "reminder:manage"; // templates, auto-resend schedules, pending approvals
 
 export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   SUPER_ADMIN: [
@@ -100,6 +101,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "settings:org",
     "payout:request",
     "reports:view",
+    "reminder:manage",
   ],
   ORG_ADMIN: [
     "dashboard:view",
@@ -113,6 +115,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "settings:org",
     "payout:request",
     "reports:view",
+    "reminder:manage",
   ],
   CAMPAIGN_MANAGER: [
     "dashboard:view",
@@ -120,6 +123,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "campaign:create",
     "donor:view",
     "donor:add",
+    "reminder:manage",
   ],
 };
 
@@ -143,9 +147,12 @@ export const ROUTE_ACCESS: Record<string, Role[]> = {
   "/dashboard/pools": ALL_ROLES,
   "/dashboard/pools/new": ALL_ROLES,
   "/dashboard/pools/anomalous": ALL_ROLES,
+  "/dashboard/reminders": ALL_ROLES,
+  "/dashboard/reminders/templates": ALL_ROLES,
+  "/dashboard/reminders/schedules": ALL_ROLES,
   "/dashboard/user": [ROLE.SUPER_ADMIN, ROLE.ORG_ADMIN],
   "/dashboard/audit-log": [ROLE.SUPER_ADMIN],
-  "/dashboard/settings": [ROLE.SUPER_ADMIN, ROLE.ORG_ADMIN],
+  "/dashboard/settings": ALL_ROLES,
   "/dashboard/payouts": [ROLE.SUPER_ADMIN, ROLE.ORG_ADMIN],
 };
 

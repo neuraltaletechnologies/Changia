@@ -42,7 +42,7 @@ export default function HomePage() {
       />
 
       <HeroSection
-        title='Connect people<span class="text-blue-600 dark:text-blue-400"> in need</span> with those who want <span class="text-emerald-600 dark:text-emerald-400">to help</span>'
+        title='Connect people<span class="text-emerald-600 dark:text-emerald-400"> in need</span> with those who want <span class="text-blue-600 dark:text-blue-400">to help</span>'
         subTitle="Changia connects people who need help — whether it's a medical emergency, education, a family crisis, or a community need — with people who are willing to give. With money, with things, or both."
         primaryBtn="Start a Fundraiser"
         primaryBtnURL="/login?redirect=%2Fdashboard%2FCampaigns%2Fnew"
@@ -72,7 +72,7 @@ export default function HomePage() {
       />
 
       <FeaturesNavs
-        title='The  <span class="text-blue-600 dark:text-blue-400">Modules</span>  that turn goodwill into real help.'
+        title='The  <span class="text-emerald-600 dark:text-emerald-400">Modules</span>  that turn goodwill into real help.'
         tabs={[
           {
             heading: 'Core Platform & Donor Pool',

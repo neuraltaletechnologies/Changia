@@ -205,6 +205,54 @@ export interface ReminderResponse {
   }[];
 }
 
+// ─── Message templates & auto-resend schedules ────────────────────────────────
+
+export type ReminderChannel = "SMS" | "WHATSAPP" | "EMAIL";
+
+export interface MessageTemplate {
+  id: number;
+  name: string;
+  channel: ReminderChannel;
+  subject: string | null;
+  body: string;
+  createdBy: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReminderSchedule {
+  id: number;
+  name: string;
+  scope: "POOL" | "CAMPAIGN";
+  poolId: number | null;
+  campaignId: number | null;
+  intervalDays: number;
+  channels: ReminderChannel[];
+  templateIdSms: number | null;
+  templateIdWhatsapp: number | null;
+  templateIdEmail: number | null;
+  isActive: boolean;
+  nextRunAt: string;
+  lastRunAt: string | null;
+  createdBy: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PendingReminderBatch {
+  id: number;
+  scheduleId: number;
+  scheduleName: string;
+  scope: "POOL" | "CAMPAIGN";
+  pool: { id: number; name: string } | null;
+  campaign: { id: number; name: string } | null;
+  channels: ReminderChannel[];
+  status: "PENDING_APPROVAL" | "CONFIRMED" | "SKIPPED" | "EXPIRED";
+  donorCount: number;
+  generatedAt: string;
+  resolvedAt: string | null;
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function qs(params: object): string {
@@ -336,8 +384,12 @@ export const poolApi = {
         choices,
       })
       .then(unwrap),
-  anomalous: () =>
-    api.get<{ success: boolean; data: DonorPool }>(`/donor-pools/anomalous`).then(unwrap),
+  anomalous: (managerId?: string | number) =>
+    api
+      .get<{ success: boolean; data: DonorPool }>(
+        `/donor-pools/anomalous${managerId ? `?managerId=${managerId}` : ""}`
+      )
+      .then(unwrap),
   mergeAnomalous: (
     anomalousDonorId: string | number,
     body: {
@@ -359,6 +411,68 @@ export const poolApi = {
     message: string;
   }) =>
     api.post<{ success: boolean; data: ReminderResponse }>(`/donor-pools/reminders/send`, body).then(unwrap),
+};
+
+// ─── Message templates ───────────────────────────────────────────────────────
+
+export const templateApi = {
+  list: (params?: { channel?: ReminderChannel | ""; search?: string; page?: number; limit?: number }) =>
+    api
+      .get<{ success: boolean; data: { templates: MessageTemplate[]; pagination: unknown } }>(
+        `/reminder-templates${qs(params || {})}`
+      )
+      .then(unwrap),
+  create: (body: { name: string; channel: ReminderChannel; subject?: string; body: string }) =>
+    api.post<{ success: boolean; data: MessageTemplate }>(`/reminder-templates`, body).then(unwrap),
+  update: (id: string | number, body: Record<string, unknown>) =>
+    api
+      .put<{ success: boolean; data: MessageTemplate }>(`/reminder-templates/${id}`, body)
+      .then(unwrap),
+  remove: (id: string | number) =>
+    api.delete<{ success: boolean; message: string }>(`/reminder-templates/${id}`),
+};
+
+// ─── Reminder auto-resend schedules ────────────────────────────────────────────
+
+export const reminderScheduleApi = {
+  list: (params?: { scope?: "POOL" | "CAMPAIGN" | ""; page?: number; limit?: number }) =>
+    api
+      .get<{ success: boolean; data: { schedules: ReminderSchedule[]; pagination: unknown } }>(
+        `/reminder-schedules${qs(params || {})}`
+      )
+      .then(unwrap),
+  create: (body: {
+    name: string;
+    scope: "POOL" | "CAMPAIGN";
+    poolId?: number;
+    campaignId?: number;
+    intervalDays: number;
+    channels: ReminderChannel[];
+    templateIdSms?: number;
+    templateIdWhatsapp?: number;
+    templateIdEmail?: number;
+    isActive?: boolean;
+  }) => api.post<{ success: boolean; data: ReminderSchedule }>(`/reminder-schedules`, body).then(unwrap),
+  update: (id: string | number, body: Record<string, unknown>) =>
+    api
+      .put<{ success: boolean; data: ReminderSchedule }>(`/reminder-schedules/${id}`, body)
+      .then(unwrap),
+  remove: (id: string | number) =>
+    api.delete<{ success: boolean; message: string }>(`/reminder-schedules/${id}`),
+  pending: () =>
+    api
+      .get<{ success: boolean; data: { pending: PendingReminderBatch[] } }>(`/reminder-schedules/pending`)
+      .then(unwrap),
+  confirmPending: (id: string | number) =>
+    api
+      .post<{ success: boolean; data: { confirmed: boolean; deliveries: unknown[] } }>(
+        `/reminder-schedules/pending/${id}/confirm`
+      )
+      .then(unwrap),
+  skipPending: (id: string | number) =>
+    api
+      .post<{ success: boolean; data: { skipped: boolean } }>(`/reminder-schedules/pending/${id}/skip`)
+      .then(unwrap),
 };
 
 // ─── Campaigns ───────────────────────────────────────────────────────────────

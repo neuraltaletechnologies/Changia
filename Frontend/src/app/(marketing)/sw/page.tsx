@@ -41,7 +41,7 @@ export default function SwahiliHomePage() {
       />
 
       <HeroSection
-        title='Tunaleta watu pamoja kusaidia watu <span class="text-blue-600 dark:text-blue-400">wanahitaji msaada</span>'
+        title='Tunaleta watu pamoja kusaidia watu <span class="text-emerald-600 dark:text-emerald-400">wanahitaji msaada</span>'
         subTitle="Changia inawaunganisha wanaohitaji msaada — iwe ni dharura ya matibabu, elimu, mgogoro wa kifamilia, au hitaji la jamii — na watu walio tayari kusaidia. Kwa fedha, kwa vitu, au zote mbili."
         primaryBtn="Anzisha kampeni ya misaada"
         primaryBtnURL="/login?redirect=%2Fdashboard%2FCampaigns%2Fnew"
@@ -71,7 +71,7 @@ export default function SwahiliHomePage() {
       />
 
       <FeaturesNavs
-        title={'Moduli za <span class="text-blue-600 dark:text-blue-400">Changia</span> zinazogeuza nia njema kuwa msaada halisi.'}
+        title={'Moduli za <span class="text-emerald-600 dark:text-emerald-400">Changia</span> zinazogeuza nia njema kuwa msaada halisi.'}
         tabs={[
           {
             heading: 'Jukwaa la msingi na hifadhidata ya wafadhili',

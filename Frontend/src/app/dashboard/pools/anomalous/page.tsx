@@ -24,31 +24,52 @@ import {
 import {
   poolApi,
   donorApi,
+  userApi,
   donorFullName,
   formatTZSFull,
   type DonorPool,
   type PoolMember,
   type PaymentMethodType,
   type DonorRecord,
+  type UserRecord,
 } from "@/lib/dashboard/api";
+import { useRole } from "@/hooks/use-role";
 import { cn } from "@/lib/dashboard/utils";
 
 export default function AnomalousPoolPage() {
+  const { isSuperAdmin, isOrgAdmin } = useRole();
+  const isAdmin = isSuperAdmin || isOrgAdmin;
+
   const [pool, setPool] = useState<DonorPool | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mergeTarget, setMergeTarget] = useState<PoolMember["donor"] | null>(null);
 
+  // Admin-only: pick whose anomalous pool to view. Empty = the org-wide
+  // "Unassigned" fallback pool (unmatched payments on campaigns with no
+  // assigned manager). Campaign managers only ever see their own.
+  const [managers, setManagers] = useState<UserRecord[]>([]);
+  const [managerId, setManagerId] = useState<string>("");
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    userApi
+      .list({ role: "CAMPAIGN_MANAGER", limit: 100 })
+      .then((r) => setManagers(r.users))
+      .catch(() => undefined);
+  }, [isAdmin]);
+
   const refresh = useCallback(async () => {
     try {
       setError(null);
-      setPool(await poolApi.anomalous());
+      setLoading(true);
+      setPool(await poolApi.anomalous(isAdmin ? managerId || undefined : undefined));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load anomalous pool.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isAdmin, managerId]);
 
   useEffect(() => {
     refresh();
@@ -80,10 +101,32 @@ export default function AnomalousPoolPage() {
             Donations received without a registered donor profile (for example a
             donor who paid using a payment method you had not captured) are kept
             here. Re-attach each one to a known donor so their payments count
-            under the right profile.
+            under the right profile. Each manager only sees unmatched
+            payments from their own campaigns.
           </p>
         </div>
       </div>
+
+      {isAdmin && (
+        <div className="flex items-center gap-2 text-sm">
+          <Label className="text-xs text-muted-foreground whitespace-nowrap">
+            Viewing pool for
+          </Label>
+          <Select value={managerId} onValueChange={(v) => setManagerId(v ?? "")}>
+            <SelectTrigger className="h-9 w-64 text-xs">
+              <SelectValue placeholder="Unassigned (org-wide fallback)" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Unassigned (org-wide fallback)</SelectItem>
+              {managers.map((m) => (
+                <SelectItem key={m.id} value={String(m.id)}>
+                  {donorFullName(m)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       {error && (
         <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">

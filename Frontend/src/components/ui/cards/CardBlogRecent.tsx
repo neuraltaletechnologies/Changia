@@ -36,7 +36,7 @@ export default function CardBlogRecent({
       <div className="sm:order-1">
         <h2 className="text-2xl font-bold tracking-tight text-balance text-neutral-800 md:text-3xl lg:text-4xl lg:leading-tight xl:text-5xl xl:leading-tight dark:text-neutral-200">
           <Link
-            className="ring-zinc-500 outline-hidden transition duration-300 hover:text-blue-600 focus-visible:ring-3 dark:text-neutral-300 dark:ring-zinc-200 dark:hover:text-neutral-50 dark:focus:outline-hidden"
+            className="ring-zinc-500 outline-hidden transition duration-300 hover:text-emerald-600 focus-visible:ring-3 dark:text-neutral-300 dark:ring-zinc-200 dark:hover:text-neutral-50 dark:focus:outline-hidden"
             href={href}
           >
             {blogEntry.data.description}

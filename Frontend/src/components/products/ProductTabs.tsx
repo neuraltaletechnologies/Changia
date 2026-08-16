@@ -32,7 +32,7 @@ export default function CampaignTabs({ campaign }: { campaign: CampaignData }) {
               <span
                 className={`block text-center font-bold ${
                   isActive
-                    ? 'text-blue-600 dark:text-blue-400'
+                    ? 'text-emerald-600 dark:text-emerald-400'
                     : 'text-neutral-800 dark:text-neutral-200'
                 }`}
               >

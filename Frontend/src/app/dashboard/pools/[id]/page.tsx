@@ -48,6 +48,7 @@ import {
   poolApi,
   campaignApi,
   donorApi,
+  templateApi,
   donorFullName,
   formatTZSFull,
   formatTZSCompact,
@@ -58,6 +59,7 @@ import {
   type Gender,
   type DonorRecord,
   type CampaignRecord,
+  type MessageTemplate,
 } from "@/lib/dashboard/api";
 import { cn } from "@/lib/dashboard/utils";
 
@@ -873,9 +875,28 @@ function ReminderDialog({
   const [channel, setChannel] = useState<ReminderChannel>("WHATSAPP");
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
+  const [templates, setTemplates] = useState<MessageTemplate[]>([]);
+  const [templateId, setTemplateId] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    setTemplateId("");
+    templateApi
+      .list({ channel, limit: 100 })
+      .then((r) => setTemplates(r.templates))
+      .catch(() => setTemplates([]));
+  }, [channel]);
+
+  const applyTemplate = (id: string) => {
+    setTemplateId(id);
+    const tpl = templates.find((t) => String(t.id) === id);
+    if (tpl) {
+      setMessage(tpl.body);
+      if (tpl.subject) setSubject(tpl.subject);
+    }
+  };
 
   const submit = async () => {
     if (!message.trim()) {
@@ -957,6 +978,24 @@ function ReminderDialog({
                 </SelectContent>
               </Select>
             </div>
+
+            {templates.length > 0 && (
+              <div className="grid gap-1.5">
+                <Label className="text-xs">Use a saved template (optional)</Label>
+                <Select value={templateId} onValueChange={(v) => applyTemplate(v ?? "")}>
+                  <SelectTrigger className="h-9 text-sm">
+                    <SelectValue placeholder="Write my own message" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {templates.map((t) => (
+                      <SelectItem key={t.id} value={String(t.id)}>
+                        {t.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             {channel === "EMAIL" && (
               <div className="grid gap-1.5">

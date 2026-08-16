@@ -32,7 +32,7 @@ export default function CardRelated({
           height={360}
           draggable={false}
         />
-        <h3 className="mt-2 text-lg font-medium text-balance text-neutral-800 group-hover:text-blue-600 dark:text-neutral-300 dark:group-hover:text-neutral-50">
+        <h3 className="mt-2 text-lg font-medium text-balance text-neutral-800 group-hover:text-emerald-600 dark:text-neutral-300 dark:group-hover:text-neutral-50">
           {blogEntry.data.title}
         </h3>
         <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">

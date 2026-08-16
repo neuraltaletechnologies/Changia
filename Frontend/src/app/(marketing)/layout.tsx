@@ -9,7 +9,7 @@ export default function MarketingLayout({
 }) {
   return (
     <SiteProvider>
-      <div className="flex min-h-screen flex-col bg-neutral-200 selection:bg-blue-200 selection:text-blue-900 dark:bg-neutral-800">
+      <div className="flex min-h-screen flex-col bg-neutral-200 selection:bg-emerald-200 selection:text-emerald-900 dark:bg-neutral-800">
         <div className="mx-auto w-full max-w-(--breakpoint-2xl) grow px-4 sm:px-6 lg:px-8">
           <Navbar />
           <main>{children}</main>

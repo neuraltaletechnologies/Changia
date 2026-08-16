@@ -73,7 +73,7 @@ export default function InsightReader({ body }: { body: string }) {
     a: ({ href, children }) => (
       <a
         href={href}
-        className="font-medium text-blue-600 underline dark:text-blue-400"
+        className="font-medium text-emerald-600 underline dark:text-emerald-400"
       >
         {children}
       </a>

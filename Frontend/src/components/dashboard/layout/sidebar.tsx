@@ -16,9 +16,11 @@ import {
   HeartHandshake,
   ExternalLink,
   Layers,
+  BellRing,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/dashboard/ui/tooltip";
 import { useRole } from "@/hooks/use-role";
+import { usePendingReminderCount } from "@/hooks/use-pending-reminders";
 
 const navItems = [
   {
@@ -39,7 +41,12 @@ const navItems = [
         href: "/dashboard/pools",
         icon: Layers,
       },
-     
+      {
+        label: "Reminders",
+        href: "/dashboard/reminders",
+        icon: BellRing,
+      },
+
     ],
   },
   {
@@ -72,6 +79,7 @@ interface SidebarProps {
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
   const { canAccessRoute, meta } = useRole();
+  const pendingReminders = usePendingReminderCount();
 
   // Only show nav sections/items the current role is allowed to open.
   const visibleSections = navItems
@@ -147,7 +155,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                   <Link
                     href={item.href}
                     className={cn(
-                      "flex items-center gap-2.5 rounded-md px-2 py-2 text-sm transition-colors",
+                      "relative flex items-center gap-2.5 rounded-md px-2 py-2 text-sm transition-colors",
                       collapsed && "justify-center",
                       active
                         ? "bg-primary text-primary-foreground font-medium"
@@ -157,6 +165,16 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                     <Icon className="w-4 h-4 shrink-0" />
                     {!collapsed && (
                       <span className="flex-1 truncate">{item.label}</span>
+                    )}
+                    {item.href === "/dashboard/reminders" && pendingReminders > 0 && (
+                      <span
+                        className={cn(
+                          "shrink-0 rounded-full bg-amber-500 text-white text-[10px] font-semibold leading-none flex items-center justify-center",
+                          collapsed ? "absolute top-1 right-1 w-2 h-2" : "min-w-[18px] h-[18px] px-1"
+                        )}
+                      >
+                        {collapsed ? "" : pendingReminders}
+                      </span>
                     )}
                   </Link>
                 );

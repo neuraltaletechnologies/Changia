@@ -28,7 +28,7 @@ export default function PasswordInput({
         {forgot ? (
           <button
             type="button"
-            className="rounded-lg text-sm font-medium text-blue-600 decoration-2 ring-zinc-500 outline-hidden hover:underline focus-visible:ring-3 dark:text-blue-400 dark:ring-zinc-200 dark:focus:ring-1 dark:focus:outline-hidden"
+            className="rounded-lg text-sm font-medium text-emerald-600 decoration-2 ring-zinc-500 outline-hidden hover:underline focus-visible:ring-3 dark:text-emerald-400 dark:ring-zinc-200 dark:focus:ring-1 dark:focus:outline-hidden"
             data-hs-overlay="#hs-toggle-between-modals-recover-modal"
           >
             Forgot password?

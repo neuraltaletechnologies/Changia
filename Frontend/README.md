@@ -30,6 +30,28 @@ Open [http://localhost:3000](http://localhost:3000).
 - `src/content/insights/` — long-form articles (EN/FR)
 - `src/data_files/` — features, FAQs, pricing and site configuration (EN/FR)
 
+## Dashboard (donor pools & reminders)
+
+The authenticated org dashboard lives under `src/app/dashboard` and talks to
+the Backend API at `NEXT_PUBLIC_API_URL` (defaults to
+`http://localhost:5000/api/v1` — set it in `.env.local` if the API runs
+elsewhere). Donor pool / reminder pages:
+
+- `/dashboard/pools` — donor pools by category (Family/School/Student/Office), donor CRUD, sort/filter
+- `/dashboard/pools/[id]` — pool members, payment status, manual reminders, duplicate resolution
+- `/dashboard/pools/anomalous` — unmatched-payment donors, re-attach to a known donor
+- `/dashboard/reminders` — **Pending Resends**: auto-resend cycles waiting for your confirmation before anything sends
+- `/dashboard/reminders/templates` — reusable SMS/WhatsApp/Email reminder templates
+- `/dashboard/reminders/schedules` — configure automatic resend intervals per pool or campaign
+
+Actually sending a reminder (manual or a confirmed auto-resend batch)
+requires the backend's messaging credentials — see
+`Backend/README.md` → **"Messaging providers setup"** for where to get an
+Africa's Talking (SMS), Meta WhatsApp Business (WhatsApp) and SMTP (Email)
+credential and which env var each goes into. Without those, reminders still
+work end-to-end in `simulated` mode — they're just logged instead of
+delivered, which is fine for local development.
+
 ## Commands
 
 - `npm run dev` — development server

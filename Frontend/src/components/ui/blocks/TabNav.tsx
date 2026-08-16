@@ -33,7 +33,7 @@ export default function TabNav({
       <span className="flex">
         {children}
         <span className="ms-6 grow">
-          <span className="hs-tab-active:text-blue-600 dark:hs-tab-active:text-blue-400 block text-lg font-bold text-neutral-800 dark:text-neutral-200">
+          <span className="hs-tab-active:text-emerald-600 dark:hs-tab-active:text-emerald-400 block text-lg font-bold text-neutral-800 dark:text-neutral-200">
             {heading}
           </span>
           <span className="hs-tab-active:text-neutral-600 dark:hs-tab-active:text-neutral-200 mt-1 block text-neutral-500 dark:text-neutral-400">

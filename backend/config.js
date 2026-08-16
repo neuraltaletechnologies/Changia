@@ -20,6 +20,35 @@ const env = {
     password: process.env.DB_PASSWORD || "",
     database: process.env.DB_NAME || "changia",
   },
+
+  // ─── Messaging providers (SMS / WhatsApp / Email) ──────────────────────────
+  // "simulated" (default) needs no credentials — every send is logged and
+  // recorded in message_deliveries with a synthetic reference so reminders
+  // work end-to-end in dev. Set MESSAGE_PROVIDER=live once the credentials
+  // below are filled in. See Backend/README.md → "Messaging providers setup".
+  MESSAGE_PROVIDER: process.env.MESSAGE_PROVIDER || "simulated",
+  SMTP: {
+    host: process.env.SMTP_HOST || "",
+    port: Number(process.env.SMTP_PORT) || 587,
+    user: process.env.SMTP_USER || "",
+    password: process.env.SMTP_PASSWORD || "",
+    fromEmail: process.env.SMTP_FROM_EMAIL || "",
+    fromName: process.env.SMTP_FROM_NAME || "Changia",
+  },
+  AFRICAS_TALKING: {
+    username: process.env.AT_USERNAME || "",
+    apiKey: process.env.AT_API_KEY || "",
+    senderId: process.env.AT_SENDER_ID || "",
+  },
+  WHATSAPP: {
+    token: process.env.WHATSAPP_TOKEN || "",
+    phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || "",
+    businessAccountId: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || "",
+  },
+
+  // ─── Reminder auto-resend scheduler ─────────────────────────────────────────
+  REMINDER_SCHEDULER_INTERVAL_MINUTES:
+    Number(process.env.REMINDER_SCHEDULER_INTERVAL_MINUTES) || 60,
 };
 
 if (!process.env.JWT_SECRET) {

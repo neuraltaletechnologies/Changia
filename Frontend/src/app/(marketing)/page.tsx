@@ -1,4 +1,5 @@
 import HeroSection from '@components/sections/landing/HeroSection';
+import AnnouncementBanner from '@components/ui/banners/AnnouncementBanner';
 import HeroSectionAlt from '@components/sections/landing/HeroSectionAlt';
 import ClientsSection from '@components/sections/landing/ClientsSection';
 import FeaturesGeneral from '@components/sections/features/FeaturesGeneral';
@@ -6,7 +7,7 @@ import FeaturesNavs from '@components/sections/features/FeaturesNavs';
 import TestimonialsSection from '@components/sections/testimonials/TestimonialsSection';
 import PricingSection from '@components/sections/pricing/PricingSection';
 import FAQ from '@components/sections/misc/FAQ';
-import AnnouncementBanner from '@components/ui/banners/AnnouncementBanner';
+import PrimaryCTA from '@/components/ui/buttons/PrimaryCTA';
 import heroImage from '@images/hero-image.avif';
 import faqs from '@data/faqs.json';
 import features from '@data/features.json';
@@ -20,7 +21,7 @@ import { partnersData } from '@/data_files/constants';
 export const metadata = {
   title: 'Changia',
   description:
-    'Someone needs help today. You can be part of the answer. Changia brings people together — connecting those who need help with those who are willing to give, in cash or in kind.',
+    'Help someone. Change a life. Changia brings people together to support medical emergencies, families, education, and community needs — with cash or in kind.',
 };
 
 const avatarSrcs: string[] = [
@@ -41,7 +42,7 @@ export default function HomePage() {
       />
 
       <HeroSection
-        title='Connect people<span class="text-yellow-500 dark:text-yellow-400"> in need</span> with those who want <span class="text-yellow-500 dark:text-yellow-400">to help</span>'
+        title='Connect people<span class="text-emerald-600 dark:text-emerald-400"> in need</span> with those who want <span class="text-blue-600 dark:text-blue-400">to help</span>'
         subTitle="Changia connects people who need help — whether it's a medical emergency, education, a family crisis, or a community need — with people who are willing to give. With money, with things, or both."
         primaryBtn="Start a Fundraiser"
         primaryBtnURL="/login?redirect=%2Fdashboard%2FCampaigns%2Fnew"
@@ -71,7 +72,7 @@ export default function HomePage() {
       />
 
       <FeaturesNavs
-        title='The  <span class="text-yellow-500 dark:text-yellow-400">Modules</span>  that turn goodwill into real help.'
+        title='The  <span class="text-emerald-600 dark:text-emerald-400">Modules</span>  that turn goodwill into real help.'
         tabs={[
           {
             heading: 'Core Platform & Donor Pool',

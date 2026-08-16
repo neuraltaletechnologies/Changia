@@ -12,6 +12,15 @@ function generateTemporaryPassword() {
   return `${TEMP_PASSWORD_PREFIX}${random}`;
 }
 
+/** Columns shared by every user listing/read so the UI always has same shape. */
+const USER_SELECT = `
+  SELECT u.id, u.first_name, u.last_name, u.email, u.phone, u.role, u.status,
+         u.avatar_url, u.last_login_at, u.created_at, u.organization_id,
+         o.name AS organization_name
+  FROM users u
+  LEFT JOIN organizations o ON o.id = u.organization_id
+`;
+
 function serializeUser(row) {
   return {
     id: row.id,
@@ -25,44 +34,82 @@ function serializeUser(row) {
     lastLoginAt: row.last_login_at,
     createdAt: row.created_at,
     organizationId: row.organization_id,
+    organizationName: row.organization_name || null,
   };
 }
 
-async function listUsers(organizationId, filters) {
-  const where = ["organization_id = ?"];
-  const values = [organizationId];
+/**
+ * Scope rules:
+ *   - SUPER_ADMIN can read/manage every user (optional org filter).
+ *   - ORG_ADMIN can only read/manage users inside their own organization.
+ */
+function assertCanManageUser(caller, target) {
+  if (caller.role === "SUPER_ADMIN") return;
+  if (
+    Number(caller.organizationId) &&
+    Number(target.organization_id) === Number(caller.organizationId)
+  ) {
+    return;
+  }
+  throw ApiError.notFound("User member not found");
+}
+
+/** Resolves the organization scope of a listing for the current caller. */
+function resolveOrgScope(caller, organizationId) {
+  if (caller.role === "SUPER_ADMIN") {
+    return organizationId ? ["u.organization_id = ?", [Number(organizationId)]] : [null, []];
+  }
+  return ["u.organization_id = ?", [caller.organizationId]];
+}
+
+async function listUsers(caller, filters) {
+  const where = [];
+  const values = [];
+
+  const [orgWhere, orgValues] = resolveOrgScope(caller, filters.organizationId);
+  if (orgWhere) {
+    where.push(orgWhere);
+    values.push(...orgValues);
+  }
 
   if (filters.search) {
-    where.push(
-      "(first_name LIKE ? OR last_name LIKE ? OR email LIKE ?)"
-    );
+    where.push("(u.first_name LIKE ? OR u.last_name LIKE ? OR u.email LIKE ? OR u.phone LIKE ?)");
     const like = `%${filters.search}%`;
-    values.push(like, like, like);
+    values.push(like, like, like, like);
   }
   if (filters.role) {
-    where.push("role = ?");
+    where.push("u.role = ?");
     values.push(filters.role);
   }
   if (filters.status) {
-    where.push("status = ?");
+    where.push("u.status = ?");
     values.push(filters.status);
   }
 
-  const whereSql = where.join(" AND ");
+  const sortColumn = {
+    name: "u.first_name",
+    email: "u.email",
+    role: "u.role",
+    status: "u.status",
+    created: "u.created_at",
+    lastLogin: "u.last_login_at",
+  }[filters.sortBy || "created"];
+
+  const sortDir = filters.sortDir === "asc" ? "ASC" : "DESC";
+
+  const whereSql = where.length > 0 ? `WHERE ${where.join(" AND ")}` : "";
   const page = filters.page || 1;
   const limit = filters.limit || 25;
   const offset = (page - 1) * limit;
 
   const users = await db.query(
-    `SELECT id, first_name, last_name, email, phone, role, status, avatar_url,
-            last_login_at, created_at, organization_id
-     FROM users WHERE ${whereSql}
-     ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+    `${USER_SELECT} ${whereSql} ORDER BY ${sortColumn} ${sortDir} LIMIT ? OFFSET ?`,
     [...values, limit, offset]
   );
 
+  const countWhere = whereSql.replace(/u\./g, "");
   const [[countRow]] = await db
-    .query(`SELECT COUNT(*) AS total FROM users WHERE ${whereSql}`, values)
+    .query(`SELECT COUNT(*) AS total FROM users ${countWhere ? `WHERE ${countWhere}` : ""}`, values)
     .then((rows) => [rows]);
 
   const total = countRow.total;
@@ -77,13 +124,33 @@ async function listUsers(organizationId, filters) {
   };
 }
 
+async function assertRoleAssignable(caller, role) {
+  if (role === "SUPER_ADMIN" && caller.role !== "SUPER_ADMIN") {
+    throw ApiError.forbidden("Only a super admin can assign the super admin role");
+  }
+}
+
 /**
- * Creates a team member with a temporary password (returned to the inviter).
+ * Creates a user member with a temporary password (returned to the inviter).
  */
-async function createUser(organizationId, data) {
+async function createUser(caller, data) {
   const existing = await db.query("SELECT id FROM users WHERE email = ?", [data.email]);
   if (existing.length > 0) {
     throw ApiError.conflict("A user with this email already exists");
+  }
+
+  await assertRoleAssignable(caller, data.role);
+
+  const organizationId =
+    caller.role === "SUPER_ADMIN"
+      ? data.organizationId
+        ? Number(data.organizationId)
+        : null
+      : caller.organizationId;
+
+  if (organizationId !== null) {
+    const orgs = await db.query("SELECT id FROM organizations WHERE id = ?", [organizationId]);
+    if (orgs.length === 0) throw ApiError.notFound("Organization not found");
   }
 
   const temporaryPassword = generateTemporaryPassword();
@@ -103,28 +170,58 @@ async function createUser(organizationId, data) {
     ]
   );
 
-  const users = await db.query(
-    `SELECT id, first_name, last_name, email, phone, role, status, avatar_url,
-            last_login_at, created_at, organization_id
-     FROM users WHERE id = ?`,
-    [result.insertId]
-  );
+  const users = await db.query(`${USER_SELECT} WHERE u.id = ?`, [result.insertId]);
 
   return { user: serializeUser(users[0]), temporaryPassword };
 }
 
-async function updateUser(organizationId, userId, data) {
-  const existing = await db.query(
-    "SELECT id FROM users WHERE id = ? AND organization_id = ?",
-    [userId, organizationId]
-  );
-  if (existing.length === 0) throw ApiError.notFound("Team member not found");
+/** Guards that an organization keeps at least one active administrator. */
+async function assertLastOrgAdmin(organizationId) {
+  if (!organizationId) return;
+  const [[countRow]] = await db
+    .query(
+      `SELECT COUNT(*) AS total FROM users
+       WHERE organization_id = ? AND role = 'ORG_ADMIN' AND status = 'ACTIVE'`,
+      [organizationId]
+    )
+    .then((rows) => [rows]);
+  if (countRow.total <= 1) {
+    throw ApiError.badRequest("The organization must keep at least one active administrator");
+  }
+}
+
+async function updateUser(caller, userId, data) {
+  const existing = await db.query(`${USER_SELECT} WHERE u.id = ?`, [userId]);
+  const target = existing[0];
+  if (!target) throw ApiError.notFound("User member not found");
+  assertCanManageUser(caller, target);
+
+  const isSelf = Number(userId) === Number(caller.id);
+  if (isSelf && data.role !== undefined && data.role !== target.role) {
+    throw ApiError.badRequest("You cannot change your own role");
+  }
+  if (isSelf && data.status !== undefined && data.status !== "ACTIVE") {
+    throw ApiError.badRequest("You cannot deactivate your own account");
+  }
+
+  if (data.role !== undefined && data.role !== target.role) {
+    await assertRoleAssignable(caller, data.role);
+    if (target.role === "ORG_ADMIN") {
+      await assertLastOrgAdmin(target.organization_id);
+    }
+  }
+  if (data.status !== undefined && data.status !== "ACTIVE" && target.role === "ORG_ADMIN") {
+    await assertLastOrgAdmin(target.organization_id);
+  }
 
   const fields = [];
   const values = [];
   if (data.firstName !== undefined) { fields.push("first_name = ?"); values.push(data.firstName); }
   if (data.lastName !== undefined) { fields.push("last_name = ?"); values.push(data.lastName); }
-  if (data.phone !== undefined) { fields.push("phone = ?"); values.push(normalizePhone(data.phone)); }
+  if (data.phone !== undefined) {
+    fields.push("phone = ?");
+    values.push(data.phone ? normalizePhone(data.phone) : null);
+  }
   if (data.role !== undefined) { fields.push("role = ?"); values.push(data.role); }
   if (data.status !== undefined) { fields.push("status = ?"); values.push(data.status); }
 
@@ -133,41 +230,25 @@ async function updateUser(organizationId, userId, data) {
     await db.execute(`UPDATE users SET ${fields.join(", ")} WHERE id = ?`, values);
   }
 
-  const users = await db.query(
-    `SELECT id, first_name, last_name, email, phone, role, status, avatar_url,
-            last_login_at, created_at, organization_id
-     FROM users WHERE id = ?`,
-    [userId]
-  );
+  const users = await db.query(`${USER_SELECT} WHERE u.id = ?`, [userId]);
   return serializeUser(users[0]);
 }
 
-async function deleteUser(organizationId, userId, actorId) {
-  if (Number(userId) === Number(actorId)) {
+async function deleteUser(caller, userId) {
+  if (Number(userId) === Number(caller.id)) {
     throw ApiError.badRequest("You cannot remove your own account");
   }
-  const existing = await db.query(
-    "SELECT role FROM users WHERE id = ? AND organization_id = ?",
-    [userId, organizationId]
-  );
-  if (existing.length === 0) throw ApiError.notFound("Team member not found");
+  const existing = await db.query(`${USER_SELECT} WHERE u.id = ?`, [userId]);
+  const target = existing[0];
+  if (!target) throw ApiError.notFound("User member not found");
+  assertCanManageUser(caller, target);
 
-  if (existing[0].role === "ORG_ADMIN") {
-    const [[countRow]] = await db
-      .query(
-        `SELECT COUNT(*) AS total FROM users
-         WHERE organization_id = ? AND role = 'ORG_ADMIN' AND status = 'ACTIVE'`,
-        [organizationId]
-      )
-      .then((rows) => [rows]);
-    if (countRow.total <= 1) {
-      throw ApiError.badRequest(
-        "The organization must keep at least one active administrator"
-      );
-    }
+  if (target.role === "ORG_ADMIN") {
+    await assertLastOrgAdmin(target.organization_id);
   }
 
   await db.execute("DELETE FROM users WHERE id = ?", [userId]);
+  return serializeUser(target);
 }
 
 module.exports = {

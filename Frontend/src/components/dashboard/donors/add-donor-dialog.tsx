@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -20,8 +20,8 @@ import {
   SelectValue,
 } from "@/components/dashboard/ui/select";
 import { Separator } from "@/components/dashboard/ui/separator";
-import { saveDonor } from "@/lib/dashboard/donor-store";
-import type { Donor } from "@/lib/dashboard/types";
+import { donorApi, poolApi, type Gender, type DonorPool } from "@/lib/dashboard/api";
+import { useRole } from "@/hooks/use-role";
 
 interface AddDonorDialogProps {
   open: boolean;
@@ -34,19 +34,29 @@ export function AddDonorDialog({
   onOpenChange,
   onCreated,
 }: AddDonorDialogProps) {
+  const { isCampaignManager } = useRole();
   const [loading, setLoading] = useState(false);
+  const [pools, setPools] = useState<DonorPool[]>([]);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [location, setLocation] = useState("");
-  const [status, setStatus] = useState<Donor["status"]>("prospect");
-  const [consentStatus, setConsentStatus] =
-    useState<Donor["consentStatus"]>("pending");
-  const [preferredChannel, setPreferredChannel] =
-    useState<Donor["preferredChannel"]>("email");
+  const [gender, setGender] = useState<Gender>("UNSPECIFIED");
+  const [position, setPosition] = useState("");
+  const [status, setStatus] = useState("PROSPECT");
+  const [consentStatus, setConsentStatus] = useState("PENDING");
+  const [preferredChannel, setPreferredChannel] = useState("SMS");
+  const [poolId, setPoolId] = useState("");
   const [notes, setNotes] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [serverError, setServerError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      poolApi.list({ limit: 100 }).then((r) => setPools(r.pools)).catch(() => undefined);
+    }
+  }, [open]);
 
   const reset = () => {
     setFirstName("");
@@ -54,61 +64,54 @@ export function AddDonorDialog({
     setEmail("");
     setPhone("");
     setLocation("");
-    setStatus("prospect");
-    setConsentStatus("pending");
-    setPreferredChannel("email");
+    setGender("UNSPECIFIED");
+    setPosition("");
+    setStatus("PROSPECT");
+    setConsentStatus("PENDING");
+    setPreferredChannel("SMS");
+    setPoolId("");
     setNotes("");
     setErrors({});
+    setServerError(null);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
+    setServerError(null);
 
     const nextErrors: Record<string, string> = {};
     if (!firstName.trim()) nextErrors.firstName = "First name is required.";
-    else if (firstName.trim().length > 100)
-      nextErrors.firstName = "First name must be 100 characters or fewer.";
-    if (!lastName.trim()) nextErrors.lastName = "Last name is required.";
-    else if (lastName.trim().length > 100)
-      nextErrors.lastName = "Last name must be 100 characters or fewer.";
-    if (!email.trim()) nextErrors.email = "Email is required.";
-    else if (!/.+@.+\..+/.test(email.trim()))
-      nextErrors.email = "Please enter a valid email address.";
     if (phone.trim() && !/^(\+?255|0)?[67][0-9]{8}$/.test(phone.replace(/[\s-]/g, "")))
       nextErrors.phone = "Enter a valid Tanzanian phone number.";
-    if (location.trim().length > 200)
-      nextErrors.location = "Location must be 200 characters or fewer.";
-    if (notes.trim().length > 5000)
-      nextErrors.notes = "Notes must be 5000 characters or fewer.";
 
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
 
     setLoading(true);
-    const donor: Donor = {
-      id: `d-${Date.now()}`,
-      firstName: firstName.trim(),
-      lastName: lastName.trim(),
-      email: email.trim(),
-      phone: phone.trim(),
-      location: location.trim(),
-      status,
-      consentStatus,
-      preferredChannel,
-      tags: [],
-      totalGiven: 0,
-      lastGift: "",
-      lastGiftAmount: 0,
-      giftCount: 0,
-      joinedDate: new Date().toISOString().slice(0, 10),
-      notes: notes.trim() || undefined,
-    };
-    saveDonor(donor);
-    setLoading(false);
-    reset();
-    onOpenChange(false);
-    onCreated?.();
+    try {
+      await donorApi.create({
+        firstName: firstName.trim(),
+        lastName: lastName.trim() || undefined,
+        email: email.trim() || undefined,
+        phone: phone.trim(),
+        location: location.trim() || undefined,
+        gender,
+        position: position.trim() || undefined,
+        status,
+        consentStatus,
+        preferredChannel,
+        notes: notes.trim() || undefined,
+        poolId: poolId ? Number(poolId) : undefined,
+      });
+      reset();
+      onOpenChange(false);
+      onCreated?.();
+    } catch (err) {
+      setServerError(err instanceof Error ? err.message : "Failed to add the donor.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -121,7 +124,6 @@ export function AddDonorDialog({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Personal Information */}
           <div className="space-y-3">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
               Personal Information
@@ -147,49 +149,64 @@ export function AddDonorDialog({
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="lastName" className="text-xs">
-                  Last Name <span className="text-destructive">*</span>
+                  Last Name
                 </Label>
                 <Input
                   id="lastName"
                   placeholder="e.g. Hassan"
-                  required
                   maxLength={100}
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
-                  aria-invalid={Boolean(errors.lastName)}
-                  className={`h-9 text-sm ${errors.lastName ? "border-destructive" : ""}`}
+                  className="h-9 text-sm"
                 />
-                {errors.lastName ? (
-                  <p role="alert" className="text-xs text-destructive">{errors.lastName}</p>
-                ) : null}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Gender</Label>
+                <Select value={gender} onValueChange={(v) => setGender((v ?? "UNSPECIFIED") as Gender)}>
+                  <SelectTrigger className="h-9 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="UNSPECIFIED">Unspecified</SelectItem>
+                    <SelectItem value="MALE">Male</SelectItem>
+                    <SelectItem value="FEMALE">Female</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="position" className="text-xs">Position</Label>
+                <Input
+                  id="position"
+                  placeholder="e.g. Head Teacher"
+                  maxLength={150}
+                  value={position}
+                  onChange={(e) => setPosition(e.target.value)}
+                  className="h-9 text-sm"
+                />
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="email" className="text-xs">
-                Email Address <span className="text-destructive">*</span>
-              </Label>
+              <Label htmlFor="email" className="text-xs">Email Address</Label>
               <Input
                 id="email"
                 type="email"
                 placeholder="donor@example.com"
-                required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                aria-invalid={Boolean(errors.email)}
-                className={`h-9 text-sm ${errors.email ? "border-destructive" : ""}`}
+                className="h-9 text-sm"
               />
-              {errors.email ? (
-                <p role="alert" className="text-xs text-destructive">{errors.email}</p>
-              ) : null}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="phone" className="text-xs">
-                  Phone Number
+                  Phone Number <span className="text-destructive">*</span>
                 </Label>
                 <Input
                   id="phone"
                   placeholder="+255 7XX XXX XXX"
+                  required
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   aria-invalid={Boolean(errors.phone)}
@@ -200,28 +217,21 @@ export function AddDonorDialog({
                 ) : null}
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="location" className="text-xs">
-                  Location
-                </Label>
+                <Label htmlFor="location" className="text-xs">Location</Label>
                 <Input
                   id="location"
                   placeholder="e.g. Dar es Salaam"
                   maxLength={200}
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
-                  aria-invalid={Boolean(errors.location)}
-                  className={`h-9 text-sm ${errors.location ? "border-destructive" : ""}`}
+                  className="h-9 text-sm"
                 />
-                {errors.location ? (
-                  <p role="alert" className="text-xs text-destructive">{errors.location}</p>
-                ) : null}
               </div>
             </div>
           </div>
 
           <Separator />
 
-          {/* Donor Settings */}
           <div className="space-y-3">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
               Donor Settings
@@ -229,69 +239,73 @@ export function AddDonorDialog({
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs">Status</Label>
-                <Select
-                  value={status}
-                  onValueChange={(v) => setStatus((v ?? "prospect") as Donor["status"])}
-                >
+                <Select value={status} onValueChange={(v) => setStatus(v ?? "PROSPECT")}>
                   <SelectTrigger className="h-9 text-sm">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="prospect">Prospect</SelectItem>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="lapsed">Lapsed</SelectItem>
-                    <SelectItem value="inactive">Inactive</SelectItem>
+                    <SelectItem value="prospect" disabled>Prospect</SelectItem>
+                    <SelectItem value="PROSPECT">Prospect</SelectItem>
+                    <SelectItem value="ACTIVE">Active</SelectItem>
+                    <SelectItem value="LAPSED">Lapsed</SelectItem>
+                    <SelectItem value="INACTIVE">Inactive</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Consent Status</Label>
-                <Select
-                  value={consentStatus}
-                  onValueChange={(v) =>
-                    setConsentStatus((v ?? "pending") as Donor["consentStatus"])
-                  }
-                >
+                <Select value={consentStatus} onValueChange={(v) => setConsentStatus(v ?? "PENDING")}>
                   <SelectTrigger className="h-9 text-sm">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="consented">Consented</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="withdrawn">Withdrawn</SelectItem>
+                    <SelectItem value="CONSENTED">Consented</SelectItem>
+                    <SelectItem value="PENDING">Pending</SelectItem>
+                    <SelectItem value="WITHDRAWN">Withdrawn</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Preferred Communication Channel</Label>
-              <Select
-                value={preferredChannel}
-                onValueChange={(v) =>
-                  setPreferredChannel((v ?? "email") as Donor["preferredChannel"])
-                }
-              >
+              <Select value={preferredChannel} onValueChange={(v) => setPreferredChannel(v ?? "SMS")}>
                 <SelectTrigger className="h-9 text-sm">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="email">Email</SelectItem>
-                  <SelectItem value="sms">SMS</SelectItem>
-                  <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                  <SelectItem value="phone">Phone Call</SelectItem>
-                  <SelectItem value="post">Post</SelectItem>
+                  <SelectItem value="SMS">SMS</SelectItem>
+                  <SelectItem value="WHATSAPP">WhatsApp</SelectItem>
+                  <SelectItem value="EMAIL">Email</SelectItem>
+                  <SelectItem value="PHONE">Phone Call</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+            {pools.length > 0 && (
+              <div className="space-y-1.5">
+                <Label className="text-xs">Add to pool (optional)</Label>
+                <Select value={poolId} onValueChange={(v) => setPoolId(v ?? "")}>
+                  <SelectTrigger className="h-9 text-sm">
+                    <SelectValue placeholder="No pool" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">No pool</SelectItem>
+                    {pools
+                      .filter((p) => !p.isSystem || !isCampaignManager)
+                      .map((p) => (
+                        <SelectItem key={p.id} value={String(p.id)}>
+                          {p.name}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
 
           <Separator />
 
-          {/* Notes */}
           <div className="space-y-1.5">
-            <Label htmlFor="notes" className="text-xs">
-              Notes
-            </Label>
+            <Label htmlFor="notes" className="text-xs">Notes</Label>
             <Textarea
               id="notes"
               placeholder="Any additional context about this donor…"
@@ -299,12 +313,15 @@ export function AddDonorDialog({
               maxLength={5000}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className={`text-sm resize-none ${errors.notes ? "border-destructive" : ""}`}
+              className="text-sm resize-none"
             />
-              {errors.notes ? (
-                <p role="alert" className="text-xs text-destructive">{errors.notes}</p>
-              ) : null}
           </div>
+
+          {serverError && (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+              {serverError}
+            </div>
+          )}
 
           <DialogFooter>
             <Button

@@ -19,6 +19,10 @@ CREATE DATABASE IF NOT EXISTS changia
 USE changia;
 
 SET FOREIGN_KEY_CHECKS = 0;
+DROP TABLE IF EXISTS campaign_donor_targets;
+DROP TABLE IF EXISTS donor_pool_members;
+DROP TABLE IF EXISTS donor_pools;
+DROP TABLE IF EXISTS donor_payment_methods;
 DROP TABLE IF EXISTS audit_logs;
 DROP TABLE IF EXISTS payouts;
 DROP TABLE IF EXISTS receipts;
@@ -53,6 +57,8 @@ CREATE TABLE organizations (
 ) ENGINE=InnoDB;
 
 -- ─── Users, roles and memberships ────────────────────────────────────────────
+-- New accounts always start as CAMPAIGN_MANAGER; an administrator
+-- (SUPER_ADMIN / ORG_ADMIN) promotes them to other roles afterwards.
 
 CREATE TABLE users (
   id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -62,7 +68,7 @@ CREATE TABLE users (
   email           VARCHAR(255) NOT NULL UNIQUE,
   phone           VARCHAR(32)  NULL,
   password_hash   VARCHAR(255) NOT NULL,
-  role            ENUM('SUPER_ADMIN','ORG_ADMIN','CAMPAIGN_MANAGER') NOT NULL DEFAULT 'ORG_ADMIN',
+  role            ENUM('SUPER_ADMIN','ORG_ADMIN','CAMPAIGN_MANAGER') NOT NULL DEFAULT 'CAMPAIGN_MANAGER',
   status          ENUM('ACTIVE','PENDING','INACTIVE') NOT NULL DEFAULT 'PENDING',
   avatar_url      VARCHAR(500) NULL,
   last_login_at   TIMESTAMP    NULL,
@@ -80,11 +86,14 @@ CREATE TABLE donors (
   first_name        VARCHAR(100) NULL,
   last_name         VARCHAR(100) NULL,
   email             VARCHAR(255) NULL,
-  phone             VARCHAR(32)  NOT NULL,
+  phone             VARCHAR(32)  NULL,
   location          VARCHAR(200) NULL,
+  gender            ENUM('MALE','FEMALE','UNSPECIFIED') NULL,
+  position          VARCHAR(150) NULL,
   status            ENUM('ACTIVE','PROSPECT','LAPSED','INACTIVE') NOT NULL DEFAULT 'PROSPECT',
   consent_status    ENUM('CONSENTED','PENDING','WITHDRAWN') NOT NULL DEFAULT 'PENDING',
   preferred_channel ENUM('SMS','WHATSAPP','EMAIL','PHONE') NULL DEFAULT 'SMS',
+  is_anomalous      TINYINT(1) NOT NULL DEFAULT 0,
   tags              JSON NULL,
   notes             TEXT NULL,
   created_at        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -92,6 +101,54 @@ CREATE TABLE donors (
   CONSTRAINT fk_donors_org FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
   UNIQUE KEY uq_donors_org_phone (organization_id, phone),
   INDEX idx_donors_org_status (organization_id, status)
+) ENGINE=InnoDB;
+
+-- ─── Donor pools (segmented lists owned by a campaign manager) ──────────────
+-- A pool created by one manager is only visible to that manager (and admins).
+-- Every organization automatically gets one system "anomalous" pool that holds
+-- donors who paid without a registered profile so they can be re-attached later.
+
+CREATE TABLE donor_pools (
+  id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  organization_id BIGINT UNSIGNED NOT NULL,
+  created_by_id   BIGINT UNSIGNED NULL,
+  name            VARCHAR(150) NOT NULL,
+  description     TEXT NULL,
+  category        ENUM('FAMILY','SCHOOL','STUDENT','OFFICE') NOT NULL DEFAULT 'FAMILY',
+  is_system       TINYINT(1) NOT NULL DEFAULT 0,
+  status          ENUM('ACTIVE','ARCHIVED') NOT NULL DEFAULT 'ACTIVE',
+  created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_pools_org FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+  CONSTRAINT fk_pools_creator FOREIGN KEY (created_by_id) REFERENCES users(id) ON DELETE SET NULL,
+  INDEX idx_pools_org_owner (organization_id, created_by_id)
+) ENGINE=InnoDB;
+
+CREATE TABLE donor_pool_members (
+  id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  pool_id         BIGINT UNSIGNED NOT NULL,
+  donor_id        BIGINT UNSIGNED NOT NULL,
+  expected_amount DECIMAL(14,0) NULL,
+  added_by_id     BIGINT UNSIGNED NULL,
+  added_at        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_dpm_pool FOREIGN KEY (pool_id) REFERENCES donor_pools(id) ON DELETE CASCADE,
+  CONSTRAINT fk_dpm_donor FOREIGN KEY (donor_id) REFERENCES donors(id) ON DELETE CASCADE,
+  UNIQUE KEY uq_dpm_pool_donor (pool_id, donor_id)
+) ENGINE=InnoDB;
+
+-- Payment methods a donor can be reached/paid through (matching also lets a
+-- previously-unmatched payment be re-attached to a known donor).
+CREATE TABLE donor_payment_methods (
+  id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  donor_id        BIGINT UNSIGNED NOT NULL,
+  organization_id BIGINT UNSIGNED NOT NULL,
+  method          ENUM('MOMO','TIGO_PESA','AIRTEL_MONEY','HALOPESA','BANK_TRANSFER','CREDIT_CARD','CASH','OTHER') NOT NULL,
+  account_ref     VARCHAR(100) NULL,
+  details         JSON NULL,
+  is_primary      TINYINT(1) NOT NULL DEFAULT 0,
+  created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_dpmtd_donor FOREIGN KEY (donor_id) REFERENCES donors(id) ON DELETE CASCADE,
+  CONSTRAINT fk_dpmtd_org FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 CREATE TABLE consents (
@@ -150,6 +207,23 @@ CREATE TABLE campaign_assignments (
   UNIQUE KEY uq_ca_campaign_user (campaign_id, user_id)
 ) ENGINE=InnoDB;
 
+-- Donors tracked for a campaign (imported from pools or added directly) with
+-- an optional expected pledge. Payment status (UNPAID / PARTIAL / PAID_FULL)
+-- is derived by comparing confirmed donations against expected_amount.
+CREATE TABLE campaign_donor_targets (
+  id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  campaign_id     BIGINT UNSIGNED NOT NULL,
+  donor_id        BIGINT UNSIGNED NOT NULL,
+  pool_id         BIGINT UNSIGNED NULL,
+  expected_amount DECIMAL(14,0) NULL,
+  added_by_id     BIGINT UNSIGNED NULL,
+  created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_cdt_campaign FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE,
+  CONSTRAINT fk_cdt_donor FOREIGN KEY (donor_id) REFERENCES donors(id) ON DELETE CASCADE,
+  CONSTRAINT fk_cdt_pool FOREIGN KEY (pool_id) REFERENCES donor_pools(id) ON DELETE SET NULL,
+  UNIQUE KEY uq_cdt_campaign_donor (campaign_id, donor_id)
+) ENGINE=InnoDB;
+
 -- ─── Message batches and deliveries ──────────────────────────────────────────
 
 CREATE TABLE message_batches (
@@ -181,6 +255,72 @@ CREATE TABLE message_deliveries (
   created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_md_batch FOREIGN KEY (batch_id) REFERENCES message_batches(id) ON DELETE CASCADE,
   CONSTRAINT fk_md_donor FOREIGN KEY (donor_id) REFERENCES donors(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+-- ─── Message templates and reminder auto-resend schedules ───────────────────
+-- Reusable per-channel templates ({{donorName}}, {{amountDue}}, {{campaignName}},
+-- {{orgName}} placeholders rendered at send time) and the automatic resend
+-- scheduler config. A schedule never sends by itself — the scheduler job only
+-- creates a reminder_pending_batches row for the manager to review and
+-- confirm each cycle (see Backend/jobs/reminderScheduler.js).
+
+CREATE TABLE message_templates (
+  id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  organization_id BIGINT UNSIGNED NOT NULL,
+  created_by_id   BIGINT UNSIGNED NULL,
+  name            VARCHAR(150) NOT NULL,
+  channel         ENUM('SMS','WHATSAPP','EMAIL') NOT NULL,
+  subject         VARCHAR(255) NULL,
+  body            TEXT NOT NULL,
+  created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_mtpl_org FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+  CONSTRAINT fk_mtpl_creator FOREIGN KEY (created_by_id) REFERENCES users(id) ON DELETE SET NULL,
+  INDEX idx_mtpl_org_channel (organization_id, channel)
+) ENGINE=InnoDB;
+
+CREATE TABLE reminder_schedules (
+  id                    BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  organization_id       BIGINT UNSIGNED NOT NULL,
+  created_by_id         BIGINT UNSIGNED NULL,
+  name                  VARCHAR(150) NOT NULL,
+  scope                 ENUM('POOL','CAMPAIGN') NOT NULL,
+  pool_id               BIGINT UNSIGNED NULL,
+  campaign_id           BIGINT UNSIGNED NULL,
+  interval_days         INT UNSIGNED NOT NULL DEFAULT 7,
+  channels              JSON NOT NULL,
+  template_id_sms       BIGINT UNSIGNED NULL,
+  template_id_whatsapp  BIGINT UNSIGNED NULL,
+  template_id_email     BIGINT UNSIGNED NULL,
+  is_active             TINYINT(1) NOT NULL DEFAULT 1,
+  next_run_at           DATETIME NOT NULL,
+  last_run_at           DATETIME NULL,
+  created_at            TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at            TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_rsch_org FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+  CONSTRAINT fk_rsch_creator FOREIGN KEY (created_by_id) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_rsch_pool FOREIGN KEY (pool_id) REFERENCES donor_pools(id) ON DELETE CASCADE,
+  CONSTRAINT fk_rsch_campaign FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE,
+  CONSTRAINT fk_rsch_tpl_sms FOREIGN KEY (template_id_sms) REFERENCES message_templates(id) ON DELETE SET NULL,
+  CONSTRAINT fk_rsch_tpl_wa FOREIGN KEY (template_id_whatsapp) REFERENCES message_templates(id) ON DELETE SET NULL,
+  CONSTRAINT fk_rsch_tpl_email FOREIGN KEY (template_id_email) REFERENCES message_templates(id) ON DELETE SET NULL,
+  INDEX idx_rsch_org_active_next (organization_id, is_active, next_run_at)
+) ENGINE=InnoDB;
+
+CREATE TABLE reminder_pending_batches (
+  id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  schedule_id     BIGINT UNSIGNED NOT NULL,
+  organization_id BIGINT UNSIGNED NOT NULL,
+  status          ENUM('PENDING_APPROVAL','CONFIRMED','SKIPPED','EXPIRED') NOT NULL DEFAULT 'PENDING_APPROVAL',
+  donor_ids       JSON NOT NULL,
+  batch_ids       JSON NULL,
+  generated_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  resolved_at     DATETIME NULL,
+  resolved_by_id  BIGINT UNSIGNED NULL,
+  CONSTRAINT fk_rpb_schedule FOREIGN KEY (schedule_id) REFERENCES reminder_schedules(id) ON DELETE CASCADE,
+  CONSTRAINT fk_rpb_org FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+  CONSTRAINT fk_rpb_resolver FOREIGN KEY (resolved_by_id) REFERENCES users(id) ON DELETE SET NULL,
+  INDEX idx_rpb_org_status (organization_id, status)
 ) ENGINE=InnoDB;
 
 -- ─── Payments: attempts, gateway events, donations ───────────────────────────
@@ -308,9 +448,9 @@ INSERT INTO organizations (name, slug, email, phone, description) VALUES
 INSERT INTO users (organization_id, first_name, last_name, email, phone, password_hash, role, status) VALUES
   (NULL, 'Changia', 'Super Admin', 'admin@changia.org.tz', '255712000099',
    '$2b$12$YBiH.YibjVq/6ydw/Pa97eEG/HbjPVWH.a2Am4NvHTPGkhBW8xVbW', 'SUPER_ADMIN', 'ACTIVE'),
-  (1, 'Amina', 'Msuya', 'admin@msuya.org.tz', '255712000001',
+  (1, 'Amina', 'Msuya', 'admin@msuya-foundation.org.tz', '255712000001',
    '$2b$12$YBiH.YibjVq/6ydw/Pa97eEG/HbjPVWH.a2Am4NvHTPGkhBW8xVbW', 'ORG_ADMIN', 'ACTIVE'),
-  (1, 'Baraka', 'Mushi', 'manager@msuya.org.tz', '255713000002',
+  (1, 'Baraka', 'Mushi', 'manager@msuya-foundation.org.tz', '255713000002',
    '$2b$12$YBiH.YibjVq/6ydw/Pa97eEG/HbjPVWH.a2Am4NvHTPGkhBW8xVbW', 'CAMPAIGN_MANAGER', 'ACTIVE');
 
 -- Active campaign with 5% service fee (goal 10,000,000 → target 10,500,000)
@@ -325,11 +465,20 @@ VALUES
 INSERT INTO campaign_assignments (campaign_id, user_id) VALUES (1, 3);
 
 -- Donors
-INSERT INTO donors (organization_id, first_name, last_name, phone, status, consent_status, preferred_channel, tags) VALUES
-  (1, 'Neema', 'Lema', '255744000001', 'ACTIVE', 'CONSENTED', 'SMS', JSON_ARRAY('first-time')),
-  (1, 'James', 'Mdoe', '255755000002', 'ACTIVE', 'CONSENTED', 'SMS', JSON_ARRAY('first-time')),
-  (1, 'Grace', 'Komba', '255767000003', 'PROSPECT', 'PENDING', 'SMS', JSON_ARRAY('first-time')),
-  (1, 'Emmanuel', 'Swai', '255784000004', 'ACTIVE', 'WITHDRAWN', 'SMS', JSON_ARRAY('first-time'));
+INSERT INTO donors (organization_id, first_name, last_name, phone, gender, position, status, consent_status, preferred_channel, tags) VALUES
+  (1, 'Neema', 'Lema', '255744000001', 'FEMALE', 'Teacher', 'ACTIVE', 'CONSENTED', 'SMS', JSON_ARRAY('first-time')),
+  (1, 'James', 'Mdoe', '255755000002', 'MALE', 'Engineer', 'ACTIVE', 'CONSENTED', 'SMS', JSON_ARRAY('first-time')),
+  (1, 'Grace', 'Komba', '255767000003', 'FEMALE', 'Nurse', 'PROSPECT', 'PENDING', 'SMS', JSON_ARRAY('first-time')),
+  (1, 'Emmanuel', 'Swai', '255784000004', 'MALE', 'Farmer', 'ACTIVE', 'WITHDRAWN', 'SMS', JSON_ARRAY('first-time'));
+
+-- Anomalous pool: holds donors who paid without a registered profile so they
+-- can be re-attached to a known donor later.
+INSERT INTO donor_pools (organization_id, created_by_id, name, category, is_system, status) VALUES
+  (1, NULL, 'Anomalous / Unmatched', 'FAMILY', 1, 'ACTIVE');
+
+INSERT INTO donor_pool_members (pool_id, donor_id, expected_amount, added_by_id) VALUES
+  (1, 1, 100000, 3),
+  (1, 2, 100000, 3);
 
 INSERT INTO consents (donor_id, channel, status, source, granted_at) VALUES
   (1, 'SMS', 'CONSENTED', 'manual', NOW()),
@@ -352,5 +501,5 @@ WHERE id = 1;
 
 -- Initial audit trail
 INSERT INTO audit_logs (organization_id, actor_id, actor_email, action, resource, resource_id, severity) VALUES
-  (1, 2, 'admin@msuya.org.tz', 'organization.registered', 'organization', '1', 'INFO'),
-  (1, 2, 'admin@msuya.org.tz', 'campaign.approved', 'campaign', '1', 'INFO');
+  (1, 2, 'admin@changia.org.tz', 'organization.registered', 'organization', '1', 'INFO'),
+  (1, 2, 'admin@changia.org.tz', 'campaign.approved', 'campaign', '1', 'INFO');

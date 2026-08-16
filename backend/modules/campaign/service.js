@@ -233,6 +233,14 @@ async function createCampaign(organizationId, data, actor) {
     }
   }
 
+  // Import donor pools into the campaign at creation time.
+  if (data.poolIds && data.poolIds.length > 0) {
+    await importPools(organizationId, { role: "ORG_ADMIN", id: actor.id, email: actor.email }, campaignId, {
+      poolIds: data.poolIds,
+      expectedAmounts: data.expectedAmounts,
+    });
+  }
+
   await db.execute(
     `INSERT INTO audit_logs (organization_id, actor_id, actor_email, action, resource, resource_id, severity)
      VALUES (?, ?, ?, 'campaign.created', 'campaign', ?, 'INFO')`,
@@ -368,6 +376,324 @@ async function changeCampaignStatus(organizationId, campaignId, status, actor) {
   return getCampaign(organizationId, campaignId);
 }
 
+async function loadPoolIds(organizationId, user, poolIds) {
+  if (!poolIds || poolIds.length === 0) return [];
+  const pools = await db.query(
+    `SELECT id, name, is_system, created_by_id
+     FROM donor_pools WHERE id IN (?) AND organization_id = ?`,
+    [poolIds, organizationId]
+  );
+  const isAdmin = user.role === "SUPER_ADMIN" || user.role === "ORG_ADMIN";
+  const invalid = poolIds.filter(
+    (id) =>
+      !pools.some(
+        (p) =>
+          Number(p.id) === Number(id) &&
+          (isAdmin || p.is_system === 1 || Number(p.created_by_id) === user.id)
+      )
+  );
+  if (invalid.length > 0) {
+    throw ApiError.forbidden("One or more selected pools are not visible to you", "POOL_ACCESS_DENIED");
+  }
+  return pools.map((p) => Number(p.id));
+}
+
+/** Loads all unique members donor rows for the given pools. */
+async function loadPoolMembers(organizationId, poolIds) {
+  if (poolIds.length === 0) return { members: [], duplicateGroups: [] };
+  const members = await db.query(
+    `SELECT dpm.pool_id, dpm.expected_amount, d.id AS donor_id,
+            d.first_name, d.last_name, d.email, d.phone, d.gender, d.position, d.is_anomalous
+     FROM donor_pool_members dpm
+     JOIN donors d ON d.id = dpm.donor_id
+     WHERE dpm.pool_id IN (?) AND d.organization_id = ?`,
+    [poolIds, organizationId]
+  );
+
+  const byDonor = new Map();
+  for (const m of members) {
+    if (!byDonor.has(m.donor_id)) byDonor.set(m.donor_id, []);
+    byDonor.get(m.donor_id).push(m);
+  }
+
+  const dupRows = await db.query(
+    `SELECT dpm.donor_id, COUNT(*) AS pool_count
+     FROM donor_pool_members dpm
+     WHERE dpm.pool_id IN (?)
+     GROUP BY dpm.donor_id
+     HAVING COUNT(*) > 1`,
+    [poolIds]
+  );
+  const dupIds = dupRows.map((r) => Number(r.donor_id));
+
+  const duplicateGroups = dupIds.map((donorId) => {
+    const entries = byDonor.get(donorId) || [];
+    return {
+      donorId,
+      poolIds: entries.map((e) => Number(e.pool_id)),
+    };
+  });
+
+  return { members, duplicateGroups };
+}
+
+const computeStatus = (expected, paid) => {
+  if (expected === null || expected === undefined) return paid > 0 ? "PAID_FULL" : "UNPAID";
+  if (paid <= 0) return "UNPAID";
+  if (paid >= expected) return "PAID_FULL";
+  return "PARTIAL";
+};
+
+/**
+ * Previews importing donor pools into a campaign so the UI can first ask the
+ * user how to handle donors that appear in more than one selected pool.
+ */
+async function previewPoolImport(organizationId, user, campaignId, poolIds) {
+  const campaigns = await db.query(
+    "SELECT id, name FROM campaigns WHERE id = ? AND organization_id = ?",
+    [campaignId, organizationId]
+  );
+  if (campaigns.length === 0) throw ApiError.notFound("Campaign not found");
+
+  const visiblePoolIds = await loadPoolIds(organizationId, user, poolIds.map(Number));
+  if (visiblePoolIds.length === 0) throw ApiError.badRequest("No valid pools selected");
+
+  const pools = await db.query(
+    `SELECT id, name, category FROM donor_pools WHERE id IN (?)`,
+    [visiblePoolIds]
+  );
+  const { members, duplicateGroups } = await loadPoolMembers(organizationId, visiblePoolIds);
+
+  const memberIds = [...new Set(members.map((m) => Number(m.donor_id)))];
+  let existingRows = [];
+  if (memberIds.length > 0) {
+    existingRows = await db.query(
+      "SELECT donor_id FROM campaign_donor_targets WHERE campaign_id = ? AND donor_id IN (?)",
+      [campaignId, memberIds]
+    );
+  }
+  const existingIds = new Set(existingRows.map((r) => Number(r.donor_id)));
+
+  const mapped = [...new Map(members.map((m) => [m.donor_id, m])).values()];
+
+  return {
+    campaignId: Number(campaignId),
+    pools: pools.map((p) => ({ id: p.id, name: p.name, category: p.category })),
+    donors: mapped
+      .filter((m) => !existingIds.has(Number(m.donor_id)))
+      .map((m) => ({
+        donorId: Number(m.donor_id),
+        firstName: m.first_name,
+        lastName: m.last_name,
+        email: m.email,
+        phone: m.phone,
+      })),
+    duplicateGroups: duplicateGroups.map((g) => ({
+      donorId: g.donorId,
+      pools: g.poolIds.map((pid) => {
+        const p = pools.find((x) => Number(x.id) === pid);
+        return { id: pid, name: p ? p.name : `Pool ${pid}` };
+      }),
+    })),
+    alreadyTracked: [...existingIds].length,
+  };
+}
+
+/**
+ * Imports one or more donor pools into a campaign. Donors already tracked are
+ * kept; donors found in several pools are assigned to the pool chosen by the
+ * user (`duplicateChoices`), defaulting to the first selected pool otherwise.
+ */
+async function importPools(organizationId, user, campaignId, data) {
+  const campaigns = await db.query(
+    "SELECT id FROM campaigns WHERE id = ? AND organization_id = ?",
+    [campaignId, organizationId]
+  );
+  if (campaigns.length === 0) throw ApiError.notFound("Campaign not found");
+
+  const visiblePoolIds = await loadPoolIds(
+    organizationId,
+    user,
+    data.poolIds.map(Number)
+  );
+  const { members } = await loadPoolMembers(organizationId, visiblePoolIds);
+
+  const expectedOverrides = data.expectedAmounts || {};
+  const choices = {};
+  for (const c of data.duplicateChoices || []) {
+    choices[Number(c.donorId)] = Number(c.poolId);
+  }
+
+  const byDonor = new Map();
+  for (const m of members) {
+    if (!byDonor.has(Number(m.donor_id))) {
+      byDonor.set(Number(m.donor_id), []);
+    }
+    byDonor.get(Number(m.donor_id)).push(m);
+  }
+
+  await db.withTransaction(async (tx) => {
+    for (const [donorIdStr, entries] of byDonor) {
+      const donorId = Number(donorIdStr);
+      const chosenPoolId = choices[donorId];
+      const effectivePoolId =
+        chosenPoolId && visiblePoolIds.includes(chosenPoolId)
+          ? chosenPoolId
+          : Number(entries[0].pool_id);
+
+      const override = expectedOverrides[String(effectivePoolId)];
+      const expected =
+        override && override[String(donorId)] !== undefined
+          ? override[String(donorId)]
+          : entries[0].expected_amount;
+
+      await tx.execute(
+        `INSERT INTO campaign_donor_targets
+           (campaign_id, donor_id, pool_id, expected_amount, added_by_id)
+         VALUES (?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           pool_id = CASE WHEN ? = 1 OR pool_id IS NULL THEN ? ELSE pool_id END,
+           expected_amount = IF(? IS NULL, expected_amount, ?)`,
+        [
+          campaignId,
+          donorId,
+          effectivePoolId,
+          expected,
+          user.id,
+          chosenPoolId ? 1 : 0,
+          effectivePoolId,
+          expected,
+          expected,
+        ]
+      );
+    }
+  });
+
+  await db.execute(
+    `INSERT INTO audit_logs (organization_id, actor_id, actor_email, action, resource, resource_id, severity)
+     VALUES (?, ?, ?, 'campaign.pools.imported', 'campaign', ?, 'INFO')`,
+    [organizationId, user.id, user.email, String(campaignId)]
+  );
+
+  return getCampaignDonorTargets(organizationId, campaignId);
+}
+
+/** Donor board for a campaign with expected pledges, paid totals and status. */
+async function getCampaignDonorTargets(organizationId, campaignId) {
+  const campaigns = await db.query(
+    "SELECT id, name FROM campaigns WHERE id = ? AND organization_id = ?",
+    [campaignId, organizationId]
+  );
+  if (campaigns.length === 0) throw ApiError.notFound("Campaign not found");
+
+  const rows = await db.query(
+    `SELECT cdt.id, cdt.donor_id, cdt.expected_amount, cdt.pool_id, cdt.created_at,
+       d.first_name, d.last_name, d.email, d.phone, d.gender, d.position, d.is_anomalous,
+       p.name AS pool_name, p.category AS pool_category,
+       (SELECT COALESCE(SUM(dd.amount),0) FROM donations dd
+         WHERE dd.donor_id = cdt.donor_id AND dd.campaign_id = cdt.campaign_id
+           AND dd.status = 'CONFIRMED') AS paid_amount,
+       (SELECT COUNT(*) FROM donations dd
+         WHERE dd.donor_id = cdt.donor_id AND dd.campaign_id = cdt.campaign_id
+           AND dd.status = 'CONFIRMED') AS donation_count
+     FROM campaign_donor_targets cdt
+     JOIN donors d ON d.id = cdt.donor_id
+     LEFT JOIN donor_pools p ON p.id = cdt.pool_id
+     WHERE cdt.campaign_id = ?
+     ORDER BY d.first_name, d.last_name`,
+    [campaignId]
+  );
+
+  const targets = rows.map((r) => {
+    const expected =
+      r.expected_amount === null || r.expected_amount === undefined
+        ? null
+        : Number(r.expected_amount);
+    const paid = num(r.paid_amount);
+    return {
+      id: r.id,
+      campaignId: Number(campaignId),
+      expectedAmount: expected,
+      paidAmount: paid,
+      donationCount: num(r.donation_count),
+      status: computeStatus(expected, paid),
+      pool: r.pool_id
+        ? { id: r.pool_id, name: r.pool_name, category: r.pool_category }
+        : null,
+      donor: {
+        id: r.donor_id,
+        firstName: r.first_name,
+        lastName: r.last_name,
+        email: r.email,
+        phone: r.phone,
+        gender: r.gender,
+        position: r.position,
+        isAnomalous: Boolean(r.is_anomalous),
+      },
+      addedAt: r.created_at,
+    };
+  });
+
+  const summary = {
+    totalTargets: targets.length,
+    expectedTotal: targets.reduce((s, t) => s + (t.expectedAmount || 0), 0),
+    paidTotal: targets.reduce((s, t) => s + t.paidAmount, 0),
+    unpaid: targets.filter((t) => t.status === "UNPAID").length,
+    partial: targets.filter((t) => t.status === "PARTIAL").length,
+    paidFull: targets.filter((t) => t.status === "PAID_FULL").length,
+  };
+
+  const byPool = {};
+  for (const t of targets) {
+    const key = t.pool ? String(t.pool.id) : "__direct";
+    if (!byPool[key]) {
+      byPool[key] = {
+        pool: t.pool,
+        count: 0,
+        expectedTotal: 0,
+        paidTotal: 0,
+      };
+    }
+    byPool[key].count += 1;
+    byPool[key].expectedTotal += t.expectedAmount || 0;
+    byPool[key].paidTotal += t.paidAmount;
+  }
+
+  return {
+    campaign: { id: Number(campaignId), name: campaigns[0].name },
+    targets,
+    summary,
+    poolTotals: Object.values(byPool),
+  };
+}
+
+async function setDonorTargetExpected(organizationId, campaignId, donorId, expectedAmount) {
+  const existing = await db.query(
+    `SELECT cdt.id FROM campaign_donor_targets cdt
+     JOIN campaigns c ON c.id = cdt.campaign_id
+     WHERE cdt.campaign_id = ? AND cdt.donor_id = ? AND c.organization_id = ?`,
+    [campaignId, donorId, organizationId]
+  );
+  if (existing.length === 0) throw ApiError.notFound("Donor is not tracked on this campaign");
+
+  await db.execute(
+    `UPDATE campaign_donor_targets SET expected_amount = ? WHERE campaign_id = ? AND donor_id = ?`,
+    [expectedAmount, campaignId, donorId]
+  );
+
+  return getCampaignDonorTargets(organizationId, campaignId);
+}
+
+async function removeDonorTarget(organizationId, campaignId, donorId) {
+  await db.execute(
+    `DELETE cdt FROM campaign_donor_targets cdt
+     JOIN campaigns c ON c.id = cdt.campaign_id
+     WHERE cdt.campaign_id = ? AND cdt.donor_id = ? AND c.organization_id = ?`,
+    [campaignId, donorId, organizationId]
+  );
+  return getCampaignDonorTargets(organizationId, campaignId);
+}
+
 async function setCampaignManagers(organizationId, campaignId, userIds) {
   const existing = await db.query(
     "SELECT id FROM campaigns WHERE id = ? AND organization_id = ?",
@@ -412,5 +738,10 @@ module.exports = {
   approveCampaign,
   changeCampaignStatus,
   setCampaignManagers,
+  previewPoolImport,
+  importPools,
+  getCampaignDonorTargets,
+  setDonorTargetExpected,
+  removeDonorTarget,
   computeFees,
 };

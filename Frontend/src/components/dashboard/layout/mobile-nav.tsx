@@ -4,9 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/dashboard/utils";
 import { useRole } from "@/hooks/use-role";
+import { usePendingReminderCount } from "@/hooks/use-pending-reminders";
 import {
   LayoutDashboard,
-  Users,
   Megaphone,
   Settings,
   ClipboardList,
@@ -14,13 +14,16 @@ import {
   HeartHandshake,
   Building2,
   X,
+  Layers,
+  BellRing,
 } from "lucide-react";
 
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Donor Pool", href: "/dashboard/donors", icon: Users },
+  { label: "Donor Pools", href: "/dashboard/pools", icon: Layers },
   { label: "Campaigns", href: "/dashboard/campaigns", icon: Megaphone },
-  { label: "Team", href: "/dashboard/team", icon: UserCog },
+  { label: "Reminders", href: "/dashboard/reminders", icon: BellRing },
+  { label: "User", href: "/dashboard/user", icon: UserCog },
   { label: "Audit Log", href: "/dashboard/audit-log", icon: ClipboardList },
   { label: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
@@ -34,6 +37,7 @@ export function MobileNav({ open, onClose }: MobileNavProps) {
   const pathname = usePathname();
   const { canAccessRoute, meta } = useRole();
   const visibleItems = navItems.filter((item) => canAccessRoute(item.href));
+  const pendingReminders = usePendingReminderCount();
 
   const isActive = (href: string) => {
     if (href === "/dashboard") return pathname === "/dashboard";
@@ -104,7 +108,12 @@ export function MobileNav({ open, onClose }: MobileNavProps) {
                 )}
               >
                 <Icon className="w-4 h-4 shrink-0" />
-                {item.label}
+                <span className="flex-1">{item.label}</span>
+                {item.href === "/dashboard/reminders" && pendingReminders > 0 && (
+                  <span className="shrink-0 rounded-full bg-amber-500 text-white text-[10px] font-semibold leading-none min-w-[18px] h-[18px] px-1 flex items-center justify-center">
+                    {pendingReminders}
+                  </span>
+                )}
               </Link>
             );
           })}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -8,9 +8,9 @@ import {
   CheckCircle2,
   Megaphone,
   Clock,
-  Plus,
-  X,
-  Image as ImageIcon,
+  Layers,
+  Users,
+  Loader2,
 } from "lucide-react";
 import { Input } from "@/components/dashboard/ui/input";
 import { Label } from "@/components/dashboard/ui/label";
@@ -23,9 +23,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/dashboard/ui/select";
-import { saveUserCampaign } from "@/lib/dashboard/campaign-store";
-import type { Campaign } from "@/lib/dashboard/types";
+import { campaignApi, poolApi, type DonorPool } from "@/lib/dashboard/api";
 import { formatTZS } from "@/lib/dashboard/types";
+import { cn } from "@/lib/dashboard/utils";
 
 const CATEGORIES = [
   "Community",
@@ -45,9 +45,6 @@ interface FormState {
   startDate: string;
   endDate: string;
   contactPhone: string;
-  ownerName: string;
-  image: string;
-  evidence: string[];
 }
 
 const initialForm: FormState = {
@@ -58,58 +55,40 @@ const initialForm: FormState = {
   startDate: "",
   endDate: "",
   contactPhone: "",
-  ownerName: "",
-  image: "",
-  evidence: [],
 };
 
 export default function NewCampaignPage() {
   const router = useRouter();
   const [form, setForm] = useState<FormState>(initialForm);
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
-  const [submitted, setSubmitted] = useState<Campaign | null>(null);
+  const [pools, setPools] = useState<DonorPool[]>([]);
+  const [poolIds, setPoolIds] = useState<number[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [createdId, setCreatedId] = useState<number | null>(null);
+
+  const loadPools = useCallback(async () => {
+    try {
+      const r = await poolApi.list({ limit: 100 });
+      setPools(r.pools.filter((p) => !p.isSystem));
+    } catch {
+      setPools([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadPools();
+  }, [loadPools]);
 
   const setField = (field: keyof FormState, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
     setErrors((prev) => ({ ...prev, [field]: undefined }));
   };
 
-  const setEvidenceAt = (index: number, value: string) => {
-    setForm((prev) => {
-      const next = [...prev.evidence];
-      next[index] = value;
-      return { ...prev, evidence: next };
-    });
-  };
-
-   const setCoverAt = (index: number, value: string) => {
-    setForm((prev) => {
-      const next = [...prev.evidence];
-      next[index] = value;
-      return { ...prev, evidence: next };
-    });
-  };
-  const addEvidence = () => {
-    setForm((prev) => ({ ...prev, evidence: [...prev.evidence, ""] }));
-  };
-
-   const addCover = () => {
-    setForm((prev) => ({ ...prev, evidence: [...prev.evidence, ""] }));
-  };
-
-  const removeEvidence = (index: number) => {
-    setForm((prev) => ({
-      ...prev,
-      evidence: prev.evidence.filter((_, i) => i !== index),
-    }));
-  };
-
-   const removeCover = (index: number) => {
-    setForm((prev) => ({
-      ...prev,
-      evidence: prev.evidence.filter((_, i) => i !== index),
-    }));
-  };
+  const togglePool = (id: number) =>
+    setPoolIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
 
   const validate = (): boolean => {
     const next: Partial<Record<keyof FormState, string>> = {};
@@ -122,37 +101,40 @@ export default function NewCampaignPage() {
     if (form.startDate && form.endDate && form.endDate < form.startDate)
       next.endDate = "End date must be after the start date.";
     if (!form.contactPhone.trim()) next.contactPhone = "Contact phone is required.";
+    if (
+      form.contactPhone.trim() &&
+      !/^(\+?255|0)?[67][0-9]{8}$/.test(form.contactPhone.replace(/[\s-]/g, ""))
+    )
+      next.contactPhone = "Enter a valid Tanzanian phone number.";
     setErrors(next);
     return Object.keys(next).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!validate()) return;
 
-    const campaign: Campaign = {
-      id: `uc-${Date.now()}`,
-      name: form.name.trim(),
-      goal: Number(form.goal),
-      raised: 0,
-      donors: 0,
-      status: "pending",
-      startDate: form.startDate,
-      endDate: form.endDate,
-      description: form.description.trim(),
-      category: form.category,
-      contactPhone: form.contactPhone.trim(),
-      ownerName: form.ownerName.trim() || undefined,
-      image: form.image.trim() || undefined,
-      evidence: form.evidence.map((u) => u.trim()).filter(Boolean),
-      submittedAt: new Date().toISOString(),
-    };
-
-    saveUserCampaign(campaign);
-    setSubmitted(campaign);
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const created = await campaignApi.create({
+        name: form.name.trim(),
+        category: form.category,
+        story: form.description.trim() || undefined,
+        goalAmount: Number(form.goal),
+        startDate: form.startDate ? new Date(form.startDate).toISOString() : undefined,
+        endDate: form.endDate ? new Date(form.endDate).toISOString() : undefined,
+        contactPhone: form.contactPhone.trim() || undefined,
+        poolIds: poolIds.length > 0 ? poolIds : undefined,
+      });
+      setCreatedId(created.id);
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "Failed to create the campaign.");
+      setSubmitting(false);
+    }
   };
 
-  if (submitted) {
+  if (createdId) {
     return (
       <div className="space-y-6 max-w-[720px]">
         <div className="bg-card border border-border rounded-xl p-8 text-center shadow-sm">
@@ -160,27 +142,37 @@ export default function NewCampaignPage() {
             <CheckCircle2 className="w-6 h-6 text-emerald-600" />
           </div>
           <h1 className="text-xl font-semibold text-foreground tracking-tight mt-4">
-            Campaign submitted
+            Campaign created
           </h1>
           <p className="text-sm text-muted-foreground mt-2 max-w-md mx-auto">
-            Your campaign &ldquo;{submitted.name}&rdquo; has been submitted and is
-            now waiting for admin approval. You will be able to share it with
-            donors once it is approved.
+            Your campaign has been created and is now{" "}
+            <span className="font-medium text-foreground">waiting for admin approval</span>.
+            You will be able to share it with donors once it is approved.
           </p>
           <div className="inline-flex items-center gap-2 mt-4 rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-xs font-medium text-orange-700">
             <Clock className="w-3.5 h-3.5" />
             Pending admin approval
           </div>
+          {poolIds.length > 0 && (
+            <p className="text-xs text-muted-foreground mt-3">
+              {poolIds.length} donor pool{poolIds.length > 1 ? "s" : ""} imported for tracking.
+            </p>
+          )}
           <div className="flex flex-wrap justify-center gap-3 mt-6">
             <Button
               size="sm"
               nativeButton={false}
+              render={<Link href={`/dashboard/campaigns/${createdId}`} />}
+            >
+              View Campaign
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              nativeButton={false}
               render={<Link href="/dashboard/campaigns" />}
             >
               View My Campaigns
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => setSubmitted(null)}>
-              Create Another
             </Button>
             <Button size="sm" variant="ghost" onClick={() => router.push("/dashboard")}>
               Back to Dashboard
@@ -345,116 +337,74 @@ export default function NewCampaignPage() {
             )}
           </div>
 
-          <div className="grid gap-1.5">
-            <Label htmlFor="campaign-owner">Campaign owner</Label>
-            <Input
-              id="campaign-owner"
-              placeholder="e.g. Jane Mwangi"
-              value={form.ownerName}
-              onChange={(e) => setField("ownerName", e.target.value)}
-              className="h-9"
-            />
-            <p className="text-[11px] text-muted-foreground">
-              The person responsible for managing this campaign.
-            </p>
-          </div>
-
-          <div className="grid gap-1.5">
-            <div className="flex items-center justify-between">
-               <Label htmlFor="campaign-image">Banner image </Label>
-            <Button
-                type="button"
-                variant="outline"
-                size="xs"
-                onClick={addCover}
-              >
-                <Plus className="w-3 h-3 mr-1" />
-                Add image
-              </Button>
-            </div>
-            {form.evidence.length === 0 ? (
-              <p className="text-[11px] text-muted-foreground">
-                Optional. A cover image shown at the top of the campaign page.
-              </p>
-            ) : (
-              <div className="space-y-2">
-                {form.evidence.map((url, index) => (
-                  <div key={index} className="flex items-center gap-2">
-                    <ImageIcon className="w-4 h-4 text-muted-foreground shrink-0" />
-                    <Input
-                      type="url"
-                      placeholder="https://example.com/evidence.jpg"
-                      value={url}
-                      onChange={(e) => setCoverAt(index, e.target.value)}
-                      className="h-9"
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-xs"
-                      className="shrink-0"
-                      onClick={() => removeCover(index)}
-                      aria-label="Remove image"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </Button>
-                  </div>
-                ))}
+          {/* Import donor pools */}
+          <div className="grid gap-2 pt-2 border-t border-border">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-primary/15 flex items-center justify-center">
+                <Layers className="w-4 h-4 text-primary" />
               </div>
-            )}
-          </div>
-
-          <div className="grid gap-2">
-            <div className="flex items-center justify-between">
-              <Label>Evidence images</Label>
-              <Button
-                type="button"
-                variant="outline"
-                size="xs"
-                onClick={addEvidence}
-              >
-                <Plus className="w-3 h-3 mr-1" />
-                Add image
-              </Button>
+              <div>
+                <p className="text-sm font-medium text-foreground">Import donor pools</p>
+                <p className="text-xs text-muted-foreground">
+                  Optional — pre-track donors from your existing pools. You can also
+                  import pools later from the campaign page.
+                </p>
+              </div>
             </div>
-            {form.evidence.length === 0 ? (
+            {pools.length === 0 ? (
               <p className="text-[11px] text-muted-foreground">
-                Optional. Add photos that prove how the funds are used.
+                No custom donor pools available yet.
               </p>
             ) : (
-              <div className="space-y-2">
-                {form.evidence.map((url, index) => (
-                  <div key={index} className="flex items-center gap-2">
-                    <ImageIcon className="w-4 h-4 text-muted-foreground shrink-0" />
-                    <Input
-                      type="url"
-                      placeholder="https://example.com/evidence.jpg"
-                      value={url}
-                      onChange={(e) => setEvidenceAt(index, e.target.value)}
-                      className="h-9"
+              <div className="grid sm:grid-cols-2 gap-2">
+                {pools.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => togglePool(p.id)}
+                    className={cn(
+                      "flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs transition-colors",
+                      poolIds.includes(p.id)
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:bg-muted/40"
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={poolIds.includes(p.id)}
+                      readOnly
+                      className="accent-primary"
                     />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-xs"
-                      className="shrink-0"
-                      onClick={() => removeEvidence(index)}
-                      aria-label="Remove image"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </Button>
-                  </div>
+                    <Users className="w-3.5 h-3.5 text-muted-foreground" />
+                    <span className="font-medium text-foreground truncate flex-1">{p.name}</span>
+                    <span className="text-[10px] text-muted-foreground">{p.memberCount}</span>
+                  </button>
                 ))}
               </div>
             )}
           </div>
         </div>
 
+        {submitError && (
+          <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+            {submitError}
+          </div>
+        )}
+
         <div className="flex items-center justify-end gap-3 pt-2 border-t border-border">
           <Button type="button" variant="ghost" onClick={() => router.push("/dashboard/campaigns")}>
             Cancel
           </Button>
-          <Button type="submit">Submit for Approval</Button>
+          <Button type="submit" disabled={submitting}>
+            {submitting ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                Creating…
+              </>
+            ) : (
+              "Submit for Approval"
+            )}
+          </Button>
         </div>
       </form>
     </div>

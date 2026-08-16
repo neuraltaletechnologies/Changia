@@ -34,53 +34,53 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { teamMembers, type TeamMember } from "@/lib/mock-data";
+import { users, type User } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
 
-const roleColors: Record<TeamMember["role"], string> = {
+const roleColors: Record<User["role"], string> = {
   admin: "bg-rose-50 text-rose-700 border-rose-200",
   manager: "bg-sky-50 text-sky-700 border-sky-200",
   fundraiser: "bg-emerald-50 text-emerald-700 border-emerald-200",
   viewer: "bg-slate-50 text-slate-600 border-slate-200",
 };
 
-const statusColors: Record<TeamMember["status"], string> = {
+const statusColors: Record<User["status"], string> = {
   active: "bg-emerald-50 text-emerald-700",
   pending: "bg-amber-50 text-amber-700",
   inactive: "bg-slate-50 text-slate-500",
 };
 
 const rolePermissions: Record<
-  TeamMember["role"],
+  User["role"],
   { label: string; allowed: boolean }[]
 > = {
   admin: [
-    { label: "Manage team", allowed: true },
+    { label: "Manage user", allowed: true },
     { label: "Delete records", allowed: true },
     { label: "Export data", allowed: true },
     { label: "View reports", allowed: true },
   ],
   manager: [
-    { label: "Manage team", allowed: false },
+    { label: "Manage user", allowed: false },
     { label: "Delete records", allowed: false },
     { label: "Export data", allowed: true },
     { label: "View reports", allowed: true },
   ],
   fundraiser: [
-    { label: "Manage team", allowed: false },
+    { label: "Manage user", allowed: false },
     { label: "Delete records", allowed: false },
     { label: "Export data", allowed: false },
     { label: "View reports", allowed: true },
   ],
   viewer: [
-    { label: "Manage team", allowed: false },
+    { label: "Manage user", allowed: false },
     { label: "Delete records", allowed: false },
     { label: "Export data", allowed: false },
     { label: "View reports", allowed: true },
   ],
 };
 
-export default function TeamPage() {
+export default function UserPage() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteLoading, setInviteLoading] = useState(false);
 
@@ -99,10 +99,10 @@ export default function TeamPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-foreground tracking-tight">
-            Team Management
+            User Management
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {teamMembers.filter((m) => m.status === "active").length} active
+            {users.filter((m) => m.status === "active").length} active
             members &mdash; manage access and permissions
           </p>
         </div>
@@ -115,7 +115,7 @@ export default function TeamPage() {
       {/* Roles overview */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {(["admin", "manager", "fundraiser", "viewer"] as const).map((role) => {
-          const count = teamMembers.filter((m) => m.role === role).length;
+          const count = users.filter((m) => m.role === role).length;
           return (
             <div
               key={role}
@@ -154,7 +154,7 @@ export default function TeamPage() {
           </h2>
         </div>
         <div className="divide-y divide-border">
-          {teamMembers.map((member) => {
+          {users.map((member) => {
             const initials = member.name
               .split(" ")
               .map((n) => n[0])
@@ -252,7 +252,7 @@ export default function TeamPage() {
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-base font-semibold">
-              Invite Team Member
+              Invite User Member
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleInvite} className="space-y-4">

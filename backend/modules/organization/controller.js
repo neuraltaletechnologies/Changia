@@ -19,4 +19,9 @@ const getStats = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true, data: stats });
 });
 
-module.exports = { getMyOrganization, updateMyOrganization, getStats };
+const listOrganizations = asyncHandler(async (req, res) => {
+  const organizations = await organizationService.listOrganizations();
+  res.status(200).json({ success: true, data: { organizations } });
+});
+
+module.exports = { getMyOrganization, updateMyOrganization, getStats, listOrganizations };

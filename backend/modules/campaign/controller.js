@@ -69,6 +69,53 @@ const setManagers = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true, data: campaign });
 });
 
+const previewPools = asyncHandler(async (req, res) => {
+  const result = await campaignService.previewPoolImport(
+    req.user.organizationId,
+    req.user,
+    req.params.id,
+    req.body.poolIds
+  );
+  res.status(200).json({ success: true, data: result });
+});
+
+const importPools = asyncHandler(async (req, res) => {
+  const result = await campaignService.importPools(
+    req.user.organizationId,
+    req.user,
+    req.params.id,
+    req.body
+  );
+  res.status(200).json({ success: true, data: result });
+});
+
+const getDonorTargets = asyncHandler(async (req, res) => {
+  const result = await campaignService.getCampaignDonorTargets(
+    req.user.organizationId,
+    req.params.id
+  );
+  res.status(200).json({ success: true, data: result });
+});
+
+const setDonorTarget = asyncHandler(async (req, res) => {
+  const result = await campaignService.setDonorTargetExpected(
+    req.user.organizationId,
+    req.params.id,
+    req.params.donorId,
+    req.body.expectedAmount ?? null
+  );
+  res.status(200).json({ success: true, data: result });
+});
+
+const removeDonorTarget = asyncHandler(async (req, res) => {
+  const result = await campaignService.removeDonorTarget(
+    req.user.organizationId,
+    req.params.id,
+    req.params.donorId
+  );
+  res.status(200).json({ success: true, data: result });
+});
+
 module.exports = {
   listCampaigns,
   getCampaign,
@@ -78,4 +125,9 @@ module.exports = {
   approveCampaign,
   changeStatus,
   setManagers,
+  previewPools,
+  importPools,
+  getDonorTargets,
+  setDonorTarget,
+  removeDonorTarget,
 };

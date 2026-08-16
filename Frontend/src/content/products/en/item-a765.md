@@ -22,7 +22,7 @@ longDescription:
   title: 'From Shareable Link to Completed Payment'
   subTitle: |
     Create a Campaign , set a required amount, add a configurable service fee and a public target, then distribute approved SMS, WhatsApp or email templates to consented contacts — all from one workspace.
-  btnTitle: 'Contact the team to learn more'
+  btnTitle: 'Contact the user to learn more'
   btnURL: '#'
 descriptionList:
   - title: 'Campaign  Management'

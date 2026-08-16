@@ -76,11 +76,11 @@ const articles: Article[] = [
     isRightSection: false,
     title: 'Trust, Audit and Ongoing Support',
     subTitle:
-      "Every request, attempt and callback is logged for reconciliation, with integer TZS amounts and immutable audit events. Our team is there after launch with training, a 30-day defect warranty and a clear path to the next Campaign whenever you're ready.",
+      "Every request, attempt and callback is logged for reconciliation, with integer TZS amounts and immutable audit events. Our user is there after launch with training, a 30-day defect warranty and a clear path to the next Campaign whenever you're ready.",
     img: usingTools,
-    imgAlt: 'Team monitoring verified callbacks and audit events',
+    imgAlt: 'User monitoring verified callbacks and audit events',
     btnExists: true,
-    btnTitle: 'Contact the Team',
+    btnTitle: 'Contact the User',
     btnURL: '/contact',
   },
 ];

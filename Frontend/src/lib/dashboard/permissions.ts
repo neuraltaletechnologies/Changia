@@ -42,38 +42,30 @@ export interface RoleMeta {
 
 export const ROLE_META: Record<Role, RoleMeta> = {
   SUPER_ADMIN: {
-    label: "Super Administrator",
+    label: "Super Admin",
     shortLabel: "Super Admin",
-    tagline: "Platform overview — config, fees, gateways and audit.",
+    tagline: "Platform control, organisation setup and compliance.",
     scope:
-      "You have full platform access: configuration, fee & gateway settings, " +
-      "organisation setup, and support / audit access.",
+      "Full platform access: organisation setup, donor pools, campaign approvals, user management, payouts and audit logs.",
   },
   ORG_ADMIN: {
-    label: "Organization Administrator",
+    label: "Org Admin",
     shortLabel: "Org Admin",
-    tagline: "Run your campaigns, donor pool, team and payouts.",
+    tagline: "Campaigns, donors, users and payouts for your organisation.",
     scope:
-      "You can create and approve campaigns, manage your team and donor pool, " +
-      "view reports, and request payouts.",
+      "Create and approve campaigns, manage donors and donor pools, manage your user and request payouts.",
   },
   CAMPAIGN_MANAGER: {
     label: "Campaign Manager",
     shortLabel: "Campaign Manager",
-    tagline: "Manage your assigned campaigns and their consented donors.",
+    tagline: "Run campaigns and manage your consented donors.",
     scope:
-      "You work only on your assigned campaigns: add consented donors and send " +
-      "approved push requests. Withdrawals and payouts are not available to your role.",
+      "Create campaigns, manage donor pools and add consented donors. Approvals, user management and payouts need an admin.",
   },
 };
 
-export function getRoleMeta(role: Role | undefined): RoleMeta {
-  return (role && ROLE_META[role]) || {
-    label: "Member",
-    shortLabel: "Member",
-    tagline: "Welcome.",
-    scope: "",
-  };
+export function getRoleMeta(role?: Role): RoleMeta {
+  return (role && ROLE_META[role]) || ROLE_META.CAMPAIGN_MANAGER;
 }
 
 // ─── Permissions ─────────────────────────────────────────────────────────────
@@ -86,12 +78,13 @@ export type Permission =
   | "donor:view"
   | "donor:add" // add consented donors
   | "donor:manage" // full donor CRUD + imports
-  | "team:manage"
+  | "user:manage"
   | "audit:view"
   | "settings:platform" // platform config, fees, gateways
   | "settings:org" // organisation preferences
   | "payout:request"
-  | "reports:view";
+  | "reports:view"
+  | "reminder:manage"; // templates, auto-resend schedules, pending approvals
 
 export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   SUPER_ADMIN: [
@@ -102,12 +95,13 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "donor:view",
     "donor:add",
     "donor:manage",
-    "team:manage",
+    "user:manage",
     "audit:view",
     "settings:platform",
     "settings:org",
     "payout:request",
     "reports:view",
+    "reminder:manage",
   ],
   ORG_ADMIN: [
     "dashboard:view",
@@ -117,16 +111,19 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "donor:view",
     "donor:add",
     "donor:manage",
-    "team:manage",
+    "user:manage",
     "settings:org",
     "payout:request",
     "reports:view",
+    "reminder:manage",
   ],
   CAMPAIGN_MANAGER: [
     "dashboard:view",
     "campaign:view",
+    "campaign:create",
     "donor:view",
     "donor:add",
+    "reminder:manage",
   ],
 };
 
@@ -143,13 +140,19 @@ export function hasPermission(role: Role | undefined, perm: Permission): boolean
 export const ROUTE_ACCESS: Record<string, Role[]> = {
   "/dashboard": ALL_ROLES,
   "/dashboard/campaigns": ALL_ROLES,
-  "/dashboard/campaigns/new": [ROLE.SUPER_ADMIN, ROLE.ORG_ADMIN],
+  "/dashboard/campaigns/new": ALL_ROLES,
   "/dashboard/campaigns/approvals": [ROLE.SUPER_ADMIN, ROLE.ORG_ADMIN],
   "/dashboard/donors": ALL_ROLES,
   "/dashboard/donors/import": [ROLE.SUPER_ADMIN, ROLE.ORG_ADMIN],
-  "/dashboard/team": [ROLE.SUPER_ADMIN, ROLE.ORG_ADMIN],
+  "/dashboard/pools": ALL_ROLES,
+  "/dashboard/pools/new": ALL_ROLES,
+  "/dashboard/pools/anomalous": ALL_ROLES,
+  "/dashboard/reminders": ALL_ROLES,
+  "/dashboard/reminders/templates": ALL_ROLES,
+  "/dashboard/reminders/schedules": ALL_ROLES,
+  "/dashboard/user": [ROLE.SUPER_ADMIN, ROLE.ORG_ADMIN],
   "/dashboard/audit-log": [ROLE.SUPER_ADMIN],
-  "/dashboard/settings": [ROLE.SUPER_ADMIN, ROLE.ORG_ADMIN],
+  "/dashboard/settings": ALL_ROLES,
   "/dashboard/payouts": [ROLE.SUPER_ADMIN, ROLE.ORG_ADMIN],
 };
 

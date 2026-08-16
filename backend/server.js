@@ -1,6 +1,7 @@
 const { createApp } = require("./app");
 const { env } = require("./config");
 const db = require("./db");
+const { startReminderScheduler } = require("./jobs/reminderScheduler");
 
 const app = createApp();
 
@@ -15,8 +16,11 @@ async function bootstrap() {
       console.log(`   Environment: ${env.NODE_ENV}`);
     });
 
+    const schedulerTask = startReminderScheduler();
+
     const shutdown = async (signal) => {
       console.log(`\n${signal} received — shutting down gracefully...`);
+      schedulerTask.stop();
       server.close(async () => {
         await db.pool.end();
         process.exit(0);

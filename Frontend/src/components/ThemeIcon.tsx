@@ -25,7 +25,7 @@ export default function ThemeIcon() {
         type="button"
         aria-label="Dark Theme Toggle"
         title="Toggle theme"
-        className={`group flex h-8 w-8 items-center justify-center rounded-full font-medium text-neutral-600 ring-zinc-500 outline-hidden transition duration-300 hover:bg-neutral-200 hover:text-orange-400 dark:text-neutral-400 dark:ring-zinc-200 dark:hover:text-orange-300 dark:focus:outline-hidden ${
+        className={`group flex h-8 w-8 items-center justify-center rounded-full font-medium text-neutral-600 ring-zinc-500 outline-hidden transition duration-300 hover:bg-neutral-200 hover:text-emerald-600 dark:text-neutral-400 dark:ring-zinc-200 dark:hover:text-emerald-400 dark:focus:outline-hidden ${
           dark ? 'hidden' : 'flex'
         }`}
         onClick={() => toggle(true)}
@@ -48,7 +48,7 @@ export default function ThemeIcon() {
         type="button"
         aria-label="Light Theme Toggle"
         title="Toggle theme"
-        className={`group flex h-8 w-8 items-center justify-center rounded-full font-medium text-neutral-600 ring-zinc-500 outline-hidden transition duration-300 hover:text-orange-400 dark:text-neutral-400 dark:ring-zinc-200 dark:hover:bg-neutral-700 dark:hover:text-orange-300 dark:focus:outline-hidden ${
+        className={`group flex h-8 w-8 items-center justify-center rounded-full font-medium text-neutral-600 ring-zinc-500 outline-hidden transition duration-300 hover:text-emerald-600 dark:text-neutral-400 dark:ring-zinc-200 dark:hover:bg-neutral-700 dark:hover:text-emerald-400 dark:focus:outline-hidden ${
           dark ? 'flex' : 'hidden'
         }`}
         onClick={() => toggle(false)}

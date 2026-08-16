@@ -1,5 +1,21 @@
 const { z } = require("zod");
 
+const poolIdSchema = z.union([z.string(), z.number()]);
+const amountSchema = z
+  .number({ message: "Amount must be a number" })
+  .int("Amount must be a whole TZS number")
+  .min(0, "Amount cannot be negative");
+
+const poolExpectedSchema = z.object({
+  poolIds: z.array(poolIdSchema).min(1).max(50),
+  duplicateChoices: z
+    .array(z.object({ donorId: poolIdSchema, poolId: poolIdSchema }))
+    .optional(),
+  expectedAmounts: z
+    .record(z.string(), z.record(z.string(), amountSchema))
+    .optional(),
+});
+
 const createCampaignSchema = z.object({
   name: z.string().min(3, "Campaign name is required").max(150),
   story: z.string().max(20000).optional(),
@@ -18,6 +34,10 @@ const createCampaignSchema = z.object({
     .regex(/^(\+?255|0)?[67][0-9]{8}$/, "Enter a valid Tanzanian phone number")
     .optional(),
   managerIds: z.array(z.union([z.string(), z.number()])).max(50).optional(),
+  poolIds: z.array(poolIdSchema).max(50).optional(),
+  expectedAmounts: z
+    .record(z.string(), z.record(z.string(), amountSchema))
+    .optional(),
 });
 
 const updateCampaignSchema = createCampaignSchema.partial();
@@ -39,10 +59,16 @@ const campaignStatusSchema = z.object({
   status: z.enum(["PAUSED", "COMPLETED", "CANCELLED"]),
 });
 
+const targetExpectedSchema = z.object({
+  expectedAmount: amountSchema.nullable().optional(),
+});
+
 module.exports = {
   createCampaignSchema,
   updateCampaignSchema,
   listCampaignsQuerySchema,
   setManagersSchema,
   campaignStatusSchema,
+  poolExpectedSchema,
+  targetExpectedSchema,
 };

@@ -68,13 +68,13 @@ export default async function SwahiliInsightPostPage({ params }: Params) {
             </div>
             <div
               id="progress-mobile"
-              className="fixed top-0 left-0 h-2 w-full bg-linear-to-r from-orange-400/30 to-orange-400 md:hidden"
+              className="fixed top-0 left-0 h-2 w-full bg-linear-to-r from-blue-400/30 to-blue-600 md:hidden"
             />
             <div id="pin" className="mt-10 hidden space-y-4 md:block">
               <div className="h-px w-full overflow-hidden bg-neutral-300 dark:bg-neutral-700">
                 <div
                   id="progress"
-                  className="h-px w-0 bg-linear-to-r from-orange-400/30 to-orange-400"
+                  className="h-px w-0 bg-linear-to-r from-blue-400/30 to-blue-600"
                 />
               </div>
               <p className="text-sm text-pretty text-neutral-500">Jedwali la yaliyomo:</p>
@@ -84,7 +84,7 @@ export default async function SwahiliInsightPostPage({ params }: Params) {
                     <li key={h.id} className="flex gap-2">
                       <a
                         href={`#${h.id}`}
-                        className="hover:text-orange-400 dark:hover:text-orange-300"
+                        className="hover:text-blue-600 dark:hover:text-blue-400"
                       >
                         {h.text}
                       </a>

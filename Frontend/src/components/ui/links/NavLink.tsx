@@ -15,7 +15,7 @@ export default function NavLink({ url, name }: NavLinkProps) {
     (url === '/' && (pathname === '/' || pathname === '/sw'));
 
   const activeClasses =
-    'text-orange-400 dark:text-orange-300';
+    'text-blue-600 dark:text-blue-400';
   const inactiveClasses =
     'text-neutral-600 hover:text-neutral-500 dark:text-neutral-400 dark:hover:text-neutral-500';
 

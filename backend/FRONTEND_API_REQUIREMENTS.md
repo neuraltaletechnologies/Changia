@@ -16,7 +16,7 @@ This document covers the whole flow **from login and registration onward** and d
 4. [Data models (types the API must use)](#4-data-models-types-the-api-must-use)
 5. [Auth — login & registration](#5-auth--login--registration)
 6. [Organizations](#6-organizations)
-7. [Users / Team](#7-users--team)
+7. [Users / User](#7-users--user)
 8. [Campaigns](#8-campaigns)
 9. [Donors (CRM)](#9-donors-crm)
 10. [Donations & payments](#10-donations--payments)
@@ -148,14 +148,14 @@ Every request body and query must be validated **server-side** before it is proc
 
 ## 3. Roles & permissions
 
-> **Backed by frontend pages:** these roles gate the sidebar, mobile nav, route guard, and quick actions across every dashboard page (`/dashboard`, `/dashboard/campaigns`, `/dashboard/donors`, `/dashboard/team`, `/dashboard/audit-log`, `/dashboard/settings`, `/dashboard/payouts`).
+> **Backed by frontend pages:** these roles gate the sidebar, mobile nav, route guard, and quick actions across every dashboard page (`/dashboard`, `/dashboard/campaigns`, `/dashboard/donors`, `/dashboard/users`, `/dashboard/audit-log`, `/dashboard/settings`, `/dashboard/payouts`).
 
 There are **three** platform roles. The user-facing names the customer uses map to the API role strings as follows:
 
 | Customer term | API role (`ApiUser.role`) | Scope |
 |---------------|---------------------------|-------|
 | **System** | `SUPER_ADMIN` | Platform-wide: config, fee & gateway settings, org setup, support + audit. No organization by default (`organizationId: null`). |
-| **Admin** | `ORG_ADMIN` | One organization: creates/approves campaigns, manages team + donor pool, requests payouts. |
+| **Admin** | `ORG_ADMIN` | One organization: creates/approves campaigns, manages user + donor pool, requests payouts. |
 | **Manager** | `CAMPAIGN_MANAGER` | Only assigned campaigns: adds consented donors, sends approved push payment requests. **No withdrawals/payouts.** |
 
 ### Permission matrix the frontend enforces in the UI (mirror this on the backend)
@@ -169,14 +169,14 @@ There are **three** platform roles. The user-facing names the customer uses map 
 | `donor:view` | ✅ | ✅ | ✅ |
 | `donor:add` (add consented donors) | ✅ | ✅ | ✅ |
 | `donor:manage` (full CRUD + import) | ✅ | ✅ | ❌ |
-| `team:manage` | ✅ | ✅ | ❌ |
+| `user:manage` | ✅ | ✅ | ❌ |
 | `audit:view` | ✅ | ❌ | ❌ |
 | `settings:platform` | ✅ | ❌ | ❌ |
 | `settings:org` | ✅ | ✅ | ❌ |
 | `payout:request` | ✅ | ✅ | ❌ |
 | `reports:view` | ✅ | ✅ | ❌ |
 
-**Backend rule of thumb:** a `CAMPAIGN_MANAGER` can CREATE/READ donors and create payment attempts, but can **never** update/delete donors, manage team, approve campaigns, change org settings, or do payouts. Enforce this server-side with `authorize(...)` middleware — never trust the UI/role alone.
+**Backend rule of thumb:** a `CAMPAIGN_MANAGER` can CREATE/READ donors and create payment attempts, but can **never** update/delete donors, manage user, approve campaigns, change org settings, or do payouts. Enforce this server-side with `authorize(...)` middleware — never trust the UI/role alone.
 
 ---
 
@@ -312,10 +312,10 @@ interface PaymentAttempt {
 }
 ```
 
-### `TeamMember` (user rows listing)
+### `User` (user rows listing)
 
 ```ts
-interface TeamMember {
+interface User {
   id: string;
   name: string;              // firstName + lastName
   email: string;
@@ -326,7 +326,7 @@ interface TeamMember {
 }
 ```
 
-> **Loose coupling note:** the team page currently uses UI labels `admin | manager | viewer | fundraiser`. Map from the API role: `ORG_ADMIN` → `admin`, `CAMPAIGN_MANAGER` → `manager`/`fundraiser`, `SUPER_ADMIN` → `admin`. Ideally also expose the canonical `ApiUser.role` field.
+> **Loose coupling note:** the user page currently uses UI labels `admin | manager | viewer | fundraiser`. Map from the API role: `ORG_ADMIN` → `admin`, `CAMPAIGN_MANAGER` → `manager`/`fundraiser`, `SUPER_ADMIN` → `admin`. Ideally also expose the canonical `ApiUser.role` field.
 
 ### `AuditLog`
 
@@ -354,7 +354,7 @@ interface Notification {
   description: string;
   time: string;
   read: boolean;
-  type: 'donation' | 'campaign' | 'system' | 'team';
+  type: 'donation' | 'campaign' | 'system' | 'user';
 }
 ```
 
@@ -512,13 +512,13 @@ Authenticated (SUPER_ADMIN, ORG_ADMIN). `CAMPAIGN_MANAGER` is denied.
 **Response — `200 OK`:** returns the updated `Organization`.
 
 ---
-## 7. Users / Team
+## 7. Users / User
 
-> **Backed by frontend pages:** `/dashboard/team` — team list, "Invite Team Member", change role, resend invite, remove member.
+> **Backed by frontend pages:** `/dashboard/users` — user list, "Invite User Member", change role, resend invite, remove member.
 
-Routes manage the org's team members (all have `role` in `SUPER_ADMIN | ORG_ADMIN | CAMPAIGN_MANAGER`). Creating a user returns a **temporary password** (or an invite link) the admin shares with them. Invitation emails are required later — **[TO BUILD]**.
+Routes manage the org's user members (all have `role` in `SUPER_ADMIN | ORG_ADMIN | CAMPAIGN_MANAGER`). Creating a user returns a **temporary password** (or an invite link) the admin shares with them. Invitation emails are required later — **[TO BUILD]**.
 
-### `GET /users` — list team members
+### `GET /users` — list user members
 
 Authenticated (all roles). Org-scoped.
 
@@ -536,9 +536,9 @@ Authenticated (all roles). Org-scoped.
 }
 ```
 
-### `POST /users` — invite a team member (the Team page "Invite Team Member")
+### `POST /users` — invite a user member (the User page "Invite User Member")
 
-Authenticated (SUPER_ADMIN, ORG_ADMIN). `CAMPAIGN_MANAGER` denied. This backs the **"Invite Team Member"** dialog on `http://localhost:3000/dashboard/team` — enter an email, pick a role, and send the invite. The user is created with `status: "pending"` and an invitation/link is dispatched.
+Authenticated (SUPER_ADMIN, ORG_ADMIN). `CAMPAIGN_MANAGER` denied. This backs the **"Invite User Member"** dialog on `http://localhost:3000/dashboard/users` — enter an email, pick a role, and send the invite. The user is created with `status: "pending"` and an invitation/link is dispatched.
 
 **Request body:**
 
@@ -546,16 +546,16 @@ Authenticated (SUPER_ADMIN, ORG_ADMIN). `CAMPAIGN_MANAGER` denied. This backs th
 { "firstName": "Peter", "lastName": "John", "email": "peter@changia.org.tz", "phone": "+255755123999", "role": "CAMPAIGN_MANAGER" }
 ```
 
-> **UI role label → API role mapping (the Team page offers these 4 choices):**
+> **UI role label → API role mapping (the User page offers these 4 choices):**
 
-| Team page label (`TeamMember.role`) | API `ApiUser.role` to store |
+| User page label (`User.role`) | API `ApiUser.role` to store |
 |--------------------------------------|-----------------------------|
 | `admin`      | `ORG_ADMIN` (or `SUPER_ADMIN` when the org is being set up platform-wide) |
 | `manager`    | `ORG_ADMIN` |
 | `fundraiser` | `CAMPAIGN_MANAGER` |
 | `viewer`     | `CAMPAIGN_MANAGER` (read-only; enforced by a `viewer`/`readonly` user flag if you want stricter gating) |
 
-> The Team page can invite with **email + role only** (name is derived from the email address when a display name isn't supplied). The backend must accept a role label from the API enum (`ORG_ADMIN`/`CAMPAIGN_MANAGER`) and return both the canonical `ApiUser.role` **and** the friendly `TeamMember.role` label for the UI list.
+> The User page can invite with **email + role only** (name is derived from the email address when a display name isn't supplied). The backend must accept a role label from the API enum (`ORG_ADMIN`/`CAMPAIGN_MANAGER`) and return both the canonical `ApiUser.role` **and** the friendly `User.role` label for the UI list.
 
 **Response — `201 Created`:** returns the new `ApiUser` plus `temporaryPassword` (shown once) or an `inviteUrl`.
 
@@ -567,13 +567,13 @@ Authenticated (SUPER_ADMIN, ORG_ADMIN). `CAMPAIGN_MANAGER` denied. This backs th
 
 ### `POST /users/:id/resend-invite` — resend an invite **[TO BUILD]**
 
-Authenticated (SUPER_ADMIN, ORG_ADMIN). Backs the Team page's **"Resend Invite"** action for a member still `pending`. Re-sends the invite email / regenerates the token.
+Authenticated (SUPER_ADMIN, ORG_ADMIN). Backs the User page's **"Resend Invite"** action for a member still `pending`. Re-sends the invite email / regenerates the token.
 
 **Response — `200 OK`:** `{ "success": true, "message": "Invitation resent" }`
 
 **Errors:** `404 NOT_FOUND`, `400` (member is not `pending`).
 
-### `PUT /users/:id` — update a team member
+### `PUT /users/:id` — update a user member
 
 Authenticated (SUPER_ADMIN, ORG_ADMIN).
 
@@ -581,7 +581,7 @@ Authenticated (SUPER_ADMIN, ORG_ADMIN).
 
 **Response — `200 OK`:** updated `ApiUser`.
 
-### `DELETE /users/:id` — remove a team member
+### `DELETE /users/:id` — remove a user member
 
 Authenticated (SUPER_ADMIN, ORG_ADMIN). Cannot self-delete or remove the last remaining or.'s last `ORG_ADMIN`.
 
@@ -593,7 +593,7 @@ Authenticated (SUPER_ADMIN, ORG_ADMIN). Cannot self-delete or remove the last re
 
 ## 8. Campaigns
 
-> **Backed by frontend pages:** `/dashboard/campaigns` (list + status tabs), `/dashboard/campaigns/new` (create), `/dashboard/campaigns/approvals` (approve), and `/dashboard/campaigns/:id` (detail with Overview · Donors · Transactions · Evidence · Team tabs).
+> **Backed by frontend pages:** `/dashboard/campaigns` (list + status tabs), `/dashboard/campaigns/new` (create), `/dashboard/campaigns/approvals` (approve), and `/dashboard/campaigns/:id` (detail with Overview · Donors · Transactions · Evidence · User tabs).
 
 Campaigns have an approval workflow and a status lifecycle. All authenticated org members can read; only `SUPER_ADMIN`/`ORG_ADMIN` can create/manage; managers only view campaigns they're assigned to.
 
@@ -640,7 +640,7 @@ Authenticated (all roles). Orgs see their own; managers additionally only get ca
 
 ### `GET /campaigns/:id` — campaign detail (everything the campaign page renders)
 
-Authenticated (all roles). Returns the full campaign object the detail page at `http://localhost:3000/dashboard/campaigns/:id` needs. This page renders **a lot** — the status banner, header meta, progress card, and five tabs (Overview, Donors, Transactions, Evidence, Team) — so the response must include every field below.
+Authenticated (all roles). Returns the full campaign object the detail page at `http://localhost:3000/dashboard/campaigns/:id` needs. This page renders **a lot** — the status banner, header meta, progress card, and five tabs (Overview, Donors, Transactions, Evidence, User) — so the response must include every field below.
 
 **Response — `200 OK`:**
 
@@ -681,7 +681,7 @@ Authenticated (all roles). Returns the full campaign object the detail page at `
 | `name` | Page title |
 | `category` | Header meta chip (with Megaphone icon); hidden if absent |
 | `startDate` → `endDate` | Header chip "`2026-02-01 → 2026-06-30`" (Calendar icon) |
-| `ownerName` | Header chip (UserRound) **and** the Overview "Owner" card + the Team tab's "Campaign owner" card |
+| `ownerName` | Header chip (UserRound) **and** the Overview "Owner" card + the User tab's "Campaign owner" card |
 | `ownerEmail` | Overview "Owner" card subtitle (falls back to `contactPhone`, then "No contact set") |
 | `submittedAt` | "Submitted for approval on `<localized date>`" under the header — **only shown when present** |
 | `status` | Status badge. **Pending** also triggers the orange "Awaiting admin approval" banner: *"This campaign has been submitted but is not live yet. Once an admin approves it, it will be published and ready to share with donors."* The badge maps via `campaignStatusMap`: `active`→Active, `draft`→Draft, `completed`→Completed, `paused`→Paused, `pending`→Pending Approval |
@@ -690,7 +690,7 @@ Authenticated (all roles). Returns the full campaign object the detail page at `
 | `description` | Overview → "About" paragraph (falls back to "No description provided.") |
 | `contactPhone` | Overview → "About" card (Phone icon) |
 | `evidence` | Overview → "Evidence" tab image grid (array of image URLs) |
-| `memberIds` | Overview → "Team" tab assign/remove list (which members are `assigned`) |
+| `memberIds` | Overview → "User" tab assign/remove list (which members are `assigned`) |
 | `recentDonations` | Overview → "Transactions" tab (donations with `donorName`, `date`, `channel`, `amount`) |
 
 > **Donors / Transactions tab data:** the Donors tab (distinct donors with total given, no. of gifts, last gift date) and Transactions tab (full list + "Total collected") are served by `GET /donations?campaignId=:id` — each `Donation` must carry `donorId`, `donorName`, `campaignId`, `campaign`, `channel`, `date`, `amount`. The UI aggregates distinct donors itself; you may alternatively return a `donors` aggregation array on the campaign if you prefer to precompute it.
@@ -736,7 +736,7 @@ Authenticated (SUPER_ADMIN, ORG_ADMIN). **Only while `status` is `draft` or `pen
 
 Authenticated (SUPER_ADMIN, ORG_ADMIN). **Only while `status` is `draft` or `pending`.**
 
-- Soft-delete or hard-delete the campaign row (recommended: soft-delete with a `deletedAt` mark so audit/team history is retained).
+- Soft-delete or hard-delete the campaign row (recommended: soft-delete with a `deletedAt` mark so audit/users history is retained).
 - **After publish** deletion is **not allowed** → return `409 CANNOT_DELETE_PUBLISHED`. A published campaign may only be **stopped** (paused/cancelled/completed).
 - Also validate the campaign belongs to the caller's organization (org-scoped) → `404 NOT_FOUND` otherwise.
 
@@ -1123,7 +1123,7 @@ Authenticated (SUPER_ADMIN, ORG_ADMIN). `CAMPAIGN_MANAGER` denied. These are the
   "notifications": {
     "notifyOnDonation": true,
     "notifyOnCampaignStatus": true,
-    "notifyOnTeamInvite": true
+    "notifyOnUserInvite": true
   },
   "security": {
     "twoFactorEnabled": false,
@@ -1224,7 +1224,7 @@ Then verify role gating with the demo accounts (password `Changia@2026`):
 | Auth | `POST /auth/register`, `POST /auth/login`, `GET /auth/me`, `POST /auth/change-password` | **Wired up now** — build/confirm first |
 | Auth | `POST /auth/logout` | `[TO BUILD]` |
 | Organizations | `GET /organizations`, `GET /organizations/stats`, `PUT /organizations` | `[TO BUILD]` |
-| Team | `GET/POST /users`, `PUT/DELETE /users/:id` | `[TO BUILD]` |
+| User | `GET/POST /users`, `PUT/DELETE /users/:id` | `[TO BUILD]` |
 | Campaigns | `GET/POST /campaigns`, `GET/PUT/DELETE /campaigns/:id`, submit/approve/status/managers routes (edit/delete only before publish; stop via status after publish) | `[TO BUILD]` |
 | Donors | `GET/POST /donors`, `GET/PUT/DELETE /donors/:id`, `POST /donors/import` — pool list **must support the full filter set** (`search`, `status`, `consentStatus`, `tag`, `channel`) + `counts` | `[TO BUILD]` |
 | Donations | `GET /donations` (with `campaignId`/`donorId` filters), **`POST /donations` (manual/offline record)** , payment attempts, `simulate-callback` | `[TO BUILD]` |

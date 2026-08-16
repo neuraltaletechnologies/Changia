@@ -66,7 +66,7 @@ async function getOrganizationStats(organizationId) {
          COALESCE(SUM(d.amount), 0) AS total_raised,
          COUNT(d.id) AS total_donations,
          (SELECT COUNT(*) FROM campaigns WHERE organization_id = ? AND status = 'ACTIVE') AS active_campaigns,
-         (SELECT COUNT(*) FROM users WHERE organization_id = ?) AS team_size,
+         (SELECT COUNT(*) FROM users WHERE organization_id = ?) AS user_size,
          (SELECT COUNT(*) FROM donors WHERE organization_id = ?) AS donor_count,
          (SELECT COUNT(*) FROM campaigns WHERE organization_id = ?) AS campaign_count
        FROM donations d
@@ -82,7 +82,7 @@ async function getOrganizationStats(organizationId) {
     totalRaised: Number(stats.total_raised || 0),
     totalDonations: Number(stats.total_donations || 0),
     activeCampaigns: Number(stats.active_campaigns || 0),
-    teamSize: Number(stats.team_size || 0),
+    userSize: Number(stats.user_size || 0),
     donorCount: Number(stats.donor_count || 0),
     campaignCount: Number(stats.campaign_count || 0),
   };

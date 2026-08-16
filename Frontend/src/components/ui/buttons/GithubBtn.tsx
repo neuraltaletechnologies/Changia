@@ -6,10 +6,10 @@ type GithubBtnProps = {
 };
 
 const baseClasses =
-  'group inline-flex items-center justify-center gap-x-3 rounded-lg px-4 py-3 text-center text-sm font-medium text-neutral-700 ring-zinc-500 focus-visible:ring-3 transition duration-300 outline-hidden';
+  'group inline-flex items-center justify-center gap-x-3 rounded-lg px-4 py-3 text-center text-sm font-medium text-neutral-50 ring-zinc-500 focus-visible:ring-3 transition duration-300 outline-hidden';
 const borderClasses = 'border border-transparent';
-const bgColorClasses = 'bg-yellow-400 dark:focus:outline-hidden';
-const hoverClasses = 'hover:shadow-2xl hover:shadow-yellow-500';
+const bgColorClasses = 'bg-blue-600 dark:focus:outline-hidden';
+const hoverClasses = 'hover:shadow-2xl hover:shadow-blue-500';
 const fontSizeClasses = '2xl:text-base';
 const ringClasses = 'dark:ring-zinc-200';
 

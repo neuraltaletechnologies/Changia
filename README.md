@@ -6,7 +6,7 @@ Tanzania-first. fast campaign money. Built for everyday donors.
 
 > Business Proposal, Campaign Specification and Implementation Plan
 > Prepared for: Dr. Msuya / Initial Launch Partner
-> Prepared by: Changia Development Team
+> Prepared by: Changia Development User
 > Proposal date: 30 July 2026
 > Status: Confidential — for review and approval
 
@@ -131,7 +131,7 @@ Also planned: feature-phone SMS/USSD donation menus, recurring donations, Campai
 - A donation is only confirmed after a verified gateway callback; no double-counting.
 - Managers can never withdraw funds or change platform settings.
 - 30-day defect warranty within approved scope (excludes third-party/gateway outages).
-- Dr. Msuya owns his organization's data, Campaigns, brand/content and reports. The development team retains reusable Changia source code and generic components unless full ownership/exclusivity is separately purchased.
+- Dr. Msuya owns his organization's data, Campaigns, brand/content and reports. The development user retains reusable Changia source code and generic components unless full ownership/exclusivity is separately purchased.
 
 ---
 

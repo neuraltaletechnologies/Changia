@@ -24,8 +24,8 @@ import { Button } from "@/components/dashboard/ui/button";
 import { Badge } from "@/components/dashboard/ui/badge";
 import { loadUserCampaigns } from "@/lib/dashboard/campaign-store";
 import { loadDonors } from "@/lib/dashboard/donor-store";
-import { loadTeamMembers } from "@/lib/dashboard/team-store";
-import { formatTZS, type Campaign, type Donor, type TeamMember } from "@/lib/dashboard/types";
+import { loadUsers} from "@/lib/dashboard/user-store";
+import { formatTZS, type Campaign, type Donor, type User } from "@/lib/dashboard/types";
 import { ROLE } from "@/lib/dashboard/permissions";
 import { useRole } from "@/hooks/use-role";
 import { cn } from "@/lib/dashboard/utils";
@@ -77,13 +77,13 @@ export default function DashboardPage() {
 
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [donors, setDonors] = useState<Donor[]>([]);
-  const [team, setTeam] = useState<TeamMember[]>([]);
+  const [user, setUser] = useState<User[]>([]);
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     setCampaigns(loadUserCampaigns());
     setDonors(loadDonors());
-    setTeam(loadTeamMembers());
+    setUser(loadUsers());
     setHydrated(true);
   }, []);
 
@@ -153,13 +153,13 @@ export default function DashboardPage() {
           href: "/dashboard/donors",
         },
         {
-          label: "Team Members",
-          value: team.length.toString(),
+          label: "User Members",
+          value: user.length.toString(),
           sub: "Org users managed",
           icon: UserCog,
           iconBg: "bg-violet-50",
           iconColor: "text-violet-600",
-          href: "/dashboard/team",
+          href: "/dashboard/user",
         },
       ]
     : [
@@ -266,24 +266,6 @@ export default function DashboardPage() {
           </Badge>
         </div>
         <p className="text-sm text-muted-foreground mt-0.5">{meta.tagline}</p>
-      </div>
-
-      {/* Role banner */}
-      <div
-        className={cn(
-          "flex items-start gap-3 rounded-xl border p-4",
-          roleBannerStyles[role!]
-        )}
-      >
-        <div className="w-9 h-9 rounded-lg bg-white/70 flex items-center justify-center shrink-0">
-          <ShieldCheck className="w-5 h-5 text-foreground/70" />
-        </div>
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-foreground">{meta.label}</p>
-          <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-            {meta.scope}
-          </p>
-        </div>
       </div>
 
       {/* Stats */}

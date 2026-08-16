@@ -19,7 +19,7 @@ const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Donor Pool", href: "/donors", icon: Users },
   { label: "Campaigns", href: "/campaigns", icon: Megaphone },
-  { label: "Team", href: "/team", icon: UserCog },
+  { label: "User", href: "/user", icon: UserCog },
   { label: "Audit Log", href: "/audit-log", icon: ClipboardList },
   { label: "Settings", href: "/settings", icon: Settings },
 ];

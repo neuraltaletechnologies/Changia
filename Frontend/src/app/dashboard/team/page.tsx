@@ -48,7 +48,7 @@ import {
 import {
   userApi,
   organizationApi,
-  type TeamMemberRecord,
+  type UserRecord,
   type UserRole,
   type OrganizationBrief,
 } from "@/lib/dashboard/api";
@@ -75,7 +75,7 @@ const STATUS_BADGE: Record<string, string> = {
   INACTIVE: "bg-slate-50 text-slate-500 border-slate-200",
 };
 
-function initialsOf(m: Pick<TeamMemberRecord, "firstName" | "lastName">): string {
+function initialsOf(m: Pick<UserRecord, "firstName" | "lastName">): string {
   return `${m.firstName?.[0] ?? "?"}${m.lastName?.[0] ?? ""}`.slice(0, 2);
 }
 
@@ -90,10 +90,10 @@ function formatDate(value: string | null): string {
   });
 }
 
-export default function TeamPage() {
+export default function UserPage() {
   const { user, isSuperAdmin } = useRole();
 
-  const [members, setMembers] = useState<TeamMemberRecord[]>([]);
+  const [members, setMembers] = useState<UserRecord[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -109,9 +109,9 @@ export default function TeamPage() {
   const [organizations, setOrganizations] = useState<OrganizationBrief[]>([]);
 
   const [addOpen, setAddOpen] = useState(false);
-  const [editMember, setEditMember] = useState<TeamMemberRecord | null>(null);
-  const [roleMember, setRoleMember] = useState<TeamMemberRecord | null>(null);
-  const [deleteMember, setDeleteMember] = useState<TeamMemberRecord | null>(null);
+  const [editMember, setEditMember] = useState<UserRecord | null>(null);
+  const [roleMember, setRoleMember] = useState<UserRecord | null>(null);
+  const [deleteMember, setDeleteMember] = useState<UserRecord | null>(null);
   const [tempPassword, setTempPassword] = useState<string | null>(null);
 
   useEffect(() => {
@@ -141,7 +141,7 @@ export default function TeamPage() {
       const pagination = result.pagination as { total?: number };
       setTotal(pagination?.total ?? result.users.length);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load team members.");
+      setError(e instanceof Error ? e.message : "Failed to load user members.");
     } finally {
       setLoading(false);
     }
@@ -159,7 +159,7 @@ export default function TeamPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-foreground tracking-tight">
-            Team Management
+            User Management
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             {total} member{total === 1 ? "" : "s"} &mdash; manage roles, access and
@@ -528,7 +528,7 @@ export default function TeamPage() {
             <DialogDescription>
               {deleteMember
                 ? `Remove ${deleteMember.firstName} ${deleteMember.lastName ?? ""}`.trim() +
-                  " from the team? This permanently deletes their account."
+                  " from the user? This permanently deletes their account."
                 : ""}
             </DialogDescription>
           </DialogHeader>
@@ -694,7 +694,7 @@ function AddMemberDialog({
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="text-base font-semibold">
-            Add Team Member
+            Add User Member
           </DialogTitle>
           <DialogDescription>
             The new member receives a temporary password to sign in with.
@@ -846,7 +846,7 @@ function ChangeRoleDialog({
   isSuperAdmin,
   onSaved,
 }: {
-  member: TeamMemberRecord | null;
+  member: UserRecord | null;
   onOpenChange: (open: boolean) => void;
   isSuperAdmin: boolean;
   onSaved: () => void;
@@ -956,7 +956,7 @@ function EditMemberDialog({
   isSuperAdmin,
   onSaved,
 }: {
-  member: TeamMemberRecord | null;
+  member: UserRecord | null;
   onOpenChange: (open: boolean) => void;
   isSuperAdmin: boolean;
   onSaved: () => void;

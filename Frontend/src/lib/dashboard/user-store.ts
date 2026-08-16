@@ -1,10 +1,10 @@
 'use client';
 
-import type { TeamMember } from "@/lib/dashboard/types";
+import type { User } from "@/lib/dashboard/types";
 
-const STORAGE_KEY = "changia_user_team";
+const STORAGE_KEY = "changia_user_user";
 
-export function loadTeamMembers(): TeamMember[] {
+export function loadUsers(): User[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
@@ -16,9 +16,9 @@ export function loadTeamMembers(): TeamMember[] {
   }
 }
 
-export function saveTeamMember(member: TeamMember): void {
+export function saveUser(member: User): void {
   if (typeof window === "undefined") return;
-  const list = loadTeamMembers();
+  const list = loadUsers();
   list.unshift(member);
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
 }

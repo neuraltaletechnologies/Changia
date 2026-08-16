@@ -22,7 +22,7 @@ import {
   POOL_CATEGORY_META,
   type DonorPool,
   type PoolCategory,
-  type TeamMemberRecord,
+  type UserRecord,
 } from "@/lib/dashboard/api";
 import { useRole } from "@/hooks/use-role";
 import { DonorsSection } from "@/components/dashboard/donors/donors-section";
@@ -39,7 +39,7 @@ export default function PoolsPage() {
   const [category, setCategory] = useState<PoolCategory | "">("");
   const [sortBy, setSortBy] = useState<string>("created");
   const [createdBy, setCreatedBy] = useState<string>("");
-  const [managers, setManagers] = useState<TeamMemberRecord[]>([]);
+  const [managers, setManagers] = useState<UserRecord[]>([]);
 
   const refresh = useCallback(async () => {
     try {

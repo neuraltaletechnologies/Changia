@@ -29,24 +29,25 @@ const navItems = [
         href: "/dashboard",
         icon: LayoutDashboard,
       },
+       {
+        label: "Campaigns",
+        href: "/dashboard/campaigns",
+        icon: Megaphone,
+      },
       {
         label: "Donor Pools",
         href: "/dashboard/pools",
         icon: Layers,
       },
-      {
-        label: "Campaigns",
-        href: "/dashboard/campaigns",
-        icon: Megaphone,
-      },
+     
     ],
   },
   {
     section: "Admin",
     items: [
       {
-        label: "Team",
-        href: "/dashboard/team",
+        label: "User",
+        href: "/dashboard/user",
         icon: UserCog,
       },
       {

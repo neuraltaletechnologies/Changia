@@ -40,7 +40,7 @@ const deleteUser = asyncHandler(async (req, res) => {
     [user.organizationId, req.user.id, req.user.email, req.params.id]
   );
 
-  res.status(200).json({ success: true, message: "Team member removed" });
+  res.status(200).json({ success: true, message: "User member removed" });
 });
 
 module.exports = { listUsers, createUser, updateUser, deleteUser };

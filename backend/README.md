@@ -105,7 +105,7 @@ backend/
 └── modules/            # Each feature = MVC module (routes → controller → service)
     ├── auth/           # register, login, me, change-password
     ├── organization/   # org profile + dashboard stats
-    ├── user/           # team management
+    ├── user/           # user management
     ├── Campaign /       # Campaigns + service fee + approval flow
     ├── donor/          # donor CRM + consents
     ├── donation/       # payment attempts + confirmed donations
@@ -152,7 +152,7 @@ Entities mirror the business proposal's core data entities:
 
 > 📖 **Full endpoint documentation — request payloads, required vs. optional fields, response shapes, and error codes — is in [`API_REFERENCE.md`](API_REFERENCE.md).** The table below is just the quick overview.
 >
-> 🧩 **Frontend contract — everything the dashboard (`http://localhost:3000/dashboard/...`) needs, including the Donor Pool filters, donor transactions, and team add/invite flows, with full detail, is in [`FRONTEND_API_REQUIREMENTS.md`](FRONTEND_API_REQUIREMENTS.md).**
+> 🧩 **Frontend contract — everything the dashboard (`http://localhost:3000/dashboard/...`) needs, including the Donor Pool filters, donor transactions, and user add/invite flows, with full detail, is in [`FRONTEND_API_REQUIREMENTS.md`](FRONTEND_API_REQUIREMENTS.md).**
 
 Base URL: `http://localhost:5000/api/v1`
 
@@ -169,8 +169,8 @@ Base URL: `http://localhost:5000/api/v1`
 |--------|----------|-------------|
 | GET / PUT | `/organizations` | Org profile (admin for PUT) |
 | GET | `/organizations/stats` | Dashboard summary numbers |
-| GET / POST | `/users` | List / invite team members (returns temp password) |
-| PUT / DELETE | `/users/:id` | Update / remove team member (admin) |
+| GET / POST | `/users` | List / invite user members (returns temp password) |
+| PUT / DELETE | `/users/:id` | Update / remove user member (admin) |
 | GET / POST | `/Campaigns` | List / create Campaigns (auto fee calc) |
 | GET | `/Campaigns/:id` | Detail + progress + recent donations |
 | PUT | `/Campaigns/:id` | Edit draft/pending |

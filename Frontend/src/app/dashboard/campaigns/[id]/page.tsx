@@ -328,8 +328,8 @@ export default function CampaignDetailPage() {
           <TabsTrigger value="donations">
             Donations ({campaign.donations?.length ?? 0})
           </TabsTrigger>
-          <TabsTrigger value="team">
-            Team ({campaign.assignments?.length ?? 0})
+          <TabsTrigger value="user">
+            User ({campaign.assignments?.length ?? 0})
           </TabsTrigger>
         </TabsList>
 
@@ -388,8 +388,8 @@ export default function CampaignDetailPage() {
           <DonationsList donations={campaign.donations ?? []} campaignId={id} />
         </TabsContent>
 
-        <TabsContent value="team" className="pt-2">
-          <TeamTab
+        <TabsContent value="user" className="pt-2">
+          <UserTab
             assignments={campaign.assignments ?? []}
             onRefresh={refresh}
           />
@@ -786,9 +786,9 @@ function DonationsList({
   );
 }
 
-// ─── Team tab ─────────────────────────────────────────────────────────────────
+// ─── User tab ─────────────────────────────────────────────────────────────────
 
-function TeamTab({
+function UserTab({
   assignments,
   onRefresh,
 }: {
@@ -799,7 +799,7 @@ function TeamTab({
     return (
       <div className="bg-card border border-border rounded-xl py-16 text-center">
         <UserRound className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
-        <p className="text-sm text-muted-foreground">No team members assigned.</p>
+        <p className="text-sm text-muted-foreground">No user members assigned.</p>
         <Button size="sm" className="mt-4" variant="outline" onClick={onRefresh}>
           Refresh
         </Button>
@@ -809,7 +809,7 @@ function TeamTab({
   return (
     <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
       <div className="px-5 py-4 border-b border-border">
-        <h2 className="text-sm font-semibold text-foreground">Team members</h2>
+        <h2 className="text-sm font-semibold text-foreground">User members</h2>
       </div>
       <div className="divide-y divide-border">
         {assignments.map((a) => (

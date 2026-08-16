@@ -51,7 +51,7 @@ function assertCanManageUser(caller, target) {
   ) {
     return;
   }
-  throw ApiError.notFound("Team member not found");
+  throw ApiError.notFound("User member not found");
 }
 
 /** Resolves the organization scope of a listing for the current caller. */
@@ -131,7 +131,7 @@ async function assertRoleAssignable(caller, role) {
 }
 
 /**
- * Creates a team member with a temporary password (returned to the inviter).
+ * Creates a user member with a temporary password (returned to the inviter).
  */
 async function createUser(caller, data) {
   const existing = await db.query("SELECT id FROM users WHERE email = ?", [data.email]);
@@ -193,7 +193,7 @@ async function assertLastOrgAdmin(organizationId) {
 async function updateUser(caller, userId, data) {
   const existing = await db.query(`${USER_SELECT} WHERE u.id = ?`, [userId]);
   const target = existing[0];
-  if (!target) throw ApiError.notFound("Team member not found");
+  if (!target) throw ApiError.notFound("User member not found");
   assertCanManageUser(caller, target);
 
   const isSelf = Number(userId) === Number(caller.id);
@@ -240,7 +240,7 @@ async function deleteUser(caller, userId) {
   }
   const existing = await db.query(`${USER_SELECT} WHERE u.id = ?`, [userId]);
   const target = existing[0];
-  if (!target) throw ApiError.notFound("Team member not found");
+  if (!target) throw ApiError.notFound("User member not found");
   assertCanManageUser(caller, target);
 
   if (target.role === "ORG_ADMIN") {

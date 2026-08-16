@@ -22,7 +22,7 @@ longDescription:
   title: 'A Secure Foundation for Every Campaign '
   subTitle: |
     Campaign 1 gives your organization sign-in, role-based dashboards, user management, a consent-aware donor pool and an audit log — everything needed before any payment Campaign goes live.
-  btnTitle: 'Contact the team to learn more'
+  btnTitle: 'Contact the user to learn more'
   btnURL: '#'
 descriptionList:
   - title: 'Public Interface'

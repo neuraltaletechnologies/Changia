@@ -14,7 +14,7 @@ Every endpoint of the Changia backend: **what you must send** (auth, roles, body
 - [Response envelope & errors](#response-envelope--errors)
 - [Auth](#auth-module)
 - [Organizations](#organizations-module)
-- [Users (team)](#users-team-module)
+- [Users (user)](#users-user-module)
 - [Campaigns](#campaigns-module)
 - [Donors (CRM)](#donors-crm-module)
 - [Donations & payments](#donations--payments-module)
@@ -358,7 +358,7 @@ Dashboard summary numbers for the caller's org.
     "totalRaised": 2750000,
     "totalDonations": 32,
     "activeCampaigns": 2,
-    "teamSize": 3,
+    "userSize": 3,
     "donorCount": 45,
     "campaignCount": 6
   }
@@ -369,13 +369,13 @@ Dashboard summary numbers for the caller's org.
 
 ---
 
-## Users (team) module
+## Users (user) module
 
-Routes: `/users` — all authenticated, org-scoped (you only ever see your own org's team).
+Routes: `/users` — all authenticated, org-scoped (you only ever see your own org's user).
 
 ### `GET /users`
 
-Lists team members.
+Lists user members.
 
 **Query params:** `search` (matches name/email, max 100), `role` (`ORG_ADMIN` | `CAMPAIGN_MANAGER`), `status` (`ACTIVE` | `PENDING` | `INACTIVE`), plus `page`/`limit`.
 
@@ -407,7 +407,7 @@ Lists team members.
 
 ### `POST /users` — `SUPER_ADMIN` or `ORG_ADMIN`
 
-Invites a team member. The system generates a **temporary password** (returned once in the response — share it securely).
+Invites a user member. The system generates a **temporary password** (returned once in the response — share it securely).
 
 **Required fields:** `firstName` (min 2, max 100), `email`, `role` (`ORG_ADMIN` | `CAMPAIGN_MANAGER`).
 **Optional fields:** `lastName` (max 100), `phone` (Tanzanian format).
@@ -461,7 +461,7 @@ Invites a team member. The system generates a **temporary password** (returned o
 **Response — `200 OK`:**
 
 ```json
-{ "success": true, "message": "Team member removed" }
+{ "success": true, "message": "User member removed" }
 ```
 
 **Errors:** `400` ("You cannot remove your own account"), `400` ("The organization must keep at least one active administrator"), `404` (not in your org).

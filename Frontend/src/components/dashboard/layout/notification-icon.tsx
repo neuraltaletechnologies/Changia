@@ -1,7 +1,7 @@
 import { Heart, Megaphone, Settings, Users } from "lucide-react";
 import { cn } from "@/lib/dashboard/utils";
 
-type NotifType = "donation" | "campaign" | "system" | "team";
+type NotifType = "donation" | "campaign" | "system" | "user";
 
 const config: Record<
   NotifType,
@@ -10,7 +10,7 @@ const config: Record<
   donation: { Icon: Heart, bg: "bg-emerald-100", color: "text-emerald-600" },
   campaign: { Icon: Megaphone, bg: "bg-sky-100", color: "text-sky-600" },
   system: { Icon: Settings, bg: "bg-slate-100", color: "text-slate-500" },
-  team: { Icon: Users, bg: "bg-amber-100", color: "text-amber-600" },
+  user: { Icon: Users, bg: "bg-amber-100", color: "text-amber-600" },
 };
 
 export function NotificationIcon({ type }: { type: NotifType }) {

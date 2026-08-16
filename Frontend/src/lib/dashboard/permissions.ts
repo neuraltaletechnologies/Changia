@@ -46,21 +46,21 @@ export const ROLE_META: Record<Role, RoleMeta> = {
     shortLabel: "Super Admin",
     tagline: "Platform control, organisation setup and compliance.",
     scope:
-      "Full platform access: organisation setup, donor pools, campaign approvals, team management, payouts and audit logs.",
+      "Full platform access: organisation setup, donor pools, campaign approvals, user management, payouts and audit logs.",
   },
   ORG_ADMIN: {
     label: "Org Admin",
     shortLabel: "Org Admin",
-    tagline: "Campaigns, donors, teams and payouts for your organisation.",
+    tagline: "Campaigns, donors, users and payouts for your organisation.",
     scope:
-      "Create and approve campaigns, manage donors and donor pools, manage your team and request payouts.",
+      "Create and approve campaigns, manage donors and donor pools, manage your user and request payouts.",
   },
   CAMPAIGN_MANAGER: {
     label: "Campaign Manager",
     shortLabel: "Campaign Manager",
     tagline: "Run campaigns and manage your consented donors.",
     scope:
-      "Create campaigns, manage donor pools and add consented donors. Approvals, team management and payouts need an admin.",
+      "Create campaigns, manage donor pools and add consented donors. Approvals, user management and payouts need an admin.",
   },
 };
 
@@ -78,7 +78,7 @@ export type Permission =
   | "donor:view"
   | "donor:add" // add consented donors
   | "donor:manage" // full donor CRUD + imports
-  | "team:manage"
+  | "user:manage"
   | "audit:view"
   | "settings:platform" // platform config, fees, gateways
   | "settings:org" // organisation preferences
@@ -94,7 +94,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "donor:view",
     "donor:add",
     "donor:manage",
-    "team:manage",
+    "user:manage",
     "audit:view",
     "settings:platform",
     "settings:org",
@@ -109,7 +109,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "donor:view",
     "donor:add",
     "donor:manage",
-    "team:manage",
+    "user:manage",
     "settings:org",
     "payout:request",
     "reports:view",
@@ -143,7 +143,7 @@ export const ROUTE_ACCESS: Record<string, Role[]> = {
   "/dashboard/pools": ALL_ROLES,
   "/dashboard/pools/new": ALL_ROLES,
   "/dashboard/pools/anomalous": ALL_ROLES,
-  "/dashboard/team": [ROLE.SUPER_ADMIN, ROLE.ORG_ADMIN],
+  "/dashboard/user": [ROLE.SUPER_ADMIN, ROLE.ORG_ADMIN],
   "/dashboard/audit-log": [ROLE.SUPER_ADMIN],
   "/dashboard/settings": [ROLE.SUPER_ADMIN, ROLE.ORG_ADMIN],
   "/dashboard/payouts": [ROLE.SUPER_ADMIN, ROLE.ORG_ADMIN],

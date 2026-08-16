@@ -424,11 +424,11 @@ export const campaignApi = {
       .then(unwrap),
 };
 
-// ─── Team members (used for the admin "per manager" filter) ──────────────────
+// ─── User members (used for the admin "per manager" filter) ──────────────────
 
 export type UserRole = "SUPER_ADMIN" | "ORG_ADMIN" | "CAMPAIGN_MANAGER";
 
-export interface TeamMemberRecord {
+export interface UserRecord {
   id: number;
   firstName: string;
   lastName: string | null;
@@ -456,7 +456,7 @@ export interface UserListParams {
 export const userApi = {
   list: (params?: UserListParams) =>
     api
-      .get<{ success: boolean; data: { users: TeamMemberRecord[]; pagination: unknown } }>(
+      .get<{ success: boolean; data: { users: UserRecord[]; pagination: unknown } }>(
         `/users${qs(params || {})}`
       )
       .then(unwrap),
@@ -464,12 +464,12 @@ export const userApi = {
     api
       .post<{
         success: boolean;
-        data: { user: TeamMemberRecord; temporaryPassword: string };
+        data: { user: UserRecord; temporaryPassword: string };
       }>(`/users`, body)
       .then(unwrap),
   update: (id: string | number, body: Record<string, unknown>) =>
     api
-      .put<{ success: boolean; data: TeamMemberRecord }>(`/users/${id}`, body)
+      .put<{ success: boolean; data: UserRecord }>(`/users/${id}`, body)
       .then(unwrap),
   remove: (id: string | number) =>
     api.delete<{ success: boolean; message: string }>(`/users/${id}`),

@@ -69,7 +69,7 @@ export interface ActivityItem {
   meta?: string;
 }
 
-export interface TeamMember {
+export interface User {
   id: string;
   name: string;
   email: string;
@@ -98,7 +98,7 @@ export interface Notification {
   description: string;
   time: string;
   read: boolean;
-  type: "donation" | "Campaign " | "system" | "team";
+  type: "donation" | "Campaign " | "system" | "user";
 }
 
 // ─── Donors ──────────────────────────────────────────────────────────────────
@@ -485,9 +485,9 @@ export const recentActivity: ActivityItem[] = [
   },
 ];
 
-// ─── Team ─────────────────────────────────────────────────────────────────────
+// ─── User ─────────────────────────────────────────────────────────────────────
 
-export const teamMembers: TeamMember[] = [
+export const users: User[] = [
   {
     id: "t1",
     name: "Admin User",
@@ -567,7 +567,7 @@ export const auditLogs: AuditLog[] = [
   },
   {
     id: "al3",
-    action: "team.invite",
+    action: "user.invite",
     resource: "User",
     resourceId: "t5",
     user: "Admin User",
@@ -627,7 +627,7 @@ export const auditLogs: AuditLog[] = [
   },
   {
     id: "al8",
-    action: "team.role_change",
+    action: "user.role_change",
     resource: "User",
     resourceId: "t4",
     user: "Admin User",
@@ -684,11 +684,11 @@ export const notifications: Notification[] = [
   },
   {
     id: "n3",
-    title: "New team member invited",
+    title: "New user member invited",
     description: "Omar Farouq has been invited as Fundraiser",
     time: "3 hours ago",
     read: false,
-    type: "team",
+    type: "user",
   },
   {
     id: "n4",

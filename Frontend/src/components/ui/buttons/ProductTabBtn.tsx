@@ -25,7 +25,7 @@ export default function CampaignTabBtn({
       role="tab"
     >
       <span
-        className={`${HEADING_CLASS} ${first ? 'text-orange-400 dark:text-orange-300' : INACTIVE_HEADING_CLASS}`}
+        className={`${HEADING_CLASS} ${first ? 'text-blue-600 dark:text-blue-400' : INACTIVE_HEADING_CLASS}`}
       >
         {title}
       </span>

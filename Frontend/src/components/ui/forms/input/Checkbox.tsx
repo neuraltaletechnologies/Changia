@@ -21,7 +21,7 @@ export default function Checkbox({
         type="checkbox"
         checked={checked}
         onChange={(e) => onChange?.(e.target.checked)}
-        className="mt-0.5 shrink-0 rounded-sm border-neutral-200 text-neutral-600 focus:ring-yellow-400 dark:border-neutral-700 dark:bg-neutral-800 dark:checked:border-yellow-400 dark:checked:bg-yellow-400 dark:focus:ring-offset-neutral-800"
+        className="mt-0.5 shrink-0 rounded-sm border-neutral-200 text-neutral-600 focus:ring-blue-500 dark:border-neutral-700 dark:bg-neutral-800 dark:checked:border-blue-500 dark:checked:bg-blue-500 dark:focus:ring-offset-neutral-800"
       />
       <span className="ms-3 text-sm text-neutral-800 dark:text-neutral-200">
         {label} {children}

@@ -44,7 +44,7 @@ export default function PricingSection({ pricing }: PricingSectionProps) {
             <h3 className="text-2xl font-bold text-neutral-100 sm:text-3xl">
               {pricing.starterKit.name}
             </h3>
-            <p className="text-indigo-300">{pricing.starterKit.description}</p>
+            <p className="text-blue-300">{pricing.starterKit.description}</p>
           </div>
           <div className="mb-4">
             <span className="text-4xl font-bold text-neutral-200">
@@ -53,7 +53,7 @@ export default function PricingSection({ pricing }: PricingSectionProps) {
             <span className="text-lg font-bold text-neutral-300">
               {pricing.starterKit.cents}
             </span>
-            <span className="ms-3 text-sm text-indigo-200">
+            <span className="ms-3 text-sm text-blue-200">
               {pricing.starterKit.billingFrequency}
             </span>
           </div>
@@ -67,23 +67,23 @@ export default function PricingSection({ pricing }: PricingSectionProps) {
           </ul>
           <a
             href={pricing.starterKit.purchaseLink}
-            className="block rounded-lg bg-gray-500 px-8 py-3 text-center text-sm font-bold text-gray-100 ring-indigo-300 outline-hidden transition duration-100 hover:bg-gray-600 focus-visible:ring-3 active:text-gray-300 md:text-base"
+            className="block rounded-lg bg-gray-500 px-8 py-3 text-center text-sm font-bold text-gray-100 ring-blue-300 outline-hidden transition duration-100 hover:bg-gray-600 focus-visible:ring-3 active:text-gray-300 md:text-base"
           >
             {pricing.starterKit.purchaseBtnTitle}
           </a>
         </div>
 
-        <div className="w-full rounded-xl bg-linear-to-tr from-[#FF512F] to-[#F09819] p-6 shadow-xl sm:w-1/2 sm:p-8">
+        <div className="w-full rounded-xl bg-linear-to-tr from-emerald-700 to-emerald-500 p-6 shadow-xl sm:w-1/2 sm:p-8">
           <div className="mb-4 flex flex-col items-start justify-between gap-4 lg:flex-row">
             <div>
               <h3 className="text-2xl font-bold text-neutral-100 sm:text-3xl">
                 {pricing.professionalToolbox.name}
               </h3>
-              <p className="text-orange-200">
+              <p className="text-emerald-200">
                 {pricing.professionalToolbox.description}
               </p>
             </div>
-            <span className="bg-opacity-50 order-first inline-block rounded-full bg-orange-200/60 px-3 py-1 text-center text-xs font-bold tracking-wider text-orange-600 uppercase lg:order-none">
+            <span className="bg-opacity-50 order-first inline-block rounded-full bg-emerald-200/60 px-3 py-1 text-center text-xs font-bold tracking-wider text-emerald-700 uppercase lg:order-none">
               {pricing.badge}
             </span>
           </div>
@@ -91,14 +91,14 @@ export default function PricingSection({ pricing }: PricingSectionProps) {
             <span className="text-6xl font-bold text-neutral-100">
               {pricing.professionalToolbox.price}
             </span>
-            <span className="text-lg font-bold text-orange-100">
+            <span className="text-lg font-bold text-emerald-100">
               {pricing.professionalToolbox.cents}
             </span>
-            <span className="ms-3 text-orange-200">
+            <span className="ms-3 text-emerald-200">
               {pricing.professionalToolbox.billingFrequency}
             </span>
           </div>
-          <ul className="mb-6 space-y-2 text-orange-100">
+          <ul className="mb-6 space-y-2 text-emerald-100">
             {pricing.professionalToolbox.features.map((feature) => (
               <li key={feature} className="flex items-center gap-1.5">
                 <Icon name="checkCircle" />
@@ -108,7 +108,7 @@ export default function PricingSection({ pricing }: PricingSectionProps) {
           </ul>
           <a
             href={pricing.professionalToolbox.purchaseLink}
-            className="bg-opacity-50 block rounded-lg bg-orange-200/40 px-8 py-3 text-center text-sm font-bold text-neutral-100 ring-orange-300 outline-hidden transition duration-300 hover:bg-orange-300 focus-visible:ring-3 active:bg-orange-400 md:text-base"
+            className="bg-opacity-50 block rounded-lg bg-emerald-200/40 px-8 py-3 text-center text-sm font-bold text-neutral-100 ring-emerald-300 outline-hidden transition duration-300 hover:bg-emerald-300 focus-visible:ring-3 active:bg-emerald-400 md:text-base"
           >
             {pricing.professionalToolbox.purchaseBtnTitle}
           </a>

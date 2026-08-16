@@ -90,7 +90,16 @@ async function recordConfirmedDonation(data) {
   }
 
   if (anomalousDonorCreated) {
-    await poolService.ensureAnomalousPoolMember(data.organizationId, donorId);
+    // Attribute the unmatched payment to the campaign's assigned manager (the
+    // earliest-assigned one, if several) so it lands in *their* anomalous
+    // pool rather than a shared org-wide bucket. Falls back to the org-wide
+    // "Unassigned" pool when the campaign has no assigned manager.
+    const assignments = await db.query(
+      `SELECT user_id FROM campaign_assignments WHERE campaign_id = ? ORDER BY assigned_at ASC LIMIT 1`,
+      [data.campaignId]
+    );
+    const managerId = assignments[0]?.user_id || null;
+    await poolService.ensureAnomalousPoolMember(data.organizationId, donorId, managerId);
   }
 
   const receiptNumber = nextReceiptNumber(new Date().getFullYear());

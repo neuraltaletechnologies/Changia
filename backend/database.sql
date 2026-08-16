@@ -257,6 +257,72 @@ CREATE TABLE message_deliveries (
   CONSTRAINT fk_md_donor FOREIGN KEY (donor_id) REFERENCES donors(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
+-- ─── Message templates and reminder auto-resend schedules ───────────────────
+-- Reusable per-channel templates ({{donorName}}, {{amountDue}}, {{campaignName}},
+-- {{orgName}} placeholders rendered at send time) and the automatic resend
+-- scheduler config. A schedule never sends by itself — the scheduler job only
+-- creates a reminder_pending_batches row for the manager to review and
+-- confirm each cycle (see Backend/jobs/reminderScheduler.js).
+
+CREATE TABLE message_templates (
+  id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  organization_id BIGINT UNSIGNED NOT NULL,
+  created_by_id   BIGINT UNSIGNED NULL,
+  name            VARCHAR(150) NOT NULL,
+  channel         ENUM('SMS','WHATSAPP','EMAIL') NOT NULL,
+  subject         VARCHAR(255) NULL,
+  body            TEXT NOT NULL,
+  created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_mtpl_org FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+  CONSTRAINT fk_mtpl_creator FOREIGN KEY (created_by_id) REFERENCES users(id) ON DELETE SET NULL,
+  INDEX idx_mtpl_org_channel (organization_id, channel)
+) ENGINE=InnoDB;
+
+CREATE TABLE reminder_schedules (
+  id                    BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  organization_id       BIGINT UNSIGNED NOT NULL,
+  created_by_id         BIGINT UNSIGNED NULL,
+  name                  VARCHAR(150) NOT NULL,
+  scope                 ENUM('POOL','CAMPAIGN') NOT NULL,
+  pool_id               BIGINT UNSIGNED NULL,
+  campaign_id           BIGINT UNSIGNED NULL,
+  interval_days         INT UNSIGNED NOT NULL DEFAULT 7,
+  channels              JSON NOT NULL,
+  template_id_sms       BIGINT UNSIGNED NULL,
+  template_id_whatsapp  BIGINT UNSIGNED NULL,
+  template_id_email     BIGINT UNSIGNED NULL,
+  is_active             TINYINT(1) NOT NULL DEFAULT 1,
+  next_run_at           DATETIME NOT NULL,
+  last_run_at           DATETIME NULL,
+  created_at            TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at            TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_rsch_org FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+  CONSTRAINT fk_rsch_creator FOREIGN KEY (created_by_id) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_rsch_pool FOREIGN KEY (pool_id) REFERENCES donor_pools(id) ON DELETE CASCADE,
+  CONSTRAINT fk_rsch_campaign FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE,
+  CONSTRAINT fk_rsch_tpl_sms FOREIGN KEY (template_id_sms) REFERENCES message_templates(id) ON DELETE SET NULL,
+  CONSTRAINT fk_rsch_tpl_wa FOREIGN KEY (template_id_whatsapp) REFERENCES message_templates(id) ON DELETE SET NULL,
+  CONSTRAINT fk_rsch_tpl_email FOREIGN KEY (template_id_email) REFERENCES message_templates(id) ON DELETE SET NULL,
+  INDEX idx_rsch_org_active_next (organization_id, is_active, next_run_at)
+) ENGINE=InnoDB;
+
+CREATE TABLE reminder_pending_batches (
+  id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  schedule_id     BIGINT UNSIGNED NOT NULL,
+  organization_id BIGINT UNSIGNED NOT NULL,
+  status          ENUM('PENDING_APPROVAL','CONFIRMED','SKIPPED','EXPIRED') NOT NULL DEFAULT 'PENDING_APPROVAL',
+  donor_ids       JSON NOT NULL,
+  batch_ids       JSON NULL,
+  generated_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  resolved_at     DATETIME NULL,
+  resolved_by_id  BIGINT UNSIGNED NULL,
+  CONSTRAINT fk_rpb_schedule FOREIGN KEY (schedule_id) REFERENCES reminder_schedules(id) ON DELETE CASCADE,
+  CONSTRAINT fk_rpb_org FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+  CONSTRAINT fk_rpb_resolver FOREIGN KEY (resolved_by_id) REFERENCES users(id) ON DELETE SET NULL,
+  INDEX idx_rpb_org_status (organization_id, status)
+) ENGINE=InnoDB;
+
 -- ─── Payments: attempts, gateway events, donations ───────────────────────────
 
 CREATE TABLE payment_attempts (

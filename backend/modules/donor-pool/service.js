@@ -43,10 +43,15 @@ function isAdminRole(role) {
   return role === "SUPER_ADMIN" || role === "ORG_ADMIN";
 }
 
-/** Pool is visible when created by the user, the org's system pool, or the user is an admin. */
+/**
+ * Pool is visible when created by the user or the user is an admin. This
+ * applies uniformly to regular pools and to system (anomalous) pools — each
+ * manager's anomalous pool is scoped to them the same way a regular pool is;
+ * see ensureAnomalousPool below.
+ */
 function canViewPool(user, pool) {
   if (isAdminRole(user.role)) return true;
-  return Boolean(pool.is_system) || Number(pool.created_by_id) === user.id;
+  return Number(pool.created_by_id) === user.id;
 }
 
 async function loadPool(organizationId, poolId) {
@@ -69,26 +74,36 @@ function assertPoolAccess(user, pool) {
 }
 
 // ─── Anomalous pool (system) ────────────────────────────────────────────────
+// Each campaign manager gets their own anomalous pool — a manager only sees
+// unmatched donations that landed on campaigns they are assigned to.
+// managerId === null/undefined means the org-wide fallback pool, used when a
+// donation lands on a campaign with no assigned manager (e.g. an admin-run
+// campaign). Admins can view any manager's anomalous pool.
 
-async function ensureAnomalousPool(organizationId) {
+async function ensureAnomalousPool(organizationId, managerId) {
   const rows = await db.query(
-    `SELECT id FROM donor_pools
-     WHERE organization_id = ? AND is_system = 1 AND status = 'ACTIVE'
-     LIMIT 1`,
-    [organizationId]
+    managerId
+      ? `SELECT id FROM donor_pools
+         WHERE organization_id = ? AND is_system = 1 AND status = 'ACTIVE' AND created_by_id = ?
+         LIMIT 1`
+      : `SELECT id FROM donor_pools
+         WHERE organization_id = ? AND is_system = 1 AND status = 'ACTIVE' AND created_by_id IS NULL
+         LIMIT 1`,
+    managerId ? [organizationId, managerId] : [organizationId]
   );
   if (rows[0]) return rows[0].id;
 
+  const name = managerId ? ANOMALOUS_POOL_NAME : `${ANOMALOUS_POOL_NAME} (Unassigned)`;
   const result = await db.execute(
     `INSERT INTO donor_pools (organization_id, created_by_id, name, category, is_system, status)
-     VALUES (?, NULL, ?, 'FAMILY', 1, 'ACTIVE')`,
-    [organizationId, ANOMALOUS_POOL_NAME]
+     VALUES (?, ?, ?, 'FAMILY', 1, 'ACTIVE')`,
+    [organizationId, managerId || null, name]
   );
   return result.insertId;
 }
 
-async function ensureAnomalousPoolMember(organizationId, donorId) {
-  const poolId = await ensureAnomalousPool(organizationId);
+async function ensureAnomalousPoolMember(organizationId, donorId, managerId) {
+  const poolId = await ensureAnomalousPool(organizationId, managerId);
   await db.execute(
     `INSERT IGNORE INTO donor_pool_members (pool_id, donor_id, added_by_id)
      VALUES (?, ?, NULL)`,
@@ -104,7 +119,7 @@ async function listPools(organizationId, user, filters) {
   const values = [organizationId];
 
   if (!isAdminRole(user.role)) {
-    where.push("(p.is_system = 1 OR p.created_by_id = ?)");
+    where.push("p.created_by_id = ?");
     values.push(user.id);
   } else if (filters.createdBy) {
     where.push("p.created_by_id = ?");
@@ -431,7 +446,7 @@ async function listDuplicateGroups(organizationId, user, poolIds) {
   let where = "organization_id = ?";
   const values = [organizationId];
   if (!isAdminRole(user.role)) {
-    where += " AND (is_system = 1 OR created_by_id = ?)";
+    where += " AND created_by_id = ?";
     values.push(user.id);
   }
   if (poolIds && poolIds.length > 0) {
@@ -513,7 +528,7 @@ async function resolveDuplicates(organizationId, user, data) {
          JOIN donor_pools p ON p.id = dpm.pool_id
          WHERE dpm.donor_id = ? AND p.organization_id = ?
            AND dpm.pool_id <> ?
-           AND (p.is_system = 1 OR p.created_by_id = ? OR ? = 1)`,
+           AND (p.created_by_id = ? OR ? = 1)`,
         [donorId, organizationId, keepPoolId, user.id, isAdminRole(user.role) ? 1 : 0]
       );
 
@@ -537,8 +552,14 @@ async function resolveDuplicates(organizationId, user, data) {
 
 // ─── Anomalous pool + merge ─────────────────────────────────────────────────
 
-async function getAnomalousPool(organizationId, user) {
-  const poolId = await ensureAnomalousPool(organizationId);
+/**
+ * A CAMPAIGN_MANAGER always sees their own anomalous pool. An admin can pass
+ * `managerId` to view a specific manager's pool, or omit it to view the
+ * org-wide "Unassigned" fallback pool.
+ */
+async function getAnomalousPool(organizationId, user, managerId) {
+  const ownerId = isAdminRole(user.role) ? (managerId ? Number(managerId) : null) : user.id;
+  const poolId = await ensureAnomalousPool(organizationId, ownerId);
   return getPool(organizationId, user, poolId);
 }
 
@@ -670,9 +691,9 @@ async function sendReminder(organizationId, user, data) {
     });
     await db.execute(
       `INSERT INTO message_deliveries
-         (batch_id, donor_id, recipient, status, provider_ref, sent_at)
-       VALUES (?, ?, ?, ?, ?, NOW())`,
-      [batchId, donor.id, recipient, result.status, result.providerRef]
+         (batch_id, donor_id, recipient, status, provider_ref, error, sent_at)
+       VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+      [batchId, donor.id, recipient, result.status, result.providerRef, result.error || null]
     );
   }
 

@@ -84,7 +84,11 @@ const resolveDuplicates = asyncHandler(async (req, res) => {
 });
 
 const getAnomalousPool = asyncHandler(async (req, res) => {
-  const pool = await poolService.getAnomalousPool(req.user.organizationId, req.user);
+  const pool = await poolService.getAnomalousPool(
+    req.user.organizationId,
+    req.user,
+    req.query.managerId
+  );
   res.status(200).json({ success: true, data: pool });
 });
 

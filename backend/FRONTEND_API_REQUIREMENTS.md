@@ -23,8 +23,10 @@ This document covers the whole flow **from login and registration onward** and d
 11. [Audit logs](#11-audit-logs)
 12. [Payouts](#12-payouts--to-build)
 13. [Settings](#13-settings--to-build)
-14. [Public campaign page](#14-public-campaign-page)
-15. [Quick start / how to test](#15-quick-start--how-to-test)
+14. [Donor pools](#14-donor-pools)
+15. [Reminder templates & auto-resend schedules](#15-reminder-templates--auto-resend-schedules)
+16. [Public campaign page](#16-public-campaign-page)
+17. [Quick start / how to test](#17-quick-start--how-to-test)
 
 ---
 
@@ -274,6 +276,70 @@ interface Donor {
   notes?: string;
 }
 ```
+
+### `DonorPool` — backed by `Frontend/src/lib/dashboard/api.ts`
+
+```ts
+type PoolCategory = 'FAMILY' | 'SCHOOL' | 'STUDENT' | 'OFFICE';
+type PayStatus = 'UNPAID' | 'PARTIAL' | 'PAID_FULL';
+
+interface DonorPool {
+  id: number;
+  name: string;
+  description: string | null;
+  category: PoolCategory;
+  isSystem: boolean;          // true = a manager's own anomalous/unmatched pool
+  status: 'ACTIVE' | 'ARCHIVED';
+  createdBy: { id: number; firstName: string; lastName: string; email: string } | null;
+  memberCount: number;
+  expectedTotal: number;
+  paidTotal: number;
+  createdAt: string;
+  updatedAt: string;
+  members?: {
+    id: number;
+    expectedAmount: number | null;
+    paidAmount: number;
+    donationCount: number;
+    status: PayStatus | null;   // only set when a ?campaignId= comparison is requested
+    donor: { id: number; firstName: string | null; lastName: string | null; email: string | null;
+              phone: string | null; gender: 'MALE'|'FEMALE'|'UNSPECIFIED'|null; position: string | null;
+              isAnomalous: boolean };
+  }[];
+}
+```
+
+> Visibility: only the pool's `createdBy` manager and `ORG_ADMIN`/`SUPER_ADMIN` can see a given pool — the frontend must not assume a `CAMPAIGN_MANAGER` can list another manager's pools.
+
+### `MessageTemplate` / `ReminderSchedule` / `PendingReminderBatch`
+
+```ts
+type ReminderChannel = 'SMS' | 'WHATSAPP' | 'EMAIL';
+
+interface MessageTemplate {
+  id: number; name: string; channel: ReminderChannel;
+  subject: string | null; body: string;             // supports {{donorName}}, {{amountDue}}, {{campaignName}}, {{orgName}}
+  createdBy: number | null; createdAt: string; updatedAt: string;
+}
+
+interface ReminderSchedule {
+  id: number; name: string; scope: 'POOL' | 'CAMPAIGN';
+  poolId: number | null; campaignId: number | null;
+  intervalDays: number; channels: ReminderChannel[];
+  templateIdSms: number | null; templateIdWhatsapp: number | null; templateIdEmail: number | null;
+  isActive: boolean; nextRunAt: string; lastRunAt: string | null;
+  createdBy: number | null; createdAt: string; updatedAt: string;
+}
+
+interface PendingReminderBatch {
+  id: number; scheduleId: number; scheduleName: string; scope: 'POOL' | 'CAMPAIGN';
+  pool: { id: number; name: string } | null; campaign: { id: number; name: string } | null;
+  channels: ReminderChannel[]; status: 'PENDING_APPROVAL' | 'CONFIRMED' | 'SKIPPED' | 'EXPIRED';
+  donorCount: number; generatedAt: string; resolvedAt: string | null;
+}
+```
+
+> **Auto-resend is never silent.** A schedule's due cycle only produces a `PendingReminderBatch` — the frontend's `/dashboard/reminders` inbox must show it and require an explicit confirm click (`POST /reminder-schedules/pending/:id/confirm`) before anything is actually sent.
 
 ### `Donation`
 
@@ -1144,7 +1210,74 @@ Authenticated (SUPER_ADMIN, ORG_ADMIN). Backs the Settings **"Delete Organisatio
 
 ---
 
-## 14. Public campaign page
+## 14. Donor pools
+
+> **Backed by frontend pages:** `/dashboard/pools`, `/dashboard/pools/[id]`, `/dashboard/pools/new`, `/dashboard/pools/anomalous` (see `DonorPool` in [§4](#4-data-models-types-the-api-must-use)).
+
+A `CAMPAIGN_MANAGER` can create multiple named pools by category
+(`FAMILY`/`SCHOOL`/`STUDENT`/`OFFICE`), each visible **only to them** —
+`ORG_ADMIN`/`SUPER_ADMIN` can browse and manage any manager's pools (a
+"created by manager" filter drives this on `/dashboard/pools`). Every pool
+member's payment status (`UNPAID`/`PARTIAL`/`PAID_FULL`) is derived by
+comparing confirmed donations to the pledge — never stored by the frontend.
+
+Unrecognized payments (a donor who paid with a phone/method the org hasn't
+registered) are parked in a **per-manager anomalous pool**
+(`GET /donor-pools/anomalous`, `isSystem: true`) — the manager who owns the
+campaign that received the payment. They can be re-attached to a real donor
+from `/dashboard/pools/anomalous` (`POST /donor-pools/anomalous/:id/merge`),
+optionally registering the payment method that was used so it's recognized
+next time.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET / POST | `/donor-pools` | List (own; admin: all / filter by `createdBy`) / create |
+| GET / PUT / DELETE | `/donor-pools/:id` | Detail (+ `?campaignId=` comparison) / update / delete |
+| POST | `/donor-pools/:id/members` | Add existing or newly-created donors |
+| PUT / DELETE | `/donor-pools/:id/members/:donorId` | Set expected pledge / remove |
+| GET | `/donor-pools/duplicates` | Donors present in more than one pool |
+| POST | `/donor-pools/duplicates/resolve` | Pick which pool each duplicate donor keeps |
+| GET | `/donor-pools/anomalous` (+ `?managerId=`, admin only) | Own pool, or (admin) any manager's / unassigned fallback |
+| POST | `/donor-pools/anomalous/:donorId/merge` | Re-attach to a known donor |
+| POST | `/donor-pools/reminders/send` | Manual bulk reminder to selected donors |
+
+See `Backend/API_REFERENCE.md` → **"Donor pools module"** for full request/response payloads.
+
+### Campaign-time import
+
+`POST /campaigns/:id/pools/import` (see [§8](#8-campaigns)) lets a manager pull
+one or more of their pools into a campaign — either while creating it
+(`campaigns/new`) or later from the campaign page. When the same donor
+appears in more than one selected pool, `POST /campaigns/:id/pools/preview`
+returns a `duplicateGroups` list; the frontend must ask **which pool the
+donor should stay attached to** and send that back as `duplicateChoices` on
+the import call — it is not auto-resolved silently.
+
+---
+
+## 15. Reminder templates & auto-resend schedules
+
+> **Backed by frontend pages:** `/dashboard/reminders` (pending approval inbox), `/dashboard/reminders/templates`, `/dashboard/reminders/schedules` (see `MessageTemplate` / `ReminderSchedule` / `PendingReminderBatch` in [§4](#4-data-models-types-the-api-must-use)).
+
+Two independent pieces:
+
+1. **Templates** — reusable per-channel (SMS/WhatsApp/Email) message bodies with `{{donorName}}`/`{{amountDue}}`/`{{campaignName}}`/`{{orgName}}` placeholders. Selectable from the existing manual "Send Reminder" dialogs on the pool and campaign pages, or attached to a schedule.
+2. **Auto-resend schedules** — an interval (days) attached to either a non-system donor pool or a campaign, with the channels to use. **The anomalous/system pool can never be scheduled.** Every due cycle only creates a `PendingReminderBatch` — the frontend must always require an explicit "Confirm & Send" click (`POST /reminder-schedules/pending/:id/confirm`) before treating it as sent; a "Skip" action (`POST .../skip`) is also available. Each donor in a confirmed batch is messaged on their **own** `preferredChannel`, not a single channel picked for the whole batch.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET / POST | `/reminder-templates` | List / create |
+| PUT / DELETE | `/reminder-templates/:id` | Update / delete |
+| GET / POST | `/reminder-schedules` | List / create |
+| PUT / DELETE | `/reminder-schedules/:id` | Update / delete |
+| GET | `/reminder-schedules/pending` | Batches awaiting confirmation |
+| POST | `/reminder-schedules/pending/:id/confirm` \| `/skip` | Send now / skip this cycle |
+
+See `Backend/API_REFERENCE.md` → **"Reminder templates module"** / **"Reminder schedules (auto-resend) module"** for full payloads. Actual delivery depends on the backend's `MESSAGE_PROVIDER` config — see `Backend/README.md` → "Messaging providers setup"; in `simulated` mode (the default) sends are logged, not delivered, which is fine for local development.
+
+---
+
+## 16. Public campaign page
 
 > **Backed by frontend pages:** the public shareable campaign page at `/c/:slug` (marketing site, no auth).
 
@@ -1180,7 +1313,7 @@ Accepts a link-based donation. The backend creates a `LINK` payment attempt and 
 > Public endpoints must not expose any internal numbers beyond the public target and confirmed progress.
 
 ---
-## 15. Quick start / how to test
+## 17. Quick start / how to test
 
 > **Backed by frontend pages:** run the app local-first — API on `http://localhost:5000`, dashboard on `http://localhost:3000` (login at `/login`, register at `/register`).
 
@@ -1212,8 +1345,8 @@ Then verify role gating with the demo accounts (password `Changia@2026`):
 | Role | Email |
 |------|-------|
 | Super admin (system) | `admin@changia.org.tz` |
-| Org admin (admin) | `admin@changia.org.tz` |
-| Campaign manager (manager) | `manager@changia.org.tz` |
+| Org admin (admin) | `admin@msuya-foundation.org.tz` |
+| Campaign manager (manager) | `manager@msuya-foundation.org.tz` |
 
 ---
 
@@ -1231,6 +1364,8 @@ Then verify role gating with the demo accounts (password `Changia@2026`):
 | Audit | `GET /audit-logs` (with `resource` filter) , `GET /audit-logs/recent`, `GET /audit-logs/export` | `[TO BUILD]` |
 | Payouts | payouts CRUD | `[TO BUILD]` |
 | Settings | platform / org (organisation, notifications, security, localisation) , `DELETE /organizations` | `[TO BUILD]` |
+| Donor pools | `GET/POST /donor-pools`, `:id` CRUD, members, duplicates, anomalous (+per-manager scoping), reminders/send | **Wired up now** |
+| Reminders | `GET/POST /reminder-templates`, `GET/POST /reminder-schedules` + pending/confirm/skip | **Wired up now** — sending needs `MESSAGE_PROVIDER=live` + credentials in production |
 | Public | `/public/campaigns/:slug` + public donate | `[TO BUILD]` |
 
 ---

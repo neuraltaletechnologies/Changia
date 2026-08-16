@@ -213,7 +213,7 @@ async function createPool(organizationId, user, data) {
     [organizationId, user.id, user.email, String(result.insertId)]
   );
 
-  return loadPool(organizationId, result.insertId);
+  return serializePool(await loadPool(organizationId, result.insertId));
 }
 
 async function updatePool(organizationId, user, poolId, data) {
@@ -238,7 +238,7 @@ async function updatePool(organizationId, user, poolId, data) {
     [organizationId, user.id, user.email, String(poolId)]
   );
 
-  return loadPool(organizationId, poolId);
+  return serializePool(await loadPool(organizationId, poolId));
 }
 
 async function deletePool(organizationId, user, poolId) {

@@ -40,7 +40,7 @@ npm run format:check / format:fix
 ```
 No frontend test suite exists either — `typecheck` + `lint` are the main safety nets.
 
-Demo login: `admin@changia.org.tz` / `Changia@2026` (also `manager@changia.org.tz` for a CAMPAIGN_MANAGER account). Register a fresh org at `/register`.
+Demo login (freshly-imported `database.sql`): `admin@changia.org.tz` / `Changia@2026` (SUPER_ADMIN), `admin@msuya-foundation.org.tz` / `Changia@2026` (ORG_ADMIN), `manager@msuya-foundation.org.tz` / `Changia@2026` (CAMPAIGN_MANAGER). Register a fresh org at `/register`. Note: an existing local MySQL database may have been seeded from an older copy of `database.sql` with different demo emails — if these don't work, check what's actually in the `users` table rather than assuming the DB matches this file.
 
 ## Backend architecture (`Backend/`)
 

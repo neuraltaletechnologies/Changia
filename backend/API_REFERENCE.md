@@ -766,6 +766,143 @@ Detail view: donor + consent history + up to 20 donations.
 
 ---
 
+## Donor pools module
+
+Routes: `/donor-pools` — all authenticated, org-scoped. A pool is visible to
+its `CAMPAIGN_MANAGER` creator and to `SUPER_ADMIN`/`ORG_ADMIN` only — one
+manager can never list, open or modify another manager's pool. Each manager
+also has their own system ("anomalous") pool for donations that arrived
+without a matching donor profile — it never appears in normal pool listings
+and cannot be scheduled for auto-resend.
+
+### `GET /donor-pools`
+
+**Query params:** `category` (`FAMILY`|`SCHOOL`|`STUDENT`|`OFFICE`), `search`, `status` (`ACTIVE`|`ARCHIVED`), `createdBy` (admin only — filter by manager id), `sortBy` (`name`|`created`|`members`), `sortDir`, `page`, `limit`.
+
+**Response — `200 OK`:**
+
+```json
+{
+  "success": true,
+  "data": {
+    "pools": [
+      {
+        "id": 4,
+        "name": "Msuya Family",
+        "description": "Extended family pledges",
+        "category": "FAMILY",
+        "isSystem": false,
+        "status": "ACTIVE",
+        "createdBy": { "id": 3, "firstName": "Grace", "lastName": "Manager", "email": "manager@changia.org.tz" },
+        "memberCount": 12,
+        "expectedTotal": 2400000,
+        "paidTotal": 1100000,
+        "createdAt": "2026-08-01T00:00:00.000Z",
+        "updatedAt": "2026-08-01T00:00:00.000Z"
+      }
+    ],
+    "pagination": { "page": 1, "limit": 25, "total": 3, "totalPages": 1 }
+  }
+}
+```
+
+### `POST /donor-pools` — `SUPER_ADMIN`, `ORG_ADMIN`, or `CAMPAIGN_MANAGER`
+
+**Required fields:** `name` (string, min 2). **Optional:** `description`, `category` (default `FAMILY`), `createdBy` (admin only — create on behalf of a manager).
+**Response — `201 Created`:** the pool object.
+
+### `GET /donor-pools/:id` (+ `?campaignId=`)
+
+Pool detail with members. Pass `campaignId` to compare each member's pledge/paid against that specific campaign (status becomes `UNPAID`/`PARTIAL`/`PAID_FULL`); without it, status reflects lifetime totals against the pool-level expected amount.
+
+### `PUT /donor-pools/:id` / `DELETE /donor-pools/:id` — owner or admin
+
+Same fields as create (all optional on `PUT`). The system pool cannot be deleted (`400 SYSTEM_POOL`).
+
+### `POST /donor-pools/:id/members` — owner or admin
+
+Body: `donorIds` (existing donors) and/or `donors` (new donor objects — same shape as `POST /donors` plus `gender`/`position`), plus optional `expectedAmounts: { "<donorId>": number }`.
+
+### `PUT /donor-pools/:id/members/:donorId` / `DELETE /donor-pools/:id/members/:donorId`
+
+Set (`{ "expectedAmount": number|null }`) or remove a member's pledge.
+
+### `GET /donor-pools/duplicates` (+ `?poolIds=1,2,3`)
+
+Donors who appear in more than one pool you can see. **Response:** `{ groups: [{ donor, pools: [{id,name,category,isSystem}] }] }`.
+
+### `POST /donor-pools/duplicates/resolve`
+
+Body: `{ "choices": [{ "donorId": 12, "keepPoolId": 4 }] }` — removes the donor from every other pool, keeping only the chosen one.
+
+### `GET /donor-pools/anomalous` (+ `?managerId=`)
+
+A `CAMPAIGN_MANAGER` always gets their own anomalous pool. An admin can pass `managerId` to view a specific manager's, or omit it for the shared "Unassigned" fallback (unmatched payments on campaigns with no assigned manager).
+
+### `POST /donor-pools/anomalous/:anomalousDonorId/merge`
+
+Body: `{ "targetDonorId": number, "paymentMethod"?: { "method": "MOMO"|…, "accountRef"?: string, "details"?: object } }`. Moves the anomalous donor's donations, campaign targets and pool memberships onto the target donor (in one transaction), optionally registering the previously-unrecognized payment method, then deletes the anomalous placeholder.
+
+### `POST /donor-pools/reminders/send` — `SUPER_ADMIN`, `ORG_ADMIN`, or `CAMPAIGN_MANAGER`
+
+One-off bulk reminder (manual send, not a scheduled resend).
+
+| Field | Type | Rules |
+|-------|------|-------|
+| `campaignId` | number | required |
+| `donorIds` | number[] | required, 1–500 |
+| `channel` | string | `SMS` \| `WHATSAPP` \| `EMAIL` |
+| `subject` | string | optional (Email only) |
+| `message` | string | required, max 5000 |
+
+**Response — `201 Created`:** `{ batch: {...}, deliveries: [{ donorId, recipient, status, providerRef, sentAt }] }`. Actual delivery depends on `MESSAGE_PROVIDER` — see `Backend/README.md` → "Messaging providers setup".
+
+---
+
+## Reminder templates module
+
+Routes: `/reminder-templates` — all authenticated, org-scoped. Non-admins only see/manage their own templates. Body/subject support `{{donorName}}`, `{{amountDue}}`, `{{campaignName}}`, `{{orgName}}` placeholders, rendered when a reminder is actually sent.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/reminder-templates` (+ `channel`, `search`, `page`, `limit`) | List templates |
+| POST | `/reminder-templates` | Create — `{ name, channel: "SMS"\|"WHATSAPP"\|"EMAIL", subject?, body }` |
+| PUT | `/reminder-templates/:id` | Update (owner or admin) |
+| DELETE | `/reminder-templates/:id` | Delete (owner or admin) |
+
+---
+
+## Reminder schedules (auto-resend) module
+
+Routes: `/reminder-schedules` — all authenticated, org-scoped. **A schedule never sends by itself** — a background job (`jobs/reminderScheduler.js`) only queues a `PENDING_APPROVAL` batch each time a cycle is due; a manager must confirm it.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/reminder-schedules` (+ `scope`, `page`, `limit`) | List schedules |
+| POST | `/reminder-schedules` | Create — see fields below |
+| PUT | `/reminder-schedules/:id` | Update `name`/`intervalDays`/`channels`/`templateId*`/`isActive` (scope/target are fixed after creation) |
+| DELETE | `/reminder-schedules/:id` | Delete (owner or admin) |
+| GET | `/reminder-schedules/pending` | Batches awaiting confirmation (own schedules; admin sees all) |
+| POST | `/reminder-schedules/pending/:id/confirm` | **Sends now** — renders each donor's template on their own `preferredChannel` and dispatches |
+| POST | `/reminder-schedules/pending/:id/skip` | Skip this cycle — nothing sent |
+
+**`POST /reminder-schedules` fields:**
+
+| Field | Type | Rules |
+|-------|------|-------|
+| `name` | string | required |
+| `scope` | string | `POOL` \| `CAMPAIGN` |
+| `poolId` | number | required if `scope=POOL`; must be a non-system pool you own (or admin) |
+| `campaignId` | number | required if `scope=CAMPAIGN` |
+| `intervalDays` | number | 1–365, default 7 |
+| `channels` | string[] | subset of `SMS`/`WHATSAPP`/`EMAIL`, min 1 |
+| `templateIdSms` / `templateIdWhatsapp` / `templateIdEmail` | number | optional — falls back to a generic reminder if omitted |
+| `isActive` | boolean | default `true` |
+
+**Errors:** `400 SYSTEM_POOL_NOT_ALLOWED` (tried to schedule the anomalous pool), `403 POOL_ACCESS_DENIED`, `409 ALREADY_RESOLVED` (confirming/skipping an already-resolved batch).
+
+---
+
 ## Donations & payments module
 
 Routes: `/donations` — all authenticated, org-scoped.

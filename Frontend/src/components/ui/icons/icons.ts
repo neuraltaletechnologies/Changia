@@ -43,6 +43,28 @@ export const Icons = {
     height: 48,
     viewBox: '0 -960 960 960',
   },
+  send: {
+    paths: [
+      {
+        d: 'M120-160v-640l760 320-760 320Zm80-120 474-200-474-200v140l240 60-240 60v140Z',
+      },
+    ],
+    class: 'mt-1 h-8 w-8 shrink-0 fill-emerald-600 dark:fill-emerald-400',
+    width: 48,
+    height: 48,
+    viewBox: '0 -960 960 960',
+  },
+  shield: {
+    paths: [
+      {
+        d: 'M480-80q-139-35-229.5-159.5T160-516v-244l320-120 320 120v244q0 152-90.5 276.5T480-80Z',
+      },
+    ],
+    class: 'mt-1 h-8 w-8 shrink-0 fill-emerald-600 dark:fill-emerald-400',
+    width: 48,
+    height: 48,
+    viewBox: '0 -960 960 960',
+  },
   tools: {
     paths: [
       {

@@ -448,9 +448,9 @@ INSERT INTO organizations (name, slug, email, phone, description) VALUES
 INSERT INTO users (organization_id, first_name, last_name, email, phone, password_hash, role, status) VALUES
   (NULL, 'Changia', 'Super Admin', 'admin@changia.org.tz', '255712000099',
    '$2b$12$YBiH.YibjVq/6ydw/Pa97eEG/HbjPVWH.a2Am4NvHTPGkhBW8xVbW', 'SUPER_ADMIN', 'ACTIVE'),
-  (1, 'Amina', 'Msuya', 'admin@changia.org.tz', '255712000001',
+  (1, 'Amina', 'Msuya', 'admin@msuya-foundation.org.tz', '255712000001',
    '$2b$12$YBiH.YibjVq/6ydw/Pa97eEG/HbjPVWH.a2Am4NvHTPGkhBW8xVbW', 'ORG_ADMIN', 'ACTIVE'),
-  (1, 'Baraka', 'Mushi', 'manager@changia.org.tz', '255713000002',
+  (1, 'Baraka', 'Mushi', 'manager@msuya-foundation.org.tz', '255713000002',
    '$2b$12$YBiH.YibjVq/6ydw/Pa97eEG/HbjPVWH.a2Am4NvHTPGkhBW8xVbW', 'CAMPAIGN_MANAGER', 'ACTIVE');
 
 -- Active campaign with 5% service fee (goal 10,000,000 → target 10,500,000)

@@ -1,30 +1,29 @@
 import type { Metadata } from 'next';
 import PrimaryCTA from '@components/ui/buttons/PrimaryCTA';
-import CardSmall from '@components/ui/cards/CardSmall';
-import CardWide from '@components/ui/cards/CardWide';
+import PublicCampaignCard from '@components/ui/cards/PublicCampaignCard';
 import FeaturesStatsAlt from '@components/sections/features/FeaturesStatsAlt';
 import TestimonialsSectionAlt from '@components/sections/testimonials/TestimonialsSectionAlt';
-import { getCampaignEntries } from '@/lib/content';
+import { getPublicCampaigns } from '@/lib/public-campaigns';
 
 export const metadata: Metadata = {
-  title: 'Kampani',
+  title: 'Kampeni',
   description:
-    'Gundua kampani tatu za Campaign za Changia: jukwaa la msingi na hifadhidata ya wafadhili, usambazaji wa viungo vya kampeni na mchango wa kusukuma wa papo hapo.',
+    'Vinjari kampeni hai za Changia na uchangie moja kwa moja — ada za matibabu, karo za shule, miradi ya jamii na zaidi.',
   openGraph: {
-    title: 'Kampani za Campaign za Changia | Changia',
+    title: 'Kampeni | Changia',
     description:
-      'Gundua kampani tatu za Campaign za Changia: jukwaa la msingi na hifadhidata ya wafadhili, usambazaji wa viungo vya kampeni na mchango wa kusukuma wa papo hapo.',
+      'Vinjari kampeni hai za Changia na uchangie moja kwa moja — ada za matibabu, karo za shule, miradi ya jamii na zaidi.',
   },
 };
 
-const title = 'Kampani';
+const title = 'Kampeni';
 const subTitle =
-  "Gundua kampani tatu huru na za kulipwa za Campaign ya Changia. Kila kampani inatoa matokeo muhimu — kutoka jukwaa salama la msingi na hifadhidata ya wafadhili hadi usambazaji wa viungo vya kampeni na michango inayoendeshwa na maafisa.";
+  'Kila kampeni hapa chini iko hai na inasimamiwa na shirika lililothibitishwa na Changia. Fungua moja kusoma hadithi yake, ona jinsi lengo linavyogawanyika, na uchangie kwa mibofyo michache.';
 
 const testimonials = [
   {
     content:
-      "Kama mshirika wa uzinduzi, tuliweza kuanzisha dashibodi salama, kusimamia watumiaji kwa majukumu na kuweka hifadhidata ya wafadhili iliyoandaliwa kwa ukaguzi tangu siku ya kwanza. Kampani 1 ilitupa msingi wa kuendesha kampeni za kuaminika.",
+      'Kama mshirika wa uzinduzi, tuliweza kuanzisha dashibodi salama, kusimamia watumiaji kwa majukumu na kuweka hifadhidata ya wafadhili iliyoandaliwa kwa ukaguzi tangu siku ya kwanza. Changia ilitupa msingi wa kuendesha kampeni za kuaminika.',
     author: 'Dr Msuya',
     role: 'Msimamizi wa shirika | Mshirika wa awali wa uzinduzi',
     avatarSrc:
@@ -33,7 +32,7 @@ const testimonials = [
   },
   {
     content:
-      "Kwa kampani ya usambazaji wa viungo, tunawageuza wasikilizaji wa redio na WhatsApp kuwa wafadhili. Kiungo kifupi, msimbo wa QR na ukurasa wa kampeni wa simu — tangu TZS 100 — na kila mchango uliothibitishwa husasisha upau wa maendeleo.",
+      'Kwa kiungo cha kushiriki cha kampeni, tunawageuza wasikilizaji wa redio na WhatsApp kuwa wafadhili. Kiungo kifupi, msimbo wa QR na ukurasa wa kampeni wa simu — tangu TZS 100 — na kila mchango uliothibitishwa husasisha upau wa maendeleo.',
     author: 'Amadi Kimaro',
     role: 'Afisa wa kampeni | Mfuko wa afya wa jamii',
     avatarSrc:
@@ -42,7 +41,7 @@ const testimonials = [
   },
   {
     content:
-      "Mchango wa kusukuma wa papo hapo ni uvumbuzi tuliokuwa tukiusubiri. Baada ya mazungumzo ana kwa ana na makubaliano, mfadhili anapokea ombi la malipo la moja kwa moja na kuthibitisha kwa PIN yake mwenyewe. Callbacks zilizothibitishwa zinahakikisha jumla sahihi daima.",
+      'Michango ya kujitolea ndio uvumbuzi tuliokuwa tukiusubiri. Mfadhili anachagua kiasi, anathibitisha kwa PIN yake mwenyewe kwenye ombi la mtoa huduma, na jumla zetu husasishwa mara tu mlango unapothibitisha.',
     author: 'Neema Mushi',
     role: 'Msimamizi wa ukusanyaji wa mbugani',
     avatarSrc:
@@ -51,10 +50,8 @@ const testimonials = [
   },
 ];
 
-export default function SwahiliCampaignsIndexPage() {
-  const campaign = getCampaignEntries('sw').sort(
-    (a, b) => a.data.main.id - b.data.main.id
-  );
+export default async function SwahiliCampaignsIndexPage() {
+  const campaigns = await getPublicCampaigns(5, 'sw');
 
   return (
     <>
@@ -73,20 +70,32 @@ export default function SwahiliCampaignsIndexPage() {
           <PrimaryCTA title="Historia za kampeni" url="#testimonials" noArrow />
         </div>
 
-        <section className="grid grid-cols-1 gap-4 sm:grid-cols-3 md:gap-6 xl:gap-8">
-          {campaign.map((p, index) => {
-            const position = index % 4;
-            if (position === 0 || position === 3) {
-              return <CardSmall key={p.id} campaign={p} campaignLocale="sw" />;
-            }
-            return <CardWide key={p.id} campaign={p} campaignLocale="sw" />;
-          })}
-        </section>
+        {campaigns.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-neutral-300 py-16 text-center dark:border-neutral-700">
+            <p className="text-neutral-600 dark:text-neutral-400">
+              Hakuna kampeni za umma zinazoendelea kwa sasa — rudi hivi karibuni.
+            </p>
+          </div>
+        ) : (
+          <section className="grid grid-cols-1 gap-4 sm:grid-cols-3 md:gap-6 xl:gap-8">
+            {campaigns.map((campaign, index) => {
+              const position = index % 4;
+              return (
+                <PublicCampaignCard
+                  key={campaign.id}
+                  campaign={campaign}
+                  wide={!(position === 0 || position === 3)}
+                  locale="sw"
+                />
+              );
+            })}
+          </section>
+        )}
       </div>
 
       <FeaturesStatsAlt
         title="Kwa nini uchague Changia?"
-        subTitle="Changia imeundwa tangu mwanzo kwa mtiririko wa kazi wa All money transfer wa Tanzania. Ukiwa unazindua kampeni yako ya kwanza au kuendesha wito wa kitaifa, jukwaa limeundwa kubadilisha nia ya kusaidia kuwa malipo yaliyofanyika."
+        subTitle="Changia imeundwa tangu mwanzo kwa mtiririko wa kazi wa pesa za simu wa Tanzania. Ukiwa unazindua kampeni yako ya kwanza au kuendesha wito wa kitaifa, jukwaa limeundwa kubadilisha nia ya kusaidia kuwa malipo yaliyofanyika."
         benefits={[
           'Msingi salama wa mobile-first, unaofaa kwa mitandao yenye mawimbi dhaifu.',
           'Usimamizi wa wafadhili unaoheshimu ridhaa kwa vidhibiti vya kujiondoa.',

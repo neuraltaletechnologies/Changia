@@ -10,6 +10,8 @@ const {
   campaignStatusSchema,
   poolExpectedSchema,
   targetExpectedSchema,
+  featuredSchema,
+  translationsSchema,
 } = require("./validation");
 
 const router = Router();
@@ -83,6 +85,18 @@ router.put(
   authorize("SUPER_ADMIN", "ORG_ADMIN"),
   validate({ body: setManagersSchema }),
   controller.setManagers
+);
+router.post(
+  "/:id/featured",
+  authorize("SUPER_ADMIN", "ORG_ADMIN"),
+  validate({ body: featuredSchema }),
+  controller.setFeatured
+);
+router.put(
+  "/:id/translations",
+  authorize("SUPER_ADMIN", "ORG_ADMIN", "CAMPAIGN_MANAGER"),
+  validate({ body: translationsSchema }),
+  controller.setTranslations
 );
 router.delete(
   "/:id",

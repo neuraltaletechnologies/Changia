@@ -125,6 +125,27 @@ const removeDonorTarget = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true, data: result });
 });
 
+const setTranslations = asyncHandler(async (req, res) => {
+  await campaignService.assertCampaignAccess(req.user.organizationId, req.user, req.params.id);
+  const campaign = await campaignService.setTranslations(
+    req.user.organizationId,
+    req.params.id,
+    req.body,
+    { id: req.user.id, email: req.user.email }
+  );
+  res.status(200).json({ success: true, data: campaign });
+});
+
+const setFeatured = asyncHandler(async (req, res) => {
+  const campaign = await campaignService.setFeatured(
+    req.user.organizationId,
+    req.params.id,
+    req.body.featured,
+    { id: req.user.id, email: req.user.email }
+  );
+  res.status(200).json({ success: true, data: campaign });
+});
+
 const removeCampaign = asyncHandler(async (req, res) => {
   const result = await campaignService.removeCampaign(
     req.user.organizationId,
@@ -148,5 +169,7 @@ module.exports = {
   getDonorTargets,
   setDonorTarget,
   removeDonorTarget,
+  setFeatured,
+  setTranslations,
   removeCampaign,
 };

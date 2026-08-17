@@ -24,6 +24,7 @@ import {
   Pause,
   Phone,
   Play,
+  Star,
   Target,
   Trash2,
   UserRound,
@@ -276,6 +277,20 @@ export default function CampaignDetailPage() {
               >
                 {campaign.status}
               </span>
+              {isAdmin && campaign.status === "ACTIVE" && campaign.isPublic && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={acting}
+                  className={campaign.isFeatured ? "text-amber-600 hover:text-amber-600" : undefined}
+                  onClick={() => act(() => campaignApi.setFeatured(id, !campaign.isFeatured))}
+                >
+                  <Star
+                    className={`w-3.5 h-3.5 mr-1.5 ${campaign.isFeatured ? "fill-amber-500 text-amber-500" : ""}`}
+                  />
+                  {campaign.isFeatured ? "Featured" : "Feature on homepage"}
+                </Button>
+              )}
               {campaign.status === "DRAFT" && (
                 <>
                   <Button
@@ -427,6 +442,7 @@ export default function CampaignDetailPage() {
           <TabsTrigger value="user">
             User ({campaign.assignments?.length ?? 0})
           </TabsTrigger>
+          <TabsTrigger value="translation">Swahili</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="pt-2">
@@ -491,6 +507,10 @@ export default function CampaignDetailPage() {
             isAdmin={isAdmin}
             onRefresh={refresh}
           />
+        </TabsContent>
+
+        <TabsContent value="translation" className="pt-2">
+          <TranslationTab campaign={campaign} campaignId={id} onSaved={refresh} />
         </TabsContent>
       </Tabs>
 
@@ -946,6 +966,100 @@ function UserTab({
           }}
         />
       )}
+    </div>
+  );
+}
+
+// ─── Swahili translation tab ───────────────────────────────────────────────
+
+function TranslationTab({
+  campaign,
+  campaignId,
+  onSaved,
+}: {
+  campaign: CampaignRecord;
+  campaignId: string;
+  onSaved: () => void;
+}) {
+  const [nameSw, setNameSw] = useState(campaign.nameSw ?? "");
+  const [categorySw, setCategorySw] = useState(campaign.categorySw ?? "");
+  const [storySw, setStorySw] = useState(campaign.storySw ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  const save = async () => {
+    setSaving(true);
+    setError(null);
+    setSaved(false);
+    try {
+      await campaignApi.setTranslations(campaignId, { nameSw, storySw, categorySw });
+      setSaved(true);
+      onSaved();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to save the translation.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
+      <div className="px-5 py-4 border-b border-border">
+        <h2 className="text-sm font-semibold text-foreground">Swahili translation</h2>
+        <p className="text-[11px] text-muted-foreground mt-0.5">
+          Optional — shown on the /sw public pages. Leave blank to fall back to the English
+          content above. Unlike the main details, this can be edited at any campaign status.
+        </p>
+      </div>
+      <div className="p-5 space-y-4">
+        <div className="grid gap-1.5">
+          <Label htmlFor="name-sw" className="text-xs">Campaign name (Swahili)</Label>
+          <Input
+            id="name-sw"
+            value={nameSw}
+            onChange={(e) => setNameSw(e.target.value)}
+            placeholder={campaign.name}
+            className="h-9"
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor="category-sw" className="text-xs">Category (Swahili)</Label>
+          <Input
+            id="category-sw"
+            value={categorySw}
+            onChange={(e) => setCategorySw(e.target.value)}
+            placeholder={campaign.category ?? ""}
+            className="h-9"
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor="story-sw" className="text-xs">Story (Swahili)</Label>
+          <Textarea
+            id="story-sw"
+            value={storySw}
+            onChange={(e) => setStorySw(e.target.value)}
+            placeholder={campaign.story ?? ""}
+            className="min-h-32"
+          />
+        </div>
+
+        {error && (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+            {error}
+          </div>
+        )}
+        {saved && !error && (
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+            Translation saved.
+          </div>
+        )}
+
+        <Button size="sm" onClick={save} disabled={saving}>
+          {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : null}
+          Save translation
+        </Button>
+      </div>
     </div>
   );
 }

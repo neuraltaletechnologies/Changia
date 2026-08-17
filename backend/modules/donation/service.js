@@ -241,6 +241,91 @@ async function createPaymentAttempt(data) {
   return { ...attempts[0], amount: num(attempts[0].amount) };
 }
 
+// ─── Public (unauthenticated) self-serve contribution flow ──────────────────
+// A visitor on the public campaign page initiates their own contribution
+// (no admin "push" involved). No PIN is ever collected here — the donor
+// approves the request at their mobile-money operator's own prompt.
+
+/**
+ * Starts a public contribution: creates a PENDING payment_attempts row
+ * against a public, active campaign. Reuses createPaymentAttempt's amount /
+ * remaining-target / rate-limit checks once the campaign's organization is
+ * resolved from the (public) campaign id or slug.
+ */
+async function createPublicContribution(campaignIdOrSlug, data) {
+  const isNumeric = /^\d+$/.test(String(campaignIdOrSlug));
+  const campaigns = await db.query(
+    `SELECT id, organization_id FROM campaigns
+     WHERE is_public = 1 AND status = 'ACTIVE' AND (slug = ? ${isNumeric ? "OR id = ?" : ""}) LIMIT 1`,
+    isNumeric ? [campaignIdOrSlug, campaignIdOrSlug] : [campaignIdOrSlug]
+  );
+  const campaign = campaigns[0];
+  if (!campaign) throw ApiError.notFound("Campaign not found");
+
+  const attempt = await createPaymentAttempt({
+    organizationId: campaign.organization_id,
+    campaignId: campaign.id,
+    initiatedById: null,
+    donorPhone: data.donorPhone,
+    donorName: data.isAnonymous ? undefined : data.donorName,
+    amount: data.amount,
+    method: "LINK",
+  });
+
+  return {
+    attemptId: attempt.id,
+    status: attempt.status,
+    amount: num(attempt.amount),
+    expiresAt: attempt.expires_at,
+  };
+}
+
+/** Poll-friendly status for a public contribution attempt. */
+async function getPublicAttemptStatus(attemptId) {
+  const rows = await db.query(
+    `SELECT pa.id, pa.status, pa.amount, pa.campaign_id, d.receipt_number
+     FROM payment_attempts pa
+     JOIN campaigns c ON c.id = pa.campaign_id
+     LEFT JOIN donations d ON d.payment_attempt_id = pa.id
+     WHERE pa.id = ? AND c.is_public = 1 AND pa.method = 'LINK' AND pa.initiated_by_id IS NULL`,
+    [attemptId]
+  );
+  const attempt = rows[0];
+  if (!attempt) throw ApiError.notFound("Contribution not found");
+  return {
+    attemptId: attempt.id,
+    status: attempt.status,
+    amount: num(attempt.amount),
+    campaignId: attempt.campaign_id,
+    receiptNumber: attempt.receipt_number || null,
+  };
+}
+
+/**
+ * ⚠️ Development-only stand-in for the payment gateway's verified callback.
+ * Only resolves attempts that were self-initiated by a public visitor (LINK
+ * method, no initiated_by_id) — an admin-pushed PUSH request can never be
+ * confirmed through this public endpoint.
+ */
+async function simulatePublicConfirm(attemptId) {
+  const rows = await db.query(
+    `SELECT id FROM payment_attempts WHERE id = ? AND method = 'LINK' AND initiated_by_id IS NULL`,
+    [attemptId]
+  );
+  if (rows.length === 0) throw ApiError.notFound("Contribution not found");
+
+  const outcome = await resolvePaymentAttempt(attemptId, {
+    status: "SUCCESS",
+    gatewayRef: `SIM-${Date.now()}`,
+  });
+  return {
+    attemptId: outcome.attempt.id,
+    status: outcome.attempt.status,
+    receiptNumber: outcome.donation?.receiptNumber || null,
+    amount: outcome.donation?.amount ?? null,
+  };
+}
+
 async function recordManualDonation(organizationId, data) {
   let donorName = data.donorName || null;
   if (data.donorId) {
@@ -381,4 +466,7 @@ module.exports = {
   listPaymentAttempts,
   resolvePaymentAttempt,
   listDonations,
+  createPublicContribution,
+  getPublicAttemptStatus,
+  simulatePublicConfirm,
 };

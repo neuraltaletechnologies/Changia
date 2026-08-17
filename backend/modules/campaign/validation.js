@@ -19,6 +19,9 @@ const poolExpectedSchema = z.object({
 const createCampaignSchema = z.object({
   name: z.string().min(3, "Campaign name is required").max(150),
   story: z.string().max(20000).optional(),
+  nameSw: z.string().min(3).max(150).optional().or(z.literal("")),
+  storySw: z.string().max(20000).optional().or(z.literal("")),
+  categorySw: z.string().max(100).optional().or(z.literal("")),
   imageUrl: z.string().url().optional().or(z.literal("")),
   category: z.string().max(100).optional(),
   goalAmount: z
@@ -63,6 +66,26 @@ const targetExpectedSchema = z.object({
   expectedAmount: amountSchema.nullable().optional(),
 });
 
+const featuredSchema = z.object({
+  featured: z.boolean(),
+});
+
+const translationsSchema = z.object({
+  nameSw: z.string().min(3).max(150).optional().or(z.literal("")),
+  storySw: z.string().max(20000).optional().or(z.literal("")),
+  categorySw: z.string().max(100).optional().or(z.literal("")),
+});
+
+const publicListQuerySchema = z.object({
+  featured: z.enum(["true", "false"]).optional(),
+  limit: z.coerce.number().int().min(1).max(5).optional(),
+  locale: z.enum(["en", "sw"]).optional().default("en"),
+});
+
+const publicDetailQuerySchema = z.object({
+  locale: z.enum(["en", "sw"]).optional().default("en"),
+});
+
 module.exports = {
   createCampaignSchema,
   updateCampaignSchema,
@@ -71,4 +94,8 @@ module.exports = {
   campaignStatusSchema,
   poolExpectedSchema,
   targetExpectedSchema,
+  featuredSchema,
+  translationsSchema,
+  publicListQuerySchema,
+  publicDetailQuerySchema,
 };

@@ -41,7 +41,7 @@ export default function ContactPage() {
               transition={{ delay: 0.1 }}
               className="text-base sm:text-lg text-muted-foreground leading-relaxed"
             >
-              Have questions about platform integration, setup fees, or our roadmap? Contact the Changia support team.
+              Have questions about platform integration, setup fees, or our roadmap? Contact the Changia support user.
             </motion.p>
           </div>
         </section>
@@ -102,7 +102,7 @@ export default function ContactPage() {
                   </div>
                   <h3 className="font-bold text-lg text-foreground">Message Sent Successfully!</h3>
                   <p className="text-sm text-muted-foreground max-w-sm mx-auto leading-relaxed">
-                    Thank you for reaching out. A member of our support team will get back to you at your email address within 24 hours.
+                    Thank you for reaching out. A member of our support user will get back to you at your email address within 24 hours.
                   </p>
                   <Button variant="outline" onClick={() => setFormSubmitted(false)} className="mt-4">
                     Send another message

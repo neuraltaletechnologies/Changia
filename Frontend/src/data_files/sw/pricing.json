@@ -1,13 +1,13 @@
 {
-  "title": "Mfumo rahisi na wa uwazi",
-  "subTitle": "Kampeni zilizowekwa bei kwa TZS, na gharama za huduma za wahusika wa nje zinalipwa kando.",
+  "title": "Mfumo rahisi na wa uwazi wa ukusanyaji misaada",
+  "subTitle": "Kampeni za ukusanyaji misaada zinazowekwa bei kwa TZS, na gharama za huduma za wahusika wa nje zinalipwa kando.",
   "badge": "Bora kuliko zote",
   "thirdOption": "Unahitaji gharama za ukaribishaji (hosting), domain, au barua pepe?",
   "btnText": "Pakua Hati",
 
   "starterKit": {
     "name": "Jukwaa la Msingi na Hifadhidata ya Wafadhili",
-    "description": "Weka msingi",
+    "description": "Anza kukusanya misaada",
     "price": "100",
     "cents": "%",
     "billingFrequency": "Salama na Inalindwa",
@@ -22,8 +22,8 @@
   },
 
   "professionalToolbox": {
-    "name": "Kampeni Inayoungwa Mkono",
-    "description": "Kampani zote · inapendekezwa",
+    "name": "Kampeni Zote",
+    "description": "Kila unachohitaji · inapendekezwa",
     "price": "99.9",
     "cents": "%",
     "billingFrequency": "Upatikanaji na Muda wa Kufanya Kazi",

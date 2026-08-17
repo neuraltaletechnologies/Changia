@@ -1,32 +1,32 @@
 [
   {
-    "heading": "Shareable Campaign  Pages",
-    "content": "Mobile-first pages with your story, photo, live progress bar, and a simple donate button.",
+    "heading": "Shareable Campaign Pages",
+    "content": "Tell your story, share what you need — whether it's cash, food, clothes, or medicine. Supporters see your cause and decide how they can help.",
     "svg": "books"
   },
   {
-    "heading": "One-Tap Push Requests",
-    "content": "Managers request donations directly from donors who've already said yes.",
+    "heading": "One-Tap Help Requests",
+    "content": "When someone's already agreed to help, a manager sends a payment request with one tap. The supporter confirms with their PIN — no hassle, no friction.",
     "svg": "send"
   },
   {
-    "heading": "Donor Pool (CRM)",
-    "content": "Track supporters, their consent status, and their giving history in one place.",
+    "heading": "Supporter Pool (CRM)",
+    "content": "Keep track of every person who cares about your cause — their consent, their history, whether they gave cash or dropped off items. Everything in one place.",
     "svg": "groups"
   },
   {
-    "heading": "Real Receipts & Updates",
-    "content": "Every donor gets an instant receipt and a progress update after they give.",
-    "svg": "verified"
-  },
-  {
-    "heading": "Full Transparency",
-    "content": "Public goal, service fee, and remaining balance are always visible — no hidden math.",
+    "heading": "Money & Things Help",
+    "content": "Raise money and coordinate donated items on the same Campaign. One place for community support — cash, clothes, food, books, equipment, whatever is needed.",
     "svg": "frame"
   },
   {
+    "heading": "Real Receipts & Updates",
+    "content": "Every supporter gets an instant receipt and a progress update after they help. They see exactly how their contribution made a difference.",
+    "svg": "verified"
+  },
+  {
     "heading": "Built-In Security",
-    "content": "Changia never sees or stores your mobile-money PIN. Every transaction is verified before it counts.",
+    "content": "Changia never sees or stores your mobile-money PIN. Every payment is processed through the secure gateway you already trust.",
     "svg": "shield"
   }
 ]

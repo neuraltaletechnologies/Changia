@@ -190,8 +190,8 @@ export default function SettingsPage() {
                 defaultChecked: true,
               },
               {
-                label: "Team member activity",
-                desc: "Summaries of team logins and key actions",
+                label: "User member activity",
+                desc: "Summaries of user logins and key actions",
                 defaultChecked: false,
               },
               {

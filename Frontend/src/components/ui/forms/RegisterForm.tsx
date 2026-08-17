@@ -102,13 +102,14 @@ export default function RegisterForm() {
           Already have an account?{' '}
           <Link
             href="/login"
-            className="rounded-lg p-1 font-medium text-orange-400 decoration-2 ring-zinc-500 outline-hidden hover:underline focus-visible:ring-3 dark:text-orange-400 dark:ring-zinc-200 dark:focus:outline-hidden"
+            className="rounded-lg p-1 font-medium text-emerald-600 decoration-2 ring-zinc-500 outline-hidden hover:underline focus-visible:ring-3 dark:text-emerald-400 dark:ring-zinc-200 dark:focus:outline-hidden"
           >
             Sign in here
           </Link>
         </p>
         <p className="mt-3 text-xs text-neutral-500 dark:text-neutral-500">
-          One account creates your organization and makes you its administrator.
+          Your account is created as a campaign manager. An administrator can
+          promote you to admin roles later.
         </p>
       </div>
 
@@ -254,7 +255,7 @@ export default function RegisterForm() {
               onChange={setTermsAccepted}
             >
               <Link
-                className="font-medium text-orange-400 decoration-2 hover:underline dark:text-orange-400"
+                className="font-medium text-emerald-600 decoration-2 hover:underline dark:text-emerald-400"
                 href="/terms"
                 target="_blank"
               >

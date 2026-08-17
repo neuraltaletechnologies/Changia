@@ -76,11 +76,11 @@ const articles: Article[] = [
     isRightSection: false,
     title: 'Trust, Audit and Ongoing Support',
     subTitle:
-      "Every request, attempt and callback is logged for reconciliation, with integer TZS amounts and immutable audit events. Our team is there after launch with training, a 30-day defect warranty and a clear path to the next Campaign whenever you're ready.",
+      "Every request, attempt and callback is logged for reconciliation, with integer TZS amounts and immutable audit events. Our user is there after launch with training, a 30-day defect warranty and a clear path to the next Campaign whenever you're ready.",
     img: usingTools,
-    imgAlt: 'Team monitoring verified callbacks and audit events',
+    imgAlt: 'User monitoring verified callbacks and audit events',
     btnExists: true,
-    btnTitle: 'Contact the Team',
+    btnTitle: 'Contact the User',
     btnURL: '/contact',
   },
 ];
@@ -132,8 +132,8 @@ export default function ServicesPage() {
         mainStatSubTitle="minimum donation set on every Changia Campaign "
         stats={[
           { stat: '5%', description: 'Campaign -level service fee' },
-          { stat: '600,000', description: 'total TZS development for the campaigns' },
-          { stat: '3', description: 'independent, payable Campaigns' },
+          { stat: '99%', description: 'Campaigns, delivered and payable independently' },
+          { stat: '10+', description: 'independent, payable Campaigns' },
         ]}
       />
     </>

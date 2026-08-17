@@ -6,6 +6,7 @@ const {
   createDonorSchema,
   updateDonorSchema,
   listDonorsQuerySchema,
+  addPaymentMethodSchema,
 } = require("./validation");
 
 const router = Router();
@@ -27,5 +28,18 @@ router.put(
   controller.updateDonor
 );
 router.delete("/:id", authorize("SUPER_ADMIN", "ORG_ADMIN"), controller.deleteDonor);
+
+// Payment methods
+router.post(
+  "/:id/payment-methods",
+  authorize("SUPER_ADMIN", "ORG_ADMIN", "CAMPAIGN_MANAGER"),
+  validate({ body: addPaymentMethodSchema }),
+  controller.addPaymentMethod
+);
+router.delete(
+  "/:id/payment-methods/:methodId",
+  authorize("SUPER_ADMIN", "ORG_ADMIN", "CAMPAIGN_MANAGER"),
+  controller.removePaymentMethod
+);
 
 module.exports = router;

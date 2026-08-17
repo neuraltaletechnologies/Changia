@@ -9,6 +9,7 @@ const router = Router();
 router.use(authenticate);
 
 router.get("/", controller.getMyOrganization);
+router.get("/all", authorize("SUPER_ADMIN"), controller.listOrganizations);
 router.get("/stats", controller.getStats);
 router.put(
   "/",

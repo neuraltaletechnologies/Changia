@@ -2,6 +2,16 @@ const db = require("../../db");
 const { ApiError } = require("../../utils/ApiError");
 const { normalizePhone } = require("../../utils/phone");
 
+/** Lists every organization (platform admin use) with a member count. */
+async function listOrganizations() {
+  return db.query(
+    `SELECT o.id, o.name, o.slug, o.email, o.phone, o.status, o.created_at,
+            (SELECT COUNT(*) FROM users u WHERE u.organization_id = o.id) AS user_count
+     FROM organizations o
+     ORDER BY o.created_at DESC`
+  );
+}
+
 async function getOrganization(organizationId) {
   const orgs = await db.query(
     `SELECT id, name, slug, email, phone, address, description, logo_url, currency, status, created_at
@@ -56,7 +66,7 @@ async function getOrganizationStats(organizationId) {
          COALESCE(SUM(d.amount), 0) AS total_raised,
          COUNT(d.id) AS total_donations,
          (SELECT COUNT(*) FROM campaigns WHERE organization_id = ? AND status = 'ACTIVE') AS active_campaigns,
-         (SELECT COUNT(*) FROM users WHERE organization_id = ?) AS team_size,
+         (SELECT COUNT(*) FROM users WHERE organization_id = ?) AS user_size,
          (SELECT COUNT(*) FROM donors WHERE organization_id = ?) AS donor_count,
          (SELECT COUNT(*) FROM campaigns WHERE organization_id = ?) AS campaign_count
        FROM donations d
@@ -72,10 +82,10 @@ async function getOrganizationStats(organizationId) {
     totalRaised: Number(stats.total_raised || 0),
     totalDonations: Number(stats.total_donations || 0),
     activeCampaigns: Number(stats.active_campaigns || 0),
-    teamSize: Number(stats.team_size || 0),
+    userSize: Number(stats.user_size || 0),
     donorCount: Number(stats.donor_count || 0),
     campaignCount: Number(stats.campaign_count || 0),
   };
 }
 
-module.exports = { getOrganization, updateOrganization, getOrganizationStats };
+module.exports = { listOrganizations, getOrganization, updateOrganization, getOrganizationStats };

@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import matter from 'gray-matter';
 import type { StaticImageData } from 'next/image';
@@ -32,6 +32,7 @@ export interface ContentEntry<T = Record<string, unknown>> {
 }
 
 function listMarkdownFiles(collectionsDir: string): string[] {
+  if (!existsSync(collectionsDir)) return [];
   const results: string[] = [];
   const walk = (dir: string) => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {

@@ -10,8 +10,11 @@ const organizationRoutes = require("./modules/organization/routes");
 const userRoutes = require("./modules/user/routes");
 const campaignRoutes = require("./modules/campaign/routes");
 const donorRoutes = require("./modules/donor/routes");
+const donorPoolRoutes = require("./modules/donor-pool/routes");
 const donationRoutes = require("./modules/donation/routes");
 const auditRoutes = require("./modules/audit/routes");
+const reminderTemplateRoutes = require("./modules/reminder-template/routes");
+const reminderScheduleRoutes = require("./modules/reminder-schedule/routes");
 
 function createApp() {
   const app = express();
@@ -58,8 +61,11 @@ function createApp() {
   app.use("/api/v1/users", userRoutes);
   app.use("/api/v1/campaigns", campaignRoutes);
   app.use("/api/v1/donors", donorRoutes);
+  app.use("/api/v1/donor-pools", donorPoolRoutes);
   app.use("/api/v1/donations", donationRoutes);
   app.use("/api/v1/audit-logs", auditRoutes);
+  app.use("/api/v1/reminder-templates", reminderTemplateRoutes);
+  app.use("/api/v1/reminder-schedules", reminderScheduleRoutes);
 
   // ─── 404 & error handling (must be last) ────────────────────────────────────
   app.use(notFoundHandler);

@@ -23,9 +23,10 @@ import {
   CreditCard,
   AlertTriangle,
 } from "lucide-react";
+import { useRole } from "@/hooks/use-role";
 
-const tabs = [
-  { value: "organisation", label: "Organisation", icon: Building2 },
+const allTabs = [
+  { value: "organisation", label: "Organisation", icon: Building2, permission: "settings:org" as const },
   { value: "notifications", label: "Notifications", icon: Bell },
   { value: "security", label: "Security", icon: Shield },
   { value: "localisation", label: "Localisation", icon: Globe },
@@ -33,6 +34,10 @@ const tabs = [
 
 export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
+  const { hasPermission } = useRole();
+  const canManageOrg = hasPermission("settings:org");
+
+  const tabs = allTabs.filter((t) => !t.permission || hasPermission(t.permission));
 
   const handleSave = () => {
     setSaved(true);
@@ -51,7 +56,7 @@ export default function SettingsPage() {
         </p>
       </div>
 
-      <Tabs defaultValue="organisation">
+      <Tabs defaultValue={tabs[0]?.value ?? "notifications"}>
         <TabsList className="mb-6 flex-wrap h-auto gap-1 bg-muted/50 p-1">
           {tabs.map((t) => {
             const Icon = t.icon;
@@ -190,8 +195,8 @@ export default function SettingsPage() {
                 defaultChecked: true,
               },
               {
-                label: "Team member activity",
-                desc: "Summaries of team logins and key actions",
+                label: "User member activity",
+                desc: "Summaries of user logins and key actions",
                 defaultChecked: false,
               },
               {
@@ -277,35 +282,37 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {/* Danger zone */}
-          <div className="bg-card border border-destructive/30 rounded-xl p-6 shadow-sm">
-            <div className="flex items-start gap-3 mb-4">
-              <AlertTriangle className="w-4 h-4 text-destructive mt-0.5 shrink-0" />
-              <div>
-                <h2 className="text-sm font-semibold text-foreground">
-                  Danger Zone
-                </h2>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  These actions are irreversible. Please be certain.
-                </p>
-              </div>
-            </div>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between gap-4 p-3 bg-destructive/5 rounded-lg border border-destructive/20">
+          {/* Danger zone — organisation deletion needs settings:org */}
+          {canManageOrg && (
+            <div className="bg-card border border-destructive/30 rounded-xl p-6 shadow-sm">
+              <div className="flex items-start gap-3 mb-4">
+                <AlertTriangle className="w-4 h-4 text-destructive mt-0.5 shrink-0" />
                 <div>
-                  <p className="text-xs font-medium text-foreground">
-                    Delete Organisation
-                  </p>
-                  <p className="text-[11px] text-muted-foreground">
-                    Permanently delete this organisation and all its data
+                  <h2 className="text-sm font-semibold text-foreground">
+                    Danger Zone
+                  </h2>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    These actions are irreversible. Please be certain.
                   </p>
                 </div>
-                <Button variant="destructive" size="sm">
-                  Delete
-                </Button>
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-4 p-3 bg-destructive/5 rounded-lg border border-destructive/20">
+                  <div>
+                    <p className="text-xs font-medium text-foreground">
+                      Delete Organisation
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Permanently delete this organisation and all its data
+                    </p>
+                  </div>
+                  <Button variant="destructive" size="sm">
+                    Delete
+                  </Button>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </TabsContent>
 
         {/* Localisation */}

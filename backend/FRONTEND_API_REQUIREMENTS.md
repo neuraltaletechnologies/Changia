@@ -16,15 +16,17 @@ This document covers the whole flow **from login and registration onward** and d
 4. [Data models (types the API must use)](#4-data-models-types-the-api-must-use)
 5. [Auth — login & registration](#5-auth--login--registration)
 6. [Organizations](#6-organizations)
-7. [Users / Team](#7-users--team)
+7. [Users / User](#7-users--user)
 8. [Campaigns](#8-campaigns)
 9. [Donors (CRM)](#9-donors-crm)
 10. [Donations & payments](#10-donations--payments)
 11. [Audit logs](#11-audit-logs)
 12. [Payouts](#12-payouts--to-build)
 13. [Settings](#13-settings--to-build)
-14. [Public campaign page](#14-public-campaign-page)
-15. [Quick start / how to test](#15-quick-start--how-to-test)
+14. [Donor pools](#14-donor-pools)
+15. [Reminder templates & auto-resend schedules](#15-reminder-templates--auto-resend-schedules)
+16. [Public campaign page](#16-public-campaign-page)
+17. [Quick start / how to test](#17-quick-start--how-to-test)
 
 ---
 
@@ -148,14 +150,14 @@ Every request body and query must be validated **server-side** before it is proc
 
 ## 3. Roles & permissions
 
-> **Backed by frontend pages:** these roles gate the sidebar, mobile nav, route guard, and quick actions across every dashboard page (`/dashboard`, `/dashboard/campaigns`, `/dashboard/donors`, `/dashboard/team`, `/dashboard/audit-log`, `/dashboard/settings`, `/dashboard/payouts`).
+> **Backed by frontend pages:** these roles gate the sidebar, mobile nav, route guard, and quick actions across every dashboard page (`/dashboard`, `/dashboard/campaigns`, `/dashboard/donors`, `/dashboard/users`, `/dashboard/audit-log`, `/dashboard/settings`, `/dashboard/payouts`).
 
 There are **three** platform roles. The user-facing names the customer uses map to the API role strings as follows:
 
 | Customer term | API role (`ApiUser.role`) | Scope |
 |---------------|---------------------------|-------|
 | **System** | `SUPER_ADMIN` | Platform-wide: config, fee & gateway settings, org setup, support + audit. No organization by default (`organizationId: null`). |
-| **Admin** | `ORG_ADMIN` | One organization: creates/approves campaigns, manages team + donor pool, requests payouts. |
+| **Admin** | `ORG_ADMIN` | One organization: creates/approves campaigns, manages user + donor pool, requests payouts. |
 | **Manager** | `CAMPAIGN_MANAGER` | Only assigned campaigns: adds consented donors, sends approved push payment requests. **No withdrawals/payouts.** |
 
 ### Permission matrix the frontend enforces in the UI (mirror this on the backend)
@@ -169,14 +171,14 @@ There are **three** platform roles. The user-facing names the customer uses map 
 | `donor:view` | ✅ | ✅ | ✅ |
 | `donor:add` (add consented donors) | ✅ | ✅ | ✅ |
 | `donor:manage` (full CRUD + import) | ✅ | ✅ | ❌ |
-| `team:manage` | ✅ | ✅ | ❌ |
+| `user:manage` | ✅ | ✅ | ❌ |
 | `audit:view` | ✅ | ❌ | ❌ |
 | `settings:platform` | ✅ | ❌ | ❌ |
 | `settings:org` | ✅ | ✅ | ❌ |
 | `payout:request` | ✅ | ✅ | ❌ |
 | `reports:view` | ✅ | ✅ | ❌ |
 
-**Backend rule of thumb:** a `CAMPAIGN_MANAGER` can CREATE/READ donors and create payment attempts, but can **never** update/delete donors, manage team, approve campaigns, change org settings, or do payouts. Enforce this server-side with `authorize(...)` middleware — never trust the UI/role alone.
+**Backend rule of thumb:** a `CAMPAIGN_MANAGER` can CREATE/READ donors and create payment attempts, but can **never** update/delete donors, manage user, approve campaigns, change org settings, or do payouts. Enforce this server-side with `authorize(...)` middleware — never trust the UI/role alone.
 
 ---
 
@@ -275,6 +277,70 @@ interface Donor {
 }
 ```
 
+### `DonorPool` — backed by `Frontend/src/lib/dashboard/api.ts`
+
+```ts
+type PoolCategory = 'FAMILY' | 'SCHOOL' | 'STUDENT' | 'OFFICE';
+type PayStatus = 'UNPAID' | 'PARTIAL' | 'PAID_FULL';
+
+interface DonorPool {
+  id: number;
+  name: string;
+  description: string | null;
+  category: PoolCategory;
+  isSystem: boolean;          // true = a manager's own anomalous/unmatched pool
+  status: 'ACTIVE' | 'ARCHIVED';
+  createdBy: { id: number; firstName: string; lastName: string; email: string } | null;
+  memberCount: number;
+  expectedTotal: number;
+  paidTotal: number;
+  createdAt: string;
+  updatedAt: string;
+  members?: {
+    id: number;
+    expectedAmount: number | null;
+    paidAmount: number;
+    donationCount: number;
+    status: PayStatus | null;   // only set when a ?campaignId= comparison is requested
+    donor: { id: number; firstName: string | null; lastName: string | null; email: string | null;
+              phone: string | null; gender: 'MALE'|'FEMALE'|'UNSPECIFIED'|null; position: string | null;
+              isAnomalous: boolean };
+  }[];
+}
+```
+
+> Visibility: only the pool's `createdBy` manager and `ORG_ADMIN`/`SUPER_ADMIN` can see a given pool — the frontend must not assume a `CAMPAIGN_MANAGER` can list another manager's pools.
+
+### `MessageTemplate` / `ReminderSchedule` / `PendingReminderBatch`
+
+```ts
+type ReminderChannel = 'SMS' | 'WHATSAPP' | 'EMAIL';
+
+interface MessageTemplate {
+  id: number; name: string; channel: ReminderChannel;
+  subject: string | null; body: string;             // supports {{donorName}}, {{amountDue}}, {{campaignName}}, {{orgName}}
+  createdBy: number | null; createdAt: string; updatedAt: string;
+}
+
+interface ReminderSchedule {
+  id: number; name: string; scope: 'POOL' | 'CAMPAIGN';
+  poolId: number | null; campaignId: number | null;
+  intervalDays: number; channels: ReminderChannel[];
+  templateIdSms: number | null; templateIdWhatsapp: number | null; templateIdEmail: number | null;
+  isActive: boolean; nextRunAt: string; lastRunAt: string | null;
+  createdBy: number | null; createdAt: string; updatedAt: string;
+}
+
+interface PendingReminderBatch {
+  id: number; scheduleId: number; scheduleName: string; scope: 'POOL' | 'CAMPAIGN';
+  pool: { id: number; name: string } | null; campaign: { id: number; name: string } | null;
+  channels: ReminderChannel[]; status: 'PENDING_APPROVAL' | 'CONFIRMED' | 'SKIPPED' | 'EXPIRED';
+  donorCount: number; generatedAt: string; resolvedAt: string | null;
+}
+```
+
+> **Auto-resend is never silent.** A schedule's due cycle only produces a `PendingReminderBatch` — the frontend's `/dashboard/reminders` inbox must show it and require an explicit confirm click (`POST /reminder-schedules/pending/:id/confirm`) before anything is actually sent.
+
 ### `Donation`
 
 ```ts
@@ -312,10 +378,10 @@ interface PaymentAttempt {
 }
 ```
 
-### `TeamMember` (user rows listing)
+### `User` (user rows listing)
 
 ```ts
-interface TeamMember {
+interface User {
   id: string;
   name: string;              // firstName + lastName
   email: string;
@@ -326,7 +392,7 @@ interface TeamMember {
 }
 ```
 
-> **Loose coupling note:** the team page currently uses UI labels `admin | manager | viewer | fundraiser`. Map from the API role: `ORG_ADMIN` → `admin`, `CAMPAIGN_MANAGER` → `manager`/`fundraiser`, `SUPER_ADMIN` → `admin`. Ideally also expose the canonical `ApiUser.role` field.
+> **Loose coupling note:** the user page currently uses UI labels `admin | manager | viewer | fundraiser`. Map from the API role: `ORG_ADMIN` → `admin`, `CAMPAIGN_MANAGER` → `manager`/`fundraiser`, `SUPER_ADMIN` → `admin`. Ideally also expose the canonical `ApiUser.role` field.
 
 ### `AuditLog`
 
@@ -354,7 +420,7 @@ interface Notification {
   description: string;
   time: string;
   read: boolean;
-  type: 'donation' | 'campaign' | 'system' | 'team';
+  type: 'donation' | 'campaign' | 'system' | 'user';
 }
 ```
 
@@ -388,7 +454,7 @@ Public. Creates an organization and its first `ORG_ADMIN` (the "owner"), then re
 {
   "firstName": "Neema",
   "lastName": "Msuya",
-  "email": "neema@msuya.or.tz",
+  "email": "neema@changia.org.tz",
   "phone": "+255755000111",
   "password": "StrongPass@2026",
   "confirmPassword": "StrongPass@2026",
@@ -404,7 +470,7 @@ Public. Creates an organization and its first `ORG_ADMIN` (the "owner"), then re
   "success": true,
   "data": {
     "accessToken": "<jwt>",
-    "user": { "id": "1", "firstName": "Neema", "lastName": "Msuya", "email": "neema@msuya.or.tz", "phone": "+255755000111", "role": "ORG_ADMIN", "status": "ACTIVE", "avatarUrl": null, "organizationId": "2" },
+    "user": { "id": "1", "firstName": "Neema", "lastName": "Msuya", "email": "neema@changia.org.tz", "phone": "+255755000111", "role": "ORG_ADMIN", "status": "ACTIVE", "avatarUrl": null, "organizationId": "2" },
     "organization": { "id": "2", "name": "Dr. Msuya Foundation", "slug": "dr-msuya-foundation" }
   }
 }
@@ -419,7 +485,7 @@ Public. **Required by the frontend login page.**
 **Request body:**
 
 ```json
-{ "email": "neema@msuya.or.tz", "password": "StrongPass@2026" }
+{ "email": "neema@changia.org.tz", "password": "StrongPass@2026" }
 ```
 
 **Response — `200 OK`:** same `data` shape as register (accessToken + user). `organization` may be omitted/`null` for a `SUPER_ADMIN`.
@@ -512,13 +578,13 @@ Authenticated (SUPER_ADMIN, ORG_ADMIN). `CAMPAIGN_MANAGER` is denied.
 **Response — `200 OK`:** returns the updated `Organization`.
 
 ---
-## 7. Users / Team
+## 7. Users / User
 
-> **Backed by frontend pages:** `/dashboard/team` — team list, "Invite Team Member", change role, resend invite, remove member.
+> **Backed by frontend pages:** `/dashboard/users` — user list, "Invite User Member", change role, resend invite, remove member.
 
-Routes manage the org's team members (all have `role` in `SUPER_ADMIN | ORG_ADMIN | CAMPAIGN_MANAGER`). Creating a user returns a **temporary password** (or an invite link) the admin shares with them. Invitation emails are required later — **[TO BUILD]**.
+Routes manage the org's user members (all have `role` in `SUPER_ADMIN | ORG_ADMIN | CAMPAIGN_MANAGER`). Creating a user returns a **temporary password** (or an invite link) the admin shares with them. Invitation emails are required later — **[TO BUILD]**.
 
-### `GET /users` — list team members
+### `GET /users` — list user members
 
 Authenticated (all roles). Org-scoped.
 
@@ -530,50 +596,50 @@ Authenticated (all roles). Org-scoped.
 {
   "success": true,
   "data": {
-    "users": [ { "id": "4", "firstName": "Peter", "lastName": "John", "name": "Peter John", "email": "peter@msuya.or.tz", "role": "CAMPAIGN_MANAGER", "status": "ACTIVE", "lastActive": "2026-01-03T10:00:00.000Z", "avatar": null } ],
+    "users": [ { "id": "4", "firstName": "Peter", "lastName": "John", "name": "Peter John", "email": "peter@changia.org.tz", "role": "CAMPAIGN_MANAGER", "status": "ACTIVE", "lastActive": "2026-01-03T10:00:00.000Z", "avatar": null } ],
     "pagination": { "page": 1, "limit": 25, "total": 3, "totalPages": 1 }
   }
 }
 ```
 
-### `POST /users` — invite a team member (the Team page "Invite Team Member")
+### `POST /users` — invite a user member (the User page "Invite User Member")
 
-Authenticated (SUPER_ADMIN, ORG_ADMIN). `CAMPAIGN_MANAGER` denied. This backs the **"Invite Team Member"** dialog on `http://localhost:3000/dashboard/team` — enter an email, pick a role, and send the invite. The user is created with `status: "pending"` and an invitation/link is dispatched.
+Authenticated (SUPER_ADMIN, ORG_ADMIN). `CAMPAIGN_MANAGER` denied. This backs the **"Invite User Member"** dialog on `http://localhost:3000/dashboard/users` — enter an email, pick a role, and send the invite. The user is created with `status: "pending"` and an invitation/link is dispatched.
 
 **Request body:**
 
 ```json
-{ "firstName": "Peter", "lastName": "John", "email": "peter@msuya.or.tz", "phone": "+255755123999", "role": "CAMPAIGN_MANAGER" }
+{ "firstName": "Peter", "lastName": "John", "email": "peter@changia.org.tz", "phone": "+255755123999", "role": "CAMPAIGN_MANAGER" }
 ```
 
-> **UI role label → API role mapping (the Team page offers these 4 choices):**
+> **UI role label → API role mapping (the User page offers these 4 choices):**
 
-| Team page label (`TeamMember.role`) | API `ApiUser.role` to store |
+| User page label (`User.role`) | API `ApiUser.role` to store |
 |--------------------------------------|-----------------------------|
 | `admin`      | `ORG_ADMIN` (or `SUPER_ADMIN` when the org is being set up platform-wide) |
 | `manager`    | `ORG_ADMIN` |
 | `fundraiser` | `CAMPAIGN_MANAGER` |
 | `viewer`     | `CAMPAIGN_MANAGER` (read-only; enforced by a `viewer`/`readonly` user flag if you want stricter gating) |
 
-> The Team page can invite with **email + role only** (name is derived from the email address when a display name isn't supplied). The backend must accept a role label from the API enum (`ORG_ADMIN`/`CAMPAIGN_MANAGER`) and return both the canonical `ApiUser.role` **and** the friendly `TeamMember.role` label for the UI list.
+> The User page can invite with **email + role only** (name is derived from the email address when a display name isn't supplied). The backend must accept a role label from the API enum (`ORG_ADMIN`/`CAMPAIGN_MANAGER`) and return both the canonical `ApiUser.role` **and** the friendly `User.role` label for the UI list.
 
 **Response — `201 Created`:** returns the new `ApiUser` plus `temporaryPassword` (shown once) or an `inviteUrl`.
 
 ```json
-{ "success": true, "data": { "user": { "...": "ApiUser", "status": "PENDING" }, "temporaryPassword": "Xk9!qW2z", "inviteUrl": "https://changia.co/accept-invite/TOKEN" } }
+{ "success": true, "data": { "user": { "...": "ApiUser", "status": "PENDING" }, "temporaryPassword": "Xk9!qW2z", "inviteUrl": "https://changia.org.tz/accept-invite/TOKEN" } }
 ```
 
 **Errors:** `409 EMAIL_TAKEN`, `400 VALIDATION_ERROR`.
 
 ### `POST /users/:id/resend-invite` — resend an invite **[TO BUILD]**
 
-Authenticated (SUPER_ADMIN, ORG_ADMIN). Backs the Team page's **"Resend Invite"** action for a member still `pending`. Re-sends the invite email / regenerates the token.
+Authenticated (SUPER_ADMIN, ORG_ADMIN). Backs the User page's **"Resend Invite"** action for a member still `pending`. Re-sends the invite email / regenerates the token.
 
 **Response — `200 OK`:** `{ "success": true, "message": "Invitation resent" }`
 
 **Errors:** `404 NOT_FOUND`, `400` (member is not `pending`).
 
-### `PUT /users/:id` — update a team member
+### `PUT /users/:id` — update a user member
 
 Authenticated (SUPER_ADMIN, ORG_ADMIN).
 
@@ -581,7 +647,7 @@ Authenticated (SUPER_ADMIN, ORG_ADMIN).
 
 **Response — `200 OK`:** updated `ApiUser`.
 
-### `DELETE /users/:id` — remove a team member
+### `DELETE /users/:id` — remove a user member
 
 Authenticated (SUPER_ADMIN, ORG_ADMIN). Cannot self-delete or remove the last remaining or.'s last `ORG_ADMIN`.
 
@@ -593,7 +659,7 @@ Authenticated (SUPER_ADMIN, ORG_ADMIN). Cannot self-delete or remove the last re
 
 ## 8. Campaigns
 
-> **Backed by frontend pages:** `/dashboard/campaigns` (list + status tabs), `/dashboard/campaigns/new` (create), `/dashboard/campaigns/approvals` (approve), and `/dashboard/campaigns/:id` (detail with Overview · Donors · Transactions · Evidence · Team tabs).
+> **Backed by frontend pages:** `/dashboard/campaigns` (list + status tabs), `/dashboard/campaigns/new` (create), `/dashboard/campaigns/approvals` (approve), and `/dashboard/campaigns/:id` (detail with Overview · Donors · Transactions · Evidence · User tabs).
 
 Campaigns have an approval workflow and a status lifecycle. All authenticated org members can read; only `SUPER_ADMIN`/`ORG_ADMIN` can create/manage; managers only view campaigns they're assigned to.
 
@@ -640,7 +706,7 @@ Authenticated (all roles). Orgs see their own; managers additionally only get ca
 
 ### `GET /campaigns/:id` — campaign detail (everything the campaign page renders)
 
-Authenticated (all roles). Returns the full campaign object the detail page at `http://localhost:3000/dashboard/campaigns/:id` needs. This page renders **a lot** — the status banner, header meta, progress card, and five tabs (Overview, Donors, Transactions, Evidence, Team) — so the response must include every field below.
+Authenticated (all roles). Returns the full campaign object the detail page at `http://localhost:3000/dashboard/campaigns/:id` needs. This page renders **a lot** — the status banner, header meta, progress card, and five tabs (Overview, Donors, Transactions, Evidence, User) — so the response must include every field below.
 
 **Response — `200 OK`:**
 
@@ -663,7 +729,7 @@ Authenticated (all roles). Returns the full campaign object the detail page at `
       "endDate": "2026-06-30",
       "contactPhone": "+255755123999",
       "ownerName": "Neema Msuya",
-      "ownerEmail": "neema@msuya.or.tz",
+      "ownerEmail": "neema@changia.org.tz",
       "image": "https://…/lab.jpg",
       "evidence": ["https://…/quote.pdf"],
       "memberIds": ["4", "6"],
@@ -681,7 +747,7 @@ Authenticated (all roles). Returns the full campaign object the detail page at `
 | `name` | Page title |
 | `category` | Header meta chip (with Megaphone icon); hidden if absent |
 | `startDate` → `endDate` | Header chip "`2026-02-01 → 2026-06-30`" (Calendar icon) |
-| `ownerName` | Header chip (UserRound) **and** the Overview "Owner" card + the Team tab's "Campaign owner" card |
+| `ownerName` | Header chip (UserRound) **and** the Overview "Owner" card + the User tab's "Campaign owner" card |
 | `ownerEmail` | Overview "Owner" card subtitle (falls back to `contactPhone`, then "No contact set") |
 | `submittedAt` | "Submitted for approval on `<localized date>`" under the header — **only shown when present** |
 | `status` | Status badge. **Pending** also triggers the orange "Awaiting admin approval" banner: *"This campaign has been submitted but is not live yet. Once an admin approves it, it will be published and ready to share with donors."* The badge maps via `campaignStatusMap`: `active`→Active, `draft`→Draft, `completed`→Completed, `paused`→Paused, `pending`→Pending Approval |
@@ -690,7 +756,7 @@ Authenticated (all roles). Returns the full campaign object the detail page at `
 | `description` | Overview → "About" paragraph (falls back to "No description provided.") |
 | `contactPhone` | Overview → "About" card (Phone icon) |
 | `evidence` | Overview → "Evidence" tab image grid (array of image URLs) |
-| `memberIds` | Overview → "Team" tab assign/remove list (which members are `assigned`) |
+| `memberIds` | Overview → "User" tab assign/remove list (which members are `assigned`) |
 | `recentDonations` | Overview → "Transactions" tab (donations with `donorName`, `date`, `channel`, `amount`) |
 
 > **Donors / Transactions tab data:** the Donors tab (distinct donors with total given, no. of gifts, last gift date) and Transactions tab (full list + "Total collected") are served by `GET /donations?campaignId=:id` — each `Donation` must carry `donorId`, `donorName`, `campaignId`, `campaign`, `channel`, `date`, `amount`. The UI aggregates distinct donors itself; you may alternatively return a `donors` aggregation array on the campaign if you prefer to precompute it.
@@ -736,7 +802,7 @@ Authenticated (SUPER_ADMIN, ORG_ADMIN). **Only while `status` is `draft` or `pen
 
 Authenticated (SUPER_ADMIN, ORG_ADMIN). **Only while `status` is `draft` or `pending`.**
 
-- Soft-delete or hard-delete the campaign row (recommended: soft-delete with a `deletedAt` mark so audit/team history is retained).
+- Soft-delete or hard-delete the campaign row (recommended: soft-delete with a `deletedAt` mark so audit/users history is retained).
 - **After publish** deletion is **not allowed** → return `409 CANNOT_DELETE_PUBLISHED`. A published campaign may only be **stopped** (paused/cancelled/completed).
 - Also validate the campaign belongs to the caller's organization (org-scoped) → `404 NOT_FOUND` otherwise.
 
@@ -1123,7 +1189,7 @@ Authenticated (SUPER_ADMIN, ORG_ADMIN). `CAMPAIGN_MANAGER` denied. These are the
   "notifications": {
     "notifyOnDonation": true,
     "notifyOnCampaignStatus": true,
-    "notifyOnTeamInvite": true
+    "notifyOnUserInvite": true
   },
   "security": {
     "twoFactorEnabled": false,
@@ -1144,7 +1210,74 @@ Authenticated (SUPER_ADMIN, ORG_ADMIN). Backs the Settings **"Delete Organisatio
 
 ---
 
-## 14. Public campaign page
+## 14. Donor pools
+
+> **Backed by frontend pages:** `/dashboard/pools`, `/dashboard/pools/[id]`, `/dashboard/pools/new`, `/dashboard/pools/anomalous` (see `DonorPool` in [§4](#4-data-models-types-the-api-must-use)).
+
+A `CAMPAIGN_MANAGER` can create multiple named pools by category
+(`FAMILY`/`SCHOOL`/`STUDENT`/`OFFICE`), each visible **only to them** —
+`ORG_ADMIN`/`SUPER_ADMIN` can browse and manage any manager's pools (a
+"created by manager" filter drives this on `/dashboard/pools`). Every pool
+member's payment status (`UNPAID`/`PARTIAL`/`PAID_FULL`) is derived by
+comparing confirmed donations to the pledge — never stored by the frontend.
+
+Unrecognized payments (a donor who paid with a phone/method the org hasn't
+registered) are parked in a **per-manager anomalous pool**
+(`GET /donor-pools/anomalous`, `isSystem: true`) — the manager who owns the
+campaign that received the payment. They can be re-attached to a real donor
+from `/dashboard/pools/anomalous` (`POST /donor-pools/anomalous/:id/merge`),
+optionally registering the payment method that was used so it's recognized
+next time.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET / POST | `/donor-pools` | List (own; admin: all / filter by `createdBy`) / create |
+| GET / PUT / DELETE | `/donor-pools/:id` | Detail (+ `?campaignId=` comparison) / update / delete |
+| POST | `/donor-pools/:id/members` | Add existing or newly-created donors |
+| PUT / DELETE | `/donor-pools/:id/members/:donorId` | Set expected pledge / remove |
+| GET | `/donor-pools/duplicates` | Donors present in more than one pool |
+| POST | `/donor-pools/duplicates/resolve` | Pick which pool each duplicate donor keeps |
+| GET | `/donor-pools/anomalous` (+ `?managerId=`, admin only) | Own pool, or (admin) any manager's / unassigned fallback |
+| POST | `/donor-pools/anomalous/:donorId/merge` | Re-attach to a known donor |
+| POST | `/donor-pools/reminders/send` | Manual bulk reminder to selected donors |
+
+See `Backend/API_REFERENCE.md` → **"Donor pools module"** for full request/response payloads.
+
+### Campaign-time import
+
+`POST /campaigns/:id/pools/import` (see [§8](#8-campaigns)) lets a manager pull
+one or more of their pools into a campaign — either while creating it
+(`campaigns/new`) or later from the campaign page. When the same donor
+appears in more than one selected pool, `POST /campaigns/:id/pools/preview`
+returns a `duplicateGroups` list; the frontend must ask **which pool the
+donor should stay attached to** and send that back as `duplicateChoices` on
+the import call — it is not auto-resolved silently.
+
+---
+
+## 15. Reminder templates & auto-resend schedules
+
+> **Backed by frontend pages:** `/dashboard/reminders` (pending approval inbox), `/dashboard/reminders/templates`, `/dashboard/reminders/schedules` (see `MessageTemplate` / `ReminderSchedule` / `PendingReminderBatch` in [§4](#4-data-models-types-the-api-must-use)).
+
+Two independent pieces:
+
+1. **Templates** — reusable per-channel (SMS/WhatsApp/Email) message bodies with `{{donorName}}`/`{{amountDue}}`/`{{campaignName}}`/`{{orgName}}` placeholders. Selectable from the existing manual "Send Reminder" dialogs on the pool and campaign pages, or attached to a schedule.
+2. **Auto-resend schedules** — an interval (days) attached to either a non-system donor pool or a campaign, with the channels to use. **The anomalous/system pool can never be scheduled.** Every due cycle only creates a `PendingReminderBatch` — the frontend must always require an explicit "Confirm & Send" click (`POST /reminder-schedules/pending/:id/confirm`) before treating it as sent; a "Skip" action (`POST .../skip`) is also available. Each donor in a confirmed batch is messaged on their **own** `preferredChannel`, not a single channel picked for the whole batch.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET / POST | `/reminder-templates` | List / create |
+| PUT / DELETE | `/reminder-templates/:id` | Update / delete |
+| GET / POST | `/reminder-schedules` | List / create |
+| PUT / DELETE | `/reminder-schedules/:id` | Update / delete |
+| GET | `/reminder-schedules/pending` | Batches awaiting confirmation |
+| POST | `/reminder-schedules/pending/:id/confirm` \| `/skip` | Send now / skip this cycle |
+
+See `Backend/API_REFERENCE.md` → **"Reminder templates module"** / **"Reminder schedules (auto-resend) module"** for full payloads. Actual delivery depends on the backend's `MESSAGE_PROVIDER` config — see `Backend/README.md` → "Messaging providers setup"; in `simulated` mode (the default) sends are logged, not delivered, which is fine for local development.
+
+---
+
+## 16. Public campaign page
 
 > **Backed by frontend pages:** the public shareable campaign page at `/c/:slug` (marketing site, no auth).
 
@@ -1180,7 +1313,7 @@ Accepts a link-based donation. The backend creates a `LINK` payment attempt and 
 > Public endpoints must not expose any internal numbers beyond the public target and confirmed progress.
 
 ---
-## 15. Quick start / how to test
+## 17. Quick start / how to test
 
 > **Backed by frontend pages:** run the app local-first — API on `http://localhost:5000`, dashboard on `http://localhost:3000` (login at `/login`, register at `/register`).
 
@@ -1204,16 +1337,16 @@ Smoke-test the auth contract first — the rest of the app depends on it:
 ```bash
 curl -X POST http://localhost:5000/api/v1/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"admin@msuya.or.tz","password":"Changia@2026"}'
+  -d '{"email":"admin@changia.org.tz","password":"Changia@2026"}'
 ```
 
 Then verify role gating with the demo accounts (password `Changia@2026`):
 
 | Role | Email |
 |------|-------|
-| Super admin (system) | `admin@changia.co` |
-| Org admin (admin) | `admin@msuya.or.tz` |
-| Campaign manager (manager) | `manager@msuya.or.tz` |
+| Super admin (system) | `admin@changia.org.tz` |
+| Org admin (admin) | `admin@msuya-foundation.org.tz` |
+| Campaign manager (manager) | `manager@msuya-foundation.org.tz` |
 
 ---
 
@@ -1224,13 +1357,15 @@ Then verify role gating with the demo accounts (password `Changia@2026`):
 | Auth | `POST /auth/register`, `POST /auth/login`, `GET /auth/me`, `POST /auth/change-password` | **Wired up now** — build/confirm first |
 | Auth | `POST /auth/logout` | `[TO BUILD]` |
 | Organizations | `GET /organizations`, `GET /organizations/stats`, `PUT /organizations` | `[TO BUILD]` |
-| Team | `GET/POST /users`, `PUT/DELETE /users/:id` | `[TO BUILD]` |
+| User | `GET/POST /users`, `PUT/DELETE /users/:id` | `[TO BUILD]` |
 | Campaigns | `GET/POST /campaigns`, `GET/PUT/DELETE /campaigns/:id`, submit/approve/status/managers routes (edit/delete only before publish; stop via status after publish) | `[TO BUILD]` |
 | Donors | `GET/POST /donors`, `GET/PUT/DELETE /donors/:id`, `POST /donors/import` — pool list **must support the full filter set** (`search`, `status`, `consentStatus`, `tag`, `channel`) + `counts` | `[TO BUILD]` |
 | Donations | `GET /donations` (with `campaignId`/`donorId` filters), **`POST /donations` (manual/offline record)** , payment attempts, `simulate-callback` | `[TO BUILD]` |
 | Audit | `GET /audit-logs` (with `resource` filter) , `GET /audit-logs/recent`, `GET /audit-logs/export` | `[TO BUILD]` |
 | Payouts | payouts CRUD | `[TO BUILD]` |
 | Settings | platform / org (organisation, notifications, security, localisation) , `DELETE /organizations` | `[TO BUILD]` |
+| Donor pools | `GET/POST /donor-pools`, `:id` CRUD, members, duplicates, anomalous (+per-manager scoping), reminders/send | **Wired up now** |
+| Reminders | `GET/POST /reminder-templates`, `GET/POST /reminder-schedules` + pending/confirm/skip | **Wired up now** — sending needs `MESSAGE_PROVIDER=live` + credentials in production |
 | Public | `/public/campaigns/:slug` + public donate | `[TO BUILD]` |
 
 ---

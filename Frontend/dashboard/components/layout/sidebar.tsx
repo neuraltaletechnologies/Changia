@@ -50,8 +50,8 @@ const navItems = [
     section: "Admin",
     items: [
       {
-        label: "Team",
-        href: "/team",
+        label: "User",
+        href: "/user",
         icon: UserCog,
       },
       {

@@ -14,7 +14,7 @@ export default function PostFeedback({
       <h3 className="text-neutral-700 dark:text-neutral-300">{title}</h3>
       <button
         type="button"
-        className="group inline-flex items-center gap-x-2 rounded-lg border border-neutral-400 px-3 py-2 text-sm font-medium text-neutral-700 hover:border-yellow-500 hover:bg-yellow-500 hover:shadow-2xl hover:shadow-yellow-500 dark:border-neutral-500 dark:text-neutral-300 dark:hover:border-yellow-500 dark:hover:bg-yellow-500 dark:hover:text-neutral-700 dark:focus:ring-1 dark:focus:ring-neutral-600 dark:focus:outline-hidden"
+        className="group inline-flex items-center gap-x-2 rounded-lg border border-neutral-400 px-3 py-2 text-sm font-medium text-neutral-700 hover:border-blue-500 hover:bg-blue-500 hover:shadow-2xl hover:shadow-blue-500 dark:border-neutral-500 dark:text-neutral-300 dark:hover:border-blue-500 dark:hover:bg-blue-500 dark:hover:text-neutral-700 dark:focus:ring-1 dark:focus:ring-neutral-600 dark:focus:outline-hidden"
       >
         <svg
           className="size-4 shrink-0 transition duration-300 group-hover:-translate-y-1 group-focus-visible:-translate-y-1"

@@ -81,7 +81,7 @@ export interface ActivityItem {
   meta?: string;
 }
 
-export interface TeamMember {
+export interface User {
   id: string;
   name: string;
   email: string;
@@ -110,7 +110,7 @@ export interface Notification {
   description: string;
   time: string;
   read: boolean;
-  type: "donation" | "campaign" | "system" | "team";
+  type: "donation" | "campaign" | "system" | "user";
 }
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────

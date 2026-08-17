@@ -7,17 +7,17 @@ import { getBlogEntries, getInsightEntries } from '@/lib/content';
 export const metadata: Metadata = {
   title: 'Blog',
   description:
-    'Stay up-to-date with the latest trends and developments in digital fundraising and mobile-money giving, with insights from the Changia team.',
+    'Stay up-to-date with the latest trends and developments in digital fundraising and mobile-money giving, with insights from the Changia user.',
   openGraph: {
     title: 'Digital Fundraising Blog | Changia',
     description:
-      'Stay up-to-date with the latest trends and developments in digital fundraising and mobile-money giving, with insights from the Changia team.',
+      'Stay up-to-date with the latest trends and developments in digital fundraising and mobile-money giving, with insights from the Changia user.',
   },
 };
 
 const title = 'Stories from Changia & the Fundraising Community';
 const subTitle =
-  'Explore the latest news, tips and insights from the Changia team. From Campaign  setup to mobile-money donor journeys, our blog helps you turn good intentions into completed payments.';
+  'Explore the latest news, tips and insights from the Changia user. From Campaign  setup to mobile-money donor journeys, our blog helps you turn good intentions into completed payments.';
 const secondTitle = 'Insights';
 const secondSubTitle =
   'Long reads on digital fundraising, donor trust and transparent mobile-money giving in Tanzania.';

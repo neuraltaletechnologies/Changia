@@ -19,8 +19,8 @@ export default function FooterSection() {
     ? 'Endelea kupata taarifa za kampeni mpya, vipengele na uzinduzi.'
     : 'Stay updated with new Campaigns, features and launches.';
   const giverLine = isSw
-    ? 'Tanzania kwanza. Mobile money kwanza.'
-    : 'Tanzania-first. fast campaign money.';
+    ? 'Msaada mtu. Badili maisha. Tunaleta watu pamoja kusaidia yale yanayojali.'
+    : 'Help someone. Change a life. Bringing people together to support what matters.';
 
   return (
     <footer className="w-full bg-neutral-300 dark:bg-neutral-900">

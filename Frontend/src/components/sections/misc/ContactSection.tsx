@@ -179,7 +179,7 @@ export default function ContactSection() {
               heading="Contact us by email"
               content="Prefer the written word? Drop us an email at"
               isLinkVisible
-              linkTitle="hello@changia.co"
+              linkTitle="hello@changia.org.tz"
               linkURL="#"
             >
               <Icon name="envelopeOpen" />

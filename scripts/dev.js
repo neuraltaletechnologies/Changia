@@ -9,7 +9,7 @@ const children = [];
 function run(name, cwd, command, args) {
   const dir = path.join(root, cwd);
   console.log(`\n[changia] starting ${name}: ${command} ${args.join(' ')}  (in ${cwd})\n`);
-  const child = spawn(command, args, { cwd: dir, stdio: 'inherit' });
+  const child = spawn(`${command} ${args.join(' ')}`, { cwd: dir, stdio: 'inherit', shell: true });
   children.push(child);
 
   child.on('exit', (code) => {

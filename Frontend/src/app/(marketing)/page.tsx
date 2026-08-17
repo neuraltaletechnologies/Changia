@@ -3,7 +3,7 @@ import AnnouncementBanner from '@components/ui/banners/AnnouncementBanner';
 import HeroSectionAlt from '@components/sections/landing/HeroSectionAlt';
 import ClientsSection from '@components/sections/landing/ClientsSection';
 import FeaturesGeneral from '@components/sections/features/FeaturesGeneral';
-import FeaturesNavs from '@components/sections/features/FeaturesNavs';
+import FeaturedCampaigns from '@components/sections/landing/FeaturedCampaigns';
 import TestimonialsSection from '@components/sections/testimonials/TestimonialsSection';
 import PricingSection from '@components/sections/pricing/PricingSection';
 import FAQ from '@components/sections/misc/FAQ';
@@ -13,10 +13,8 @@ import faqs from '@data/faqs.json';
 import features from '@data/features.json';
 import pricing from '@data/pricing.json';
 import featureImage from '@images/features-image.avif';
-import construction from '@images/construction-image.avif';
-import tools from '@images/automated-tools.avif';
-import dashboard from '@images/dashboard-image.avif';
 import { partnersData } from '@/data_files/constants';
+import { getFeaturedCampaigns } from '@/lib/public-campaigns';
 
 export const metadata = {
   title: 'Changia',
@@ -31,7 +29,9 @@ const avatarSrcs: string[] = [
   'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=facearea&facepad=2&w=300&h=300&q=80',
 ];
 
-export default function HomePage() {
+export default async function HomePage() {
+  const featuredCampaigns = await getFeaturedCampaigns();
+
   return (
     <>
       <AnnouncementBanner
@@ -71,36 +71,9 @@ export default function HomePage() {
         features={features}
       />
 
-      <FeaturesNavs
-        title='The  <span class="text-emerald-600 dark:text-emerald-400">Modules</span>  that turn goodwill into real help.'
-        tabs={[
-          {
-            heading: 'Core Platform & Donor Pool',
-            content:
-              'A secure, responsive foundation for administrators, managers and donors — with role-based access, dashboards, an audit log and a consent-aware donor CRM.',
-            svg: 'tools',
-            src: tools,
-            alt: 'Changia admin dashboard workspace',
-            first: true,
-          },
-          {
-            heading: 'Campaign  Link Distribution',
-            content:
-              'Create Campaigns, set a required amount or list the items you need, generate a short link and QR code, and distribute approved SMS, WhatsApp or email messages to the donor pool or public channels.',
-            svg: 'dashboard',
-            src: dashboard,
-            alt: 'Changia Campaign  page with progress bar and donation options',
-            second: true,
-          },
-          {
-            heading: 'Cash & In-Kind Giving',
-            content:
-              "Donors can contribute money through a direct payment request they confirm with their own PIN — and campaign managers can equally track donated items, goods and in-kind support, with every verified contribution updating the Campaign exactly once.",
-            svg: 'house',
-            src: construction,
-            alt: 'A field fundraiser confirming a donation request on a phone',
-          },
-        ]}
+      <FeaturedCampaigns
+        title='<span class="text-emerald-600 dark:text-emerald-400">Featured Campaigns</span> turning goodwill into real help.'
+        campaigns={featuredCampaigns}
       />
 
       <TestimonialsSection

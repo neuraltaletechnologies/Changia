@@ -80,7 +80,7 @@ const articles: Article[] = [
     img: usingTools,
     imgAlt: 'User monitoring verified callbacks and audit events',
     btnExists: true,
-    btnTitle: 'Contact the User',
+    btnTitle: 'Contact our Team',
     btnURL: '/contact',
   },
 ];

@@ -2,7 +2,7 @@ import HeroSection from '@components/sections/landing/HeroSection';
 import HeroSectionAlt from '@components/sections/landing/HeroSectionAlt';
 import ClientsSection from '@components/sections/landing/ClientsSection';
 import FeaturesGeneral from '@components/sections/features/FeaturesGeneral';
-import FeaturesNavs from '@components/sections/features/FeaturesNavs';
+import FeaturedCampaigns from '@components/sections/landing/FeaturedCampaigns';
 import TestimonialsSection from '@components/sections/testimonials/TestimonialsSection';
 import PricingSection from '@components/sections/pricing/PricingSection';
 import FAQ from '@components/sections/misc/FAQ';
@@ -12,10 +12,8 @@ import faqs from '@data/sw/faqs.json';
 import features from '@data/sw/features.json';
 import pricing from '@data/sw/pricing.json';
 import featureImage from '@images/features-image.avif';
-import construction from '@images/construction-image.avif';
-import tools from '@images/automated-tools.avif';
-import dashboard from '@images/dashboard-image.avif';
 import { partnersData } from '@/data_files/constants';
+import { getFeaturedCampaigns } from '@/lib/public-campaigns';
 
 export const metadata = {
   title: 'Changia',
@@ -30,7 +28,9 @@ const avatarSrcs: string[] = [
   'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=facearea&facepad=2&w=300&h=300&q=80',
 ];
 
-export default function SwahiliHomePage() {
+export default async function SwahiliHomePage() {
+  const featuredCampaigns = await getFeaturedCampaigns('sw');
+
   return (
     <>
       <AnnouncementBanner
@@ -70,36 +70,10 @@ export default function SwahiliHomePage() {
         features={features}
       />
 
-      <FeaturesNavs
-        title={'Moduli za <span class="text-emerald-600 dark:text-emerald-400">Changia</span> zinazogeuza nia njema kuwa msaada halisi.'}
-        tabs={[
-          {
-            heading: 'Jukwaa la msingi na hifadhidata ya wafadhili',
-            content:
-              "Msingi salama na wenye mwitikio kwa wasimamizi, maafisa na wafadhili — kwa ufikiaji kwa majukumu, dashibodi, jarida la ukaguzi na CRM ya wafadhili inayoheshimu ridhaa.",
-            svg: 'tools',
-            src: tools,
-            alt: "Nafasi ya kazi ya dashibodi ya usimamizi ya Changia",
-            first: true,
-          },
-          {
-            heading: 'Usambazaji wa viungo vya kampeni',
-            content:
-              "Unda kampeni, weka kiasi kinachohitajika au orodhesha vitu unavyohitaji, tengeneza kiungo kifupi na msimbo wa QR, kisha sambaza SMS, WhatsApp au barua pepe zilizoidhinishwa kwa wafadhili au njia za umma.",
-            svg: 'dashboard',
-            src: dashboard,
-            alt: 'Ukurasa wa kampeni ya Changia wenye upau wa maendeleo na chaguo za mchango',
-            second: true,
-          },
-          {
-            heading: 'Mchango wa fedha na wa vitu',
-            content:
-              "Wafadhili wanaweza kuchangia fedha kupitia ombi la malipo la moja kwa moja wanalolithibitisha kwa PIN yao — na wasimamizi wa kampeni wanaweza kufuatilia vitu, bidhaa na msaada wa aina nyingine, huku kila mchango uliothibitishwa ukisasisha kampeni mara moja tu.",
-            svg: 'house',
-            src: construction,
-            alt: 'Mkusanyaji wa mbugani akithibitisha ombi la mchango kwenye simu',
-          },
-        ]}
+      <FeaturedCampaigns
+        title='<span class="text-emerald-600 dark:text-emerald-400">Kampeni Maalum</span> zinazogeuza nia njema kuwa msaada halisi.'
+        campaigns={featuredCampaigns}
+        locale="sw"
       />
 
       <TestimonialsSection

@@ -187,6 +187,11 @@ CREATE TABLE campaigns (
   name                VARCHAR(150) NOT NULL,
   slug                VARCHAR(180) NOT NULL UNIQUE,
   story               TEXT NULL,
+  -- Optional Swahili translation of name/story/category. NULL means "not yet
+  -- translated" — public reads fall back to the English column above.
+  name_sw             VARCHAR(150) NULL,
+  story_sw            TEXT NULL,
+  category_sw         VARCHAR(100) NULL,
   image_url           VARCHAR(500) NULL,
   category            VARCHAR(100) NULL,
   goal_amount         DECIMAL(14,0) NOT NULL,
@@ -201,13 +206,18 @@ CREATE TABLE campaigns (
   contact_phone       VARCHAR(32) NULL,
   raised_amount       DECIMAL(14,0) NOT NULL DEFAULT 0,
   donor_count         INT NOT NULL DEFAULT 0,
+  -- Up to 3 public, active campaigns may be pinned to the marketing homepage
+  -- at a time (enforced in the service layer, not the schema).
+  is_featured         TINYINT(1) NOT NULL DEFAULT 0,
+  featured_at         DATETIME NULL,
   approved_by         BIGINT UNSIGNED NULL,
   approved_at         DATETIME NULL,
   created_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_campaigns_org FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
   CONSTRAINT fk_campaigns_approved_by FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL,
-  INDEX idx_campaigns_org_status (organization_id, status)
+  INDEX idx_campaigns_org_status (organization_id, status),
+  INDEX idx_campaigns_featured (is_featured, featured_at)
 ) ENGINE=InnoDB;
 
 -- Manager → campaign assignment (many-to-many)
@@ -512,6 +522,68 @@ UPDATE campaigns SET
   raised_amount = (SELECT COALESCE(SUM(amount),0) FROM donations WHERE campaign_id = 1 AND status = 'CONFIRMED'),
   donor_count   = (SELECT COUNT(*) FROM donations WHERE campaign_id = 1 AND status = 'CONFIRMED')
 WHERE id = 1;
+
+-- More public, active demo campaigns so the marketing site (featured homepage
+-- picks + the public /campaigns listing) has real data to show out of the box.
+-- raised_amount / donor_count are seeded directly here for demo purposes only
+-- — in normal operation they're only ever updated by a confirmed donation.
+INSERT INTO campaigns
+  (organization_id, name, slug, story, category, goal_amount, service_fee_percent, service_fee_amount, public_target,
+   minimum_amount, status, is_public, contact_phone, raised_amount, donor_count, start_date, end_date, approved_by, approved_at)
+VALUES
+  (1, 'School Fees for Twins', 'school-fees-for-twins',
+   'Grace and Faith are twin sisters who both passed their Form One exams but their family cannot cover this year''s school fees and uniforms. Help keep them in class.',
+   'Education', 1500000, 5.00, 75000, 1575000, 1000, 'ACTIVE', 1, '255715000010', 640000, 18,
+   DATE_SUB(NOW(), INTERVAL 20 DAY), DATE_ADD(NOW(), INTERVAL 40 DAY), 2, DATE_SUB(NOW(), INTERVAL 20 DAY)),
+  (1, 'Community Borehole Project', 'community-borehole-project',
+   'Kigamboni ward shares one working well between six hundred households. A second borehole would cut the walk for clean water from two hours to twenty minutes.',
+   'Community', 8000000, 5.00, 400000, 8400000, 2000, 'ACTIVE', 1, '255715000011', 3120000, 54,
+   DATE_SUB(NOW(), INTERVAL 35 DAY), DATE_ADD(NOW(), INTERVAL 55 DAY), 2, DATE_SUB(NOW(), INTERVAL 35 DAY)),
+  (1, 'Widows Relief Fund', 'widows-relief-fund',
+   'A standing fund that delivers monthly food and medical support to twelve widows in the Msuya Foundation''s care network.',
+   'Welfare', 4000000, 5.00, 200000, 4200000, 1000, 'ACTIVE', 1, '255715000012', 980000, 26,
+   DATE_SUB(NOW(), INTERVAL 60 DAY), DATE_ADD(NOW(), INTERVAL 120 DAY), 2, DATE_SUB(NOW(), INTERVAL 60 DAY)),
+  (1, 'Youth Football Academy Kits', 'youth-football-academy-kits',
+   'Thirty players from the Temeke youth league need boots, jerseys and a proper ball set to compete in this season''s regional tournament.',
+   'Sports', 2200000, 5.00, 110000, 2310000, 1000, 'ACTIVE', 1, '255715000013', 705000, 21,
+   DATE_SUB(NOW(), INTERVAL 15 DAY), DATE_ADD(NOW(), INTERVAL 30 DAY), 2, DATE_SUB(NOW(), INTERVAL 15 DAY)),
+  (1, 'Flood Relief - Kilombero', 'flood-relief-kilombero',
+   'Seasonal flooding displaced forty families along the Kilombero river. Funds go directly to emergency shelter, clean water and food.',
+   'Emergency', 6000000, 5.00, 300000, 6300000, 1000, 'ACTIVE', 1, '255715000014', 4450000, 89,
+   DATE_SUB(NOW(), INTERVAL 8 DAY), DATE_ADD(NOW(), INTERVAL 22 DAY), 2, DATE_SUB(NOW(), INTERVAL 8 DAY)),
+  (1, 'Maternal Health Outreach', 'maternal-health-outreach',
+   'Mobile prenatal check-ups and safe-delivery kits for expectant mothers in villages without a nearby clinic.',
+   'Health', 5000000, 5.00, 250000, 5250000, 1000, 'ACTIVE', 1, '255715000015', 1875000, 37,
+   DATE_SUB(NOW(), INTERVAL 25 DAY), DATE_ADD(NOW(), INTERVAL 65 DAY), 2, DATE_SUB(NOW(), INTERVAL 25 DAY)),
+  (1, 'Elder Care Home Renovation', 'elder-care-home-renovation',
+   'The Msuya Foundation''s elder care home needs a new roof and accessible bathrooms before the next rainy season.',
+   'Community', 7500000, 5.00, 375000, 7875000, 2000, 'ACTIVE', 1, '255715000016', 2025000, 31,
+   DATE_SUB(NOW(), INTERVAL 45 DAY), DATE_ADD(NOW(), INTERVAL 45 DAY), 2, DATE_SUB(NOW(), INTERVAL 45 DAY));
+
+-- Feature 3 public, active campaigns on the marketing homepage (the platform-
+-- wide cap of 3 is enforced by the service layer on every future toggle).
+UPDATE campaigns SET is_featured = 1, featured_at = DATE_SUB(NOW(), INTERVAL 12 DAY) WHERE id = 1;
+UPDATE campaigns SET is_featured = 1, featured_at = DATE_SUB(NOW(), INTERVAL 8 DAY)  WHERE slug = 'school-fees-for-twins';
+UPDATE campaigns SET is_featured = 1, featured_at = DATE_SUB(NOW(), INTERVAL 3 DAY)  WHERE slug = 'community-borehole-project';
+
+-- Swahili translations for the 3 featured campaigns, so a fresh import shows
+-- the /sw public pages fully localized out of the box. Every other campaign
+-- is left untranslated on purpose to demonstrate the English fallback.
+UPDATE campaigns SET
+  name_sw = 'Mfuko wa Upasuaji wa Watoto',
+  story_sw = 'Tusaidie kukusanya fedha kwa upasuaji wa watoto wanaohitaji katika Msuya Foundation.',
+  category_sw = 'Afya'
+WHERE id = 1;
+UPDATE campaigns SET
+  name_sw = 'Ada za Shule kwa Mapacha',
+  story_sw = 'Grace na Faith ni mapacha waliofaulu mtihani wa kidato cha kwanza lakini familia yao haiwezi kulipa ada za mwaka huu na sare za shule. Tusaidie kuwaweka darasani.',
+  category_sw = 'Elimu'
+WHERE slug = 'school-fees-for-twins';
+UPDATE campaigns SET
+  name_sw = 'Mradi wa Kisima cha Jamii',
+  story_sw = 'Kata ya Kigamboni inashiriki kisima kimoja kinachofanya kazi kati ya kaya mia sita. Kisima cha pili kingepunguza muda wa kutembea kufuata maji safi kutoka saa mbili hadi dakika ishirini.',
+  category_sw = 'Jamii'
+WHERE slug = 'community-borehole-project';
 
 -- Initial audit trail
 INSERT INTO audit_logs (organization_id, actor_id, actor_email, action, resource, resource_id, severity) VALUES

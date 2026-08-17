@@ -8,6 +8,16 @@ const router = Router();
 
 router.use(authenticate);
 
+/**
+ * Lets a user update their own profile (name/phone) regardless of role —
+ * the service layer already blocks a self-update from touching role/status
+ * — while still requiring an admin to edit anyone else.
+ */
+function authorizeSelfOrAdmin(req, res, next) {
+  if (String(req.user.id) === String(req.params.id)) return next();
+  return authorize("SUPER_ADMIN", "ORG_ADMIN")(req, res, next);
+}
+
 router.get("/", validate({ query: listUsersQuerySchema }), controller.listUsers);
 router.post(
   "/",
@@ -17,7 +27,7 @@ router.post(
 );
 router.put(
   "/:id",
-  authorize("SUPER_ADMIN", "ORG_ADMIN"),
+  authorizeSelfOrAdmin,
   validate({ body: updateUserSchema }),
   controller.updateUser
 );

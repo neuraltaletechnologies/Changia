@@ -105,6 +105,9 @@ export interface CampaignRecord {
   name: string;
   slug: string;
   story: string | null;
+  nameSw: string | null;
+  storySw: string | null;
+  categorySw: string | null;
   imageUrl: string | null;
   category: string | null;
   goalAmount: number;
@@ -119,6 +122,8 @@ export interface CampaignRecord {
   contactPhone: string | null;
   raisedAmount: number;
   donorCount: number;
+  isFeatured: boolean;
+  featuredAt: string | null;
   approvedBy: number | null;
   approvedAt: string | null;
   createdAt: string;
@@ -501,6 +506,17 @@ export const campaignApi = {
   setManagers: (id: string | number, userIds: number[]) =>
     api
       .put<{ success: boolean; data: CampaignRecord }>(`/campaigns/${id}/managers`, { userIds })
+      .then(unwrap),
+  setFeatured: (id: string | number, featured: boolean) =>
+    api
+      .post<{ success: boolean; data: CampaignRecord }>(`/campaigns/${id}/featured`, { featured })
+      .then(unwrap),
+  setTranslations: (
+    id: string | number,
+    body: { nameSw?: string; storySw?: string; categorySw?: string }
+  ) =>
+    api
+      .put<{ success: boolean; data: CampaignRecord }>(`/campaigns/${id}/translations`, body)
       .then(unwrap),
   previewPools: (id: string | number, poolIds: number[]) =>
     api

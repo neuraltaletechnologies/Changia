@@ -48,6 +48,9 @@ function mapCampaign(c) {
     name: c.name,
     slug: c.slug,
     story: c.story,
+    nameSw: c.name_sw,
+    storySw: c.story_sw,
+    categorySw: c.category_sw,
     imageUrl: c.image_url,
     category: c.category,
     goalAmount: num(c.goal_amount),
@@ -62,10 +65,46 @@ function mapCampaign(c) {
     contactPhone: c.contact_phone,
     raisedAmount: num(c.raised_amount),
     donorCount: c.donor_count,
+    isFeatured: Boolean(c.is_featured),
+    featuredAt: c.featured_at,
     approvedBy: c.approved_by,
     approvedAt: c.approved_at,
     createdAt: c.created_at,
     updatedAt: c.updated_at,
+  };
+}
+
+/**
+ * Public-facing shape: no internal/org-management fields. `locale` picks the
+ * Swahili translation when present, falling back to English when a campaign
+ * hasn't been translated yet.
+ */
+function mapPublicCampaign(c, locale = "en") {
+  const raised = num(c.raised_amount);
+  const target = num(c.public_target);
+  const sw = locale === "sw";
+  return {
+    id: c.id,
+    name: (sw && c.name_sw) || c.name,
+    slug: c.slug,
+    story: (sw && c.story_sw) || c.story,
+    imageUrl: c.image_url,
+    category: (sw && c.category_sw) || c.category,
+    goalAmount: num(c.goal_amount),
+    serviceFeePercent: num(c.service_fee_percent),
+    serviceFeeAmount: num(c.service_fee_amount),
+    publicTarget: target,
+    minimumAmount: num(c.minimum_amount),
+    startDate: c.start_date,
+    endDate: c.end_date,
+    status: c.status,
+    raisedAmount: raised,
+    donorCount: c.donor_count,
+    isFeatured: Boolean(c.is_featured),
+    remaining: Math.max(0, target - raised),
+    progressPercent: target > 0 ? Math.min(100, Math.round((raised / target) * 100)) : 0,
+    organizationName: c.organization_name || null,
+    createdAt: c.created_at,
   };
 }
 
@@ -104,10 +143,10 @@ async function listCampaigns(organizationId, filters, user) {
   const offset = (page - 1) * limit;
 
   const campaigns = await db.query(
-    `SELECT id, name, slug, story, image_url, category, goal_amount, service_fee_percent,
-            service_fee_amount, public_target, minimum_amount, start_date, end_date, status,
-            is_public, contact_phone, raised_amount, donor_count, approved_by, approved_at,
-            created_at, updated_at
+    `SELECT id, name, slug, story, name_sw, story_sw, category_sw, image_url, category, goal_amount,
+            service_fee_percent, service_fee_amount, public_target, minimum_amount, start_date, end_date,
+            status, is_public, contact_phone, raised_amount, donor_count, is_featured, featured_at,
+            approved_by, approved_at, created_at, updated_at
      FROM campaigns WHERE ${whereSql}
      ORDER BY created_at DESC LIMIT ? OFFSET ?`,
     [...values, limit, offset]
@@ -154,10 +193,10 @@ async function listCampaigns(organizationId, filters, user) {
 async function getCampaign(organizationId, campaignId, user) {
   await assertCampaignAccess(organizationId, user, campaignId);
   const campaigns = await db.query(
-    `SELECT id, name, slug, story, image_url, category, goal_amount, service_fee_percent,
-            service_fee_amount, public_target, minimum_amount, start_date, end_date, status,
-            is_public, contact_phone, raised_amount, donor_count, approved_by, approved_at,
-            created_at, updated_at
+    `SELECT id, name, slug, story, name_sw, story_sw, category_sw, image_url, category, goal_amount,
+            service_fee_percent, service_fee_amount, public_target, minimum_amount, start_date, end_date,
+            status, is_public, contact_phone, raised_amount, donor_count, is_featured, featured_at,
+            approved_by, approved_at, created_at, updated_at
      FROM campaigns WHERE id = ? AND organization_id = ?`,
     [campaignId, organizationId]
   );
@@ -217,15 +256,18 @@ async function createCampaign(organizationId, data, actor) {
 
   const result = await db.execute(
     `INSERT INTO campaigns
-       (organization_id, name, slug, story, image_url, category, goal_amount,
-        service_fee_percent, service_fee_amount, public_target, minimum_amount,
+       (organization_id, name, slug, story, name_sw, story_sw, category_sw, image_url, category,
+        goal_amount, service_fee_percent, service_fee_amount, public_target, minimum_amount,
         start_date, end_date, contact_phone, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'DRAFT')`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'DRAFT')`,
     [
       organizationId,
       data.name,
       slug,
       data.story || null,
+      data.nameSw || null,
+      data.storySw || null,
+      data.categorySw || null,
       data.imageUrl || null,
       data.category || null,
       data.goalAmount,
@@ -297,6 +339,9 @@ async function updateCampaign(organizationId, campaignId, data, actor) {
   const values = [];
   if (data.name !== undefined) { fields.push("name = ?"); values.push(data.name); }
   if (data.story !== undefined) { fields.push("story = ?"); values.push(data.story); }
+  if (data.nameSw !== undefined) { fields.push("name_sw = ?"); values.push(data.nameSw || null); }
+  if (data.storySw !== undefined) { fields.push("story_sw = ?"); values.push(data.storySw || null); }
+  if (data.categorySw !== undefined) { fields.push("category_sw = ?"); values.push(data.categorySw || null); }
   if (data.imageUrl !== undefined) { fields.push("image_url = ?"); values.push(data.imageUrl); }
   if (data.category !== undefined) { fields.push("category = ?"); values.push(data.category); }
   if (data.goalAmount !== undefined) { fields.push("goal_amount = ?"); values.push(data.goalAmount); }
@@ -326,6 +371,33 @@ async function updateCampaign(organizationId, campaignId, data, actor) {
   await db.execute(
     `INSERT INTO audit_logs (organization_id, actor_id, actor_email, action, resource, resource_id, severity)
      VALUES (?, ?, ?, 'campaign.updated', 'campaign', ?, 'INFO')`,
+    [organizationId, actor.id, actor.email, String(campaignId)]
+  );
+
+  return getCampaign(organizationId, campaignId);
+}
+
+/**
+ * Adds/edits the Swahili translation of a campaign's name/story/category.
+ * Unlike updateCampaign, this is allowed at any campaign status — content
+ * translation carries none of the financial-integrity risk that locks the
+ * rest of the campaign once it goes live.
+ */
+async function setTranslations(organizationId, campaignId, data, actor) {
+  const existing = await db.query(
+    "SELECT id FROM campaigns WHERE id = ? AND organization_id = ?",
+    [campaignId, organizationId]
+  );
+  if (existing.length === 0) throw ApiError.notFound("Campaign not found");
+
+  await db.execute(
+    "UPDATE campaigns SET name_sw = ?, story_sw = ?, category_sw = ? WHERE id = ?",
+    [data.nameSw || null, data.storySw || null, data.categorySw || null, campaignId]
+  );
+
+  await db.execute(
+    `INSERT INTO audit_logs (organization_id, actor_id, actor_email, action, resource, resource_id, severity)
+     VALUES (?, ?, ?, 'campaign.translated', 'campaign', ?, 'INFO')`,
     [organizationId, actor.id, actor.email, String(campaignId)]
   );
 
@@ -753,6 +825,121 @@ async function setCampaignManagers(organizationId, campaignId, userIds) {
   return getCampaign(organizationId, campaignId);
 }
 
+const MAX_FEATURED_CAMPAIGNS = 3;
+
+/**
+ * Pins/unpins a campaign on the public marketing homepage. Only public,
+ * active campaigns can be featured, and at most MAX_FEATURED_CAMPAIGNS are
+ * allowed platform-wide (the homepage is one shared page across all orgs).
+ */
+async function setFeatured(organizationId, campaignId, featured, actor) {
+  const existing = await db.query(
+    "SELECT id, status, is_public, is_featured FROM campaigns WHERE id = ? AND organization_id = ?",
+    [campaignId, organizationId]
+  );
+  const campaign = existing[0];
+  if (!campaign) throw ApiError.notFound("Campaign not found");
+
+  if (featured) {
+    if (campaign.status !== "ACTIVE" || !campaign.is_public) {
+      throw ApiError.badRequest(
+        "Only public, active campaigns can be featured on the homepage",
+        "CAMPAIGN_NOT_FEATURABLE"
+      );
+    }
+    if (!campaign.is_featured) {
+      const [{ total }] = await db.query(
+        "SELECT COUNT(*) AS total FROM campaigns WHERE is_featured = 1"
+      );
+      if (Number(total) >= MAX_FEATURED_CAMPAIGNS) {
+        throw ApiError.badRequest(
+          `Maximum of ${MAX_FEATURED_CAMPAIGNS} featured campaigns already selected. Un-feature one first.`,
+          "FEATURED_LIMIT_REACHED"
+        );
+      }
+    }
+  }
+
+  await db.execute(
+    "UPDATE campaigns SET is_featured = ?, featured_at = ? WHERE id = ?",
+    [featured ? 1 : 0, featured ? new Date() : null, campaignId]
+  );
+
+  await db.execute(
+    `INSERT INTO audit_logs (organization_id, actor_id, actor_email, action, resource, resource_id, severity)
+     VALUES (?, ?, ?, ?, 'campaign', ?, 'INFO')`,
+    [
+      organizationId,
+      actor.id,
+      actor.email,
+      featured ? "campaign.featured" : "campaign.unfeatured",
+      String(campaignId),
+    ]
+  );
+
+  return getCampaign(organizationId, campaignId);
+}
+
+// ─── Public (unauthenticated) campaign browsing ──────────────────────────────
+
+const PUBLIC_SELECT = `
+  SELECT c.id, c.name, c.slug, c.story, c.name_sw, c.story_sw, c.category_sw, c.image_url,
+         c.category, c.goal_amount, c.service_fee_percent, c.service_fee_amount, c.public_target,
+         c.minimum_amount, c.start_date, c.end_date, c.status, c.raised_amount, c.donor_count,
+         c.is_featured, c.created_at, o.name AS organization_name
+  FROM campaigns c
+  JOIN organizations o ON o.id = c.organization_id
+`;
+
+/** Up to 3 homepage-featured campaigns, or up to `limit` (max 5) public,
+ *  active campaigns that are NOT featured — used by the /campaigns listing.
+ *  `locale` ("en" | "sw") picks the translated fields where available. */
+async function listPublicCampaigns({ featured, limit, locale } = {}) {
+  if (featured) {
+    const rows = await db.query(
+      `${PUBLIC_SELECT} WHERE c.is_public = 1 AND c.status = 'ACTIVE' AND c.is_featured = 1
+       ORDER BY c.featured_at DESC LIMIT ${MAX_FEATURED_CAMPAIGNS}`
+    );
+    return rows.map((r) => mapPublicCampaign(r, locale));
+  }
+
+  const capped = Math.min(Math.max(Number(limit) || 5, 1), 5);
+  const rows = await db.query(
+    `${PUBLIC_SELECT} WHERE c.is_public = 1 AND c.status = 'ACTIVE' AND c.is_featured = 0
+     ORDER BY c.created_at DESC LIMIT ${capped}`
+  );
+  return rows.map((r) => mapPublicCampaign(r, locale));
+}
+
+/** A single public campaign by slug or numeric id, with recent supporters. */
+async function getPublicCampaign(idOrSlug, locale) {
+  const isNumeric = /^\d+$/.test(String(idOrSlug));
+  const rows = await db.query(
+    `${PUBLIC_SELECT}
+     WHERE c.is_public = 1 AND c.status IN ('ACTIVE','COMPLETED')
+       AND (c.slug = ? ${isNumeric ? "OR c.id = ?" : ""}) LIMIT 1`,
+    isNumeric ? [idOrSlug, idOrSlug] : [idOrSlug]
+  );
+  const campaign = rows[0];
+  if (!campaign) return null;
+
+  const donations = await db.query(
+    `SELECT amount, donor_name, is_anonymous, created_at
+     FROM donations WHERE campaign_id = ? AND status = 'CONFIRMED'
+     ORDER BY created_at DESC LIMIT 10`,
+    [campaign.id]
+  );
+
+  return {
+    ...mapPublicCampaign(campaign, locale),
+    recentDonations: donations.map((d) => ({
+      amount: num(d.amount),
+      donorName: d.is_anonymous ? null : d.donor_name,
+      createdAt: d.created_at,
+    })),
+  };
+}
+
 async function removeCampaign(organizationId, campaignId, actor) {
   const existing = await db.query(
     "SELECT id, status FROM campaigns WHERE id = ? AND organization_id = ?",
@@ -797,4 +984,8 @@ module.exports = {
   assertCampaignAccess,
   computeFees,
   removeCampaign,
+  setFeatured,
+  setTranslations,
+  listPublicCampaigns,
+  getPublicCampaign,
 };

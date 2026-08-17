@@ -1,30 +1,29 @@
 import type { Metadata } from 'next';
 import PrimaryCTA from '@components/ui/buttons/PrimaryCTA';
-import CardSmall from '@components/ui/cards/CardSmall';
-import CardWide from '@components/ui/cards/CardWide';
+import PublicCampaignCard from '@components/ui/cards/PublicCampaignCard';
 import FeaturesStatsAlt from '@components/sections/features/FeaturesStatsAlt';
 import TestimonialsSectionAlt from '@components/sections/testimonials/TestimonialsSectionAlt';
-import { getCampaignEntries } from '@/lib/content';
+import { getPublicCampaigns } from '@/lib/public-campaigns';
 
 export const metadata: Metadata = {
   title: 'Campaigns',
   description:
-    'Explore The three Modules of the Changia Campaign: Core Platform & Donor Pool, Campaign  Link Distribution and Instant Push Donation.',
+    'Browse active Changia campaigns and support one directly — medical bills, school fees, community projects and more.',
   openGraph: {
-    title: 'Changia Campaign Campaigns | Changia',
+    title: 'Campaigns | Changia',
     description:
-      'Explore The three Modules of the Changia Campaign: Core Platform & Donor Pool, Campaign  Link Distribution and Instant Push Donation.',
+      'Browse active Changia campaigns and support one directly — medical bills, school fees, community projects and more.',
   },
 };
 
 const title = 'Campaigns';
 const subTitle =
-  'Explore the three independent, payable Campaigns of the Changia Campaign. Each Campaign delivers a primary outcome — from a secure core platform and donor pool to Campaign  link distribution and manager-led push donations.';
+  "Every campaign below is live and organized by a verified Changia organization. Open one to read its story, see how the target breaks down, and contribute in a few taps.";
 
 const testimonials = [
   {
     content:
-      'As our launch partner, we could set up a secure dashboard, manage users by role, and keep an audit-ready donor pool from day one. Campaign 1 gave us the foundation we needed to run Campaigns people can trust.',
+      'As our launch partner, we could set up a secure dashboard, manage users by role, and keep an audit-ready donor pool from day one. Changia gave us the foundation we needed to run campaigns people can trust.',
     author: 'Dr. Msuya',
     role: 'Organization Administrator | Initial Launch Partner',
     avatarSrc:
@@ -33,16 +32,16 @@ const testimonials = [
   },
   {
     content:
-      'With the Campaign  link Campaign, we turn radio and WhatsApp listeners into donors. A short link, a QR code and a mobile-first Campaign  page — from TZS 100 — and every verified contribution updates the progress bar.',
+      'With a shareable campaign link, we turn radio and WhatsApp listeners into donors. A short link, a QR code and a mobile-first campaign page — from TZS 100 — and every verified contribution updates the progress bar.',
     author: 'Amadi Kimaro',
-    role: 'Campaign  Manager | Community Health Fund',
+    role: 'Campaign Manager | Community Health Fund',
     avatarSrc:
       'https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=1376&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D8&auto=format&fit=facearea&facepad=2&w=320&h=320&q=80',
     avatarAlt: 'Image Description',
   },
   {
     content:
-      "The instant push donation is the innovation we've been waiting for. After a face-to-face conversation and agreement, the donor receives a direct payment request and confirms with their own PIN. Verified callbacks mean our totals are always exact.",
+      "Self-serve contributions are the innovation we've been waiting for. A supporter picks an amount, confirms with their own PIN at the operator prompt, and our totals update the moment the gateway verifies it.",
     author: 'Neema Mushi',
     role: 'Field Fundraising Lead',
     avatarSrc:
@@ -51,10 +50,8 @@ const testimonials = [
   },
 ];
 
-export default function CampaignsIndexPage() {
-  const campaign = getCampaignEntries('en').sort(
-    (a, b) => a.data.main.id - b.data.main.id
-  );
+export default async function CampaignsIndexPage() {
+  const campaigns = await getPublicCampaigns(5);
 
   return (
     <>
@@ -70,23 +67,34 @@ export default function CampaignsIndexPage() {
               </p>
             ) : null}
           </div>
-          <PrimaryCTA title="Campaign  Stories" url="#testimonials" noArrow />
+          <PrimaryCTA title="Campaign Stories" url="#testimonials" noArrow />
         </div>
 
-        <section className="grid grid-cols-1 gap-4 sm:grid-cols-3 md:gap-6 xl:gap-8">
-          {campaign.map((p, index) => {
-            const position = index % 4;
-            if (position === 0 || position === 3) {
-              return <CardSmall key={p.id} campaign={p} />;
-            }
-            return <CardWide key={p.id} campaign={p} />;
-          })}
-        </section>
+        {campaigns.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-neutral-300 py-16 text-center dark:border-neutral-700">
+            <p className="text-neutral-600 dark:text-neutral-400">
+              No public campaigns are live right now — check back soon.
+            </p>
+          </div>
+        ) : (
+          <section className="grid grid-cols-1 gap-4 sm:grid-cols-3 md:gap-6 xl:gap-8">
+            {campaigns.map((campaign, index) => {
+              const position = index % 4;
+              return (
+                <PublicCampaignCard
+                  key={campaign.id}
+                  campaign={campaign}
+                  wide={!(position === 0 || position === 3)}
+                />
+              );
+            })}
+          </section>
+        )}
       </div>
 
       <FeaturesStatsAlt
         title="Why Choose Changia?"
-        subTitle="Changia is built for Tanzanian mobile-money workflows from the ground up. Whether you're launching your first Campaign  or running a nation-wide appeal, the platform is engineered to convert willingness to help into completed payments."
+        subTitle="Changia is built for Tanzanian mobile-money workflows from the ground up. Whether you're launching your first campaign or running a nation-wide appeal, the platform is engineered to convert willingness to help into completed payments."
         benefits={[
           'A secure, mobile-first foundation designed for low-bandwidth devices.',
           'Consent-aware donor management with opt-out controls.',
@@ -94,7 +102,7 @@ export default function CampaignsIndexPage() {
         ]}
       />
 
-      <TestimonialsSectionAlt title="What Campaign  Owners Say" testimonials={testimonials} />
+      <TestimonialsSectionAlt title="What Campaign Owners Say" testimonials={testimonials} />
     </>
   );
 }

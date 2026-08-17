@@ -9,9 +9,11 @@ const authRoutes = require("./modules/auth/routes");
 const organizationRoutes = require("./modules/organization/routes");
 const userRoutes = require("./modules/user/routes");
 const campaignRoutes = require("./modules/campaign/routes");
+const campaignPublicRoutes = require("./modules/campaign/publicRoutes");
 const donorRoutes = require("./modules/donor/routes");
 const donorPoolRoutes = require("./modules/donor-pool/routes");
 const donationRoutes = require("./modules/donation/routes");
+const donationPublicRoutes = require("./modules/donation/publicRoutes");
 const auditRoutes = require("./modules/audit/routes");
 const reminderTemplateRoutes = require("./modules/reminder-template/routes");
 const reminderScheduleRoutes = require("./modules/reminder-schedule/routes");
@@ -61,6 +63,10 @@ function createApp() {
   app.use("/api/v1/auth", apiLimiter, authRoutes);
   app.use("/api/v1/organizations", organizationRoutes);
   app.use("/api/v1/users", userRoutes);
+  // Public, unauthenticated marketing-site endpoints (mounted before the
+  // authenticated /campaigns and /donations routers, distinct path prefix).
+  app.use("/api/v1/public/campaigns", apiLimiter, campaignPublicRoutes);
+  app.use("/api/v1/public/donations", apiLimiter, donationPublicRoutes);
   app.use("/api/v1/campaigns", campaignRoutes);
   app.use("/api/v1/donors", donorRoutes);
   app.use("/api/v1/donor-pools", donorPoolRoutes);

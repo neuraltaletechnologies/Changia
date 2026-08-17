@@ -38,9 +38,22 @@ const simulateCallbackSchema = z.object({
   }),
 });
 
+const publicContributionSchema = z.object({
+  amount: z
+    .number({ message: "Amount must be a number" })
+    .int("Amount must be a whole TZS number")
+    .positive("Amount must be greater than zero"),
+  donorName: z.string().max(150).optional(),
+  donorPhone: z
+    .string()
+    .regex(/^(\+?255|0)?[67][0-9]{8}$/, "Enter a valid Tanzanian phone number"),
+  isAnonymous: z.boolean().optional(),
+});
+
 module.exports = {
   listDonationsQuerySchema,
   createManualDonationSchema,
   createPaymentAttemptSchema,
   simulateCallbackSchema,
+  publicContributionSchema,
 };

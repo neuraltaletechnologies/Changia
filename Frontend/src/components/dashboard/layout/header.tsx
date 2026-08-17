@@ -38,7 +38,7 @@ function initials(name: string): string {
 
 export function Header({ onMobileMenuToggle, mobileMenuOpen }: HeaderProps) {
   const router = useRouter();
-  const { user, meta } = useRole();
+  const { user, meta, hasPermission } = useRole();
   const unreadCount = 0;
   const [notifOpen, setNotifOpen] = useState(false);
 
@@ -47,6 +47,7 @@ export function Header({ onMobileMenuToggle, mobileMenuOpen }: HeaderProps) {
       ? `${user.firstName} ${user.lastName ?? ""}`.trim()
       : "User";
   const displayRole = meta.shortLabel;
+  const canManageOrg = hasPermission("settings:org");
 
   const handleSignOut = () => {
     clearSession();
@@ -142,11 +143,17 @@ export function Header({ onMobileMenuToggle, mobileMenuOpen }: HeaderProps) {
                 </span>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-xs cursor-pointer">
+              <DropdownMenuItem
+                className="text-xs cursor-pointer"
+                onSelect={() => router.push("/dashboard/profile")}
+              >
                 Profile
               </DropdownMenuItem>
-              <DropdownMenuItem className="text-xs cursor-pointer">
-                Organisation Settings
+              <DropdownMenuItem
+                className="text-xs cursor-pointer"
+                onSelect={() => router.push("/dashboard/settings")}
+              >
+                {canManageOrg ? "Organisation Settings" : "Settings"}
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />

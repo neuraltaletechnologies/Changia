@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/dashboard/ui/select";
+import { PasswordInput } from "@/components/dashboard/ui/password-input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/dashboard/ui/tabs";
 import {
   Building2,
@@ -24,6 +25,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { useRole } from "@/hooks/use-role";
+import { ApiClientError, changePasswordRequest } from "@/lib/api-client";
 
 const allTabs = [
   { value: "organisation", label: "Organisation", icon: Building2, permission: "settings:org" as const },
@@ -42,6 +44,48 @@ export default function SettingsPage() {
   const handleSave = () => {
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
+  };
+
+  // ─── Password change (Security tab) ─────────────────────────────────────
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordErrors, setPasswordErrors] = useState<Record<string, string>>({});
+  const [passwordServerError, setPasswordServerError] = useState<string | null>(null);
+  const [passwordSuccess, setPasswordSuccess] = useState(false);
+  const [passwordLoading, setPasswordLoading] = useState(false);
+
+  const handleChangePassword = async () => {
+    setPasswordServerError(null);
+    setPasswordSuccess(false);
+
+    const nextErrors: Record<string, string> = {};
+    if (!currentPassword) nextErrors.currentPassword = "Current password is required.";
+    if (!newPassword || newPassword.length < 8) {
+      nextErrors.newPassword = "New password must be at least 8 characters.";
+    }
+    if (confirmPassword !== newPassword) {
+      nextErrors.confirmPassword = "Passwords do not match.";
+    }
+    setPasswordErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) return;
+
+    setPasswordLoading(true);
+    try {
+      await changePasswordRequest({ currentPassword, newPassword, confirmPassword });
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setPasswordErrors({});
+      setPasswordSuccess(true);
+      setTimeout(() => setPasswordSuccess(false), 3000);
+    } catch (err) {
+      setPasswordServerError(
+        err instanceof ApiClientError ? err.message : "Failed to update password."
+      );
+    } finally {
+      setPasswordLoading(false);
+    }
   };
 
   return (
@@ -227,16 +271,58 @@ export default function SettingsPage() {
             <div className="space-y-3">
               <div className="space-y-1.5">
                 <Label className="text-xs">Current Password</Label>
-                <Input type="password" className="h-9 text-sm" />
+                <PasswordInput
+                  className={`h-9 text-sm ${passwordErrors.currentPassword ? "border-destructive" : ""}`}
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  aria-invalid={Boolean(passwordErrors.currentPassword)}
+                />
+                {passwordErrors.currentPassword ? (
+                  <p role="alert" className="text-xs text-destructive">
+                    {passwordErrors.currentPassword}
+                  </p>
+                ) : null}
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">New Password</Label>
-                <Input type="password" className="h-9 text-sm" />
+                <PasswordInput
+                  className={`h-9 text-sm ${passwordErrors.newPassword ? "border-destructive" : ""}`}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  aria-invalid={Boolean(passwordErrors.newPassword)}
+                />
+                {passwordErrors.newPassword ? (
+                  <p role="alert" className="text-xs text-destructive">
+                    {passwordErrors.newPassword}
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground">8+ characters required</p>
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Confirm New Password</Label>
-                <Input type="password" className="h-9 text-sm" />
+                <PasswordInput
+                  className={`h-9 text-sm ${passwordErrors.confirmPassword ? "border-destructive" : ""}`}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  aria-invalid={Boolean(passwordErrors.confirmPassword)}
+                />
+                {passwordErrors.confirmPassword ? (
+                  <p role="alert" className="text-xs text-destructive">
+                    {passwordErrors.confirmPassword}
+                  </p>
+                ) : null}
               </div>
+              {passwordServerError && (
+                <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+                  {passwordServerError}
+                </div>
+              )}
+              {passwordSuccess && (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+                  Password updated successfully.
+                </div>
+              )}
             </div>
 
             <Separator />
@@ -276,8 +362,8 @@ export default function SettingsPage() {
             </div>
 
             <div className="flex justify-end">
-              <Button size="sm" onClick={handleSave}>
-                Update Password
+              <Button size="sm" onClick={handleChangePassword} disabled={passwordLoading}>
+                {passwordLoading ? "Updating…" : "Update Password"}
               </Button>
             </div>
           </div>

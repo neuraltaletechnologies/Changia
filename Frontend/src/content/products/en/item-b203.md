@@ -22,7 +22,7 @@ longDescription:
   title: 'Fundraising That Meets the Donor'
   subTitle: |
     Changia never stores, sees or asks a donor for a mobile-money PIN. The PIN is entered only in the operator or gateway-controlled approval prompt, and no donation is recorded until a verified callback confirms success.
-  btnTitle: 'Contact the user to learn more'
+  btnTitle: 'Contact our Team to learn more'
   btnURL: '#'
 descriptionList:
   - title: 'Manager Workspace'

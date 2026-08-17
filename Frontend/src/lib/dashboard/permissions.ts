@@ -139,6 +139,7 @@ export function hasPermission(role: Role | undefined, perm: Permission): boolean
 
 export const ROUTE_ACCESS: Record<string, Role[]> = {
   "/dashboard": ALL_ROLES,
+  "/dashboard/profile": ALL_ROLES,
   "/dashboard/campaigns": ALL_ROLES,
   "/dashboard/campaigns/new": ALL_ROLES,
   "/dashboard/campaigns/approvals": [ROLE.SUPER_ADMIN, ROLE.ORG_ADMIN],

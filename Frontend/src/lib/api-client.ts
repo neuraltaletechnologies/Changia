@@ -195,3 +195,14 @@ export async function meRequest() {
   );
   return result.data.user;
 }
+
+export async function changePasswordRequest(data: {
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+}) {
+  return api.post<{ success: boolean; message: string }>(
+    '/auth/change-password',
+    data
+  );
+}

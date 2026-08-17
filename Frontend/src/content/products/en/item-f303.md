@@ -22,7 +22,7 @@ longDescription:
   title: 'Transparency You Can Reconcile'
   subTitle: |
     Every payment attempt uses unique idempotency keys, confirmed donations update Campaigns exactly once, and receipts and Campaign  progress always match confirmed transactions — ready for reconciliation with gateway reports.
-  btnTitle: 'Contact the user to learn more'
+  btnTitle: 'Contact our Team to learn more'
   btnURL: '#'
 descriptionList:
   - title: 'Verified Money Flow'

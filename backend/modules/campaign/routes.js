@@ -64,7 +64,7 @@ router.put(
 );
 router.post(
   "/:id/submit",
-  authorize("SUPER_ADMIN", "ORG_ADMIN"),
+  authorize("SUPER_ADMIN", "ORG_ADMIN", "CAMPAIGN_MANAGER"),
   controller.submitCampaign
 );
 router.post(
@@ -83,6 +83,11 @@ router.put(
   authorize("SUPER_ADMIN", "ORG_ADMIN"),
   validate({ body: setManagersSchema }),
   controller.setManagers
+);
+router.delete(
+  "/:id",
+  authorize("SUPER_ADMIN", "ORG_ADMIN"),
+  controller.removeCampaign
 );
 
 module.exports = router;

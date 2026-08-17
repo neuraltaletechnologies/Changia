@@ -11,4 +11,14 @@ const recentActivity = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true, data: activity });
 });
 
-module.exports = { listAuditLogs, recentActivity };
+const exportAuditLogs = asyncHandler(async (req, res) => {
+  const logs = await auditService.exportAuditLogs(req.user.organizationId, req.query);
+  const esc = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+  const rows = [
+    ["id", "action", "resource", "resourceId", "actorEmail", "severity", "createdAt"],
+    ...logs.map((log) => [log.id, log.action, log.resource, log.resourceId, log.actorEmail, log.severity, log.createdAt]),
+  ];
+  res.type("text/csv").attachment("audit-logs.csv").send(rows.map((row) => row.map(esc).join(",")).join("\n"));
+});
+
+module.exports = { listAuditLogs, recentActivity, exportAuditLogs };

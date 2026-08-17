@@ -241,6 +241,28 @@ async function createPaymentAttempt(data) {
   return { ...attempts[0], amount: num(attempts[0].amount) };
 }
 
+async function recordManualDonation(organizationId, data) {
+  let donorName = data.donorName || null;
+  if (data.donorId) {
+    const donors = await db.query(
+      "SELECT first_name, last_name FROM donors WHERE id = ? AND organization_id = ?",
+      [data.donorId, organizationId]
+    );
+    if (donors.length === 0) throw ApiError.notFound("Donor not found");
+    donorName = donorName || [donors[0].first_name, donors[0].last_name].filter(Boolean).join(" ") || null;
+  }
+
+  return recordConfirmedDonation({
+    organizationId,
+    campaignId: data.campaignId,
+    donorId: data.donorId,
+    amount: data.amount,
+    method: "LINK",
+    donorName,
+    isAnonymous: data.isAnonymous || false,
+  });
+}
+
 async function listPaymentAttempts(organizationId, campaignId) {
   const attempts = await db.query(
     `SELECT pa.*, d.receipt_number AS donation_receipt, d.status AS donation_status
@@ -296,13 +318,26 @@ async function resolvePaymentAttempt(attemptId, result) {
   return { attempt: { ...attempt, status: result.status }, donation: null };
 }
 
-async function listDonations(organizationId, filters) {
+async function listDonations(organizationId, filters, user) {
   const where = ["d.organization_id = ?"];
   const values = [organizationId];
+
+  if (user && user.role === "CAMPAIGN_MANAGER") {
+    where.push("d.campaign_id IN (SELECT campaign_id FROM campaign_assignments WHERE user_id = ?)");
+    values.push(user.id);
+  }
 
   if (filters.campaignId) {
     where.push("d.campaign_id = ?");
     values.push(filters.campaignId);
+  }
+  if (filters.donorId) {
+    where.push("d.donor_id = ?");
+    values.push(filters.donorId);
+  }
+  if (filters.status) {
+    where.push("d.status = ?");
+    values.push(filters.status);
   }
 
   const whereSql = where.join(" AND ");
@@ -341,6 +376,7 @@ async function listDonations(organizationId, filters) {
 
 module.exports = {
   recordConfirmedDonation,
+  recordManualDonation,
   createPaymentAttempt,
   listPaymentAttempts,
   resolvePaymentAttempt,

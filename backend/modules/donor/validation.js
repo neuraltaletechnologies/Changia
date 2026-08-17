@@ -67,9 +67,15 @@ const addPaymentMethodSchema = z.object({
   details: z.record(z.string()).optional(),
 });
 
+const importDonorsSchema = z.object({
+  donors: z.array(createDonorSchema).min(1).max(500),
+  skipDuplicates: z.boolean().default(true),
+});
+
 module.exports = {
   createDonorSchema,
   updateDonorSchema,
   listDonorsQuerySchema,
   addPaymentMethodSchema,
+  importDonorsSchema,
 };

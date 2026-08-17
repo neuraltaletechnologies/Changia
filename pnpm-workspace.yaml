@@ -1,9 +1,9 @@
 packages:
   - Frontend
-  - Backend
+  - backend
 
-# pnpm treats every folder listed above as a workspace package so turbo can
-# orchestrate their `dev` / `build` / `start` scripts from the repo root.
+# Optional: only needed if you choose to manage the repo with pnpm.
+# The root package.json now uses plain npm scripts, so pnpm is not required.
 minimumReleaseAgeExclude:
   - lucide-react@1.31.0
 

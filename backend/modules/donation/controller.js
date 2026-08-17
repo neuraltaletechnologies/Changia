@@ -1,14 +1,32 @@
 const { asyncHandler } = require("../../utils/asyncHandler");
 const db = require("../../db");
 const donationService = require("./service");
+const campaignService = require("../campaign/service");
 
 const listDonations = asyncHandler(async (req, res) => {
-  const result = await donationService.listDonations(req.user.organizationId, req.query);
+  const result = await donationService.listDonations(req.user.organizationId, req.query, req.user);
   res.status(200).json({ success: true, data: result });
+});
+
+const recordManualDonation = asyncHandler(async (req, res) => {
+  const donation = await donationService.recordManualDonation(req.user.organizationId, req.body);
+  await db.execute(
+    `INSERT INTO audit_logs (organization_id, actor_id, actor_email, action, resource, resource_id, details, severity)
+     VALUES (?, ?, ?, 'donation.recorded', 'donation', ?, ?, 'INFO')`,
+    [
+      req.user.organizationId,
+      req.user.id,
+      req.user.email,
+      String(donation.id),
+      JSON.stringify({ amount: donation.amount, campaignId: donation.campaignId }),
+    ]
+  );
+  res.status(201).json({ success: true, data: donation });
 });
 
 /** Manager sends a direct payment request (push donation). */
 const createPaymentAttempt = asyncHandler(async (req, res) => {
+  await campaignService.assertCampaignAccess(req.user.organizationId, req.user, req.params.campaignId);
   const attempt = await donationService.createPaymentAttempt({
     organizationId: req.user.organizationId,
     campaignId: req.params.campaignId,
@@ -44,6 +62,7 @@ const createPaymentAttempt = asyncHandler(async (req, res) => {
 });
 
 const listPaymentAttempts = asyncHandler(async (req, res) => {
+  await campaignService.assertCampaignAccess(req.user.organizationId, req.user, req.params.campaignId);
   const attempts = await donationService.listPaymentAttempts(
     req.user.organizationId,
     req.params.campaignId
@@ -70,6 +89,7 @@ function num(value) {
 
 module.exports = {
   listDonations,
+  recordManualDonation,
   createPaymentAttempt,
   listPaymentAttempts,
   simulateGatewayCallback,

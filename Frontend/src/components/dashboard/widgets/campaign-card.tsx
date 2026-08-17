@@ -5,11 +5,12 @@ import { Badge } from "@/components/dashboard/ui/badge";
 import { cn } from "@/lib/dashboard/utils";
 
 export const campaignStatusMap: Record<Campaign["status"], { label: string; className: string }> = {
-  active: { label: "Active", className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-  draft: { label: "Draft", className: "bg-slate-50 text-slate-600 border-slate-200" },
-  completed: { label: "Completed", className: "bg-sky-50 text-sky-700 border-sky-200" },
-  paused: { label: "Paused", className: "bg-amber-50 text-amber-700 border-amber-200" },
-  pending: { label: "Pending Approval", className: "bg-orange-50 text-orange-700 border-orange-200" },
+  ACTIVE: { label: "Active", className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  DRAFT: { label: "Draft", className: "bg-slate-50 text-slate-600 border-slate-200" },
+  COMPLETED: { label: "Completed", className: "bg-sky-50 text-sky-700 border-sky-200" },
+  PAUSED: { label: "Paused", className: "bg-amber-50 text-amber-700 border-amber-200" },
+  PENDING: { label: "Pending Approval", className: "bg-orange-50 text-orange-700 border-orange-200" },
+  CANCELLED: { label: "Cancelled", className: "bg-rose-50 text-rose-700 border-rose-200" },
 };
 
 export function CampaignCard({ campaign }: { campaign: Campaign }) {

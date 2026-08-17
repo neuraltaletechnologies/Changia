@@ -1,0 +1,11 @@
+const { Router } = require("express");
+const { authenticate, authorize } = require("../../middlewares/auth");
+const { validate } = require("../../middlewares/validate");
+const controller = require("./controller");
+const { updateOrgSchema } = require("./validation");
+const router = Router();
+router.use(authenticate);
+router.get("/me", controller.getMySettings);
+router.get("/org", authorize("SUPER_ADMIN", "ORG_ADMIN"), controller.getOrg);
+router.put("/org", authorize("SUPER_ADMIN", "ORG_ADMIN"), validate({ body: updateOrgSchema }), controller.updateOrg);
+module.exports = router;

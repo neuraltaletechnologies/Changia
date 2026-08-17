@@ -32,7 +32,7 @@ export interface Donor {
   notes?: string;
 }
 
-export type CampaignStatus = "active" | "draft" | "completed" | "paused" | "pending";
+export type CampaignStatus = "DRAFT" | "PENDING" | "ACTIVE" | "PAUSED" | "COMPLETED" | "CANCELLED";
 
 export interface Campaign {
   id: string;

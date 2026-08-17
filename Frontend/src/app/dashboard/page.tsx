@@ -22,10 +22,10 @@ import { RecentDonations } from "@/components/dashboard/widgets/recent-donations
 import { ActivityFeed } from "@/components/dashboard/widgets/activity-feed";
 import { Button } from "@/components/dashboard/ui/button";
 import { Badge } from "@/components/dashboard/ui/badge";
-import { loadUserCampaigns } from "@/lib/dashboard/campaign-store";
 import { loadDonors } from "@/lib/dashboard/donor-store";
 import { loadUsers} from "@/lib/dashboard/user-store";
-import { formatTZS, type Campaign, type Donor, type User } from "@/lib/dashboard/types";
+import { campaignApi, type CampaignRecord } from "@/lib/dashboard/api";
+import { formatTZS, type Campaign, type CampaignStatus, type Donor, type User } from "@/lib/dashboard/types";
 import { ROLE } from "@/lib/dashboard/permissions";
 import { useRole } from "@/hooks/use-role";
 import { cn } from "@/lib/dashboard/utils";
@@ -81,9 +81,30 @@ export default function DashboardPage() {
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    setCampaigns(loadUserCampaigns());
     setDonors(loadDonors());
     setUser(loadUsers());
+    campaignApi
+      .list({ limit: 100 })
+      .then((r) => {
+        setCampaigns(
+          r.campaigns.map((c: CampaignRecord) => ({
+            id: String(c.id),
+            name: c.name,
+            goal: c.publicTarget > 0 ? c.publicTarget : c.goalAmount,
+            raised: c.raisedAmount,
+            donors: c.donorCount,
+            status: c.status as CampaignStatus,
+            startDate: c.startDate ? new Date(c.startDate).toLocaleDateString() : "—",
+            endDate: c.endDate ? new Date(c.endDate).toLocaleDateString() : "—",
+            category: c.category ?? undefined,
+            description: c.story ?? undefined,
+            ownerName: c.assignments?.[0]
+              ? `${c.assignments[0].user.firstName} ${c.assignments[0].user.lastName ?? ""}`.trim()
+              : undefined,
+          }))
+        );
+      })
+      .catch(() => setCampaigns([]));
     setHydrated(true);
   }, []);
 
@@ -101,8 +122,8 @@ export default function DashboardPage() {
     );
   }
 
-  const activeCampaigns = campaigns.filter((c) => c.status === "active");
-  const pendingCampaigns = campaigns.filter((c) => c.status === "pending");
+  const activeCampaigns = campaigns.filter((c) => c.status === "ACTIVE");
+  const pendingCampaigns = campaigns.filter((c) => c.status === "PENDING");
   const totalRaised = campaigns.reduce((sum, c) => sum + c.raised, 0);
   const givingDonors = donors.filter((d) => d.totalGiven > 0);
   const avgGift =

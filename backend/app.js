@@ -15,6 +15,8 @@ const donationRoutes = require("./modules/donation/routes");
 const auditRoutes = require("./modules/audit/routes");
 const reminderTemplateRoutes = require("./modules/reminder-template/routes");
 const reminderScheduleRoutes = require("./modules/reminder-schedule/routes");
+const payoutRoutes = require("./modules/payout/routes");
+const settingsRoutes = require("./modules/settings/routes");
 
 function createApp() {
   const app = express();
@@ -66,6 +68,8 @@ function createApp() {
   app.use("/api/v1/audit-logs", auditRoutes);
   app.use("/api/v1/reminder-templates", reminderTemplateRoutes);
   app.use("/api/v1/reminder-schedules", reminderScheduleRoutes);
+  app.use("/api/v1/payouts", payoutRoutes);
+  app.use("/api/v1/settings", settingsRoutes);
 
   // ─── 404 & error handling (must be last) ────────────────────────────────────
   app.use(notFoundHandler);

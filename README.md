@@ -151,40 +151,38 @@ Tanzania-first, fast campaign money platform for simple, transparent, auditable 
 
 ## Quick start
 
-The repo is a **pnpm + Turborepo** monorepo: one install and one command boots both
-the backend API and the frontend at the same time.
+Plain **npm** scripts — no pnpm or Turborepo needed. Install each app, import
+the database, then run either app separately or both together from the root.
 
-**1. Install dependencies** (from the repo root)
+**1. Install dependencies** (in each app folder)
 
 ```bash
-pnpm install
+cd backend && npm install
+cd ../Frontend && npm install
 ```
 
 **2. Create the database** — import `backend/database.sql` into your MySQL
 (phpMyAdmin → Import, or `mysql -u root -p < database.sql`). It creates the
 `changia` database, all tables, and demo data.
 
-**3. Copy the env examples** (only needed the first time)
+**3. Copy the env example** (backend only, first time)
 
 ```bash
-cp Backend/.env.example  Backend/.env
-cp Frontend/.env.example Frontend/.env
+cd backend && cp .env.example .env   # then edit config.js / .env if your MySQL differs
 ```
 
 **4. Run everything (backend + frontend together)**
 
 ```bash
-pnpm dev        # backend → http://localhost:5000,  frontend → http://localhost:3000
+npm run dev     # backend → http://localhost:5000,  frontend → http://localhost:3000
 ```
 
-Turbo runs each package's `dev` script in parallel (`next dev` for the frontend,
-`node --watch server.js` for the API). Other useful commands:
+Or run them separately:
 
 ```bash
-pnpm build      # build both (currently the frontend)
-pnpm lint       # lint all packages that define it
-pnpm turbo run dev --filter=changia      # run only the frontend
-pnpm turbo run dev --filter=changia-api  # run only the backend
+npm run dev:api    # backend API only
+npm run dev:web    # frontend only
+npm start          # backend API (production mode)
 ```
 
 Visit `http://localhost:3000/login` and sign in with `admin@changia.org.tz` / `Changia@2026`,

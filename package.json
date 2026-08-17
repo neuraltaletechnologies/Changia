@@ -2,16 +2,14 @@
   "name": "changia",
   "version": "1.0.0",
   "private": true,
-  "packageManager": "pnpm@11.20.0",
-  "description": "Changia — Digital Fundraising &  All money transfer Contribution Platform (monorepo)",
+  "description": "Changia — Digital Fundraising & Mobile Money Contribution Platform",
   "scripts": {
-    "dev": "turbo run dev",
-    "build": "turbo run build",
-    "start": "turbo run start",
-    "lint": "turbo run lint",
-    "format:check": "turbo run format:check",
-    "format:fix": "turbo run format:fix",
-    "turbo": "turbo"
+    "dev": "node scripts/dev.js",
+    "dev:api": "npm --prefix backend run dev",
+    "dev:web": "npm --prefix Frontend run dev",
+    "start": "node scripts/dev.js",
+    "build": "npm --prefix Frontend run build",
+    "setup:db": "npm --prefix backend run setup"
   },
   "devDependencies": {
     "turbo": "^2.10.9"

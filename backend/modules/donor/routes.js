@@ -7,6 +7,7 @@ const {
   updateDonorSchema,
   listDonorsQuerySchema,
   addPaymentMethodSchema,
+  importDonorsSchema,
 } = require("./validation");
 
 const router = Router();
@@ -14,6 +15,12 @@ const router = Router();
 router.use(authenticate);
 
 router.get("/", validate({ query: listDonorsQuerySchema }), controller.listDonors);
+router.post(
+  "/import",
+  authorize("SUPER_ADMIN", "ORG_ADMIN"),
+  validate({ body: importDonorsSchema }),
+  controller.importDonors
+);
 router.get("/:id", controller.getDonor);
 router.post(
   "/",

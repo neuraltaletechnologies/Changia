@@ -69,9 +69,24 @@ function mapCampaign(c) {
   };
 }
 
-async function listCampaigns(organizationId, filters) {
+async function assertCampaignAccess(organizationId, user, campaignId) {
+  if (!user || user.role === "SUPER_ADMIN" || user.role === "ORG_ADMIN") return;
+  const rows = await db.query(
+    `SELECT c.id FROM campaigns c JOIN campaign_assignments ca ON ca.campaign_id = c.id
+     WHERE c.id = ? AND c.organization_id = ? AND ca.user_id = ?`,
+    [campaignId, organizationId, user.id]
+  );
+  if (rows.length === 0) throw ApiError.notFound("Campaign not found");
+}
+
+async function listCampaigns(organizationId, filters, user) {
   const where = ["organization_id = ?"];
   const values = [organizationId];
+
+  if (user && user.role === "CAMPAIGN_MANAGER") {
+    where.push("id IN (SELECT campaign_id FROM campaign_assignments WHERE user_id = ?)");
+    values.push(user.id);
+  }
 
   if (filters.status) {
     where.push("status = ?");
@@ -136,7 +151,8 @@ async function listCampaigns(organizationId, filters) {
   };
 }
 
-async function getCampaign(organizationId, campaignId) {
+async function getCampaign(organizationId, campaignId, user) {
+  await assertCampaignAccess(organizationId, user, campaignId);
   const campaigns = await db.query(
     `SELECT id, name, slug, story, image_url, category, goal_amount, service_fee_percent,
             service_fee_amount, public_target, minimum_amount, start_date, end_date, status,
@@ -223,6 +239,14 @@ async function createCampaign(organizationId, data, actor) {
     ]
   );
   const campaignId = result.insertId;
+
+  // A manager must be able to continue managing the campaign they created.
+  if (actor.role === "CAMPAIGN_MANAGER") {
+    await db.execute(
+      "INSERT IGNORE INTO campaign_assignments (campaign_id, user_id) VALUES (?, ?)",
+      [campaignId, actor.id]
+    );
+  }
 
   if (data.managerIds && data.managerIds.length > 0) {
     for (const userId of data.managerIds) {
@@ -729,6 +753,33 @@ async function setCampaignManagers(organizationId, campaignId, userIds) {
   return getCampaign(organizationId, campaignId);
 }
 
+async function removeCampaign(organizationId, campaignId, actor) {
+  const existing = await db.query(
+    "SELECT id, status FROM campaigns WHERE id = ? AND organization_id = ?",
+    [campaignId, organizationId]
+  );
+  if (existing.length === 0) throw ApiError.notFound("Campaign not found");
+
+  if (existing[0].status === "ACTIVE" || existing[0].status === "COMPLETED") {
+    throw ApiError.badRequest("Cannot delete an active or completed campaign. Pause or cancel it first.", "CAMPAIGN_ACTIVE");
+  }
+
+  await db.withTransaction(async (tx) => {
+    await tx.execute("DELETE FROM campaign_assignments WHERE campaign_id = ?", [campaignId]);
+    await tx.execute("DELETE FROM campaign_donor_targets WHERE campaign_id = ?", [campaignId]);
+    await tx.execute("DELETE FROM donations WHERE campaign_id = ?", [campaignId]);
+    await tx.execute("DELETE FROM campaigns WHERE id = ?", [campaignId]);
+  });
+
+  await db.execute(
+    `INSERT INTO audit_logs (organization_id, actor_id, actor_email, action, resource, resource_id, severity)
+     VALUES (?, ?, ?, 'campaign.deleted', 'campaign', ?, 'WARNING')`,
+    [organizationId, actor.id, actor.email, String(campaignId)]
+  );
+
+  return { deleted: true };
+}
+
 module.exports = {
   listCampaigns,
   getCampaign,
@@ -743,5 +794,7 @@ module.exports = {
   getCampaignDonorTargets,
   setDonorTargetExpected,
   removeDonorTarget,
+  assertCampaignAccess,
   computeFees,
+  removeCampaign,
 };

@@ -6,6 +6,7 @@ const {
   listDonationsQuerySchema,
   createPaymentAttemptSchema,
   simulateCallbackSchema,
+  createManualDonationSchema,
 } = require("./validation");
 
 const router = Router();
@@ -14,6 +15,13 @@ router.use(authenticate);
 
 router.get("/", validate({ query: listDonationsQuerySchema }), controller.listDonations);
 router.get("/campaigns/:campaignId/attempts", controller.listPaymentAttempts);
+
+router.post(
+  "/",
+  authorize("SUPER_ADMIN", "ORG_ADMIN"),
+  validate({ body: createManualDonationSchema }),
+  controller.recordManualDonation
+);
 
 // Managers + admins can send push payment requests
 router.post(

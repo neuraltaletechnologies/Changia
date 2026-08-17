@@ -11,6 +11,7 @@ router.post("/register", authLimiter, validate({ body: registerSchema }), contro
 router.post("/login", authLimiter, validate({ body: loginSchema }), controller.login);
 
 router.get("/me", authenticate, controller.me);
+router.post("/logout", authenticate, controller.logout);
 router.post(
   "/change-password",
   authenticate,

@@ -43,4 +43,14 @@ const deleteUser = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true, message: "User member removed" });
 });
 
-module.exports = { listUsers, createUser, updateUser, deleteUser };
+const resendInvite = asyncHandler(async (req, res) => {
+  const result = await userService.resendInvite(req.user, req.params.id);
+  await db.execute(
+    `INSERT INTO audit_logs (organization_id, actor_id, actor_email, action, resource, resource_id, severity)
+     VALUES (?, ?, ?, 'user.invite_resent', 'user', ?, 'INFO')`,
+    [result.user.organizationId, req.user.id, req.user.email, String(result.user.id)]
+  );
+  res.status(200).json({ success: true, data: result });
+});
+
+module.exports = { listUsers, createUser, updateUser, deleteUser, resendInvite };

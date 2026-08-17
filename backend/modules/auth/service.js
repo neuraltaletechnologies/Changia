@@ -192,9 +192,18 @@ async function changePassword(userId, data) {
   );
 }
 
+async function recordLogout(user) {
+  await db.execute(
+    `INSERT INTO audit_logs (organization_id, actor_id, actor_email, action, resource, resource_id, severity)
+     VALUES (?, ?, ?, 'user.logout', 'user', ?, 'INFO')`,
+    [user.organizationId, user.id, user.email, String(user.id)]
+  );
+}
+
 module.exports = {
   registerOrganization,
   login,
   getCurrentUser,
   changePassword,
+  recordLogout,
 };

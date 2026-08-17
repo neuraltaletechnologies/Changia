@@ -251,10 +251,24 @@ async function deleteUser(caller, userId) {
   return serializeUser(target);
 }
 
+async function resendInvite(caller, userId) {
+  const existing = await db.query(`${USER_SELECT} WHERE u.id = ?`, [userId]);
+  const target = existing[0];
+  if (!target) throw ApiError.notFound("User member not found");
+  assertCanManageUser(caller, target);
+  const temporaryPassword = generateTemporaryPassword();
+  await db.execute("UPDATE users SET password_hash = ?, status = 'PENDING' WHERE id = ?", [
+    await bcrypt.hash(temporaryPassword, 12), userId,
+  ]);
+  const updated = await db.query(`${USER_SELECT} WHERE u.id = ?`, [userId]);
+  return { user: serializeUser(updated[0]), temporaryPassword };
+}
+
 module.exports = {
   listUsers,
   createUser,
   updateUser,
   deleteUser,
+  resendInvite,
   generateTemporaryPassword,
 };

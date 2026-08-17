@@ -11,6 +11,16 @@ function slugify(name) {
     .slice(0, 60) || "campaign";
 }
 
+/**
+ * Returns [sqlFragment, ...params] for org-scoping queries.
+ * SUPER_ADMIN (org_id = NULL) sees all orgs; others are scoped.
+ */
+function orgScope(organizationId, user) {
+  if (user && user.role === "SUPER_ADMIN") return ["", []];
+  if (!organizationId && organizationId !== 0) return ["", []];
+  return [" AND organization_id = ?", [organizationId]];
+}
+
 async function uniqueSlug(name) {
   const base = slugify(name);
   const existing = await db.query("SELECT id FROM campaigns WHERE slug = ?", [base]);
@@ -119,8 +129,13 @@ async function assertCampaignAccess(organizationId, user, campaignId) {
 }
 
 async function listCampaigns(organizationId, filters, user) {
-  const where = ["organization_id = ?"];
-  const values = [organizationId];
+  const where = [];
+  const values = [];
+
+  if (user && user.role !== "SUPER_ADMIN") {
+    where.push("organization_id = ?");
+    values.push(organizationId);
+  }
 
   if (user && user.role === "CAMPAIGN_MANAGER") {
     where.push("id IN (SELECT campaign_id FROM campaign_assignments WHERE user_id = ?)");
@@ -137,7 +152,7 @@ async function listCampaigns(organizationId, filters, user) {
     values.push(like, like);
   }
 
-  const whereSql = where.join(" AND ");
+  const whereSql = where.length > 0 ? `WHERE ${where.join(" AND ")}` : "";
   const page = filters.page || 1;
   const limit = filters.limit || 25;
   const offset = (page - 1) * limit;
@@ -147,13 +162,13 @@ async function listCampaigns(organizationId, filters, user) {
             service_fee_percent, service_fee_amount, public_target, minimum_amount, start_date, end_date,
             status, is_public, contact_phone, raised_amount, donor_count, is_featured, featured_at,
             approved_by, approved_at, created_at, updated_at
-     FROM campaigns WHERE ${whereSql}
-     ORDER BY created_at DESC LIMIT ? OFFSET ?`,
-    [...values, limit, offset]
+     FROM campaigns ${whereSql}
+     ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`,
+    values
   );
 
   const [[countRow]] = await db
-    .query(`SELECT COUNT(*) AS total FROM campaigns WHERE ${whereSql}`, values)
+    .query(`SELECT COUNT(*) AS total FROM campaigns ${whereSql}`, values)
     .then((rows) => [rows]);
 
   // Assignments for the returned campaigns
@@ -192,13 +207,14 @@ async function listCampaigns(organizationId, filters, user) {
 
 async function getCampaign(organizationId, campaignId, user) {
   await assertCampaignAccess(organizationId, user, campaignId);
+  const [orgSql, ...orgParams] = orgScope(organizationId, user);
   const campaigns = await db.query(
     `SELECT id, name, slug, story, name_sw, story_sw, category_sw, image_url, category, goal_amount,
             service_fee_percent, service_fee_amount, public_target, minimum_amount, start_date, end_date,
             status, is_public, contact_phone, raised_amount, donor_count, is_featured, featured_at,
             approved_by, approved_at, created_at, updated_at
-     FROM campaigns WHERE id = ? AND organization_id = ?`,
-    [campaignId, organizationId]
+     FROM campaigns WHERE id = ?${orgSql}`,
+    [campaignId, ...orgParams]
   );
   const campaign = campaigns[0];
   if (!campaign) throw ApiError.notFound("Campaign not found");
@@ -317,9 +333,10 @@ async function createCampaign(organizationId, data, actor) {
 }
 
 async function updateCampaign(organizationId, campaignId, data, actor) {
+  const [orgSql, ...orgParams] = orgScope(organizationId, actor);
   const existing = await db.query(
-    "SELECT * FROM campaigns WHERE id = ? AND organization_id = ?",
-    [campaignId, organizationId]
+    `SELECT * FROM campaigns WHERE id = ?${orgSql}`,
+    [campaignId, ...orgParams]
   );
   const campaign = existing[0];
   if (!campaign) throw ApiError.notFound("Campaign not found");
@@ -384,9 +401,10 @@ async function updateCampaign(organizationId, campaignId, data, actor) {
  * rest of the campaign once it goes live.
  */
 async function setTranslations(organizationId, campaignId, data, actor) {
+  const [orgSql, ...orgParams] = orgScope(organizationId, actor);
   const existing = await db.query(
-    "SELECT id FROM campaigns WHERE id = ? AND organization_id = ?",
-    [campaignId, organizationId]
+    `SELECT id FROM campaigns WHERE id = ?${orgSql}`,
+    [campaignId, ...orgParams]
   );
   if (existing.length === 0) throw ApiError.notFound("Campaign not found");
 
@@ -405,9 +423,10 @@ async function setTranslations(organizationId, campaignId, data, actor) {
 }
 
 async function submitCampaign(organizationId, campaignId, actor) {
+  const [orgSql, ...orgParams] = orgScope(organizationId, actor);
   const existing = await db.query(
-    "SELECT status FROM campaigns WHERE id = ? AND organization_id = ?",
-    [campaignId, organizationId]
+    `SELECT status FROM campaigns WHERE id = ?${orgSql}`,
+    [campaignId, ...orgParams]
   );
   if (existing.length === 0) throw ApiError.notFound("Campaign not found");
   if (existing[0].status !== "DRAFT") {
@@ -424,9 +443,10 @@ async function submitCampaign(organizationId, campaignId, actor) {
 }
 
 async function approveCampaign(organizationId, campaignId, actor) {
+  const [orgSql, ...orgParams] = orgScope(organizationId, actor);
   const existing = await db.query(
-    "SELECT status FROM campaigns WHERE id = ? AND organization_id = ?",
-    [campaignId, organizationId]
+    `SELECT status FROM campaigns WHERE id = ?${orgSql}`,
+    [campaignId, ...orgParams]
   );
   if (existing.length === 0) throw ApiError.notFound("Campaign not found");
   if (existing[0].status !== "PENDING") {
@@ -447,9 +467,10 @@ async function approveCampaign(organizationId, campaignId, actor) {
 }
 
 async function changeCampaignStatus(organizationId, campaignId, status, actor) {
+  const [orgSql, ...orgParams] = orgScope(organizationId, actor);
   const existing = await db.query(
-    "SELECT status FROM campaigns WHERE id = ? AND organization_id = ?",
-    [campaignId, organizationId]
+    `SELECT status FROM campaigns WHERE id = ?${orgSql}`,
+    [campaignId, ...orgParams]
   );
   if (existing.length === 0) throw ApiError.notFound("Campaign not found");
 
@@ -474,10 +495,11 @@ async function changeCampaignStatus(organizationId, campaignId, status, actor) {
 
 async function loadPoolIds(organizationId, user, poolIds) {
   if (!poolIds || poolIds.length === 0) return [];
+  const [orgSql, ...orgParams] = orgScope(organizationId, user);
   const pools = await db.query(
     `SELECT id, name, is_system, created_by_id
-     FROM donor_pools WHERE id IN (?) AND organization_id = ?`,
-    [poolIds, organizationId]
+     FROM donor_pools WHERE id IN (?)${orgSql}`,
+    [poolIds, ...orgParams]
   );
   const isAdmin = user.role === "SUPER_ADMIN" || user.role === "ORG_ADMIN";
   const invalid = poolIds.filter(
@@ -497,13 +519,14 @@ async function loadPoolIds(organizationId, user, poolIds) {
 /** Loads all unique members donor rows for the given pools. */
 async function loadPoolMembers(organizationId, poolIds) {
   if (poolIds.length === 0) return { members: [], duplicateGroups: [] };
+  const [orgSql, ...orgParams] = orgScope(organizationId);
   const members = await db.query(
     `SELECT dpm.pool_id, dpm.expected_amount, d.id AS donor_id,
             d.first_name, d.last_name, d.email, d.phone, d.gender, d.position, d.is_anomalous
      FROM donor_pool_members dpm
      JOIN donors d ON d.id = dpm.donor_id
-     WHERE dpm.pool_id IN (?) AND d.organization_id = ?`,
-    [poolIds, organizationId]
+     WHERE dpm.pool_id IN (?)${orgSql}`,
+    [poolIds, ...orgParams]
   );
 
   const byDonor = new Map();
@@ -545,9 +568,10 @@ const computeStatus = (expected, paid) => {
  * user how to handle donors that appear in more than one selected pool.
  */
 async function previewPoolImport(organizationId, user, campaignId, poolIds) {
+  const [orgSql, ...orgParams] = orgScope(organizationId, user);
   const campaigns = await db.query(
-    "SELECT id, name FROM campaigns WHERE id = ? AND organization_id = ?",
-    [campaignId, organizationId]
+    `SELECT id, name FROM campaigns WHERE id = ?${orgSql}`,
+    [campaignId, ...orgParams]
   );
   if (campaigns.length === 0) throw ApiError.notFound("Campaign not found");
 
@@ -601,9 +625,10 @@ async function previewPoolImport(organizationId, user, campaignId, poolIds) {
  * user (`duplicateChoices`), defaulting to the first selected pool otherwise.
  */
 async function importPools(organizationId, user, campaignId, data) {
+  const [orgSql, ...orgParams] = orgScope(organizationId, user);
   const campaigns = await db.query(
-    "SELECT id FROM campaigns WHERE id = ? AND organization_id = ?",
-    [campaignId, organizationId]
+    `SELECT id FROM campaigns WHERE id = ?${orgSql}`,
+    [campaignId, ...orgParams]
   );
   if (campaigns.length === 0) throw ApiError.notFound("Campaign not found");
 
@@ -676,9 +701,10 @@ async function importPools(organizationId, user, campaignId, data) {
 
 /** Donor board for a campaign with expected pledges, paid totals and status. */
 async function getCampaignDonorTargets(organizationId, campaignId) {
+  const [orgSql, ...orgParams] = orgScope(organizationId);
   const campaigns = await db.query(
-    "SELECT id, name FROM campaigns WHERE id = ? AND organization_id = ?",
-    [campaignId, organizationId]
+    `SELECT id, name FROM campaigns WHERE id = ?${orgSql}`,
+    [campaignId, ...orgParams]
   );
   if (campaigns.length === 0) throw ApiError.notFound("Campaign not found");
 
@@ -764,11 +790,12 @@ async function getCampaignDonorTargets(organizationId, campaignId) {
 }
 
 async function setDonorTargetExpected(organizationId, campaignId, donorId, expectedAmount) {
+  const [orgSql, ...orgParams] = orgScope(organizationId);
   const existing = await db.query(
     `SELECT cdt.id FROM campaign_donor_targets cdt
      JOIN campaigns c ON c.id = cdt.campaign_id
-     WHERE cdt.campaign_id = ? AND cdt.donor_id = ? AND c.organization_id = ?`,
-    [campaignId, donorId, organizationId]
+     WHERE cdt.campaign_id = ? AND cdt.donor_id = ?${orgSql}`,
+    [campaignId, donorId, ...orgParams]
   );
   if (existing.length === 0) throw ApiError.notFound("Donor is not tracked on this campaign");
 
@@ -781,19 +808,21 @@ async function setDonorTargetExpected(organizationId, campaignId, donorId, expec
 }
 
 async function removeDonorTarget(organizationId, campaignId, donorId) {
+  const [orgSql, ...orgParams] = orgScope(organizationId);
   await db.execute(
     `DELETE cdt FROM campaign_donor_targets cdt
      JOIN campaigns c ON c.id = cdt.campaign_id
-     WHERE cdt.campaign_id = ? AND cdt.donor_id = ? AND c.organization_id = ?`,
-    [campaignId, donorId, organizationId]
+     WHERE cdt.campaign_id = ? AND cdt.donor_id = ?${orgSql}`,
+    [campaignId, donorId, ...orgParams]
   );
   return getCampaignDonorTargets(organizationId, campaignId);
 }
 
 async function setCampaignManagers(organizationId, campaignId, userIds) {
+  const [orgSql, ...orgParams] = orgScope(organizationId);
   const existing = await db.query(
-    "SELECT id FROM campaigns WHERE id = ? AND organization_id = ?",
-    [campaignId, organizationId]
+    `SELECT id FROM campaigns WHERE id = ?${orgSql}`,
+    [campaignId, ...orgParams]
   );
   if (existing.length === 0) throw ApiError.notFound("Campaign not found");
 
@@ -801,8 +830,8 @@ async function setCampaignManagers(organizationId, campaignId, userIds) {
   let validIds = [];
   if (userIds.length > 0) {
     const valid = await db.query(
-      `SELECT id FROM users WHERE id IN (?) AND organization_id = ?`,
-      [userIds, organizationId]
+      `SELECT id FROM users WHERE id IN (?)${orgSql}`,
+      [userIds, ...orgParams]
     );
     validIds = valid.map((u) => u.id);
     if (validIds.length !== userIds.length) {
@@ -833,9 +862,10 @@ const MAX_FEATURED_CAMPAIGNS = 3;
  * allowed platform-wide (the homepage is one shared page across all orgs).
  */
 async function setFeatured(organizationId, campaignId, featured, actor) {
+  const [orgSql, ...orgParams] = orgScope(organizationId, actor);
   const existing = await db.query(
-    "SELECT id, status, is_public, is_featured FROM campaigns WHERE id = ? AND organization_id = ?",
-    [campaignId, organizationId]
+    `SELECT id, status, is_public, is_featured FROM campaigns WHERE id = ?${orgSql}`,
+    [campaignId, ...orgParams]
   );
   const campaign = existing[0];
   if (!campaign) throw ApiError.notFound("Campaign not found");
@@ -941,9 +971,10 @@ async function getPublicCampaign(idOrSlug, locale) {
 }
 
 async function removeCampaign(organizationId, campaignId, actor) {
+  const [orgSql, ...orgParams] = orgScope(organizationId, actor);
   const existing = await db.query(
-    "SELECT id, status FROM campaigns WHERE id = ? AND organization_id = ?",
-    [campaignId, organizationId]
+    `SELECT id, status FROM campaigns WHERE id = ?${orgSql}`,
+    [campaignId, ...orgParams]
   );
   if (existing.length === 0) throw ApiError.notFound("Campaign not found");
 

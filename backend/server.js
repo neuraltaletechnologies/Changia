@@ -1,6 +1,7 @@
 const { createApp } = require("./app");
 const { env } = require("./config");
 const db = require("./db");
+const { runMigrations } = require("./migrate");
 const { startReminderScheduler } = require("./jobs/reminderScheduler");
 
 const app = createApp();
@@ -9,6 +10,8 @@ async function bootstrap() {
   try {
     await db.testConnection();
     console.log("✅ Connected to MySQL database");
+
+    await runMigrations();
 
     const server = app.listen(env.PORT, () => {
       console.log(`🚀 Changia API running on http://localhost:${env.PORT}`);

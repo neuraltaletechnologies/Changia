@@ -292,6 +292,23 @@ async function createDonor(organizationId, data, user) {
   return getDonor(organizationId, donorId);
 }
 
+async function importDonors(organizationId, user, data) {
+  const created = [];
+  const skipped = [];
+  for (const donor of data.donors) {
+    try {
+      created.push(await createDonor(organizationId, donor, user));
+    } catch (error) {
+      if (data.skipDuplicates && error.code === "DONOR_EXISTS") {
+        skipped.push({ phone: normalizePhone(donor.phone), reason: "DONOR_EXISTS" });
+      } else {
+        throw error;
+      }
+    }
+  }
+  return { created, skipped, createdCount: created.length, skippedCount: skipped.length };
+}
+
 async function updateDonor(organizationId, donorId, data) {
   const existing = await db.query(
     "SELECT * FROM donors WHERE id = ? AND organization_id = ?",
@@ -402,6 +419,7 @@ module.exports = {
   listDonors,
   getDonor,
   createDonor,
+  importDonors,
   updateDonor,
   deleteDonor,
   addPaymentMethod,

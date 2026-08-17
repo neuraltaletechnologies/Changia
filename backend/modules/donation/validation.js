@@ -2,8 +2,19 @@ const { z } = require("zod");
 
 const listDonationsQuerySchema = z.object({
   campaignId: z.union([z.string(), z.number()]).optional(),
+  donorId: z.union([z.string(), z.number()]).optional(),
+  status: z.enum(["PENDING", "CONFIRMED", "FAILED", "REFUNDED"]).optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(25),
+});
+
+const createManualDonationSchema = z.object({
+  campaignId: z.union([z.string(), z.number()]),
+  donorId: z.union([z.string(), z.number()]).optional(),
+  donorName: z.string().max(150).optional(),
+  amount: z.number().int().positive().max(1_000_000_000_000),
+  channel: z.enum(["CASH", "BANK_TRANSFER", "MOMO", "TIGO_PESA", "AIRTEL_MONEY", "HALOPESA", "OTHER"]).optional(),
+  isAnonymous: z.boolean().optional(),
 });
 
 const createPaymentAttemptSchema = z.object({
@@ -29,6 +40,7 @@ const simulateCallbackSchema = z.object({
 
 module.exports = {
   listDonationsQuerySchema,
+  createManualDonationSchema,
   createPaymentAttemptSchema,
   simulateCallbackSchema,
 };

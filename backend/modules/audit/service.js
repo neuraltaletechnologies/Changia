@@ -1,24 +1,32 @@
 const db = require("../../db");
 
 async function listAuditLogs(organizationId, filters) {
-  const where = ["organization_id = ?"];
-  const values = [organizationId];
+  const where = [];
+  const values = [];
+  if (organizationId) {
+    where.push("al.organization_id = ?");
+    values.push(organizationId);
+  }
 
   if (filters.action) {
-    where.push("action LIKE ?");
+    where.push("al.action LIKE ?");
     values.push(`%${filters.action}%`);
   }
   if (filters.severity) {
-    where.push("severity = ?");
+    where.push("al.severity = ?");
     values.push(filters.severity);
   }
+  if (filters.resource) {
+    where.push("al.resource = ?");
+    values.push(filters.resource);
+  }
   if (filters.search) {
-    where.push("(actor_email LIKE ? OR resource LIKE ?)");
+    where.push("(al.actor_email LIKE ? OR al.resource LIKE ?)");
     const like = `%${filters.search}%`;
     values.push(like, like);
   }
 
-  const whereSql = where.join(" AND ");
+  const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
   const page = filters.page || 1;
   const limit = filters.limit || 25;
   const offset = (page - 1) * limit;
@@ -27,13 +35,16 @@ async function listAuditLogs(organizationId, filters) {
     `SELECT al.*, u.first_name, u.last_name
      FROM audit_logs al
      LEFT JOIN users u ON u.id = al.actor_id
-     WHERE ${whereSql}
+     ${whereSql}
      ORDER BY al.created_at DESC LIMIT ? OFFSET ?`,
     [...values, limit, offset]
   );
 
   const [[countRow]] = await db
-    .query(`SELECT COUNT(*) AS total FROM audit_logs WHERE ${whereSql}`, values)
+    .query(
+      `SELECT COUNT(*) AS total FROM audit_logs ${whereSql ? whereSql.replace(/al\./g, "") : ""}`,
+      values
+    )
     .then((rows) => [rows]);
 
   return {
@@ -59,6 +70,11 @@ async function listAuditLogs(organizationId, filters) {
   };
 }
 
+async function exportAuditLogs(organizationId, filters) {
+  const result = await listAuditLogs(organizationId, { ...filters, page: 1, limit: 100 });
+  return result.logs;
+}
+
 async function recentActivity(organizationId, limit = 10) {
   const logs = await db.query(
     `SELECT al.*, u.first_name, u.last_name
@@ -82,4 +98,4 @@ async function recentActivity(organizationId, limit = 10) {
   }));
 }
 
-module.exports = { listAuditLogs, recentActivity };
+module.exports = { listAuditLogs, recentActivity, exportAuditLogs };

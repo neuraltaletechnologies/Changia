@@ -8,6 +8,7 @@ const router = Router();
 
 router.use(authenticate);
 
+router.get("/export", validate({ query: listAuditLogsQuerySchema }), controller.exportAuditLogs);
 router.get("/", validate({ query: listAuditLogsQuerySchema }), controller.listAuditLogs);
 router.get("/recent", controller.recentActivity);
 

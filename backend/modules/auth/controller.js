@@ -21,4 +21,11 @@ const changePassword = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true, message: "Password updated successfully" });
 });
 
-module.exports = { register, login, me, changePassword };
+const logout = asyncHandler(async (req, res) => {
+  await authService.recordLogout(req.user);
+  // Access tokens are bearer tokens stored by the client; clearing that token
+  // completes logout. The API does not issue refresh tokens to revoke.
+  res.status(200).json({ success: true, message: "Logged out successfully" });
+});
+
+module.exports = { register, login, me, changePassword, logout };

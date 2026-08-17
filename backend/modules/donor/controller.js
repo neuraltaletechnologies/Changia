@@ -32,6 +32,16 @@ const createDonor = asyncHandler(async (req, res) => {
   res.status(201).json({ success: true, data: donor });
 });
 
+const importDonors = asyncHandler(async (req, res) => {
+  const result = await donorService.importDonors(req.user.organizationId, req.user, req.body);
+  await db.execute(
+    `INSERT INTO audit_logs (organization_id, actor_id, actor_email, action, resource, resource_id, details, severity)
+     VALUES (?, ?, ?, 'donors.imported', 'donor', NULL, ?, 'INFO')`,
+    [req.user.organizationId, req.user.id, req.user.email, JSON.stringify(result)]
+  );
+  res.status(201).json({ success: true, data: result });
+});
+
 const updateDonor = asyncHandler(async (req, res) => {
   const donor = await donorService.updateDonor(
     req.user.organizationId,
@@ -82,6 +92,7 @@ module.exports = {
   listDonors,
   getDonor,
   createDonor,
+  importDonors,
   updateDonor,
   deleteDonor,
   addPaymentMethod,

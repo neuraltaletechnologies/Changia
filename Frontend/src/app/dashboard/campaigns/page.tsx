@@ -77,9 +77,9 @@ export default function CampaignsPage() {
           return (
             <span
               key={status}
-              className={`text-xs font-medium border rounded-full px-3 py-1 capitalize ${styles}`}
+              className={`text-xs font-medium border rounded-full px-3 py-1 ${styles}`}
             >
-              {count} {status.toLowerCase()}
+              {count} {status.charAt(0) + status.slice(1).toLowerCase()}
             </span>
           );
         })}
@@ -125,7 +125,7 @@ function toCardCampaign(c: CampaignRecord): Campaign {
     goal: c.publicTarget > 0 ? c.publicTarget : c.goalAmount,
     raised: c.raisedAmount,
     donors: c.donorCount,
-    status: (c.status.toLowerCase() as CampaignStatus) || "draft",
+    status: c.status as CampaignStatus,
     startDate: c.startDate ? new Date(c.startDate).toLocaleDateString() : "—",
     endDate: c.endDate ? new Date(c.endDate).toLocaleDateString() : "—",
     category: c.category ?? undefined,

@@ -21,6 +21,7 @@ router.put(
   validate({ body: updateUserSchema }),
   controller.updateUser
 );
+router.post("/:id/resend-invite", authorize("SUPER_ADMIN", "ORG_ADMIN"), controller.resendInvite);
 router.delete("/:id", authorize("SUPER_ADMIN", "ORG_ADMIN"), controller.deleteUser);
 
 module.exports = router;

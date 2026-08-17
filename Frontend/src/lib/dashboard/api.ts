@@ -536,6 +536,10 @@ export const campaignApi = {
         `/campaigns/${id}/donor-targets/${donorId}`
       )
       .then(unwrap),
+  remove: (id: string | number) =>
+    api
+      .delete<{ success: boolean; data: { deleted: boolean } }>(`/campaigns/${id}`)
+      .then(unwrap),
 };
 
 // ─── User members (used for the admin "per manager" filter) ──────────────────

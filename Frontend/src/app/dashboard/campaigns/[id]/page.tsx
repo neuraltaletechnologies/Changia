@@ -21,10 +21,13 @@ import {
   Loader2,
   Megaphone,
   MoreHorizontal,
+  Pause,
   Phone,
+  Play,
   Target,
   Trash2,
   UserRound,
+  XCircle,
 } from "lucide-react";
 import { Button } from "@/components/dashboard/ui/button";
 import { Progress } from "@/components/dashboard/ui/progress";
@@ -57,6 +60,7 @@ import {
   campaignApi,
   poolApi,
   templateApi,
+  userApi,
   donorFullName,
   formatTZSFull,
   formatTZSCompact,
@@ -68,6 +72,7 @@ import {
   type DonorPool,
   type MessageTemplate,
   type ReminderChannel,
+  type UserRecord,
 } from "@/lib/dashboard/api";
 import { useRole } from "@/hooks/use-role";
 import { cn } from "@/lib/dashboard/utils";
@@ -271,15 +276,25 @@ export default function CampaignDetailPage() {
               >
                 {campaign.status}
               </span>
-              {isAdmin && campaign.status === "DRAFT" && (
-                <Button
-                  size="sm"
-                  disabled={acting}
-                  onClick={() => act(() => campaignApi.submit(id))}
-                >
-                  {acting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5 mr-1" />}
-                  Submit for approval
-                </Button>
+              {campaign.status === "DRAFT" && (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    nativeButton={false}
+                    render={<Link href={`/dashboard/campaigns/${id}/edit`} />}
+                  >
+                    Edit
+                  </Button>
+                  <Button
+                    size="sm"
+                    disabled={acting}
+                    onClick={() => act(() => campaignApi.submit(id))}
+                  >
+                    {acting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5 mr-1" />}
+                    Submit for approval
+                  </Button>
+                </>
               )}
               {isAdmin && campaign.status === "PENDING" && (
                 <Button
@@ -289,6 +304,84 @@ export default function CampaignDetailPage() {
                 >
                   {acting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5 mr-1" />}
                   Approve
+                </Button>
+              )}
+              {isAdmin && campaign.status === "ACTIVE" && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger className="inline-flex items-center justify-center gap-1.5 rounded-md h-8 px-3 text-sm font-medium border border-border bg-card hover:bg-accent hover:text-accent-foreground transition-colors">
+                    <MoreHorizontal className="w-3.5 h-3.5" />
+                    Actions
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-44">
+                    <DropdownMenuItem
+                      onSelect={() => act(() => campaignApi.changeStatus(id, "PAUSED"))}
+                    >
+                      <Pause className="w-3.5 h-3.5 mr-1.5" />
+                      Pause Campaign
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onSelect={() => act(() => campaignApi.changeStatus(id, "COMPLETED"))}
+                    >
+                      <Check className="w-3.5 h-3.5 mr-1.5" />
+                      Complete Campaign
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive"
+                      onSelect={() => act(() => campaignApi.changeStatus(id, "CANCELLED"))}
+                    >
+                      <XCircle className="w-3.5 h-3.5 mr-1.5" />
+                      Cancel Campaign
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+              {isAdmin && campaign.status === "PAUSED" && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger className="inline-flex items-center justify-center gap-1.5 rounded-md h-8 px-3 text-sm font-medium border border-border bg-card hover:bg-accent hover:text-accent-foreground transition-colors">
+                    <MoreHorizontal className="w-3.5 h-3.5" />
+                    Actions
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-44">
+                    <DropdownMenuItem
+                      onSelect={() => act(() => campaignApi.changeStatus(id, "ACTIVE"))}
+                    >
+                      <Play className="w-3.5 h-3.5 mr-1.5" />
+                      Resume Campaign
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onSelect={() => act(() => campaignApi.changeStatus(id, "COMPLETED"))}
+                    >
+                      <Check className="w-3.5 h-3.5 mr-1.5" />
+                      Complete Campaign
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive"
+                      onSelect={() => act(() => campaignApi.changeStatus(id, "CANCELLED"))}
+                    >
+                      <XCircle className="w-3.5 h-3.5 mr-1.5" />
+                      Cancel Campaign
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+              {isAdmin && (campaign.status === "DRAFT" || campaign.status === "PENDING") && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={acting}
+                  className="text-destructive hover:text-destructive"
+                  onClick={() => {
+                    if (window.confirm("Are you sure you want to delete this campaign? This action cannot be undone.")) {
+                      act(() => campaignApi.remove(id)).then(() => {
+                        window.location.href = "/dashboard/campaigns";
+                      });
+                    }
+                  }}
+                >
+                  <Trash2 className="w-3.5 h-3.5 mr-1" />
+                  Delete
                 </Button>
               )}
             </div>
@@ -394,6 +487,8 @@ export default function CampaignDetailPage() {
         <TabsContent value="user" className="pt-2">
           <UserTab
             assignments={campaign.assignments ?? []}
+            campaignId={id}
+            isAdmin={isAdmin}
             onRefresh={refresh}
           />
         </TabsContent>
@@ -793,47 +888,180 @@ function DonationsList({
 
 function UserTab({
   assignments,
+  campaignId,
+  isAdmin,
   onRefresh,
 }: {
   assignments: CampaignRecord["assignments"];
+  campaignId: string;
+  isAdmin: boolean;
   onRefresh: () => void;
 }) {
-  if (!assignments || assignments.length === 0) {
-    return (
-      <div className="bg-card border border-border rounded-xl py-16 text-center">
-        <UserRound className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
-        <p className="text-sm text-muted-foreground">No user members assigned.</p>
-        <Button size="sm" className="mt-4" variant="outline" onClick={onRefresh}>
-          Refresh
-        </Button>
-      </div>
-    );
-  }
+  const [assignOpen, setAssignOpen] = useState(false);
+
   return (
     <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
-      <div className="px-5 py-4 border-b border-border">
+      <div className="px-5 py-4 border-b border-border flex items-center justify-between">
         <h2 className="text-sm font-semibold text-foreground">User members</h2>
+        {isAdmin && (
+          <Button size="xs" variant="outline" onClick={() => setAssignOpen(true)}>
+            Assign Managers
+          </Button>
+        )}
       </div>
-      <div className="divide-y divide-border">
-        {assignments.map((a) => (
-          <div key={a.user.id} className="flex items-center gap-3 px-5 py-3.5">
-            <Avatar className="w-8 h-8 shrink-0">
-              <AvatarFallback className="text-[11px] bg-primary/10 text-primary font-semibold">
-                {`${a.user.firstName[0]}${(a.user.lastName || "?")[0]}`}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-foreground truncate">
-                {donorFullName(a.user)}
-              </p>
-              <p className="text-[11px] text-muted-foreground truncate">
-                {a.user.email}
-              </p>
+      {!assignments || assignments.length === 0 ? (
+        <div className="py-16 text-center">
+          <UserRound className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
+          <p className="text-sm text-muted-foreground">No user members assigned.</p>
+        </div>
+      ) : (
+        <div className="divide-y divide-border">
+          {assignments.map((a) => (
+            <div key={a.user.id} className="flex items-center gap-3 px-5 py-3.5">
+              <Avatar className="w-8 h-8 shrink-0">
+                <AvatarFallback className="text-[11px] bg-primary/10 text-primary font-semibold">
+                  {`${a.user.firstName[0]}${(a.user.lastName || "?")[0]}`}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-foreground truncate">
+                  {donorFullName(a.user)}
+                </p>
+                <p className="text-[11px] text-muted-foreground truncate">
+                  {a.user.email}
+                </p>
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
+      {assignOpen && (
+        <AssignManagersDialog
+          campaignId={campaignId}
+          currentAssignments={assignments ?? []}
+          onClose={() => setAssignOpen(false)}
+          onSaved={() => {
+            setAssignOpen(false);
+            onRefresh();
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+function AssignManagersDialog({
+  campaignId,
+  currentAssignments,
+  onClose,
+  onSaved,
+}: {
+  campaignId: string;
+  currentAssignments: CampaignRecord["assignments"];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [users, setUsers] = useState<UserRecord[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(
+    new Set(currentAssignments.map((a) => a.user.id))
+  );
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    userApi
+      .list({ limit: 100 })
+      .then((r) => setUsers(r.users))
+      .catch(() => setUsers([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const toggle = (id: number) =>
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const save = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      await campaignApi.setManagers(campaignId, [...selectedIds]);
+      onSaved();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to update managers.");
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-base font-semibold">Assign Campaign Managers</DialogTitle>
+          <DialogDescription className="text-xs">
+            Select users from your organization to assign to this campaign.
+          </DialogDescription>
+        </DialogHeader>
+
+        {loading ? (
+          <div className="h-40 bg-muted/40 rounded-lg animate-pulse" />
+        ) : (
+          <div className="max-h-64 overflow-y-auto rounded-lg border border-border divide-y divide-border">
+            {users.length === 0 ? (
+              <p className="text-xs text-muted-foreground py-6 text-center">No users found.</p>
+            ) : (
+              users.map((u) => (
+                <button
+                  key={u.id}
+                  type="button"
+                  onClick={() => toggle(u.id)}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-muted/40 transition-colors text-left"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(u.id)}
+                    readOnly
+                    className="accent-primary"
+                  />
+                  <Avatar className="w-7 h-7 shrink-0">
+                    <AvatarFallback className="text-[10px] bg-primary/10 text-primary font-semibold">
+                      {u.firstName[0]}{(u.lastName ?? "?")[0]}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-medium text-foreground truncate">
+                      {donorFullName(u)}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground truncate">{u.email}</p>
+                  </div>
+                  <span className="text-[10px] text-muted-foreground shrink-0">{u.role}</span>
+                </button>
+              ))
+            )}
+          </div>
+        )}
+
+        {error && (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+            {error}
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button size="sm" variant="outline" onClick={onClose} disabled={saving}>
+            Cancel
+          </Button>
+          <Button size="sm" onClick={save} disabled={saving}>
+            {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : null}
+            Save Assignments
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

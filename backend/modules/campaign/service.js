@@ -13,10 +13,10 @@ function slugify(name) {
 
 /**
  * Returns [sqlFragment, ...params] for org-scoping queries.
- * SUPER_ADMIN (org_id = NULL) sees all orgs; others are scoped.
+ * SUPER_ADMIN and ORG_ADMIN see all orgs; CAMPAIGN_MANAGER is scoped.
  */
 function orgScope(organizationId, user) {
-  if (user && user.role === "SUPER_ADMIN") return ["", []];
+  if (user && (user.role === "SUPER_ADMIN" || user.role === "ORG_ADMIN")) return ["", []];
   if (!organizationId && organizationId !== 0) return ["", []];
   return [" AND organization_id = ?", [organizationId]];
 }
@@ -132,7 +132,7 @@ async function listCampaigns(organizationId, filters, user) {
   const where = [];
   const values = [];
 
-  if (user && user.role !== "SUPER_ADMIN") {
+  if (user && user.role !== "SUPER_ADMIN" && user.role !== "ORG_ADMIN") {
     where.push("organization_id = ?");
     values.push(organizationId);
   }

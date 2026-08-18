@@ -135,6 +135,16 @@ export interface CampaignRecord {
     submittedAt: string;
     reviewedAt: string | null;
   } | null;
+  /** Gallery photos (cover image stays on imageUrl) set at creation or later. */
+  images?: { id: number; url: string }[];
+  /** Most recent closure request, if any — full history via campaignApi.listClosureRequests. */
+  latestClosureRequest?: {
+    id: number;
+    status: "PENDING" | "APPROVED" | "REJECTED";
+    reason: string;
+    decisionNotes: string | null;
+    requestedAt: string;
+  } | null;
   donations?: {
     id: number;
     amount: number;
@@ -161,6 +171,16 @@ export interface CompletionReport {
   reviewedAt: string | null;
   reviewNotes: string | null;
   images: { id: number; url: string }[];
+}
+
+export interface ClosureRequest {
+  id: number;
+  campaignId: number;
+  reason: string;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  decisionNotes: string | null;
+  requestedAt: string;
+  decidedAt: string | null;
 }
 
 export interface CampaignTarget {
@@ -597,6 +617,71 @@ export const campaignApi = {
     api
       .delete<{ success: boolean; data: { deleted: boolean } }>(`/campaigns/${id}`)
       .then(unwrap),
+  /** Multipart: cover (1 file) and/or gallery (up to 8 files). */
+  uploadImages: (id: string | number, formData: FormData) =>
+    api.postForm<{ success: boolean; data: CampaignRecord }>(`/campaigns/${id}/images`, formData).then(unwrap),
+  removeImage: (id: string | number, imageId: string | number) =>
+    api
+      .delete<{ success: boolean; data: CampaignRecord }>(`/campaigns/${id}/images/${imageId}`)
+      .then(unwrap),
+  requestClosure: (id: string | number, body: { reason: string }) =>
+    api
+      .post<{ success: boolean; data: ClosureRequest[] }>(`/campaigns/${id}/closure-requests`, body)
+      .then(unwrap),
+  listClosureRequests: (id: string | number) =>
+    api
+      .get<{ success: boolean; data: ClosureRequest[] }>(`/campaigns/${id}/closure-requests`)
+      .then(unwrap),
+  decideClosureRequest: (
+    id: string | number,
+    requestId: string | number,
+    body: { approved: boolean; notes?: string }
+  ) =>
+    api
+      .post<{ success: boolean; data: ClosureRequest[] }>(
+        `/campaigns/${id}/closure-requests/${requestId}/decide`,
+        body
+      )
+      .then(unwrap),
+};
+
+// ─── Payouts (org-level admin requests + campaign-scoped manager requests) ───
+
+export interface PayoutRecord {
+  id: number;
+  campaignId: number | null;
+  campaignName: string | null;
+  amount: number;
+  reason: string | null;
+  status: "REQUESTED" | "APPROVED" | "PAID" | "REJECTED";
+  notes: string | null;
+  requestedBy: number | null;
+  approvedBy: number | null;
+  approvedAt: string | null;
+  paidAt: string | null;
+  gatewayRef: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const payoutApi = {
+  list: (params?: { status?: string; campaignId?: string | number; page?: number; limit?: number }) =>
+    api
+      .get<{ success: boolean; data: { payouts: PayoutRecord[]; pagination: unknown } }>(
+        `/payouts${qs(params || {})}`
+      )
+      .then(unwrap),
+  get: (id: string | number) =>
+    api.get<{ success: boolean; data: PayoutRecord }>(`/payouts/${id}`).then(unwrap),
+  /** campaignId + reason are required when the caller is a CAMPAIGN_MANAGER. */
+  create: (body: { amount: number; campaignId?: string | number; reason?: string; notes?: string }) =>
+    api.post<{ success: boolean; data: PayoutRecord }>(`/payouts`, body).then(unwrap),
+  approve: (id: string | number, notes?: string) =>
+    api.post<{ success: boolean; data: PayoutRecord }>(`/payouts/${id}/approve`, { notes }).then(unwrap),
+  reject: (id: string | number, notes?: string) =>
+    api.post<{ success: boolean; data: PayoutRecord }>(`/payouts/${id}/reject`, { notes }).then(unwrap),
+  markPaid: (id: string | number, body: { gatewayRef?: string; notes?: string }) =>
+    api.post<{ success: boolean; data: PayoutRecord }>(`/payouts/${id}/paid`, body).then(unwrap),
 };
 
 // ─── User members (used for the admin "per manager" filter) ──────────────────

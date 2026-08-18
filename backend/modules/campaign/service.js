@@ -12,7 +12,9 @@ function uploadWebPathToDiskPath(webPath) {
 }
 
 function toAbsoluteImageUrl(webPath) {
-  return `${env.API_PUBLIC_URL}${webPath}`;
+  if (!webPath) return null;
+  if (webPath.startsWith("/uploads/")) return `${env.API_PUBLIC_URL}${webPath}`;
+  return webPath;
 }
 
 function slugify(name) {
@@ -96,7 +98,7 @@ function mapCampaign(c) {
     nameSw: c.name_sw,
     storySw: c.story_sw,
     categorySw: c.category_sw,
-    imageUrl: c.image_url,
+    imageUrl: toAbsoluteImageUrl(c.image_url),
     category: c.category,
     goalAmount: num(c.goal_amount),
     serviceFeePercent: num(c.service_fee_percent),
@@ -133,7 +135,7 @@ function mapPublicCampaign(c, locale = "en") {
     name: (sw && c.name_sw) || c.name,
     slug: c.slug,
     story: (sw && c.story_sw) || c.story,
-    imageUrl: c.image_url,
+    imageUrl: toAbsoluteImageUrl(c.image_url),
     category: (sw && c.category_sw) || c.category,
     goalAmount: num(c.goal_amount),
     serviceFeePercent: num(c.service_fee_percent),
@@ -227,13 +229,20 @@ async function listCampaigns(organizationId, filters, user) {
   }
 
   const completedIds = campaigns.filter((c) => c.status === "COMPLETED").map((c) => c.id);
-  const reportByCampaign = await loadCompletionReportSummaries(completedIds);
+  const allIds = campaigns.map((c) => c.id);
+  const [reportByCampaign, imagesByCampaign, closureByCampaign] = await Promise.all([
+    loadCompletionReportSummaries(completedIds),
+    loadCampaignImages(allIds),
+    loadLatestClosureRequests(allIds),
+  ]);
 
   return {
     campaigns: campaigns.map((c) => ({
       ...mapCampaign(c),
       assignments: byCampaign[c.id] || [],
       completionReport: reportByCampaign[c.id] || null,
+      images: imagesByCampaign[c.id] || [],
+      latestClosureRequest: closureByCampaign[c.id] || null,
     })),
     pagination: {
       page,
@@ -277,8 +286,11 @@ async function getCampaign(organizationId, campaignId, user) {
 
   const raised = num(campaign.raised_amount);
   const target = num(campaign.public_target);
-  const reportByCampaign =
-    campaign.status === "COMPLETED" ? await loadCompletionReportSummaries([campaign.id]) : {};
+  const [reportByCampaign, imagesByCampaign, closureByCampaign] = await Promise.all([
+    campaign.status === "COMPLETED" ? loadCompletionReportSummaries([campaign.id]) : {},
+    loadCampaignImages([campaign.id]),
+    loadLatestClosureRequests([campaign.id]),
+  ]);
 
   return {
     ...mapCampaign(campaign),
@@ -286,6 +298,8 @@ async function getCampaign(organizationId, campaignId, user) {
       user: { id: a.id, firstName: a.first_name, lastName: a.last_name, email: a.email },
     })),
     completionReport: reportByCampaign[campaign.id] || null,
+    images: imagesByCampaign[campaign.id] || [],
+    latestClosureRequest: closureByCampaign[campaign.id] || null,
     donations: donations.map((d) => ({
       id: d.id,
       amount: num(d.amount),
@@ -340,16 +354,18 @@ async function createCampaign(organizationId, data, actor) {
   );
   const slug = await uniqueSlug(data.name);
 
-  // A campaign created by SUPER_ADMIN, ORG_ADMIN or CAMPAIGN_MANAGER doesn't
-  // need a separate approval step — these are trusted, authenticated org
-  // staff, so the campaign activates immediately (public, live) instead of
-  // sitting in DRAFT/PENDING waiting on a human to approve it.
+  // ORG_ADMIN is already an approver, so their own campaign activates
+  // immediately (self-approved). A CAMPAIGN_MANAGER's campaign must wait for
+  // an ORG_ADMIN/SUPER_ADMIN to approve it — it goes straight to PENDING
+  // (skipping DRAFT, since creating already IS "submitting for review") and
+  // stays unlisted (is_public = 0) until POST /campaigns/:id/approve.
+  const selfApproved = actor.role !== "CAMPAIGN_MANAGER";
   const result = await db.execute(
     `INSERT INTO campaigns
        (organization_id, name, slug, story, name_sw, story_sw, category_sw, image_url, category,
         goal_amount, service_fee_percent, service_fee_amount, public_target, minimum_amount,
         start_date, end_date, contact_phone, status, is_public, approved_by, approved_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', 1, ?, NOW())`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       resolvedOrgId,
       data.name,
@@ -368,7 +384,10 @@ async function createCampaign(organizationId, data, actor) {
       data.startDate ? new Date(data.startDate) : null,
       data.endDate ? new Date(data.endDate) : null,
       data.contactPhone || null,
-      actor.id,
+      selfApproved ? "ACTIVE" : "PENDING",
+      selfApproved ? 1 : 0,
+      selfApproved ? actor.id : null,
+      selfApproved ? new Date() : null,
     ]
   );
   const campaignId = result.insertId;
@@ -480,7 +499,7 @@ async function updateCampaign(organizationId, campaignId, data, actor) {
     [organizationId, actor.id, actor.email, String(campaignId)]
   );
 
-  return getCampaign(organizationId, campaignId);
+  return getCampaign(organizationId, campaignId, actor);
 }
 
 /**
@@ -508,7 +527,7 @@ async function setTranslations(organizationId, campaignId, data, actor) {
     [organizationId, actor.id, actor.email, String(campaignId)]
   );
 
-  return getCampaign(organizationId, campaignId);
+  return getCampaign(organizationId, campaignId, actor);
 }
 
 async function submitCampaign(organizationId, campaignId, actor) {
@@ -528,7 +547,7 @@ async function submitCampaign(organizationId, campaignId, actor) {
      VALUES (?, ?, ?, 'campaign.submitted', 'campaign', ?, 'INFO')`,
     [organizationId, actor.id, actor.email, String(campaignId)]
   );
-  return getCampaign(organizationId, campaignId);
+  return getCampaign(organizationId, campaignId, actor);
 }
 
 async function approveCampaign(organizationId, campaignId, actor) {
@@ -552,7 +571,7 @@ async function approveCampaign(organizationId, campaignId, actor) {
      VALUES (?, ?, ?, 'campaign.approved', 'campaign', ?, 'INFO')`,
     [organizationId, actor.id, actor.email, String(campaignId)]
   );
-  return getCampaign(organizationId, campaignId);
+  return getCampaign(organizationId, campaignId, actor);
 }
 
 async function changeCampaignStatus(organizationId, campaignId, status, actor) {
@@ -583,7 +602,7 @@ async function changeCampaignStatus(organizationId, campaignId, status, actor) {
       status === "CANCELLED" ? "WARNING" : "INFO",
     ]
   );
-  return getCampaign(organizationId, campaignId);
+  return getCampaign(organizationId, campaignId, actor);
 }
 
 async function loadPoolIds(organizationId, user, poolIds) {
@@ -789,12 +808,12 @@ async function importPools(organizationId, user, campaignId, data) {
     [organizationId, user.id, user.email, String(campaignId)]
   );
 
-  return getCampaignDonorTargets(organizationId, campaignId);
+  return getCampaignDonorTargets(organizationId, campaignId, user);
 }
 
 /** Donor board for a campaign with expected pledges, paid totals and status. */
-async function getCampaignDonorTargets(organizationId, campaignId) {
-  const [orgSql, ...orgParams] = orgScope(organizationId);
+async function getCampaignDonorTargets(organizationId, campaignId, user) {
+  const [orgSql, ...orgParams] = orgScope(organizationId, user);
   const campaigns = await db.query(
     `SELECT id, name FROM campaigns WHERE id = ?${orgSql}`,
     [campaignId, ...orgParams]
@@ -882,8 +901,8 @@ async function getCampaignDonorTargets(organizationId, campaignId) {
   };
 }
 
-async function setDonorTargetExpected(organizationId, campaignId, donorId, expectedAmount) {
-  const [orgSql, ...orgParams] = orgScope(organizationId);
+async function setDonorTargetExpected(organizationId, campaignId, donorId, expectedAmount, user) {
+  const [orgSql, ...orgParams] = orgScope(organizationId, user);
   const existing = await db.query(
     `SELECT cdt.id FROM campaign_donor_targets cdt
      JOIN campaigns c ON c.id = cdt.campaign_id
@@ -897,22 +916,22 @@ async function setDonorTargetExpected(organizationId, campaignId, donorId, expec
     [expectedAmount, campaignId, donorId]
   );
 
-  return getCampaignDonorTargets(organizationId, campaignId);
+  return getCampaignDonorTargets(organizationId, campaignId, user);
 }
 
-async function removeDonorTarget(organizationId, campaignId, donorId) {
-  const [orgSql, ...orgParams] = orgScope(organizationId);
+async function removeDonorTarget(organizationId, campaignId, donorId, user) {
+  const [orgSql, ...orgParams] = orgScope(organizationId, user);
   await db.execute(
     `DELETE cdt FROM campaign_donor_targets cdt
      JOIN campaigns c ON c.id = cdt.campaign_id
      WHERE cdt.campaign_id = ? AND cdt.donor_id = ?${orgSql}`,
     [campaignId, donorId, ...orgParams]
   );
-  return getCampaignDonorTargets(organizationId, campaignId);
+  return getCampaignDonorTargets(organizationId, campaignId, user);
 }
 
-async function setCampaignManagers(organizationId, campaignId, userIds) {
-  const [orgSql, ...orgParams] = orgScope(organizationId);
+async function setCampaignManagers(organizationId, campaignId, userIds, user) {
+  const [orgSql, ...orgParams] = orgScope(organizationId, user);
   const existing = await db.query(
     `SELECT id FROM campaigns WHERE id = ?${orgSql}`,
     [campaignId, ...orgParams]
@@ -944,7 +963,7 @@ async function setCampaignManagers(organizationId, campaignId, userIds) {
     }
   });
 
-  return getCampaign(organizationId, campaignId);
+  return getCampaign(organizationId, campaignId, user);
 }
 
 const MAX_FEATURED_CAMPAIGNS = 3;
@@ -1000,7 +1019,7 @@ async function setFeatured(organizationId, campaignId, featured, actor) {
     ]
   );
 
-  return getCampaign(organizationId, campaignId);
+  return getCampaign(organizationId, campaignId, actor);
 }
 
 // ─── Completion reports (mandatory proof of fund usage) ──────────────────────
@@ -1212,6 +1231,250 @@ async function reviewCompletionReport(organizationId, campaignId, actor, data) {
   return getCompletionReport(organizationId, campaignId, actor);
 }
 
+// ─── Campaign images (cover + gallery) ────────────────────────────────────────
+
+/** { [campaignId]: [{id,url}] } gallery-only (is_cover=0) images for the
+ *  given campaigns — embedded on list/detail responses. */
+async function loadCampaignImages(campaignIds) {
+  if (!campaignIds || campaignIds.length === 0) return {};
+  const rows = await db.query(
+    `SELECT id, campaign_id, image_path FROM campaign_images
+     WHERE campaign_id IN (?) AND is_cover = 0
+     ORDER BY sort_order ASC, id ASC`,
+    [campaignIds]
+  );
+  const byId = {};
+  for (const r of rows) {
+    if (!byId[r.campaign_id]) byId[r.campaign_id] = [];
+    byId[r.campaign_id].push({ id: r.id, url: toAbsoluteImageUrl(r.image_path) });
+  }
+  return byId;
+}
+
+/** Sets/replaces the cover image (mirrored onto campaigns.image_url so every
+ *  existing consumer of that single column keeps working) and appends
+ *  gallery photos. `files` is multer's `{ cover: File[], gallery: File[] }`
+ *  shape (req.files from .fields()). */
+async function uploadCampaignImages(organizationId, campaignId, actor, files) {
+  await assertCampaignAccess(organizationId, actor, campaignId);
+  const [orgSql, ...orgParams] = orgScope(organizationId, actor);
+  const existing = await db.query(`SELECT id, image_url FROM campaigns WHERE id = ?${orgSql}`, [
+    campaignId,
+    ...orgParams,
+  ]);
+  const campaign = existing[0];
+  if (!campaign) throw ApiError.notFound("Campaign not found");
+
+  const coverFile = (files && files.cover && files.cover[0]) || null;
+  const galleryFiles = (files && files.gallery) || [];
+  if (!coverFile && galleryFiles.length === 0) {
+    throw ApiError.badRequest("No images were uploaded", "NO_IMAGES");
+  }
+
+  if (coverFile) {
+    const coverPath = `/uploads/campaigns/${campaignId}/${coverFile.filename}`;
+    const oldImageUrl = campaign.image_url;
+    await db.execute("UPDATE campaigns SET image_url = ? WHERE id = ?", [coverPath, campaignId]);
+    // Best-effort: remove the previous cover file from disk once the new one
+    // is confirmed set, but only if it was one of ours (an /uploads/ path —
+    // never delete an externally-hosted imageUrl some campaigns still have).
+    if (oldImageUrl && oldImageUrl.startsWith("/uploads/campaigns/")) {
+      deleteUploadedFiles([{ path: uploadWebPathToDiskPath(oldImageUrl) }]);
+    }
+  }
+
+  if (galleryFiles.length > 0) {
+    const [{ maxOrder }] = await db.query(
+      "SELECT COALESCE(MAX(sort_order), -1) AS maxOrder FROM campaign_images WHERE campaign_id = ? AND is_cover = 0",
+      [campaignId]
+    );
+    let order = Number(maxOrder) + 1;
+    for (const file of galleryFiles) {
+      await db.execute(
+        `INSERT INTO campaign_images (campaign_id, image_path, is_cover, sort_order)
+         VALUES (?, ?, 0, ?)`,
+        [campaignId, `/uploads/campaigns/${campaignId}/${file.filename}`, order]
+      );
+      order++;
+    }
+  }
+
+  await db.execute(
+    `INSERT INTO audit_logs (organization_id, actor_id, actor_email, action, resource, resource_id, severity)
+     VALUES (?, ?, ?, 'campaign.images.uploaded', 'campaign', ?, 'INFO')`,
+    [organizationId, actor.id, actor.email, String(campaignId)]
+  );
+
+  return getCampaign(organizationId, campaignId, actor);
+}
+
+/** Removes one gallery photo (never the cover — replace it via
+ *  uploadCampaignImages instead). */
+async function removeCampaignImage(organizationId, campaignId, imageId, actor) {
+  await assertCampaignAccess(organizationId, actor, campaignId);
+  const [orgSql, ...orgParams] = orgScope(organizationId, actor);
+  const campaigns = await db.query(`SELECT id FROM campaigns WHERE id = ?${orgSql}`, [
+    campaignId,
+    ...orgParams,
+  ]);
+  if (campaigns.length === 0) throw ApiError.notFound("Campaign not found");
+
+  const rows = await db.query(
+    "SELECT image_path FROM campaign_images WHERE id = ? AND campaign_id = ? AND is_cover = 0",
+    [imageId, campaignId]
+  );
+  if (rows.length === 0) throw ApiError.notFound("Image not found");
+
+  await db.execute("DELETE FROM campaign_images WHERE id = ?", [imageId]);
+  deleteUploadedFiles([{ path: uploadWebPathToDiskPath(rows[0].image_path) }]);
+
+  return getCampaign(organizationId, campaignId, actor);
+}
+
+// ─── Closure requests (manager asks permission to complete a campaign) ────────
+
+/** { [campaignId]: { id, status, reason, decisionNotes, requestedAt } } —
+ *  the most recent closure request per campaign, embedded on list/detail. */
+async function loadLatestClosureRequests(campaignIds) {
+  if (!campaignIds || campaignIds.length === 0) return {};
+  const rows = await db.query(
+    `SELECT r1.* FROM campaign_closure_requests r1
+     INNER JOIN (
+       SELECT campaign_id, MAX(id) AS max_id FROM campaign_closure_requests
+       WHERE campaign_id IN (?) GROUP BY campaign_id
+     ) latest ON latest.campaign_id = r1.campaign_id AND latest.max_id = r1.id`,
+    [campaignIds]
+  );
+  const byId = {};
+  for (const r of rows) {
+    byId[r.campaign_id] = {
+      id: r.id,
+      status: r.status,
+      reason: r.reason,
+      decisionNotes: r.decision_notes,
+      requestedAt: r.created_at,
+    };
+  }
+  return byId;
+}
+
+function mapClosureRequest(r) {
+  return {
+    id: r.id,
+    campaignId: r.campaign_id,
+    reason: r.reason,
+    status: r.status,
+    decisionNotes: r.decision_notes,
+    requestedAt: r.created_at,
+    decidedAt: r.decided_at,
+  };
+}
+
+/** CAMPAIGN_MANAGER asks permission to close (complete) their campaign. */
+async function requestClosure(organizationId, campaignId, actor, data) {
+  await assertCampaignAccess(organizationId, actor, campaignId);
+  const [orgSql, ...orgParams] = orgScope(organizationId, actor);
+  const campaigns = await db.query(`SELECT id, status FROM campaigns WHERE id = ?${orgSql}`, [
+    campaignId,
+    ...orgParams,
+  ]);
+  const campaign = campaigns[0];
+  if (!campaign) throw ApiError.notFound("Campaign not found");
+  if (campaign.status !== "ACTIVE" && campaign.status !== "PAUSED") {
+    throw ApiError.badRequest(
+      "Only an active or paused campaign can request closure",
+      "CAMPAIGN_NOT_CLOSABLE"
+    );
+  }
+
+  const pending = await db.query(
+    "SELECT id FROM campaign_closure_requests WHERE campaign_id = ? AND status = 'PENDING'",
+    [campaignId]
+  );
+  if (pending.length > 0) {
+    throw ApiError.conflict(
+      "A closure request for this campaign is already pending review",
+      "CLOSURE_REQUEST_PENDING"
+    );
+  }
+
+  await db.execute(
+    `INSERT INTO campaign_closure_requests (campaign_id, organization_id, requested_by_id, reason)
+     VALUES (?, ?, ?, ?)`,
+    [campaignId, organizationId, actor.id, data.reason]
+  );
+  await db.execute(
+    `INSERT INTO audit_logs (organization_id, actor_id, actor_email, action, resource, resource_id, severity)
+     VALUES (?, ?, ?, 'campaign.closure_request.submitted', 'campaign', ?, 'INFO')`,
+    [organizationId, actor.id, actor.email, String(campaignId)]
+  );
+
+  return listClosureRequests(organizationId, campaignId, actor);
+}
+
+async function listClosureRequests(organizationId, campaignId, user) {
+  await assertCampaignAccess(organizationId, user, campaignId);
+  const [orgSql, ...orgParams] = orgScope(organizationId, user);
+  const campaigns = await db.query(`SELECT id FROM campaigns WHERE id = ?${orgSql}`, [
+    campaignId,
+    ...orgParams,
+  ]);
+  if (campaigns.length === 0) throw ApiError.notFound("Campaign not found");
+
+  const rows = await db.query(
+    "SELECT * FROM campaign_closure_requests WHERE campaign_id = ? ORDER BY created_at DESC, id DESC",
+    [campaignId]
+  );
+  return rows.map(mapClosureRequest);
+}
+
+/** ORG_ADMIN/SUPER_ADMIN approves (→ campaign COMPLETED) or rejects (with a
+ *  decision note shown back to the manager, who may request again). */
+async function decideClosureRequest(organizationId, campaignId, requestId, actor, data) {
+  const [orgSql, ...orgParams] = orgScope(organizationId, actor);
+  const campaigns = await db.query(`SELECT id FROM campaigns WHERE id = ?${orgSql}`, [
+    campaignId,
+    ...orgParams,
+  ]);
+  if (campaigns.length === 0) throw ApiError.notFound("Campaign not found");
+
+  const requests = await db.query(
+    "SELECT id, status FROM campaign_closure_requests WHERE id = ? AND campaign_id = ?",
+    [requestId, campaignId]
+  );
+  const request = requests[0];
+  if (!request) throw ApiError.notFound("Closure request not found");
+  if (request.status !== "PENDING") {
+    throw ApiError.badRequest("Only a pending request can be decided", "CLOSURE_REQUEST_NOT_PENDING");
+  }
+
+  const status = data.approved ? "APPROVED" : "REJECTED";
+  await db.execute(
+    `UPDATE campaign_closure_requests
+     SET status = ?, decided_by_id = ?, decided_at = NOW(), decision_notes = ?
+     WHERE id = ?`,
+    [status, actor.id, data.notes || null, requestId]
+  );
+
+  if (data.approved) {
+    await changeCampaignStatus(organizationId, campaignId, "COMPLETED", actor);
+  }
+
+  await db.execute(
+    `INSERT INTO audit_logs (organization_id, actor_id, actor_email, action, resource, resource_id, severity)
+     VALUES (?, ?, ?, ?, 'campaign', ?, 'INFO')`,
+    [
+      organizationId,
+      actor.id,
+      actor.email,
+      data.approved ? "campaign.closure_request.approved" : "campaign.closure_request.rejected",
+      String(campaignId),
+    ]
+  );
+
+  return listClosureRequests(organizationId, campaignId, actor);
+}
+
 // ─── Public (unauthenticated) campaign browsing ──────────────────────────────
 
 const PUBLIC_SELECT = `
@@ -1312,7 +1575,7 @@ function mapCompletedCampaignCard(c, locale, images) {
     slug: c.slug,
     title: (sw && c.name_sw) || c.name,
     excerpt: summary.length > 220 ? `${summary.slice(0, 220)}…` : summary,
-    image: images[0] || c.image_url || null,
+    image: images[0] || toAbsoluteImageUrl(c.image_url) || null,
     organizationName: c.organization_name,
     goalAmount: num(c.goal_amount),
     raisedAmount: num(c.raised_amount),
@@ -1436,6 +1699,11 @@ module.exports = {
   getCompletionReport,
   submitCompletionReport,
   reviewCompletionReport,
+  uploadCampaignImages,
+  removeCampaignImage,
+  requestClosure,
+  listClosureRequests,
+  decideClosureRequest,
   listPublicCampaigns,
   getPublicCampaign,
   listPublicCompletedCampaigns,

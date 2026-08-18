@@ -10,8 +10,8 @@ function audit(req, action, id) {
   );
 }
 
-const list = asyncHandler(async (req, res) => res.json({ success: true, data: await service.listPayouts(req.user.organizationId, req.query) }));
-const get = asyncHandler(async (req, res) => res.json({ success: true, data: await service.getPayout(req.user.organizationId, req.params.id) }));
+const list = asyncHandler(async (req, res) => res.json({ success: true, data: await service.listPayouts(req.user.organizationId, req.query, req.user) }));
+const get = asyncHandler(async (req, res) => res.json({ success: true, data: await service.getPayout(req.user.organizationId, req.params.id, req.user) }));
 const create = asyncHandler(async (req, res) => {
   const payout = await service.createPayout(req.user.organizationId, req.user, req.body);
   await audit(req, "payout.requested", payout.id);

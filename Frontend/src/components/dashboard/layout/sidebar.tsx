@@ -17,6 +17,7 @@ import {
   ExternalLink,
   Layers,
   BellRing,
+  HandCoins,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/dashboard/ui/tooltip";
 import { useRole } from "@/hooks/use-role";
@@ -61,6 +62,11 @@ const navItems = [
         label: "Audit Log",
         href: "/dashboard/audit-log",
         icon: ClipboardList,
+      },
+      {
+        label: "Payouts",
+        href: "/dashboard/payouts",
+        icon: HandCoins,
       },
       {
         label: "Settings",

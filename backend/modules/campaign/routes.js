@@ -1,7 +1,7 @@
 const { Router } = require("express");
 const { authenticate, authorize } = require("../../middlewares/auth");
 const { validate } = require("../../middlewares/validate");
-const { uploadCompletionImages } = require("../../middlewares/upload");
+const { uploadCompletionImages, uploadCampaignImages } = require("../../middlewares/upload");
 const controller = require("./controller");
 const {
   createCampaignSchema,
@@ -14,6 +14,8 @@ const {
   featuredSchema,
   translationsSchema,
   completionReportReviewSchema,
+  closureRequestSchema,
+  closureDecisionSchema,
 } = require("./validation");
 
 const router = Router();
@@ -123,6 +125,37 @@ router.post(
   authorize("SUPER_ADMIN", "ORG_ADMIN"),
   validate({ body: completionReportReviewSchema }),
   controller.reviewCompletionReport
+);
+
+// Cover + gallery images — settable at creation time (a second call right
+// after POST /) or any time after. SUPER_ADMIN excluded, same as creation.
+router.post(
+  "/:id/images",
+  authorize("ORG_ADMIN", "CAMPAIGN_MANAGER"),
+  uploadCampaignImages,
+  controller.uploadCampaignImages
+);
+router.delete(
+  "/:id/images/:imageId",
+  authorize("ORG_ADMIN", "CAMPAIGN_MANAGER"),
+  controller.removeCampaignImage
+);
+
+// Closure requests: the assigned CAMPAIGN_MANAGER asks permission to
+// complete the campaign; an admin approves (→ COMPLETED) or rejects (with a
+// reason shown back to the manager, who may request again).
+router.get("/:id/closure-requests", controller.listClosureRequests);
+router.post(
+  "/:id/closure-requests",
+  authorize("CAMPAIGN_MANAGER"),
+  validate({ body: closureRequestSchema }),
+  controller.requestClosure
+);
+router.post(
+  "/:id/closure-requests/:requestId/decide",
+  authorize("SUPER_ADMIN", "ORG_ADMIN"),
+  validate({ body: closureDecisionSchema }),
+  controller.decideClosureRequest
 );
 
 router.delete(

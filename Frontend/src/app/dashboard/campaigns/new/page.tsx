@@ -6,8 +6,9 @@ import Link from "next/link";
 import {
   ArrowLeft,
   CheckCircle2,
-  Megaphone,
   Clock,
+  ImageIcon,
+  Megaphone,
   Layers,
   Users,
   Loader2,
@@ -23,7 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/dashboard/ui/select";
-import { campaignApi, poolApi, type DonorPool } from "@/lib/dashboard/api";
+import { campaignApi, poolApi, type DonorPool, type CampaignRecord } from "@/lib/dashboard/api";
 import { formatTZS } from "@/lib/dashboard/types";
 import { cn } from "@/lib/dashboard/utils";
 
@@ -42,6 +43,7 @@ interface FormState {
   category: string;
   description: string;
   goal: string;
+  minimumAmount: string;
   startDate: string;
   endDate: string;
   contactPhone: string;
@@ -52,6 +54,7 @@ const initialForm: FormState = {
   category: CATEGORIES[0],
   description: "",
   goal: "",
+  minimumAmount: "",
   startDate: "",
   endDate: "",
   contactPhone: "",
@@ -63,9 +66,13 @@ export default function NewCampaignPage() {
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
   const [pools, setPools] = useState<DonorPool[]>([]);
   const [poolIds, setPoolIds] = useState<number[]>([]);
+  const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [galleryFiles, setGalleryFiles] = useState<File[]>([]);
+  const [coverError, setCoverError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [createdId, setCreatedId] = useState<number | null>(null);
+  const [created, setCreated] = useState<CampaignRecord | null>(null);
+  const [imageWarning, setImageWarning] = useState<string | null>(null);
 
   const loadPools = useCallback(async () => {
     try {
@@ -96,6 +103,11 @@ export default function NewCampaignPage() {
     const goal = Number(form.goal);
     if (!form.goal.trim() || Number.isNaN(goal) || goal <= 0)
       next.goal = "Enter a goal amount greater than 0.";
+    if (form.minimumAmount.trim()) {
+      const min = Number(form.minimumAmount);
+      if (Number.isNaN(min) || min <= 0) next.minimumAmount = "Minimum amount must be greater than 0.";
+      else if (goal > 0 && min > goal) next.minimumAmount = "Minimum amount can't exceed the goal.";
+    }
     if (!form.startDate) next.startDate = "Select a start date.";
     if (!form.endDate) next.endDate = "Select an end date.";
     if (form.startDate && form.endDate && form.endDate < form.startDate)
@@ -107,7 +119,16 @@ export default function NewCampaignPage() {
     )
       next.contactPhone = "Enter a valid Tanzanian phone number.";
     setErrors(next);
-    return Object.keys(next).length === 0;
+
+    let coverOk = true;
+    if (!coverFile) {
+      setCoverError("A cover photo is required.");
+      coverOk = false;
+    } else {
+      setCoverError(null);
+    }
+
+    return Object.keys(next).length === 0 && coverOk;
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -117,42 +138,94 @@ export default function NewCampaignPage() {
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const created = await campaignApi.create({
+      const campaign = await campaignApi.create({
         name: form.name.trim(),
         category: form.category,
         story: form.description.trim() || undefined,
         goalAmount: Number(form.goal),
+        minimumAmount: form.minimumAmount.trim() ? Number(form.minimumAmount) : undefined,
         startDate: form.startDate ? new Date(form.startDate).toISOString() : undefined,
         endDate: form.endDate ? new Date(form.endDate).toISOString() : undefined,
         contactPhone: form.contactPhone.trim() || undefined,
         poolIds: poolIds.length > 0 ? poolIds : undefined,
       });
-      setCreatedId(created.id);
+
+      // Images are a separate call — the campaign already exists once this
+      // point is reached, so a failure here shouldn't block the flow, just
+      // surface as a non-fatal warning on the success screen.
+      try {
+        const formData = new FormData();
+        if (coverFile) formData.append("cover", coverFile);
+        galleryFiles.forEach((f) => formData.append("gallery", f));
+        const withImages = await campaignApi.uploadImages(campaign.id, formData);
+        setCreated(withImages);
+      } catch (imgErr) {
+        setCreated(campaign);
+        setImageWarning(
+          imgErr instanceof Error
+            ? `Campaign created, but the photos failed to upload: ${imgErr.message}. Add them from the campaign page.`
+            : "Campaign created, but the photos failed to upload. Add them from the campaign page."
+        );
+      }
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : "Failed to create the campaign.");
       setSubmitting(false);
     }
   };
 
-  if (createdId) {
+  if (created) {
+    const isPending = created.status === "PENDING";
     return (
       <div className="space-y-6 max-w-[720px]">
         <div className="bg-card border border-border rounded-xl p-8 text-center shadow-sm">
-          <div className="mx-auto w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center">
-            <CheckCircle2 className="w-6 h-6 text-emerald-600" />
+          <div
+            className={cn(
+              "mx-auto w-12 h-12 rounded-full flex items-center justify-center",
+              isPending ? "bg-orange-50" : "bg-emerald-50"
+            )}
+          >
+            {isPending ? (
+              <Clock className="w-6 h-6 text-orange-600" />
+            ) : (
+              <CheckCircle2 className="w-6 h-6 text-emerald-600" />
+            )}
           </div>
           <h1 className="text-xl font-semibold text-foreground tracking-tight mt-4">
-            Campaign created
+            {isPending ? "Submitted for approval" : "Campaign is live"}
           </h1>
           <p className="text-sm text-muted-foreground mt-2 max-w-md mx-auto">
-            Your campaign has been created and is now{" "}
-            <span className="font-medium text-foreground">waiting for admin approval</span>.
-            You will be able to share it with donors once it is approved.
+            {isPending ? (
+              <>
+                Your campaign has been created and{" "}
+                <span className="font-medium text-foreground">
+                  is waiting for an admin to review and approve it
+                </span>
+                . You&apos;ll be able to share it once it&apos;s approved.
+              </>
+            ) : (
+              <>
+                Your campaign has been created and is{" "}
+                <span className="font-medium text-foreground">already public and accepting contributions</span>.
+                You can share it with donors right away.
+              </>
+            )}
           </p>
-          <div className="inline-flex items-center gap-2 mt-4 rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-xs font-medium text-orange-700">
-            <Clock className="w-3.5 h-3.5" />
-            Pending admin approval
+          <div
+            className={cn(
+              "inline-flex items-center gap-2 mt-4 rounded-full border px-3 py-1 text-xs font-medium",
+              isPending
+                ? "border-orange-200 bg-orange-50 text-orange-700"
+                : "border-emerald-200 bg-emerald-50 text-emerald-700"
+            )}
+          >
+            {isPending ? <Clock className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+            {isPending ? "Pending Approval" : "Active"}
           </div>
+          {imageWarning && (
+            <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 text-left">
+              {imageWarning}
+            </div>
+          )}
           {poolIds.length > 0 && (
             <p className="text-xs text-muted-foreground mt-3">
               {poolIds.length} donor pool{poolIds.length > 1 ? "s" : ""} imported for tracking.
@@ -162,7 +235,7 @@ export default function NewCampaignPage() {
             <Button
               size="sm"
               nativeButton={false}
-              render={<Link href={`/dashboard/campaigns/${createdId}`} />}
+              render={<Link href={`/dashboard/campaigns/${created.id}`} />}
             >
               View Campaign
             </Button>
@@ -191,8 +264,9 @@ export default function NewCampaignPage() {
             Start a New Campaign
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Fill in the details below. Your campaign will go live once an admin
-            approves it.
+            Fill in the details below. A campaign you create as a manager needs
+            admin approval before it goes live; an admin&apos;s own campaign goes
+            live immediately.
           </p>
         </div>
         <Button
@@ -268,26 +342,46 @@ export default function NewCampaignPage() {
             />
           </div>
 
-          <div className="grid gap-1.5">
-            <Label htmlFor="campaign-goal">Goal amount (TZS)</Label>
-            <Input
-              id="campaign-goal"
-              type="number"
-              min={1}
-              placeholder="e.g. 5000000"
-              value={form.goal}
-              onChange={(e) => setField("goal", e.target.value)}
-              aria-invalid={!!errors.goal}
-              className="h-9"
-            />
-            {errors.goal && (
-              <p className="text-xs text-destructive">{errors.goal}</p>
-            )}
-            {form.goal && Number(form.goal) > 0 && (
-              <p className="text-xs text-muted-foreground">
-                {formatTZS(Number(form.goal))}
-              </p>
-            )}
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div className="grid gap-1.5">
+              <Label htmlFor="campaign-goal">Goal amount (TZS)</Label>
+              <Input
+                id="campaign-goal"
+                type="number"
+                min={1}
+                placeholder="e.g. 5000000"
+                value={form.goal}
+                onChange={(e) => setField("goal", e.target.value)}
+                aria-invalid={!!errors.goal}
+                className="h-9"
+              />
+              {errors.goal && (
+                <p className="text-xs text-destructive">{errors.goal}</p>
+              )}
+              {form.goal && Number(form.goal) > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {formatTZS(Number(form.goal))}
+                </p>
+              )}
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="campaign-min">Minimum contribution (TZS, optional)</Label>
+              <Input
+                id="campaign-min"
+                type="number"
+                min={1}
+                placeholder="e.g. 1000"
+                value={form.minimumAmount}
+                onChange={(e) => setField("minimumAmount", e.target.value)}
+                aria-invalid={!!errors.minimumAmount}
+                className="h-9"
+              />
+              {errors.minimumAmount ? (
+                <p className="text-xs text-destructive">{errors.minimumAmount}</p>
+              ) : (
+                <p className="text-xs text-muted-foreground">Defaults to TZS 1,000 if left blank.</p>
+              )}
+            </div>
           </div>
 
           <div className="grid sm:grid-cols-2 gap-4">
@@ -335,6 +429,56 @@ export default function NewCampaignPage() {
             {errors.contactPhone && (
               <p className="text-xs text-destructive">{errors.contactPhone}</p>
             )}
+          </div>
+
+          {/* Cover + gallery images */}
+          <div className="grid gap-3 pt-2 border-t border-border">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-primary/15 flex items-center justify-center">
+                <ImageIcon className="w-4 h-4 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-foreground">Photos</p>
+                <p className="text-xs text-muted-foreground">
+                  A cover photo is required; add supporting photos to help donors trust the campaign.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid gap-1.5">
+              <Label className="text-xs">Cover photo</Label>
+              <label className="flex items-center gap-2 rounded-lg border border-dashed border-border px-3 py-2.5 text-xs text-muted-foreground cursor-pointer hover:bg-muted/40">
+                <ImageIcon className="w-3.5 h-3.5" />
+                {coverFile ? coverFile.name : "Choose a cover photo"}
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={(e) => {
+                    setCoverFile(e.target.files?.[0] ?? null);
+                    setCoverError(null);
+                  }}
+                />
+              </label>
+              {coverError && <p className="text-xs text-destructive">{coverError}</p>}
+            </div>
+
+            <div className="grid gap-1.5">
+              <Label className="text-xs">Supporting photos (optional, up to 8)</Label>
+              <label className="flex items-center gap-2 rounded-lg border border-dashed border-border px-3 py-2.5 text-xs text-muted-foreground cursor-pointer hover:bg-muted/40">
+                <ImageIcon className="w-3.5 h-3.5" />
+                {galleryFiles.length > 0
+                  ? `${galleryFiles.length} photo${galleryFiles.length > 1 ? "s" : ""} selected`
+                  : "Choose supporting photos"}
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => setGalleryFiles(Array.from(e.target.files ?? []).slice(0, 8))}
+                />
+              </label>
+            </div>
           </div>
 
           {/* Import donor pools */}
@@ -402,7 +546,7 @@ export default function NewCampaignPage() {
                 Creating…
               </>
             ) : (
-              "Submit for Approval"
+              "Create Campaign"
             )}
           </Button>
         </div>

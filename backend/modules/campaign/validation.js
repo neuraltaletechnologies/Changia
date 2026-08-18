@@ -76,6 +76,29 @@ const translationsSchema = z.object({
   categorySw: z.string().max(100).optional().or(z.literal("")),
 });
 
+const completionReportSchema = z.object({
+  summary: z
+    .string()
+    .min(20, "Describe how the funds were used (at least 20 characters)")
+    .max(10000),
+  // multipart fields arrive as strings; z.coerce handles the conversion.
+  amountUtilized: z.coerce.number().int().min(0).optional(),
+});
+
+const completionReportReviewSchema = z.object({
+  approved: z.boolean(),
+  notes: z.string().max(2000).optional(),
+});
+
+const closureRequestSchema = z.object({
+  reason: z.string().min(10, "Explain why this campaign should close (at least 10 characters)").max(5000),
+});
+
+const closureDecisionSchema = z.object({
+  approved: z.boolean(),
+  notes: z.string().max(2000).optional(),
+});
+
 const publicListQuerySchema = z.object({
   featured: z.enum(["true", "false"]).optional(),
   limit: z.coerce.number().int().min(1).max(5).optional(),
@@ -96,6 +119,10 @@ module.exports = {
   targetExpectedSchema,
   featuredSchema,
   translationsSchema,
+  completionReportSchema,
+  completionReportReviewSchema,
+  closureRequestSchema,
+  closureDecisionSchema,
   publicListQuerySchema,
   publicDetailQuerySchema,
 };

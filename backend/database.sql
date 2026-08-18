@@ -248,6 +248,83 @@ CREATE TABLE campaign_donor_targets (
   UNIQUE KEY uq_cdt_campaign_donor (campaign_id, donor_id)
 ) ENGINE=InnoDB;
 
+-- One completion report per campaign: once a campaign is marked COMPLETED,
+-- the assigned manager MUST submit a narrative + at least one proof photo of
+-- how the funds were used. An ORG_ADMIN/SUPER_ADMIN reviews it — approval is
+-- what unblocks that manager from starting a new campaign, and what makes the
+-- report eligible to be shown publicly as an impact story.
+CREATE TABLE campaign_completion_reports (
+  id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  campaign_id     BIGINT UNSIGNED NOT NULL,
+  organization_id BIGINT UNSIGNED NOT NULL,
+  submitted_by_id BIGINT UNSIGNED NULL,
+  summary         TEXT NOT NULL,
+  amount_utilized DECIMAL(14,0) NULL,
+  status          ENUM('PENDING_REVIEW','APPROVED','REJECTED') NOT NULL DEFAULT 'PENDING_REVIEW',
+  submitted_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  reviewed_by_id  BIGINT UNSIGNED NULL,
+  reviewed_at     DATETIME NULL,
+  review_notes    TEXT NULL,
+  created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_ccr_campaign FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE,
+  CONSTRAINT fk_ccr_org FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+  CONSTRAINT fk_ccr_submitted_by FOREIGN KEY (submitted_by_id) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_ccr_reviewed_by FOREIGN KEY (reviewed_by_id) REFERENCES users(id) ON DELETE SET NULL,
+  UNIQUE KEY uq_ccr_campaign (campaign_id),
+  INDEX idx_ccr_org_status (organization_id, status)
+) ENGINE=InnoDB;
+
+-- Proof photos for a completion report (multer writes them to
+-- uploads/completion-reports/<campaignId>/... and this table records the
+-- resulting /uploads/... web paths, in display order).
+CREATE TABLE campaign_completion_report_images (
+  id          BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  report_id   BIGINT UNSIGNED NOT NULL,
+  image_path  VARCHAR(500) NOT NULL,
+  sort_order  INT NOT NULL DEFAULT 0,
+  created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_ccri_report FOREIGN KEY (report_id) REFERENCES campaign_completion_reports(id) ON DELETE CASCADE,
+  INDEX idx_ccri_report (report_id, sort_order)
+) ENGINE=InnoDB;
+
+-- Cover + gallery photos set at campaign-creation time (or added later).
+-- is_cover=1 is also mirrored onto campaigns.image_url so every existing
+-- consumer of that single column keeps working unchanged; the gallery
+-- (is_cover=0) is exposed separately as campaign.images[].
+CREATE TABLE campaign_images (
+  id          BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  campaign_id BIGINT UNSIGNED NOT NULL,
+  image_path  VARCHAR(500) NOT NULL,
+  is_cover    TINYINT(1) NOT NULL DEFAULT 0,
+  sort_order  INT NOT NULL DEFAULT 0,
+  created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_ci_campaign FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE,
+  INDEX idx_ci_campaign (campaign_id, sort_order)
+) ENGINE=InnoDB;
+
+-- A CAMPAIGN_MANAGER requests permission to close (complete) their campaign,
+-- with a reason; an ORG_ADMIN/SUPER_ADMIN approves (→ campaign COMPLETED) or
+-- rejects (with a decision note shown back to the manager, who may request
+-- again). Full history is kept — no uniqueness constraint — "only one open
+-- request at a time" is enforced in the service layer.
+CREATE TABLE campaign_closure_requests (
+  id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  campaign_id     BIGINT UNSIGNED NOT NULL,
+  organization_id BIGINT UNSIGNED NOT NULL,
+  requested_by_id BIGINT UNSIGNED NULL,
+  reason          TEXT NOT NULL,
+  status          ENUM('PENDING','APPROVED','REJECTED') NOT NULL DEFAULT 'PENDING',
+  decided_by_id   BIGINT UNSIGNED NULL,
+  decided_at      DATETIME NULL,
+  decision_notes  TEXT NULL,
+  created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_ccreq_campaign FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE,
+  CONSTRAINT fk_ccreq_org FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+  INDEX idx_ccreq_campaign_status (campaign_id, status)
+) ENGINE=InnoDB;
+
 -- ─── Message batches and deliveries ──────────────────────────────────────────
 
 CREATE TABLE message_batches (
@@ -422,10 +499,18 @@ CREATE TABLE receipts (
 
 -- ─── Fees, payouts and settlements ───────────────────────────────────────────
 
+-- A payout can be requested at the organization level (SUPER_ADMIN/ORG_ADMIN,
+-- campaign_id NULL) or by a CAMPAIGN_MANAGER for one of their assigned
+-- campaigns (campaign_id set, reason required). `reason` is the requester's
+-- own justification; `notes` stays the admin's decision note (unchanged
+-- COALESCE-on-decide behavior) — shown back to the requester as why a
+-- request was rejected.
 CREATE TABLE payouts (
   id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   organization_id BIGINT UNSIGNED NOT NULL,
+  campaign_id     BIGINT UNSIGNED NULL,
   amount          DECIMAL(14,0) NOT NULL,
+  reason          TEXT NULL,
   status          ENUM('REQUESTED','APPROVED','PAID','REJECTED') NOT NULL DEFAULT 'REQUESTED',
   requested_by_id BIGINT UNSIGNED NULL,
   approved_by_id  BIGINT UNSIGNED NULL,
@@ -435,7 +520,9 @@ CREATE TABLE payouts (
   notes           TEXT NULL,
   created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  CONSTRAINT fk_payouts_org FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
+  CONSTRAINT fk_payouts_org FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+  CONSTRAINT fk_payouts_campaign FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE SET NULL,
+  INDEX idx_payouts_campaign_status (campaign_id, status)
 ) ENGINE=InnoDB;
 
 -- ─── Audit logs (immutable, security-relevant) ───────────────────────────────

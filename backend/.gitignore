@@ -9,6 +9,10 @@ node_modules/
 *.log
 npm-debug.log*
 
+# Uploaded files (completion-report photos, etc.) — not committed
+uploads/*
+!uploads/.gitkeep
+
 # OS / editor
 .DS_Store
 *.swp

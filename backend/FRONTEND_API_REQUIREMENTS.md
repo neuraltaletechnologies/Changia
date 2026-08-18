@@ -158,6 +158,7 @@ There are **three** platform roles. The user-facing names the customer uses map 
 |---------------|---------------------------|-------|
 | **System** | `SUPER_ADMIN` | Platform-wide: config, fee & gateway settings, org setup, support + audit. No organization by default (`organizationId: null`). |
 | **Admin** | `ORG_ADMIN` | One organization: creates/approves campaigns, manages user + donor pool, requests payouts. |
+| ~~**System** creates campaigns/pools~~ | — | **`SUPER_ADMIN` cannot create a campaign or a donor pool** — creation is `ORG_ADMIN`/`CAMPAIGN_MANAGER` only. `SUPER_ADMIN` keeps full edit/approve/manage access to whatever already exists platform-wide. |
 | **Manager** | `CAMPAIGN_MANAGER` | Only assigned campaigns: adds consented donors, sends approved push payment requests. **No withdrawals/payouts.** |
 
 ### Permission matrix the frontend enforces in the UI (mirror this on the backend)
@@ -166,8 +167,9 @@ There are **three** platform roles. The user-facing names the customer uses map 
 |------------|:---:|:---:|:---:|
 | `dashboard:view` | ✅ | ✅ | ✅ |
 | `campaign:view` | ✅ | ✅ | ✅ |
-| `campaign:create` | ✅ | ✅ | ❌ |
+| `campaign:create` | ❌ | ✅ | ✅ |
 | `campaign:approve` | ✅ | ✅ | ❌ |
+| `donorpool:create` | ❌ | ✅ | ✅ |
 | `donor:view` | ✅ | ✅ | ✅ |
 | `donor:add` (add consented donors) | ✅ | ✅ | ✅ |
 | `donor:manage` (full CRUD + import) | ✅ | ✅ | ❌ |
@@ -763,7 +765,9 @@ Authenticated (all roles). Returns the full campaign object the detail page at `
 
 ### `POST /campaigns` — create a campaign
 
-Authenticated (SUPER_ADMIN, ORG_ADMIN, CAMPAIGN_MANAGER).
+Authenticated (ORG_ADMIN, CAMPAIGN_MANAGER). **`SUPER_ADMIN` cannot create a campaign** (see §3) — a `SUPER_ADMIN` hitting this returns `403`.
+
+> A `CAMPAIGN_MANAGER` is additionally blocked (`409 CAMPAIGN_PROOF_REQUIRED`) while any campaign assigned to them is `completed` without an **approved** completion report — see "Completion reports" below. Surface the error message (it names the blocking campaign) rather than a generic failure toast.
 
 **Request body:**
 
@@ -857,6 +861,41 @@ Authenticated (SUPER_ADMIN, ORG_ADMIN). Sets which `CAMPAIGN_MANAGER` users (`me
 ### `POST /campaigns/:id/submit` → audit
 
 Every create/update/delete/submit/approve/status change must write an immutable `audit_logs` entry (e.g. `campaign.created`, `campaign.updated`, `campaign.deleted`, `campaign.approved`, `campaign.paused`).
+
+### Completion reports — mandatory proof of fund usage (powers the Evidence tab + the public blog)
+
+This is the real, backend-wired version of the `Campaign.evidence` field sketched in §4 — once a campaign is `completed`, the **assigned `CAMPAIGN_MANAGER` must submit** a narrative + at least one photo proving how the funds were used, before an admin approves it. It's a separate sub-resource (not a plain field) because it carries its own review workflow and file uploads.
+
+```ts
+interface CampaignCompletionReport {
+  id: string;
+  campaignId: string;
+  summary: string;                 // narrative, min 20 chars
+  amountUtilized: number | null;   // TZS integer
+  status: 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED';
+  submittedBy: { id: string; firstName: string; lastName: string } | null;
+  submittedAt: string;
+  reviewedBy: { id: string; firstName: string; lastName: string } | null;
+  reviewedAt: string | null;
+  reviewNotes: string | null;
+  images: { id: string; url: string }[];  // absolute /uploads/... URLs
+}
+```
+
+Every `Campaign` returned by `GET /campaigns` / `GET /campaigns/:id` additionally carries `completionReport: { status, submittedAt, reviewedAt } | null` when `status === 'completed'` — enough to badge the campaigns list without an extra request.
+
+- **`GET /campaigns/:id/completion-report`** — any org member with access to the campaign. Returns the full `CampaignCompletionReport`, or `data: null`.
+- **`POST /campaigns/:id/completion-report`** — assigned `CAMPAIGN_MANAGER` only. **`multipart/form-data`** (not JSON): `summary` (text, required), `amountUtilized` (text/number, optional), `images` (file[], **required, ≥1**, ≤8, JPEG/PNG/WEBP, ≤5MB each — field name must be `images`). Resubmitting replaces the previous submission and resets to `PENDING_REVIEW`; an `APPROVED` report is locked (`409 REPORT_ALREADY_APPROVED`). Errors: `400 CAMPAIGN_NOT_COMPLETED`, `400 PROOF_IMAGES_REQUIRED`, `400 INVALID_IMAGE_TYPE`.
+- **`POST /campaigns/:id/completion-report/review`** — `SUPER_ADMIN`/`ORG_ADMIN` only. Body `{ "approved": boolean, "notes"?: string }`. Sets `APPROVED`/`REJECTED`. **Approval is what makes the campaign eligible for the public blog** (see below) and unblocks the manager's next `POST /campaigns`.
+
+**Frontend note:** because the endpoint takes `FormData`, `src/lib/api-client.ts`'s `request()` must skip `JSON.stringify`/`Content-Type: application/json` when `body instanceof FormData` and let the browser set the multipart boundary.
+
+### Public — completed-campaign blog posts (`/public/campaigns/completed`, unauthenticated)
+
+This is what actually **posts a campaign to the public blog**: a campaign shows up here once it's `completed` **and** its completion report is `APPROVED`. Used by the marketing `/blog` page and a new `/blog/campaign/:slug` detail route (merge these into the existing Markdown blog feed, sorted by `publishedAt`).
+
+- `GET /public/campaigns/completed?locale=&page=&limit=` → `{ campaigns: [{ id, slug, title, excerpt, image, organizationName, goalAmount, raisedAmount, donorCount, publishedAt }], pagination }`.
+- `GET /public/campaigns/completed/:slug?locale=` → full story: adds `campaignStory`, `category`, `progressPercent`, `startDate`/`endDate`, `completionSummary`, `amountUtilized`, `proofImages: string[]`.
 
 ---
 ## 9. Donors (CRM)
@@ -1216,8 +1255,11 @@ Authenticated (SUPER_ADMIN, ORG_ADMIN). Backs the Settings **"Delete Organisatio
 
 A `CAMPAIGN_MANAGER` can create multiple named pools by category
 (`FAMILY`/`SCHOOL`/`STUDENT`/`OFFICE`), each visible **only to them** —
-`ORG_ADMIN`/`SUPER_ADMIN` can browse and manage any manager's pools (a
-"created by manager" filter drives this on `/dashboard/pools`). Every pool
+`ORG_ADMIN` can also create pools; `SUPER_ADMIN` **cannot** (`POST /donor-pools`
+is `ORG_ADMIN`/`CAMPAIGN_MANAGER` only — same rule as campaign creation, §8).
+`ORG_ADMIN`/`SUPER_ADMIN` can still browse and manage (edit/delete) any
+manager's pools (a "created by manager" filter drives this on
+`/dashboard/pools`). Every pool
 member's payment status (`UNPAID`/`PARTIAL`/`PAID_FULL`) is derived by
 comparing confirmed donations to the pledge — never stored by the frontend.
 

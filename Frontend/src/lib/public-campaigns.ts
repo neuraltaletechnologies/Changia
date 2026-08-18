@@ -80,6 +80,64 @@ export async function getPublicCampaign(
   );
 }
 
+// ─── Completed-campaign impact stories (the "blog" of finished campaigns) ────
+//
+// A campaign only appears here once it's COMPLETED *and* its completion
+// report (proof of how the funds were used) has been approved by an admin —
+// that approval is what actually "posts" the story publicly.
+
+export interface CompletedCampaignCard {
+  id: number;
+  slug: string;
+  title: string;
+  excerpt: string;
+  image: string | null;
+  organizationName: string | null;
+  goalAmount: number;
+  raisedAmount: number;
+  donorCount: number;
+  publishedAt: string;
+}
+
+export interface CompletedCampaignDetail {
+  id: number;
+  slug: string;
+  title: string;
+  campaignStory: string | null;
+  category: string | null;
+  image: string | null;
+  organizationName: string | null;
+  goalAmount: number;
+  raisedAmount: number;
+  progressPercent: number;
+  donorCount: number;
+  startDate: string | null;
+  endDate: string | null;
+  completionSummary: string;
+  amountUtilized: number | null;
+  proofImages: string[];
+  publishedAt: string;
+}
+
+export async function getCompletedCampaigns(
+  locale: Locale = 'en',
+  limit = 12
+): Promise<CompletedCampaignCard[]> {
+  const data = await publicGet<{ campaigns: CompletedCampaignCard[] }>(
+    `/public/campaigns/completed?locale=${locale}&limit=${limit}`
+  );
+  return data?.campaigns ?? [];
+}
+
+export async function getCompletedCampaign(
+  slug: string,
+  locale: Locale = 'en'
+): Promise<CompletedCampaignDetail | null> {
+  return publicGet<CompletedCampaignDetail>(
+    `/public/campaigns/completed/${encodeURIComponent(slug)}?locale=${locale}`
+  );
+}
+
 // ─── Public contribution (donate) flow ───────────────────────────────────────
 // No PIN is ever collected here — only amount + phone. The donor approves the
 // actual payment at their mobile-money operator's own prompt.

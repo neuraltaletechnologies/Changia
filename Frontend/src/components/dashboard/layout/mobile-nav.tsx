@@ -16,6 +16,7 @@ import {
   X,
   Layers,
   BellRing,
+  HandCoins,
 } from "lucide-react";
 
 const navItems = [
@@ -25,6 +26,7 @@ const navItems = [
   { label: "Reminders", href: "/dashboard/reminders", icon: BellRing },
   { label: "User", href: "/dashboard/user", icon: UserCog },
   { label: "Audit Log", href: "/dashboard/audit-log", icon: ClipboardList },
+  { label: "Payouts", href: "/dashboard/payouts", icon: HandCoins },
   { label: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
 

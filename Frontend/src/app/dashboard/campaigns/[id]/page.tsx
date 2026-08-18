@@ -11,12 +11,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/dashboard/ui/dropdown-menu";
 import {
+  AlertTriangle,
   ArrowLeft,
   BellRing,
   Calendar,
   Check,
   FileWarning,
   Heart,
+  ImageIcon,
   Import,
   Loader2,
   Megaphone,
@@ -24,9 +26,11 @@ import {
   Pause,
   Phone,
   Play,
+  ShieldCheck,
   Star,
   Target,
   Trash2,
+  UploadCloud,
   UserRound,
   XCircle,
 } from "lucide-react";
@@ -59,6 +63,7 @@ import {
 } from "@/components/dashboard/ui/select";
 import {
   campaignApi,
+  payoutApi,
   poolApi,
   templateApi,
   userApi,
@@ -69,6 +74,9 @@ import {
   type CampaignRecord,
   type CampaignTargetsResponse,
   type CampaignTarget,
+  type CompletionReport,
+  type ClosureRequest,
+  type PayoutRecord,
   type PoolImportPreview,
   type DonorPool,
   type MessageTemplate,
@@ -89,7 +97,7 @@ const STATUS_BADGE: Record<string, string> = {
 
 export default function CampaignDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { isSuperAdmin, isOrgAdmin } = useRole();
+  const { isSuperAdmin, isOrgAdmin, isCampaignManager } = useRole();
   const isAdmin = isSuperAdmin || isOrgAdmin;
 
   const [campaign, setCampaign] = useState<CampaignRecord | null>(null);
@@ -228,6 +236,50 @@ export default function CampaignDetailPage() {
         </div>
       )}
 
+      {campaign.status === "COMPLETED" && !campaign.completionReport && (
+        <div className="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+          <span>
+            This campaign is completed. Submit proof of how the funds were used in the{" "}
+            <strong>Completion</strong> tab below — until it&apos;s approved, you can&apos;t start a
+            new campaign.
+          </span>
+        </div>
+      )}
+      {campaign.status === "COMPLETED" && campaign.completionReport?.status === "PENDING_REVIEW" && (
+        <div className="flex items-start gap-2.5 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800">
+          <ShieldCheck className="w-4 h-4 mt-0.5 shrink-0" />
+          <span>
+            A completion report is waiting for review in the <strong>Completion</strong> tab.
+          </span>
+        </div>
+      )}
+      {campaign.status === "COMPLETED" && campaign.completionReport?.status === "REJECTED" && (
+        <div className="flex items-start gap-2.5 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+          <span>
+            The completion report was rejected — see the <strong>Completion</strong> tab to fix and
+            resubmit it.
+          </span>
+        </div>
+      )}
+      {campaign.latestClosureRequest?.status === "PENDING" && (
+        <div className="flex items-start gap-2.5 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800">
+          <ShieldCheck className="w-4 h-4 mt-0.5 shrink-0" />
+          <span>
+            A request to close this campaign is waiting for review in the <strong>Closure</strong> tab.
+          </span>
+        </div>
+      )}
+      {campaign.latestClosureRequest?.status === "REJECTED" && (campaign.status === "ACTIVE" || campaign.status === "PAUSED") && (
+        <div className="flex items-start gap-2.5 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+          <span>
+            The last closure request was rejected — see the <strong>Closure</strong> tab for the reason and to request again.
+          </span>
+        </div>
+      )}
+
       {/* Header */}
       <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
         {campaign.imageUrl && (
@@ -329,13 +381,13 @@ export default function CampaignDetailPage() {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-44">
                     <DropdownMenuItem
-                      onSelect={() => act(() => campaignApi.changeStatus(id, "PAUSED"))}
+                      onClick={() => act(() => campaignApi.changeStatus(id, "PAUSED"))}
                     >
                       <Pause className="w-3.5 h-3.5 mr-1.5" />
                       Pause Campaign
                     </DropdownMenuItem>
                     <DropdownMenuItem
-                      onSelect={() => act(() => campaignApi.changeStatus(id, "COMPLETED"))}
+                      onClick={() => act(() => campaignApi.changeStatus(id, "COMPLETED"))}
                     >
                       <Check className="w-3.5 h-3.5 mr-1.5" />
                       Complete Campaign
@@ -343,7 +395,7 @@ export default function CampaignDetailPage() {
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
                       className="text-destructive focus:text-destructive"
-                      onSelect={() => act(() => campaignApi.changeStatus(id, "CANCELLED"))}
+                      onClick={() => act(() => campaignApi.changeStatus(id, "CANCELLED"))}
                     >
                       <XCircle className="w-3.5 h-3.5 mr-1.5" />
                       Cancel Campaign
@@ -359,13 +411,13 @@ export default function CampaignDetailPage() {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-44">
                     <DropdownMenuItem
-                      onSelect={() => act(() => campaignApi.changeStatus(id, "ACTIVE"))}
+                      onClick={() => act(() => campaignApi.changeStatus(id, "ACTIVE"))}
                     >
                       <Play className="w-3.5 h-3.5 mr-1.5" />
                       Resume Campaign
                     </DropdownMenuItem>
                     <DropdownMenuItem
-                      onSelect={() => act(() => campaignApi.changeStatus(id, "COMPLETED"))}
+                      onClick={() => act(() => campaignApi.changeStatus(id, "COMPLETED"))}
                     >
                       <Check className="w-3.5 h-3.5 mr-1.5" />
                       Complete Campaign
@@ -373,7 +425,7 @@ export default function CampaignDetailPage() {
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
                       className="text-destructive focus:text-destructive"
-                      onSelect={() => act(() => campaignApi.changeStatus(id, "CANCELLED"))}
+                      onClick={() => act(() => campaignApi.changeStatus(id, "CANCELLED"))}
                     >
                       <XCircle className="w-3.5 h-3.5 mr-1.5" />
                       Cancel Campaign
@@ -443,6 +495,21 @@ export default function CampaignDetailPage() {
             User ({campaign.assignments?.length ?? 0})
           </TabsTrigger>
           <TabsTrigger value="translation">Swahili</TabsTrigger>
+          {(campaign.status === "ACTIVE" || campaign.status === "PAUSED") && (
+            <TabsTrigger value="closure">
+              Closure
+              {campaign.latestClosureRequest?.status === "PENDING" && " (review needed)"}
+            </TabsTrigger>
+          )}
+          {(campaign.status === "ACTIVE" || campaign.status === "PAUSED" || campaign.status === "COMPLETED") && (
+            <TabsTrigger value="payout">Payout</TabsTrigger>
+          )}
+          {campaign.status === "COMPLETED" && (
+            <TabsTrigger value="completion">
+              Completion
+              {campaign.completionReport?.status === "PENDING_REVIEW" && " (review needed)"}
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="overview" className="pt-2">
@@ -475,6 +542,7 @@ export default function CampaignDetailPage() {
                 </div>
               </div>
             </div>
+            <GalleryCard campaignId={id} images={campaign.images ?? []} canManage={isAdmin || isCampaignManager} onChanged={refresh} />
           </div>
         </TabsContent>
 
@@ -512,6 +580,38 @@ export default function CampaignDetailPage() {
         <TabsContent value="translation" className="pt-2">
           <TranslationTab campaign={campaign} campaignId={id} onSaved={refresh} />
         </TabsContent>
+
+        {(campaign.status === "ACTIVE" || campaign.status === "PAUSED") && (
+          <TabsContent value="closure" className="pt-2">
+            <ClosureRequestTab
+              campaignId={id}
+              isAdmin={isAdmin}
+              canRequest={isCampaignManager}
+              onDecided={refresh}
+            />
+          </TabsContent>
+        )}
+
+        {(campaign.status === "ACTIVE" || campaign.status === "PAUSED" || campaign.status === "COMPLETED") && (
+          <TabsContent value="payout" className="pt-2">
+            <PayoutRequestTab
+              campaignId={id}
+              isAdmin={isAdmin}
+              canRequest={isCampaignManager}
+            />
+          </TabsContent>
+        )}
+
+        {campaign.status === "COMPLETED" && (
+          <TabsContent value="completion" className="pt-2">
+            <CompletionReportTab
+              campaignId={id}
+              isAdmin={isAdmin}
+              canSubmit={isCampaignManager}
+              onReviewed={refresh}
+            />
+          </TabsContent>
+        )}
       </Tabs>
 
       {importOpen && (
@@ -828,7 +928,7 @@ function BoardRow({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-44">
               <DropdownMenuItem
-                onSelect={() => setInline({ donorId: target.donor.id, value: target.expectedAmount?.toString() ?? "" })}
+                onClick={() => setInline({ donorId: target.donor.id, value: target.expectedAmount?.toString() ?? "" })}
               >
                 <Target className="w-3.5 h-3.5 mr-1.5" />
                 Edit expected
@@ -836,7 +936,7 @@ function BoardRow({
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="text-destructive focus:text-destructive"
-                onSelect={() => onRemoveTarget(target.donor.id)}
+                onClick={() => onRemoveTarget(target.donor.id)}
               >
                 <Trash2 className="w-3.5 h-3.5 mr-1.5" />
                 Remove from campaign
@@ -1058,6 +1158,845 @@ function TranslationTab({
         <Button size="sm" onClick={save} disabled={saving}>
           {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : null}
           Save translation
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Completion report tab ──────────────────────────────────────────────────
+
+const REPORT_STATUS_BADGE: Record<string, string> = {
+  PENDING_REVIEW: "bg-sky-50 text-sky-700 border-sky-200",
+  APPROVED: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  REJECTED: "bg-rose-50 text-rose-700 border-rose-200",
+};
+
+function CompletionReportTab({
+  campaignId,
+  isAdmin,
+  canSubmit,
+  onReviewed,
+}: {
+  campaignId: string;
+  isAdmin: boolean;
+  canSubmit: boolean;
+  onReviewed: () => void;
+}) {
+  const [report, setReport] = useState<CompletionReport | null | undefined>(undefined);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      setError(null);
+      const r = await campaignApi.getCompletionReport(campaignId);
+      setReport(r);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load the completion report.");
+    }
+  }, [campaignId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  if (report === undefined) {
+    return <div className="h-40 bg-card border border-border rounded-xl animate-pulse" />;
+  }
+
+  return (
+    <div className="space-y-4">
+      {error && (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          {error}
+        </div>
+      )}
+
+      {report && (
+        <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-foreground">Submitted report</h2>
+            <span
+              className={cn(
+                "text-[10px] font-medium border rounded-full px-2.5 py-1",
+                REPORT_STATUS_BADGE[report.status]
+              )}
+            >
+              {report.status.replace("_", " ")}
+            </span>
+          </div>
+          <div className="p-5 space-y-4">
+            <p className="text-sm text-muted-foreground leading-relaxed">{report.summary}</p>
+            {report.amountUtilized != null && (
+              <p className="text-xs text-muted-foreground">
+                Amount utilized: <span className="font-medium text-foreground">{formatTZSFull(report.amountUtilized)}</span>
+              </p>
+            )}
+            {report.images.length > 0 && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {report.images.map((img) => (
+                  <a
+                    key={img.id}
+                    href={img.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block aspect-square rounded-lg overflow-hidden border border-border"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={img.url} alt="Completion proof" className="w-full h-full object-cover" />
+                  </a>
+                ))}
+              </div>
+            )}
+            <p className="text-[11px] text-muted-foreground">
+              Submitted {new Date(report.submittedAt).toLocaleDateString()}
+              {report.submittedBy ? ` by ${donorFullName(report.submittedBy)}` : ""}
+            </p>
+            {report.reviewedAt && (
+              <p className="text-[11px] text-muted-foreground">
+                Reviewed {new Date(report.reviewedAt).toLocaleDateString()}
+                {report.reviewedBy ? ` by ${donorFullName(report.reviewedBy)}` : ""}
+                {report.reviewNotes ? ` — "${report.reviewNotes}"` : ""}
+              </p>
+            )}
+
+            {isAdmin && report.status === "PENDING_REVIEW" && (
+              <ReviewReportForm
+                campaignId={campaignId}
+                onDone={() => {
+                  load();
+                  onReviewed();
+                }}
+              />
+            )}
+          </div>
+        </div>
+      )}
+
+      {(!report || report.status === "REJECTED") && canSubmit && (
+        <SubmitReportForm
+          campaignId={campaignId}
+          rejected={report?.status === "REJECTED"}
+          onSubmitted={() => {
+            load();
+            onReviewed();
+          }}
+        />
+      )}
+      {(!report || report.status === "REJECTED") && !canSubmit && (
+        <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+          Waiting for the assigned campaign manager to submit the completion proof.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SubmitReportForm({
+  campaignId,
+  rejected,
+  onSubmitted,
+}: {
+  campaignId: string;
+  rejected: boolean;
+  onSubmitted: () => void;
+}) {
+  const [summary, setSummary] = useState("");
+  const [amountUtilized, setAmountUtilized] = useState("");
+  const [images, setImages] = useState<File[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async () => {
+    setError(null);
+    if (summary.trim().length < 20) {
+      setError("Describe how the funds were used (at least 20 characters).");
+      return;
+    }
+    if (images.length === 0) {
+      setError("At least one photo is required as proof.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await campaignApi.submitCompletionReport(campaignId, {
+        summary: summary.trim(),
+        amountUtilized: amountUtilized ? Number(amountUtilized) : undefined,
+        images,
+      });
+      onSubmitted();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to submit the completion report.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
+      <div className="px-5 py-4 border-b border-border flex items-center gap-2">
+        <div className="w-8 h-8 rounded-lg bg-primary/15 flex items-center justify-center">
+          <UploadCloud className="w-4 h-4 text-primary" />
+        </div>
+        <div>
+          <p className="text-sm font-medium text-foreground">
+            {rejected ? "Resubmit completion proof" : "Submit completion proof"}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            A short summary of how the funds were used, plus at least one photo.
+          </p>
+        </div>
+      </div>
+      <div className="p-5 space-y-4">
+        <div className="grid gap-1.5">
+          <Label className="text-xs">Summary</Label>
+          <Textarea
+            value={summary}
+            onChange={(e) => setSummary(e.target.value)}
+            placeholder="Describe what the funds were spent on and the outcome…"
+            className="min-h-24"
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <Label className="text-xs">Amount utilized (TZS, optional)</Label>
+          <Input
+            type="number"
+            min={0}
+            value={amountUtilized}
+            onChange={(e) => setAmountUtilized(e.target.value)}
+            placeholder="e.g. 4800000"
+            className="h-9"
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <Label className="text-xs">Proof photos (1–8)</Label>
+          <label className="flex items-center gap-2 rounded-lg border border-dashed border-border px-3 py-2.5 text-xs text-muted-foreground cursor-pointer hover:bg-muted/40">
+            <ImageIcon className="w-3.5 h-3.5" />
+            {images.length > 0 ? `${images.length} photo${images.length > 1 ? "s" : ""} selected` : "Choose photos"}
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              multiple
+              className="hidden"
+              onChange={(e) => setImages(Array.from(e.target.files ?? []).slice(0, 8))}
+            />
+          </label>
+        </div>
+
+        {error && (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+            {error}
+          </div>
+        )}
+
+        <Button size="sm" onClick={submit} disabled={submitting}>
+          {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : null}
+          {rejected ? "Resubmit report" : "Submit report"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function ReviewReportForm({ campaignId, onDone }: { campaignId: string; onDone: () => void }) {
+  const [notes, setNotes] = useState("");
+  const [acting, setActing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const decide = async (approved: boolean) => {
+    setActing(true);
+    setError(null);
+    try {
+      await campaignApi.reviewCompletionReport(campaignId, { approved, notes: notes.trim() || undefined });
+      onDone();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to record the review.");
+      setActing(false);
+    }
+  };
+
+  return (
+    <div className="pt-4 border-t border-border space-y-3">
+      <p className="text-xs font-semibold text-foreground">Review this report</p>
+      <Textarea
+        value={notes}
+        onChange={(e) => setNotes(e.target.value)}
+        placeholder="Notes (optional)"
+        className="min-h-16 text-sm"
+      />
+      {error && (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+          {error}
+        </div>
+      )}
+      <div className="flex gap-2">
+        <Button size="sm" onClick={() => decide(true)} disabled={acting}>
+          {acting ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Check className="w-3.5 h-3.5 mr-1.5" />}
+          Approve
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className="text-destructive hover:text-destructive"
+          onClick={() => decide(false)}
+          disabled={acting}
+        >
+          <XCircle className="w-3.5 h-3.5 mr-1.5" />
+          Reject
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Photo gallery (cover set separately at creation; this is the extra set) ─
+
+function GalleryCard({
+  campaignId,
+  images,
+  canManage,
+  onChanged,
+}: {
+  campaignId: string;
+  images: { id: number; url: string }[];
+  canManage: boolean;
+  onChanged: () => void;
+}) {
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const addPhotos = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setUploading(true);
+    setError(null);
+    try {
+      const form = new FormData();
+      Array.from(files)
+        .slice(0, 8)
+        .forEach((f) => form.append("gallery", f));
+      await campaignApi.uploadImages(campaignId, form);
+      onChanged();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to upload photos.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const removeImage = async (imageId: number) => {
+    setError(null);
+    try {
+      await campaignApi.removeImage(campaignId, imageId);
+      onChanged();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to remove photo.");
+    }
+  };
+
+  if (images.length === 0 && !canManage) return null;
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-sm font-semibold text-foreground">Photos</h2>
+        {canManage && (
+          <label className="inline-flex items-center gap-1.5 text-xs text-primary cursor-pointer hover:underline">
+            {uploading ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <ImageIcon className="w-3.5 h-3.5" />
+            )}
+            Add photos
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              multiple
+              className="hidden"
+              disabled={uploading}
+              onChange={(e) => addPhotos(e.target.files)}
+            />
+          </label>
+        )}
+      </div>
+      {error && <p className="text-xs text-destructive mb-3">{error}</p>}
+      {images.length === 0 ? (
+        <p className="text-xs text-muted-foreground">No supporting photos yet.</p>
+      ) : (
+        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+          {images.map((img) => (
+            <div
+              key={img.id}
+              className="relative group aspect-square rounded-lg overflow-hidden border border-border"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={img.url} alt="Campaign photo" className="w-full h-full object-cover" />
+              {canManage && (
+                <button
+                  type="button"
+                  onClick={() => removeImage(img.id)}
+                  className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  aria-label="Remove photo"
+                >
+                  <XCircle className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Closure requests tab ────────────────────────────────────────────────────
+
+const REQUEST_STATUS_BADGE: Record<string, string> = {
+  PENDING: "bg-sky-50 text-sky-700 border-sky-200",
+  REQUESTED: "bg-sky-50 text-sky-700 border-sky-200",
+  APPROVED: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  PAID: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  REJECTED: "bg-rose-50 text-rose-700 border-rose-200",
+};
+
+function ClosureRequestTab({
+  campaignId,
+  isAdmin,
+  canRequest,
+  onDecided,
+}: {
+  campaignId: string;
+  isAdmin: boolean;
+  canRequest: boolean;
+  onDecided: () => void;
+}) {
+  const [history, setHistory] = useState<ClosureRequest[] | undefined>(undefined);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      setError(null);
+      const r = await campaignApi.listClosureRequests(campaignId);
+      setHistory(r);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load closure requests.");
+    }
+  }, [campaignId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  if (history === undefined) {
+    return <div className="h-40 bg-card border border-border rounded-xl animate-pulse" />;
+  }
+
+  const latest = history[0];
+  const hasPending = latest?.status === "PENDING";
+
+  return (
+    <div className="space-y-4">
+      {error && (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          {error}
+        </div>
+      )}
+
+      {history.length > 0 && (
+        <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-border">
+            <h2 className="text-sm font-semibold text-foreground">Closure requests</h2>
+          </div>
+          <div className="divide-y divide-border">
+            {history.map((r) => (
+              <div key={r.id} className="p-5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span
+                    className={cn(
+                      "text-[10px] font-medium border rounded-full px-2.5 py-1",
+                      REQUEST_STATUS_BADGE[r.status]
+                    )}
+                  >
+                    {r.status}
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">
+                    {new Date(r.requestedAt).toLocaleDateString()}
+                  </span>
+                </div>
+                <p className="text-sm text-muted-foreground leading-relaxed">{r.reason}</p>
+                {r.decisionNotes && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Admin note: &quot;{r.decisionNotes}&quot;
+                  </p>
+                )}
+                {isAdmin && r.status === "PENDING" && (
+                  <DecideClosureForm
+                    campaignId={campaignId}
+                    requestId={r.id}
+                    onDone={() => {
+                      load();
+                      onDecided();
+                    }}
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {canRequest && !hasPending && (
+        <RequestClosureForm
+          campaignId={campaignId}
+          rejected={latest?.status === "REJECTED"}
+          onSubmitted={() => {
+            load();
+            onDecided();
+          }}
+        />
+      )}
+      {!canRequest && !hasPending && history.length === 0 && (
+        <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+          Waiting for the assigned campaign manager to request closure.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RequestClosureForm({
+  campaignId,
+  rejected,
+  onSubmitted,
+}: {
+  campaignId: string;
+  rejected: boolean;
+  onSubmitted: () => void;
+}) {
+  const [reason, setReason] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async () => {
+    setError(null);
+    if (reason.trim().length < 10) {
+      setError("Explain why this campaign should close (at least 10 characters).");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await campaignApi.requestClosure(campaignId, { reason: reason.trim() });
+      setReason("");
+      onSubmitted();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to submit the closure request.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
+      <div className="px-5 py-4 border-b border-border">
+        <p className="text-sm font-medium text-foreground">
+          {rejected ? "Request closure again" : "Request to close this campaign"}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          An admin will review your reason and approve or deny the request.
+        </p>
+      </div>
+      <div className="p-5 space-y-4">
+        <Textarea
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder="Why should this campaign close now?"
+          className="min-h-24"
+        />
+        {error && (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+            {error}
+          </div>
+        )}
+        <Button size="sm" onClick={submit} disabled={submitting}>
+          {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : null}
+          {rejected ? "Request again" : "Request closure"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function DecideClosureForm({
+  campaignId,
+  requestId,
+  onDone,
+}: {
+  campaignId: string;
+  requestId: number;
+  onDone: () => void;
+}) {
+  const [notes, setNotes] = useState("");
+  const [acting, setActing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const decide = async (approved: boolean) => {
+    setActing(true);
+    setError(null);
+    try {
+      await campaignApi.decideClosureRequest(campaignId, requestId, {
+        approved,
+        notes: notes.trim() || undefined,
+      });
+      onDone();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to record the decision.");
+      setActing(false);
+    }
+  };
+
+  return (
+    <div className="pt-2 space-y-2">
+      <Textarea
+        value={notes}
+        onChange={(e) => setNotes(e.target.value)}
+        placeholder="Notes (optional, shown to the manager)"
+        className="min-h-16 text-sm"
+      />
+      {error && (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+          {error}
+        </div>
+      )}
+      <div className="flex gap-2">
+        <Button size="xs" onClick={() => decide(true)} disabled={acting}>
+          {acting ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Check className="w-3 h-3 mr-1" />}
+          Approve (completes campaign)
+        </Button>
+        <Button
+          size="xs"
+          variant="outline"
+          className="text-destructive hover:text-destructive"
+          onClick={() => decide(false)}
+          disabled={acting}
+        >
+          <XCircle className="w-3 h-3 mr-1" />
+          Reject
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Payout requests tab ──────────────────────────────────────────────────────
+
+function PayoutRequestTab({
+  campaignId,
+  isAdmin,
+  canRequest,
+}: {
+  campaignId: string;
+  isAdmin: boolean;
+  canRequest: boolean;
+}) {
+  const [payouts, setPayouts] = useState<PayoutRecord[] | undefined>(undefined);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      setError(null);
+      const r = await payoutApi.list({ campaignId });
+      setPayouts(r.payouts);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load payout requests.");
+    }
+  }, [campaignId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  if (payouts === undefined) {
+    return <div className="h-40 bg-card border border-border rounded-xl animate-pulse" />;
+  }
+
+  const hasPending = payouts.some((p) => p.status === "REQUESTED");
+
+  return (
+    <div className="space-y-4">
+      {error && (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          {error}
+        </div>
+      )}
+
+      {payouts.length > 0 && (
+        <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-border">
+            <h2 className="text-sm font-semibold text-foreground">Payout requests</h2>
+          </div>
+          <div className="divide-y divide-border">
+            {payouts.map((p) => (
+              <div key={p.id} className="p-5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span
+                    className={cn(
+                      "text-[10px] font-medium border rounded-full px-2.5 py-1",
+                      REQUEST_STATUS_BADGE[p.status]
+                    )}
+                  >
+                    {p.status}
+                  </span>
+                  <span className="text-sm font-semibold text-foreground">{formatTZSFull(p.amount)}</span>
+                </div>
+                {p.reason && <p className="text-sm text-muted-foreground leading-relaxed">{p.reason}</p>}
+                {p.notes && (
+                  <p className="text-[11px] text-muted-foreground">Admin note: &quot;{p.notes}&quot;</p>
+                )}
+                <p className="text-[11px] text-muted-foreground">
+                  {new Date(p.createdAt).toLocaleDateString()}
+                </p>
+                {isAdmin && p.status === "REQUESTED" && (
+                  <DecidePayoutForm payoutId={p.id} onDone={load} />
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {canRequest && !hasPending && <RequestPayoutForm campaignId={campaignId} onSubmitted={load} />}
+      {!canRequest && payouts.length === 0 && (
+        <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+          No payout requests yet.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RequestPayoutForm({
+  campaignId,
+  onSubmitted,
+}: {
+  campaignId: string;
+  onSubmitted: () => void;
+}) {
+  const [amount, setAmount] = useState("");
+  const [reason, setReason] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async () => {
+    setError(null);
+    const amt = Number(amount);
+    if (!amount.trim() || Number.isNaN(amt) || amt <= 0) {
+      setError("Enter an amount greater than 0.");
+      return;
+    }
+    if (!reason.trim()) {
+      setError("Explain why you're requesting this payout.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await payoutApi.create({ amount: amt, campaignId, reason: reason.trim() });
+      setAmount("");
+      setReason("");
+      onSubmitted();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to submit the payout request.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
+      <div className="px-5 py-4 border-b border-border">
+        <p className="text-sm font-medium text-foreground">Request a payout</p>
+        <p className="text-xs text-muted-foreground">
+          An admin will review your reason and approve or deny it.
+        </p>
+      </div>
+      <div className="p-5 space-y-4">
+        <div className="grid gap-1.5">
+          <Label className="text-xs">Amount (TZS)</Label>
+          <Input
+            type="number"
+            min={1}
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="e.g. 1500000"
+            className="h-9"
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <Label className="text-xs">Reason</Label>
+          <Textarea
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="What is this payout for?"
+            className="min-h-20"
+          />
+        </div>
+        {error && (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+            {error}
+          </div>
+        )}
+        <Button size="sm" onClick={submit} disabled={submitting}>
+          {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : null}
+          Request payout
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function DecidePayoutForm({ payoutId, onDone }: { payoutId: number; onDone: () => void }) {
+  const [notes, setNotes] = useState("");
+  const [acting, setActing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const decide = async (approved: boolean) => {
+    setActing(true);
+    setError(null);
+    try {
+      if (approved) await payoutApi.approve(payoutId, notes.trim() || undefined);
+      else await payoutApi.reject(payoutId, notes.trim() || undefined);
+      onDone();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to record the decision.");
+      setActing(false);
+    }
+  };
+
+  return (
+    <div className="pt-2 space-y-2">
+      <Textarea
+        value={notes}
+        onChange={(e) => setNotes(e.target.value)}
+        placeholder="Notes (optional, shown to the requester)"
+        className="min-h-16 text-sm"
+      />
+      {error && (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+          {error}
+        </div>
+      )}
+      <div className="flex gap-2">
+        <Button size="xs" onClick={() => decide(true)} disabled={acting}>
+          {acting ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Check className="w-3 h-3 mr-1" />}
+          Approve
+        </Button>
+        <Button
+          size="xs"
+          variant="outline"
+          className="text-destructive hover:text-destructive"
+          onClick={() => decide(false)}
+          disabled={acting}
+        >
+          <XCircle className="w-3 h-3 mr-1" />
+          Reject
         </Button>
       </div>
     </div>

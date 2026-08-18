@@ -145,13 +145,13 @@ export function Header({ onMobileMenuToggle, mobileMenuOpen }: HeaderProps) {
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="text-xs cursor-pointer"
-                onSelect={() => router.push("/dashboard/profile")}
+                onClick={() => router.push("/dashboard/profile")}
               >
                 Profile
               </DropdownMenuItem>
               <DropdownMenuItem
                 className="text-xs cursor-pointer"
-                onSelect={() => router.push("/dashboard/settings")}
+                onClick={() => router.push("/dashboard/settings")}
               >
                 {canManageOrg ? "Organisation Settings" : "Settings"}
               </DropdownMenuItem>
@@ -159,7 +159,7 @@ export function Header({ onMobileMenuToggle, mobileMenuOpen }: HeaderProps) {
             <DropdownMenuSeparator />
             <DropdownMenuItem
               className="text-xs cursor-pointer text-destructive"
-              onSelect={handleSignOut}
+              onClick={handleSignOut}
             >
               <LogOut className="w-3.5 h-3.5 mr-2" />
               Sign Out

@@ -129,6 +129,22 @@ export interface CampaignRecord {
   createdAt: string;
   updatedAt: string;
   assignments: { user: { id: number; firstName: string; lastName: string; email: string } }[];
+  /** Lightweight summary embedded on list/detail responses — present only once a completion report exists. */
+  completionReport?: {
+    status: "PENDING_REVIEW" | "APPROVED" | "REJECTED";
+    submittedAt: string;
+    reviewedAt: string | null;
+  } | null;
+  /** Gallery photos (cover image stays on imageUrl) set at creation or later. */
+  images?: { id: number; url: string }[];
+  /** Most recent closure request, if any — full history via campaignApi.listClosureRequests. */
+  latestClosureRequest?: {
+    id: number;
+    status: "PENDING" | "APPROVED" | "REJECTED";
+    reason: string;
+    decisionNotes: string | null;
+    requestedAt: string;
+  } | null;
   donations?: {
     id: number;
     amount: number;
@@ -141,6 +157,30 @@ export interface CampaignRecord {
   }[];
   remaining?: number;
   progressPercent?: number;
+}
+
+export interface CompletionReport {
+  id: number;
+  campaignId: number;
+  summary: string;
+  amountUtilized: number | null;
+  status: "PENDING_REVIEW" | "APPROVED" | "REJECTED";
+  submittedBy: { id: number; firstName: string; lastName: string | null } | null;
+  submittedAt: string;
+  reviewedBy: { id: number; firstName: string; lastName: string | null } | null;
+  reviewedAt: string | null;
+  reviewNotes: string | null;
+  images: { id: number; url: string }[];
+}
+
+export interface ClosureRequest {
+  id: number;
+  campaignId: number;
+  reason: string;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  decisionNotes: string | null;
+  requestedAt: string;
+  decidedAt: string | null;
 }
 
 export interface CampaignTarget {
@@ -518,6 +558,27 @@ export const campaignApi = {
     api
       .put<{ success: boolean; data: CampaignRecord }>(`/campaigns/${id}/translations`, body)
       .then(unwrap),
+  getCompletionReport: (id: string | number) =>
+    api
+      .get<{ success: boolean; data: CompletionReport | null }>(`/campaigns/${id}/completion-report`)
+      .then(unwrap),
+  /** Multipart: summary (required), amountUtilized (optional), images (1-8 files, required). */
+  submitCompletionReport: (
+    id: string | number,
+    body: { summary: string; amountUtilized?: number; images: File[] }
+  ) => {
+    const form = new FormData();
+    form.append("summary", body.summary);
+    if (body.amountUtilized !== undefined) form.append("amountUtilized", String(body.amountUtilized));
+    body.images.forEach((file) => form.append("images", file));
+    return api
+      .postForm<{ success: boolean; data: CompletionReport }>(`/campaigns/${id}/completion-report`, form)
+      .then(unwrap);
+  },
+  reviewCompletionReport: (id: string | number, body: { approved: boolean; notes?: string }) =>
+    api
+      .post<{ success: boolean; data: CompletionReport }>(`/campaigns/${id}/completion-report/review`, body)
+      .then(unwrap),
   previewPools: (id: string | number, poolIds: number[]) =>
     api
       .post<{ success: boolean; data: PoolImportPreview }>(`/campaigns/${id}/pools/preview`, {
@@ -556,6 +617,71 @@ export const campaignApi = {
     api
       .delete<{ success: boolean; data: { deleted: boolean } }>(`/campaigns/${id}`)
       .then(unwrap),
+  /** Multipart: cover (1 file) and/or gallery (up to 8 files). */
+  uploadImages: (id: string | number, formData: FormData) =>
+    api.postForm<{ success: boolean; data: CampaignRecord }>(`/campaigns/${id}/images`, formData).then(unwrap),
+  removeImage: (id: string | number, imageId: string | number) =>
+    api
+      .delete<{ success: boolean; data: CampaignRecord }>(`/campaigns/${id}/images/${imageId}`)
+      .then(unwrap),
+  requestClosure: (id: string | number, body: { reason: string }) =>
+    api
+      .post<{ success: boolean; data: ClosureRequest[] }>(`/campaigns/${id}/closure-requests`, body)
+      .then(unwrap),
+  listClosureRequests: (id: string | number) =>
+    api
+      .get<{ success: boolean; data: ClosureRequest[] }>(`/campaigns/${id}/closure-requests`)
+      .then(unwrap),
+  decideClosureRequest: (
+    id: string | number,
+    requestId: string | number,
+    body: { approved: boolean; notes?: string }
+  ) =>
+    api
+      .post<{ success: boolean; data: ClosureRequest[] }>(
+        `/campaigns/${id}/closure-requests/${requestId}/decide`,
+        body
+      )
+      .then(unwrap),
+};
+
+// ─── Payouts (org-level admin requests + campaign-scoped manager requests) ───
+
+export interface PayoutRecord {
+  id: number;
+  campaignId: number | null;
+  campaignName: string | null;
+  amount: number;
+  reason: string | null;
+  status: "REQUESTED" | "APPROVED" | "PAID" | "REJECTED";
+  notes: string | null;
+  requestedBy: number | null;
+  approvedBy: number | null;
+  approvedAt: string | null;
+  paidAt: string | null;
+  gatewayRef: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const payoutApi = {
+  list: (params?: { status?: string; campaignId?: string | number; page?: number; limit?: number }) =>
+    api
+      .get<{ success: boolean; data: { payouts: PayoutRecord[]; pagination: unknown } }>(
+        `/payouts${qs(params || {})}`
+      )
+      .then(unwrap),
+  get: (id: string | number) =>
+    api.get<{ success: boolean; data: PayoutRecord }>(`/payouts/${id}`).then(unwrap),
+  /** campaignId + reason are required when the caller is a CAMPAIGN_MANAGER. */
+  create: (body: { amount: number; campaignId?: string | number; reason?: string; notes?: string }) =>
+    api.post<{ success: boolean; data: PayoutRecord }>(`/payouts`, body).then(unwrap),
+  approve: (id: string | number, notes?: string) =>
+    api.post<{ success: boolean; data: PayoutRecord }>(`/payouts/${id}/approve`, { notes }).then(unwrap),
+  reject: (id: string | number, notes?: string) =>
+    api.post<{ success: boolean; data: PayoutRecord }>(`/payouts/${id}/reject`, { notes }).then(unwrap),
+  markPaid: (id: string | number, body: { gatewayRef?: string; notes?: string }) =>
+    api.post<{ success: boolean; data: PayoutRecord }>(`/payouts/${id}/paid`, body).then(unwrap),
 };
 
 // ─── User members (used for the admin "per manager" filter) ──────────────────

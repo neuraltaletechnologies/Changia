@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Bell, Search, Menu, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Bell, Search, Menu, X, LogOut } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -27,8 +28,20 @@ interface HeaderProps {
 }
 
 export function Header({ onMobileMenuToggle, mobileMenuOpen }: HeaderProps) {
+  const router = useRouter();
   const unreadCount = notifications.filter((n) => !n.read).length;
   const [notifOpen, setNotifOpen] = useState(false);
+
+  const handleSignOut = () => {
+    // Clear any locally stored session and return to the login screen.
+    try {
+      window.localStorage.removeItem("changia_access_token");
+      window.localStorage.removeItem("changia_user");
+    } catch {
+      /* ignore */
+    }
+    router.replace("/");
+  };
 
   return (
     <header className="h-14 border-b border-border bg-card px-4 flex items-center justify-between gap-4 shrink-0 sticky top-0 z-30">
@@ -135,14 +148,24 @@ export function Header({ onMobileMenuToggle, mobileMenuOpen }: HeaderProps) {
           <DropdownMenuContent align="end" className="w-48">
             <DropdownMenuLabel className="text-xs">My Account</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-xs cursor-pointer">
+            <DropdownMenuItem
+              className="text-xs cursor-pointer"
+              onClick={() => router.push("/dashboard/profile")}
+            >
               Profile
             </DropdownMenuItem>
-            <DropdownMenuItem className="text-xs cursor-pointer">
+            <DropdownMenuItem
+              className="text-xs cursor-pointer"
+              onClick={() => router.push("/dashboard/settings")}
+            >
               Organisation Settings
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-xs cursor-pointer text-destructive">
+            <DropdownMenuItem
+              className="text-xs cursor-pointer text-destructive"
+              onClick={handleSignOut}
+            >
+              <LogOut className="w-3.5 h-3.5 mr-2" />
               Sign Out
             </DropdownMenuItem>
           </DropdownMenuContent>

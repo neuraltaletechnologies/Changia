@@ -13,6 +13,9 @@ const env = {
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || "7d",
   DEFAULT_SERVICE_FEE_PERCENT: Number(process.env.DEFAULT_SERVICE_FEE_PERCENT) || 5,
   APP_BASE_URL: process.env.APP_BASE_URL || "http://localhost:3000",
+  // This API's own public origin — used to build absolute URLs for files it
+  // serves itself (e.g. /uploads/... completion-report photos).
+  API_PUBLIC_URL: process.env.API_PUBLIC_URL || `http://localhost:${Number(process.env.PORT) || 5000}`,
   DB: {
     host: process.env.DB_HOST || "localhost",
     port: Number(process.env.DB_PORT) || 3306,

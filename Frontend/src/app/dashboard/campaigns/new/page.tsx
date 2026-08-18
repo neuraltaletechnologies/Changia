@@ -7,7 +7,6 @@ import {
   ArrowLeft,
   CheckCircle2,
   Megaphone,
-  Clock,
   Layers,
   Users,
   Loader2,
@@ -142,16 +141,16 @@ export default function NewCampaignPage() {
             <CheckCircle2 className="w-6 h-6 text-emerald-600" />
           </div>
           <h1 className="text-xl font-semibold text-foreground tracking-tight mt-4">
-            Campaign created
+            Campaign is live
           </h1>
           <p className="text-sm text-muted-foreground mt-2 max-w-md mx-auto">
-            Your campaign has been created and is now{" "}
-            <span className="font-medium text-foreground">waiting for admin approval</span>.
-            You will be able to share it with donors once it is approved.
+            Your campaign has been created and is{" "}
+            <span className="font-medium text-foreground">already public and accepting contributions</span>.
+            You can share it with donors right away.
           </p>
-          <div className="inline-flex items-center gap-2 mt-4 rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-xs font-medium text-orange-700">
-            <Clock className="w-3.5 h-3.5" />
-            Pending admin approval
+          <div className="inline-flex items-center gap-2 mt-4 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            Active
           </div>
           {poolIds.length > 0 && (
             <p className="text-xs text-muted-foreground mt-3">
@@ -191,8 +190,8 @@ export default function NewCampaignPage() {
             Start a New Campaign
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Fill in the details below. Your campaign will go live once an admin
-            approves it.
+            Fill in the details below. Your campaign goes live immediately — no
+            separate approval step.
           </p>
         </div>
         <Button
@@ -402,7 +401,7 @@ export default function NewCampaignPage() {
                 Creating…
               </>
             ) : (
-              "Submit for Approval"
+              "Create Campaign"
             )}
           </Button>
         </div>

@@ -46,7 +46,7 @@ export const ROLE_META: Record<Role, RoleMeta> = {
     shortLabel: "Super Admin",
     tagline: "Platform control, organisation setup and compliance.",
     scope:
-      "Full platform access: organisation setup, donor pools, campaign approvals, user management, payouts and audit logs.",
+      "Full platform access: organisation setup, campaign & donor pool approvals/management, user management, payouts and audit logs. Doesn't create campaigns or donor pools itself — that stays with the organisation.",
   },
   ORG_ADMIN: {
     label: "Org Admin",
@@ -84,13 +84,16 @@ export type Permission =
   | "settings:org" // organisation preferences
   | "payout:request"
   | "reports:view"
-  | "reminder:manage"; // templates, auto-resend schedules, pending approvals
+  | "reminder:manage" // templates, auto-resend schedules, pending approvals
+  | "donorpool:create"; // create a new donor pool (SUPER_ADMIN can still edit/manage existing ones)
 
 export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   SUPER_ADMIN: [
     "dashboard:view",
     "campaign:view",
-    "campaign:create",
+    // Deliberately no "campaign:create" — SUPER_ADMIN manages/edits/approves
+    // what an organization already created, but doesn't create campaigns or
+    // donor pools itself.
     "campaign:approve",
     "donor:view",
     "donor:add",
@@ -116,6 +119,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "payout:request",
     "reports:view",
     "reminder:manage",
+    "donorpool:create",
   ],
   CAMPAIGN_MANAGER: [
     "dashboard:view",
@@ -124,6 +128,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "donor:view",
     "donor:add",
     "reminder:manage",
+    "donorpool:create",
   ],
 };
 
@@ -141,12 +146,12 @@ export const ROUTE_ACCESS: Record<string, Role[]> = {
   "/dashboard": ALL_ROLES,
   "/dashboard/profile": ALL_ROLES,
   "/dashboard/campaigns": ALL_ROLES,
-  "/dashboard/campaigns/new": ALL_ROLES,
+  "/dashboard/campaigns/new": [ROLE.ORG_ADMIN, ROLE.CAMPAIGN_MANAGER],
   "/dashboard/campaigns/approvals": [ROLE.SUPER_ADMIN, ROLE.ORG_ADMIN],
   "/dashboard/donors": ALL_ROLES,
   "/dashboard/donors/import": [ROLE.SUPER_ADMIN, ROLE.ORG_ADMIN],
   "/dashboard/pools": ALL_ROLES,
-  "/dashboard/pools/new": ALL_ROLES,
+  "/dashboard/pools/new": [ROLE.ORG_ADMIN, ROLE.CAMPAIGN_MANAGER],
   "/dashboard/pools/anomalous": ALL_ROLES,
   "/dashboard/reminders": ALL_ROLES,
   "/dashboard/reminders/templates": ALL_ROLES,

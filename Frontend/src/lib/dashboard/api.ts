@@ -129,6 +129,12 @@ export interface CampaignRecord {
   createdAt: string;
   updatedAt: string;
   assignments: { user: { id: number; firstName: string; lastName: string; email: string } }[];
+  /** Lightweight summary embedded on list/detail responses — present only once a completion report exists. */
+  completionReport?: {
+    status: "PENDING_REVIEW" | "APPROVED" | "REJECTED";
+    submittedAt: string;
+    reviewedAt: string | null;
+  } | null;
   donations?: {
     id: number;
     amount: number;
@@ -141,6 +147,20 @@ export interface CampaignRecord {
   }[];
   remaining?: number;
   progressPercent?: number;
+}
+
+export interface CompletionReport {
+  id: number;
+  campaignId: number;
+  summary: string;
+  amountUtilized: number | null;
+  status: "PENDING_REVIEW" | "APPROVED" | "REJECTED";
+  submittedBy: { id: number; firstName: string; lastName: string | null } | null;
+  submittedAt: string;
+  reviewedBy: { id: number; firstName: string; lastName: string | null } | null;
+  reviewedAt: string | null;
+  reviewNotes: string | null;
+  images: { id: number; url: string }[];
 }
 
 export interface CampaignTarget {
@@ -517,6 +537,27 @@ export const campaignApi = {
   ) =>
     api
       .put<{ success: boolean; data: CampaignRecord }>(`/campaigns/${id}/translations`, body)
+      .then(unwrap),
+  getCompletionReport: (id: string | number) =>
+    api
+      .get<{ success: boolean; data: CompletionReport | null }>(`/campaigns/${id}/completion-report`)
+      .then(unwrap),
+  /** Multipart: summary (required), amountUtilized (optional), images (1-8 files, required). */
+  submitCompletionReport: (
+    id: string | number,
+    body: { summary: string; amountUtilized?: number; images: File[] }
+  ) => {
+    const form = new FormData();
+    form.append("summary", body.summary);
+    if (body.amountUtilized !== undefined) form.append("amountUtilized", String(body.amountUtilized));
+    body.images.forEach((file) => form.append("images", file));
+    return api
+      .postForm<{ success: boolean; data: CompletionReport }>(`/campaigns/${id}/completion-report`, form)
+      .then(unwrap);
+  },
+  reviewCompletionReport: (id: string | number, body: { approved: boolean; notes?: string }) =>
+    api
+      .post<{ success: boolean; data: CompletionReport }>(`/campaigns/${id}/completion-report/review`, body)
       .then(unwrap),
   previewPools: (id: string | number, poolIds: number[]) =>
     api

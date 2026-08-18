@@ -16,6 +16,7 @@ Every endpoint of the Changia backend: **what you must send** (auth, roles, body
 - [Organizations](#organizations-module)
 - [Users (user)](#users-user-module)
 - [Campaigns](#campaigns-module)
+- [Public campaign browsing](#public-campaign-browsing-module)
 - [Donors (CRM)](#donors-crm-module)
 - [Donor pools](#donor-pools-module)
 - [Reminder templates](#reminder-templates-module)
@@ -551,7 +552,9 @@ Detail view: campaign + its assigned managers + the **10 most recent confirmed d
 }
 ```
 
-### `POST /campaigns` — `SUPER_ADMIN` or `ORG_ADMIN`
+### `POST /campaigns` — `ORG_ADMIN` or `CAMPAIGN_MANAGER`
+
+> ⚠️ `SUPER_ADMIN` **cannot** create a campaign (or a donor pool — see below). Platform-wide, `SUPER_ADMIN` only manages/edits what an organization already created; creation stays with the org itself. `PUT /campaigns/:id` and every other management action remain open to `SUPER_ADMIN`.
 
 **Required fields:**
 
@@ -638,6 +641,135 @@ Replaces the campaign's assigned managers.
 All ids must belong to your organization (else `400`). Empty array removes all managers.
 
 **Response — `200 OK`:** the campaign object with the new `assignments`.
+
+### Completion reports — mandatory proof of fund usage
+
+Once a campaign is `COMPLETED`, the **assigned `CAMPAIGN_MANAGER` must submit** a written narrative + at least one photo proving how the funds were used. An `ORG_ADMIN`/`SUPER_ADMIN` then reviews it — **approval is what unblocks that manager from creating a new campaign** and what makes the story eligible to appear on the public blog (see [Public campaign browsing](#public-campaign-browsing-module) below).
+
+Every `GET /campaigns` / `GET /campaigns/:id` response includes a lightweight `completionReport: { status, submittedAt, reviewedAt } | null` field for `COMPLETED` campaigns — use it to show proof status without an extra request. The full narrative/images live behind the endpoints below.
+
+#### `GET /campaigns/:id/completion-report`
+
+Any org member with access to the campaign. **Response — `200 OK`:** the report object, or `data: null` if nothing has been submitted yet:
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": 7,
+    "campaignId": 12,
+    "summary": "We purchased and installed the water pump, piping and a storage tank...",
+    "amountUtilized": 10250000,
+    "status": "PENDING_REVIEW",
+    "submittedBy": { "id": 4, "firstName": "Peter", "lastName": "John" },
+    "submittedAt": "2026-08-10T09:00:00.000Z",
+    "reviewedBy": null,
+    "reviewedAt": null,
+    "reviewNotes": null,
+    "images": [
+      { "id": 21, "url": "http://localhost:5000/uploads/completion-reports/12/1723...-a1b2.jpg" }
+    ]
+  }
+}
+```
+
+#### `POST /campaigns/:id/completion-report` — assigned `CAMPAIGN_MANAGER` only
+
+`multipart/form-data`, **not** JSON.
+
+| Field | Type | Rules |
+|-------|------|-------|
+| `summary` | text | required, min 20 chars, max 10,000 |
+| `amountUtilized` | text (number) | optional, whole TZS, ≥ 0 |
+| `images` | file[] | **required, at least 1**, up to 8, JPEG/PNG/WEBP, 5 MB each — field name must be `images` |
+
+Resubmitting (after a `REJECTED` review, or before any review) **replaces** the previous summary/amount/images and resets status to `PENDING_REVIEW`. An already-`APPROVED` report is locked.
+
+**Response — `201 Created`:** the report object (as above).
+**Errors:** `400 CAMPAIGN_NOT_COMPLETED` (campaign isn't `COMPLETED` yet), `400 PROOF_IMAGES_REQUIRED` (no images attached), `400 INVALID_IMAGE_TYPE`, `409 REPORT_ALREADY_APPROVED`, `404` (not the assigned manager, or campaign not found).
+
+#### `POST /campaigns/:id/completion-report/review` — `SUPER_ADMIN` or `ORG_ADMIN`
+
+**Required body:**
+
+```json
+{ "approved": true, "notes": "Confirmed with the receipts attached." }
+```
+
+**Response — `200 OK`:** the report object with `status: "APPROVED"` or `"REJECTED"`.
+**Errors:** `404` (no report submitted yet), `400 REPORT_NOT_PENDING` (already reviewed).
+
+---
+
+## Public campaign browsing module
+
+Routes: `/public/campaigns` — **unauthenticated**, rate-limited. Powers the marketing site.
+
+### `GET /public/campaigns` (+ `?featured=true`, `?limit=`, `?locale=`)
+
+Up to 3 homepage-featured `ACTIVE` campaigns (`featured=true`), or up to 5 non-featured `ACTIVE` campaigns otherwise. `locale` (`en`|`sw`) picks the translated name/story/category where available.
+
+### `GET /public/campaigns/:id` (+ `?locale=`)
+
+A single `ACTIVE` or `COMPLETED` campaign by slug or numeric id, with its 10 most recent (non-anonymous) donations.
+
+### `GET /public/campaigns/completed` — impact stories (+ `?locale=`, `?page=`, `?limit=`)
+
+**This is the public blog listing.** A campaign appears here only once it's `COMPLETED` **and** its completion report has been `APPROVED` — that approval is literally what "posts" the story. Ordered newest-approved-first.
+
+```json
+{
+  "success": true,
+  "data": {
+    "campaigns": [
+      {
+        "id": 12,
+        "slug": "school-water-well",
+        "title": "School Water Well",
+        "excerpt": "We purchased and installed the water pump, piping and a storage tank…",
+        "image": "http://localhost:5000/uploads/completion-reports/12/1723...-a1b2.jpg",
+        "organizationName": "Msuya Foundation",
+        "goalAmount": 10000000,
+        "raisedAmount": 10250000,
+        "donorCount": 64,
+        "publishedAt": "2026-08-12T14:00:00.000Z"
+      }
+    ],
+    "pagination": { "page": 1, "limit": 12, "total": 1, "totalPages": 1 }
+  }
+}
+```
+
+### `GET /public/campaigns/completed/:id` — impact story detail (+ `?locale=`)
+
+By slug or numeric id. **Response — `200 OK`:**
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": 12,
+    "slug": "school-water-well",
+    "title": "School Water Well",
+    "campaignStory": "Help us build a clean water well for 300 students.",
+    "category": "Water",
+    "image": null,
+    "organizationName": "Msuya Foundation",
+    "goalAmount": 10000000,
+    "raisedAmount": 10250000,
+    "progressPercent": 98,
+    "donorCount": 64,
+    "startDate": "2026-06-01T00:00:00.000Z",
+    "endDate": "2026-08-01T00:00:00.000Z",
+    "completionSummary": "We purchased and installed the water pump, piping and a storage tank...",
+    "amountUtilized": 10250000,
+    "proofImages": ["http://localhost:5000/uploads/completion-reports/12/1723...-a1b2.jpg"],
+    "publishedAt": "2026-08-12T14:00:00.000Z"
+  }
+}
+```
+
+**Errors:** `404` if no `COMPLETED` campaign with an `APPROVED` report matches.
 
 ---
 
@@ -806,7 +938,9 @@ and cannot be scheduled for auto-resend.
 }
 ```
 
-### `POST /donor-pools` — `SUPER_ADMIN`, `ORG_ADMIN`, or `CAMPAIGN_MANAGER`
+### `POST /donor-pools` — `ORG_ADMIN` or `CAMPAIGN_MANAGER`
+
+> ⚠️ `SUPER_ADMIN` **cannot** create a donor pool — same rule as campaign creation, above. `SUPER_ADMIN` keeps full edit/manage access to pools that already exist.
 
 **Required fields:** `name` (string, min 2). **Optional:** `description`, `category` (default `FAMILY`), `createdBy` (admin only — create on behalf of a manager).
 **Response — `201 Created`:** the pool object.
@@ -1152,13 +1286,23 @@ The 10 most recent entries (same log shape, no pagination):
 | GET `/users`, GET `/donors` | ✅ | ✅ | ✅ |
 | POST `/users`, PUT/DELETE `/users/:id` | ✅ | ✅ | ❌ |
 | GET `/campaigns`, GET `/campaigns/:id` | ✅ | ✅ | ✅ |
-| POST/PUT `/campaigns`, status & submit/approve/managers | ✅ | ✅ | ❌ |
+| **POST** `/campaigns` (create) | ❌ | ✅ | ✅ |
+| PUT `/campaigns/:id`, status/submit/approve/managers/featured | ✅ | ✅ | partial* |
+| GET `/campaigns/:id/completion-report` | ✅ | ✅ | ✅ (own) |
+| **POST** `/campaigns/:id/completion-report` (submit proof) | ❌ | ❌ | ✅ (assigned) |
+| POST `/campaigns/:id/completion-report/review` | ✅ | ✅ | ❌ |
+| GET `/public/campaigns`, `/public/campaigns/completed*` | ✅ public | ✅ public | ✅ public |
+| GET `/donor-pools` | ✅ | ✅ | ✅ |
+| **POST** `/donor-pools` (create) | ❌ | ✅ | ✅ |
+| PUT/DELETE `/donor-pools/:id` | ✅ | ✅ | owner only |
 | POST `/donors` | ✅ | ✅ | ✅ |
 | PUT/DELETE `/donors/:id` | ✅ | ✅ | ❌ |
 | GET `/donations`, GET attempts | ✅ | ✅ | ✅ |
 | POST `/donations/campaigns/:id/attempts` | ✅ | ✅ | ✅ |
 | POST `/donations/simulate-callback` | ✅ | ✅ | ❌ |
 | GET `/audit-logs` (+ `/recent`) | ✅ | ✅ | ✅ |
+
+\* `CAMPAIGN_MANAGER` can update their own assigned campaigns and change status, but not `/managers` or `/featured`. A `CAMPAIGN_MANAGER` is also blocked from **creating** any new campaign (`409 CAMPAIGN_PROOF_REQUIRED`) while a campaign assigned to them is `COMPLETED` without an `APPROVED` completion report.
 
 ---
 

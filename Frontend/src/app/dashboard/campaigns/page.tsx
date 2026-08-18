@@ -110,13 +110,36 @@ export default function CampaignsPage() {
       ) : (
         <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {campaigns.map((c) => (
-            <CampaignCard key={c.id} campaign={toCardCampaign(c)} />
+            <div key={c.id} className="relative">
+              {c.status === "COMPLETED" && (
+                <span
+                  className={`absolute top-3 right-3 z-10 text-[10px] font-medium border rounded-full px-2 py-0.5 ${PROOF_BADGE[c.completionReport?.status ?? "MISSING"]}`}
+                >
+                  {PROOF_LABEL[c.completionReport?.status ?? "MISSING"]}
+                </span>
+              )}
+              <CampaignCard campaign={toCardCampaign(c)} />
+            </div>
           ))}
         </div>
       )}
     </div>
   );
 }
+
+const PROOF_BADGE: Record<string, string> = {
+  MISSING: "bg-amber-50 text-amber-700 border-amber-200",
+  PENDING_REVIEW: "bg-sky-50 text-sky-700 border-sky-200",
+  APPROVED: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  REJECTED: "bg-rose-50 text-rose-700 border-rose-200",
+};
+
+const PROOF_LABEL: Record<string, string> = {
+  MISSING: "Proof needed",
+  PENDING_REVIEW: "Proof pending review",
+  APPROVED: "Proof approved",
+  REJECTED: "Proof rejected",
+};
 
 function toCardCampaign(c: CampaignRecord): Campaign {
   return {

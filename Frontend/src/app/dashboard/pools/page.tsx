@@ -28,8 +28,9 @@ import { useRole } from "@/hooks/use-role";
 import { DonorsSection } from "@/components/dashboard/donors/donors-section";
 
 export default function PoolsPage() {
-  const { isSuperAdmin, isOrgAdmin } = useRole();
+  const { isSuperAdmin, isOrgAdmin, hasPermission } = useRole();
   const isAdmin = isSuperAdmin || isOrgAdmin;
+  const canCreate = hasPermission("donorpool:create");
 
   const [pools, setPools] = useState<DonorPool[]>([]);
   const [loading, setLoading] = useState(true);
@@ -94,10 +95,12 @@ export default function PoolsPage() {
             <AlertTriangle className="w-3.5 h-3.5 mr-1.5" />
             Anomalous
           </Button>
-          <Button size="sm" nativeButton={false} render={<Link href="/dashboard/pools/new" />}>
-            <Plus className="w-3.5 h-3.5 mr-1.5" />
-            New Pool
-          </Button>
+          {canCreate && (
+            <Button size="sm" nativeButton={false} render={<Link href="/dashboard/pools/new" />}>
+              <Plus className="w-3.5 h-3.5 mr-1.5" />
+              New Pool
+            </Button>
+          )}
         </div>
       </div>
 
@@ -176,17 +179,22 @@ export default function PoolsPage() {
         <div className="text-center py-20 bg-card border border-border rounded-xl">
           <Users className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
           <p className="text-sm text-muted-foreground">
-            No donor pools yet. Create your first pool to segment your donors.
+            No donor pools yet.{" "}
+            {canCreate
+              ? "Create your first pool to segment your donors."
+              : "A campaign manager or org admin can create one."}
           </p>
-          <Button
-            className="mt-4"
-            size="sm"
-            nativeButton={false}
-            render={<Link href="/dashboard/pools/new" />}
-          >
-            <Plus className="w-3.5 h-3.5 mr-1.5" />
-            Create a Pool
-          </Button>
+          {canCreate && (
+            <Button
+              className="mt-4"
+              size="sm"
+              nativeButton={false}
+              render={<Link href="/dashboard/pools/new" />}
+            >
+              <Plus className="w-3.5 h-3.5 mr-1.5" />
+              Create a Pool
+            </Button>
+          )}
         </div>
       ) : (
         <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">

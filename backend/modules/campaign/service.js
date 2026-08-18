@@ -1,6 +1,19 @@
+const path = require("path");
 const db = require("../../db");
 const { ApiError } = require("../../utils/ApiError");
 const { env } = require("../../config");
+const { deleteUploadedFiles } = require("../../middlewares/upload");
+
+/** Converts a stored "/uploads/..." web path back to an absolute disk path,
+ *  so a superseded completion-report photo can be removed from disk. */
+function uploadWebPathToDiskPath(webPath) {
+  const segments = webPath.split("/").filter(Boolean);
+  return path.join(__dirname, "..", "..", ...segments);
+}
+
+function toAbsoluteImageUrl(webPath) {
+  return `${env.API_PUBLIC_URL}${webPath}`;
+}
 
 function slugify(name) {
   return name
@@ -19,6 +32,28 @@ function orgScope(organizationId, user) {
   if (user && user.role === "SUPER_ADMIN") return ["", []];
   if (!organizationId && organizationId !== 0) return ["", []];
   return [" AND organization_id = ?", [organizationId]];
+}
+
+const PLATFORM_ORG_SLUG = "changia-platform";
+
+/**
+ * SUPER_ADMIN users have no organization_id (they're platform-wide), but
+ * `campaigns.organization_id` is NOT NULL. Campaigns a SUPER_ADMIN creates
+ * belong to a dedicated "Changia Platform" organization, found or created
+ * lazily on first use.
+ */
+async function getOrCreatePlatformOrganizationId() {
+  const existing = await db.query("SELECT id FROM organizations WHERE slug = ?", [
+    PLATFORM_ORG_SLUG,
+  ]);
+  if (existing.length > 0) return existing[0].id;
+
+  const result = await db.execute(
+    `INSERT INTO organizations (name, slug, description, status)
+     VALUES ('Changia Platform', ?, 'Official campaigns run by the Changia platform itself.', 'ACTIVE')`,
+    [PLATFORM_ORG_SLUG]
+  );
+  return result.insertId;
 }
 
 async function uniqueSlug(name) {
@@ -191,10 +226,14 @@ async function listCampaigns(organizationId, filters, user) {
     });
   }
 
+  const completedIds = campaigns.filter((c) => c.status === "COMPLETED").map((c) => c.id);
+  const reportByCampaign = await loadCompletionReportSummaries(completedIds);
+
   return {
     campaigns: campaigns.map((c) => ({
       ...mapCampaign(c),
       assignments: byCampaign[c.id] || [],
+      completionReport: reportByCampaign[c.id] || null,
     })),
     pagination: {
       page,
@@ -238,12 +277,15 @@ async function getCampaign(organizationId, campaignId, user) {
 
   const raised = num(campaign.raised_amount);
   const target = num(campaign.public_target);
+  const reportByCampaign =
+    campaign.status === "COMPLETED" ? await loadCompletionReportSummaries([campaign.id]) : {};
 
   return {
     ...mapCampaign(campaign),
     assignments: assignments.map((a) => ({
       user: { id: a.id, firstName: a.first_name, lastName: a.last_name, email: a.email },
     })),
+    completionReport: reportByCampaign[campaign.id] || null,
     donations: donations.map((d) => ({
       id: d.id,
       amount: num(d.amount),
@@ -264,20 +306,52 @@ async function createCampaign(organizationId, data, actor) {
   if (data.goalAmount <= 0) {
     throw ApiError.badRequest("Campaign goal must be greater than zero");
   }
+
+  // SUPER_ADMIN has no organization_id (platform-wide) — their campaigns
+  // belong to the dedicated "Changia Platform" organization.
+  const resolvedOrgId =
+    organizationId || (actor.role === "SUPER_ADMIN" ? await getOrCreatePlatformOrganizationId() : organizationId);
+  if (!resolvedOrgId) {
+    throw ApiError.badRequest("No organization to create this campaign under");
+  }
+
+  // A manager can't start a new campaign while a campaign assigned to them is
+  // COMPLETED without an approved completion-proof report ("unfilled").
+  if (actor.role === "CAMPAIGN_MANAGER") {
+    const blocking = await db.query(
+      `SELECT c.id, c.name FROM campaigns c
+       JOIN campaign_assignments ca ON ca.campaign_id = c.id
+       LEFT JOIN campaign_completion_reports r
+         ON r.campaign_id = c.id AND r.status = 'APPROVED'
+       WHERE ca.user_id = ? AND c.status = 'COMPLETED' AND r.id IS NULL
+       LIMIT 1`,
+      [actor.id]
+    );
+    if (blocking.length > 0) {
+      throw ApiError.conflict(
+        `Submit the completion proof for "${blocking[0].name}" (and get it approved) before creating a new campaign`,
+        "CAMPAIGN_PROOF_REQUIRED"
+      );
+    }
+  }
   const { serviceFeePercent, serviceFeeAmount, publicTarget } = computeFees(
     data.goalAmount,
     data.serviceFeePercent
   );
   const slug = await uniqueSlug(data.name);
 
+  // A campaign created by SUPER_ADMIN, ORG_ADMIN or CAMPAIGN_MANAGER doesn't
+  // need a separate approval step — these are trusted, authenticated org
+  // staff, so the campaign activates immediately (public, live) instead of
+  // sitting in DRAFT/PENDING waiting on a human to approve it.
   const result = await db.execute(
     `INSERT INTO campaigns
        (organization_id, name, slug, story, name_sw, story_sw, category_sw, image_url, category,
         goal_amount, service_fee_percent, service_fee_amount, public_target, minimum_amount,
-        start_date, end_date, contact_phone, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'DRAFT')`,
+        start_date, end_date, contact_phone, status, is_public, approved_by, approved_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', 1, ?, NOW())`,
     [
-      organizationId,
+      resolvedOrgId,
       data.name,
       slug,
       data.story || null,
@@ -294,6 +368,7 @@ async function createCampaign(organizationId, data, actor) {
       data.startDate ? new Date(data.startDate) : null,
       data.endDate ? new Date(data.endDate) : null,
       data.contactPhone || null,
+      actor.id,
     ]
   );
   const campaignId = result.insertId;
@@ -317,7 +392,7 @@ async function createCampaign(organizationId, data, actor) {
 
   // Import donor pools into the campaign at creation time.
   if (data.poolIds && data.poolIds.length > 0) {
-    await importPools(organizationId, { role: "ORG_ADMIN", id: actor.id, email: actor.email }, campaignId, {
+    await importPools(resolvedOrgId, { role: "ORG_ADMIN", id: actor.id, email: actor.email }, campaignId, {
       poolIds: data.poolIds,
       expectedAmounts: data.expectedAmounts,
     });
@@ -326,10 +401,10 @@ async function createCampaign(organizationId, data, actor) {
   await db.execute(
     `INSERT INTO audit_logs (organization_id, actor_id, actor_email, action, resource, resource_id, severity)
      VALUES (?, ?, ?, 'campaign.created', 'campaign', ?, 'INFO')`,
-    [organizationId, actor.id, actor.email, String(campaignId)]
+    [resolvedOrgId, actor.id, actor.email, String(campaignId)]
   );
 
-  return getCampaign(organizationId, campaignId);
+  return getCampaign(resolvedOrgId, campaignId, actor);
 }
 
 async function updateCampaign(organizationId, campaignId, data, actor) {
@@ -341,8 +416,22 @@ async function updateCampaign(organizationId, campaignId, data, actor) {
   const campaign = existing[0];
   if (!campaign) throw ApiError.notFound("Campaign not found");
 
-  if (campaign.status !== "DRAFT" && campaign.status !== "PENDING") {
-    throw ApiError.badRequest("Only draft or pending campaigns can be edited", "CAMPAIGN_LOCKED");
+  // Campaigns activate immediately on creation, so "editable" now means any
+  // live/ongoing status — only the archival end states (COMPLETED/CANCELLED)
+  // are locked. The goal/fee themselves are additionally frozen once a
+  // campaign has taken its first donation, so the public target never moves
+  // out from under donors who already gave against it.
+  if (campaign.status === "COMPLETED" || campaign.status === "CANCELLED") {
+    throw ApiError.badRequest("Completed or cancelled campaigns can't be edited", "CAMPAIGN_LOCKED");
+  }
+  if (
+    num(campaign.raised_amount) > 0 &&
+    (data.goalAmount !== undefined || data.serviceFeePercent !== undefined)
+  ) {
+    throw ApiError.badRequest(
+      "The goal amount can't change once a campaign has received donations",
+      "GOAL_LOCKED"
+    );
   }
 
   let feeData = null;
@@ -474,9 +563,13 @@ async function changeCampaignStatus(organizationId, campaignId, status, actor) {
   );
   if (existing.length === 0) throw ApiError.notFound("Campaign not found");
 
+  // A COMPLETED campaign stays public (it's the platform's track record —
+  // and where the completion-report proof surfaces); only PAUSED/CANCELLED
+  // pull the campaign off the public site.
+  const isPublic = status === "COMPLETED" ? 1 : 0;
   await db.execute(
-    "UPDATE campaigns SET status = ?, is_public = 0 WHERE id = ?",
-    [status, campaignId]
+    "UPDATE campaigns SET status = ?, is_public = ? WHERE id = ?",
+    [status, isPublic, campaignId]
   );
   await db.execute(
     `INSERT INTO audit_logs (organization_id, actor_id, actor_email, action, resource, resource_id, severity)
@@ -910,6 +1003,215 @@ async function setFeatured(organizationId, campaignId, featured, actor) {
   return getCampaign(organizationId, campaignId);
 }
 
+// ─── Completion reports (mandatory proof of fund usage) ──────────────────────
+//
+// Once a campaign is COMPLETED, the assigned manager MUST submit a narrative +
+// at least one photo proving how the funds were used. An ORG_ADMIN/SUPER_ADMIN
+// must approve it before it (a) unblocks the manager from creating a new
+// campaign and (b) appears on the public blog (see listPublicCompletedCampaigns
+// / getPublicCompletedCampaign further below).
+
+/** { [campaignId]: { status, submittedAt, reviewedAt } } for the given ids —
+ *  the lightweight summary embedded on campaign list/detail responses. */
+async function loadCompletionReportSummaries(campaignIds) {
+  if (!campaignIds || campaignIds.length === 0) return {};
+  const rows = await db.query(
+    `SELECT campaign_id, status, submitted_at, reviewed_at
+     FROM campaign_completion_reports WHERE campaign_id IN (?)`,
+    [campaignIds]
+  );
+  const byId = {};
+  for (const r of rows) {
+    byId[r.campaign_id] = {
+      status: r.status,
+      submittedAt: r.submitted_at,
+      reviewedAt: r.reviewed_at,
+    };
+  }
+  return byId;
+}
+
+/** Full completion report (narrative + images) for a campaign, or null. */
+async function getCompletionReport(organizationId, campaignId, user) {
+  await assertCampaignAccess(organizationId, user, campaignId);
+  const [orgSql, ...orgParams] = orgScope(organizationId, user);
+  const campaigns = await db.query(`SELECT id FROM campaigns WHERE id = ?${orgSql}`, [
+    campaignId,
+    ...orgParams,
+  ]);
+  if (campaigns.length === 0) throw ApiError.notFound("Campaign not found");
+
+  const rows = await db.query(
+    `SELECT r.*, u.first_name AS submitted_by_first_name, u.last_name AS submitted_by_last_name,
+            rv.first_name AS reviewed_by_first_name, rv.last_name AS reviewed_by_last_name
+     FROM campaign_completion_reports r
+     LEFT JOIN users u ON u.id = r.submitted_by_id
+     LEFT JOIN users rv ON rv.id = r.reviewed_by_id
+     WHERE r.campaign_id = ?`,
+    [campaignId]
+  );
+  const report = rows[0];
+  if (!report) return null;
+
+  const images = await db.query(
+    `SELECT id, image_path FROM campaign_completion_report_images
+     WHERE report_id = ? ORDER BY sort_order ASC, id ASC`,
+    [report.id]
+  );
+
+  return {
+    id: report.id,
+    campaignId: Number(campaignId),
+    summary: report.summary,
+    amountUtilized: report.amount_utilized === null ? null : num(report.amount_utilized),
+    status: report.status,
+    submittedBy: report.submitted_by_id
+      ? { id: report.submitted_by_id, firstName: report.submitted_by_first_name, lastName: report.submitted_by_last_name }
+      : null,
+    submittedAt: report.submitted_at,
+    reviewedBy: report.reviewed_by_id
+      ? { id: report.reviewed_by_id, firstName: report.reviewed_by_first_name, lastName: report.reviewed_by_last_name }
+      : null,
+    reviewedAt: report.reviewed_at,
+    reviewNotes: report.review_notes,
+    images: images.map((img) => ({ id: img.id, url: toAbsoluteImageUrl(img.image_path) })),
+  };
+}
+
+/** CAMPAIGN_MANAGER submits (or resubmits after rejection) the completion
+ *  proof for one of their COMPLETED campaigns. `files` are the multer-saved
+ *  image files (req.files) — at least one is required. */
+async function submitCompletionReport(organizationId, campaignId, actor, data, files) {
+  await assertCampaignAccess(organizationId, actor, campaignId);
+
+  if (!files || files.length === 0) {
+    throw ApiError.badRequest("At least one photo is required as proof", "PROOF_IMAGES_REQUIRED");
+  }
+
+  const [orgSql, ...orgParams] = orgScope(organizationId, actor);
+  const campaigns = await db.query(`SELECT id, status FROM campaigns WHERE id = ?${orgSql}`, [
+    campaignId,
+    ...orgParams,
+  ]);
+  const campaign = campaigns[0];
+  if (!campaign) throw ApiError.notFound("Campaign not found");
+  if (campaign.status !== "COMPLETED") {
+    throw ApiError.badRequest(
+      "Only completed campaigns can have a completion report",
+      "CAMPAIGN_NOT_COMPLETED"
+    );
+  }
+
+  const existing = await db.query(
+    "SELECT id, status FROM campaign_completion_reports WHERE campaign_id = ?",
+    [campaignId]
+  );
+  if (existing[0] && existing[0].status === "APPROVED") {
+    throw ApiError.conflict(
+      "This campaign's completion report is already approved and locked",
+      "REPORT_ALREADY_APPROVED"
+    );
+  }
+
+  const webPaths = files.map(
+    (f) => `/uploads/completion-reports/${campaignId}/${f.filename}`
+  );
+
+  let oldImagePaths = [];
+  await db.withTransaction(async (tx) => {
+    let reportId;
+    if (existing[0]) {
+      reportId = existing[0].id;
+      const oldImages = await tx.query(
+        "SELECT image_path FROM campaign_completion_report_images WHERE report_id = ?",
+        [reportId]
+      );
+      oldImagePaths = oldImages.map((r) => r.image_path);
+      await tx.execute(
+        `UPDATE campaign_completion_reports
+         SET summary = ?, amount_utilized = ?, status = 'PENDING_REVIEW',
+             submitted_by_id = ?, reviewed_by_id = NULL, reviewed_at = NULL, review_notes = NULL,
+             submitted_at = NOW()
+         WHERE id = ?`,
+        [data.summary, data.amountUtilized ?? null, actor.id, reportId]
+      );
+      await tx.execute("DELETE FROM campaign_completion_report_images WHERE report_id = ?", [
+        reportId,
+      ]);
+    } else {
+      const result = await tx.execute(
+        `INSERT INTO campaign_completion_reports
+           (campaign_id, organization_id, submitted_by_id, summary, amount_utilized, status)
+         VALUES (?, ?, ?, ?, ?, 'PENDING_REVIEW')`,
+        [campaignId, organizationId, actor.id, data.summary, data.amountUtilized ?? null]
+      );
+      reportId = result.insertId;
+    }
+
+    for (let i = 0; i < webPaths.length; i++) {
+      await tx.execute(
+        `INSERT INTO campaign_completion_report_images (report_id, image_path, sort_order)
+         VALUES (?, ?, ?)`,
+        [reportId, webPaths[i], i]
+      );
+    }
+  });
+
+  // Remove the superseded images from disk now that the DB commit succeeded.
+  for (const oldPath of oldImagePaths) {
+    deleteUploadedFiles([{ path: uploadWebPathToDiskPath(oldPath) }]);
+  }
+
+  await db.execute(
+    `INSERT INTO audit_logs (organization_id, actor_id, actor_email, action, resource, resource_id, severity)
+     VALUES (?, ?, ?, 'campaign.completion_report.submitted', 'campaign', ?, 'INFO')`,
+    [organizationId, actor.id, actor.email, String(campaignId)]
+  );
+
+  return getCompletionReport(organizationId, campaignId, actor);
+}
+
+/** ORG_ADMIN/SUPER_ADMIN approves or rejects a pending completion report. */
+async function reviewCompletionReport(organizationId, campaignId, actor, data) {
+  const [orgSql, ...orgParams] = orgScope(organizationId, actor);
+  const campaigns = await db.query(`SELECT id FROM campaigns WHERE id = ?${orgSql}`, [
+    campaignId,
+    ...orgParams,
+  ]);
+  if (campaigns.length === 0) throw ApiError.notFound("Campaign not found");
+
+  const existing = await db.query(
+    "SELECT id, status FROM campaign_completion_reports WHERE campaign_id = ?",
+    [campaignId]
+  );
+  if (!existing[0]) throw ApiError.notFound("No completion report has been submitted yet");
+  if (existing[0].status !== "PENDING_REVIEW") {
+    throw ApiError.badRequest("Only a pending report can be reviewed", "REPORT_NOT_PENDING");
+  }
+
+  const status = data.approved ? "APPROVED" : "REJECTED";
+  await db.execute(
+    `UPDATE campaign_completion_reports
+     SET status = ?, reviewed_by_id = ?, reviewed_at = NOW(), review_notes = ?
+     WHERE id = ?`,
+    [status, actor.id, data.notes || null, existing[0].id]
+  );
+
+  await db.execute(
+    `INSERT INTO audit_logs (organization_id, actor_id, actor_email, action, resource, resource_id, severity)
+     VALUES (?, ?, ?, ?, 'campaign', ?, 'INFO')`,
+    [
+      organizationId,
+      actor.id,
+      actor.email,
+      data.approved ? "campaign.completion_report.approved" : "campaign.completion_report.rejected",
+      String(campaignId),
+    ]
+  );
+
+  return getCompletionReport(organizationId, campaignId, actor);
+}
+
 // ─── Public (unauthenticated) campaign browsing ──────────────────────────────
 
 const PUBLIC_SELECT = `
@@ -970,6 +1272,120 @@ async function getPublicCampaign(idOrSlug, locale) {
   };
 }
 
+// ─── Public — completed-campaign blog posts ───────────────────────────────────
+//
+// A campaign only shows up here once it's COMPLETED *and* its completion
+// report has been APPROVED — this is what actually "posts" the campaign's
+// story to the public blog.
+
+const COMPLETED_SELECT = `
+  SELECT c.id, c.name, c.slug, c.name_sw, c.story, c.story_sw, c.image_url, c.category,
+         c.category_sw, c.goal_amount, c.public_target, c.raised_amount, c.donor_count,
+         c.start_date, c.end_date, o.name AS organization_name,
+         r.id AS report_id, r.summary, r.amount_utilized, r.reviewed_at
+  FROM campaigns c
+  JOIN organizations o ON o.id = c.organization_id
+  JOIN campaign_completion_reports r ON r.campaign_id = c.id AND r.status = 'APPROVED'
+  WHERE c.status = 'COMPLETED'
+`;
+
+async function loadReportImages(reportIds) {
+  if (reportIds.length === 0) return {};
+  const rows = await db.query(
+    `SELECT report_id, image_path FROM campaign_completion_report_images
+     WHERE report_id IN (?) ORDER BY sort_order ASC, id ASC`,
+    [reportIds]
+  );
+  const byReport = {};
+  for (const r of rows) {
+    if (!byReport[r.report_id]) byReport[r.report_id] = [];
+    byReport[r.report_id].push(toAbsoluteImageUrl(r.image_path));
+  }
+  return byReport;
+}
+
+function mapCompletedCampaignCard(c, locale, images) {
+  const sw = locale === "sw";
+  const summary = c.summary || "";
+  return {
+    id: c.id,
+    slug: c.slug,
+    title: (sw && c.name_sw) || c.name,
+    excerpt: summary.length > 220 ? `${summary.slice(0, 220)}…` : summary,
+    image: images[0] || c.image_url || null,
+    organizationName: c.organization_name,
+    goalAmount: num(c.goal_amount),
+    raisedAmount: num(c.raised_amount),
+    donorCount: c.donor_count,
+    publishedAt: c.reviewed_at,
+  };
+}
+
+/** Completed-campaign "blog posts" — a campaign whose completion report has
+ *  been approved. Powers the public blog listing. */
+async function listPublicCompletedCampaigns({ locale = "en", page = 1, limit = 12 } = {}) {
+  const safeLimit = Math.min(Math.max(Number(limit) || 12, 1), 50);
+  const safePage = Math.max(Number(page) || 1, 1);
+  const offset = (safePage - 1) * safeLimit;
+
+  const rows = await db.query(
+    `${COMPLETED_SELECT} ORDER BY r.reviewed_at DESC LIMIT ? OFFSET ?`,
+    [safeLimit, offset]
+  );
+  const [{ total }] = await db.query(
+    `SELECT COUNT(*) AS total FROM campaigns c
+     JOIN campaign_completion_reports r ON r.campaign_id = c.id AND r.status = 'APPROVED'
+     WHERE c.status = 'COMPLETED'`
+  );
+
+  const imagesByReport = await loadReportImages(rows.map((r) => r.report_id));
+  return {
+    campaigns: rows.map((r) => mapCompletedCampaignCard(r, locale, imagesByReport[r.report_id] || [])),
+    pagination: {
+      page: safePage,
+      limit: safeLimit,
+      total: Number(total),
+      totalPages: Math.ceil(Number(total) / safeLimit),
+    },
+  };
+}
+
+/** Full detail for one completed-campaign blog post, by slug or numeric id. */
+async function getPublicCompletedCampaign(idOrSlug, locale = "en") {
+  const isNumeric = /^\d+$/.test(String(idOrSlug));
+  const rows = await db.query(
+    `${COMPLETED_SELECT} AND (c.slug = ? ${isNumeric ? "OR c.id = ?" : ""}) LIMIT 1`,
+    isNumeric ? [idOrSlug, idOrSlug] : [idOrSlug]
+  );
+  const c = rows[0];
+  if (!c) return null;
+
+  const imagesByReport = await loadReportImages([c.report_id]);
+  const sw = locale === "sw";
+  const raised = num(c.raised_amount);
+  const target = num(c.public_target);
+
+  return {
+    id: c.id,
+    slug: c.slug,
+    title: (sw && c.name_sw) || c.name,
+    campaignStory: (sw && c.story_sw) || c.story,
+    category: (sw && c.category_sw) || c.category,
+    image: c.image_url,
+    organizationName: c.organization_name,
+    goalAmount: num(c.goal_amount),
+    raisedAmount: raised,
+    progressPercent: target > 0 ? Math.min(100, Math.round((raised / target) * 100)) : 0,
+    donorCount: c.donor_count,
+    startDate: c.start_date,
+    endDate: c.end_date,
+    completionSummary: c.summary,
+    amountUtilized: c.amount_utilized === null ? null : num(c.amount_utilized),
+    proofImages: imagesByReport[c.report_id] || [],
+    publishedAt: c.reviewed_at,
+  };
+}
+
 async function removeCampaign(organizationId, campaignId, actor) {
   const [orgSql, ...orgParams] = orgScope(organizationId, actor);
   const existing = await db.query(
@@ -1017,6 +1433,11 @@ module.exports = {
   removeCampaign,
   setFeatured,
   setTranslations,
+  getCompletionReport,
+  submitCompletionReport,
+  reviewCompletionReport,
   listPublicCampaigns,
   getPublicCampaign,
+  listPublicCompletedCampaigns,
+  getPublicCompletedCampaign,
 };

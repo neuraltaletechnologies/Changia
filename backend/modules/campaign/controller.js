@@ -1,5 +1,8 @@
 const { asyncHandler } = require("../../utils/asyncHandler");
+const { ApiError } = require("../../utils/ApiError");
+const { deleteUploadedFiles } = require("../../middlewares/upload");
 const campaignService = require("./service");
+const { completionReportSchema } = require("./validation");
 
 const listCampaigns = asyncHandler(async (req, res) => {
   const result = await campaignService.listCampaigns(req.user.organizationId, req.query, req.user);
@@ -146,6 +149,54 @@ const setFeatured = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true, data: campaign });
 });
 
+const getCompletionReport = asyncHandler(async (req, res) => {
+  const report = await campaignService.getCompletionReport(
+    req.user.organizationId,
+    req.params.id,
+    req.user
+  );
+  res.status(200).json({ success: true, data: report });
+});
+
+/** multer (uploadCompletionImages) runs before this in the route chain, so
+ *  req.body carries the multipart text fields and req.files the photos —
+ *  parsed by hand here (rather than the generic `validate` middleware) so a
+ *  validation failure can still clean up the files multer already wrote. */
+const submitCompletionReport = asyncHandler(async (req, res) => {
+  let data;
+  try {
+    data = completionReportSchema.parse(req.body);
+  } catch (error) {
+    deleteUploadedFiles(req.files);
+    const issues = (error && error.issues) || [];
+    throw ApiError.badRequest("Validation failed — please check the submitted data", "VALIDATION_ERROR", issues);
+  }
+
+  try {
+    const report = await campaignService.submitCompletionReport(
+      req.user.organizationId,
+      req.params.id,
+      { id: req.user.id, email: req.user.email, role: req.user.role },
+      data,
+      req.files
+    );
+    res.status(201).json({ success: true, data: report });
+  } catch (error) {
+    deleteUploadedFiles(req.files);
+    throw error;
+  }
+});
+
+const reviewCompletionReport = asyncHandler(async (req, res) => {
+  const report = await campaignService.reviewCompletionReport(
+    req.user.organizationId,
+    req.params.id,
+    { id: req.user.id, email: req.user.email, role: req.user.role },
+    req.body
+  );
+  res.status(200).json({ success: true, data: report });
+});
+
 const removeCampaign = asyncHandler(async (req, res) => {
   const result = await campaignService.removeCampaign(
     req.user.organizationId,
@@ -171,5 +222,8 @@ module.exports = {
   removeDonorTarget,
   setFeatured,
   setTranslations,
+  getCompletionReport,
+  submitCompletionReport,
+  reviewCompletionReport,
   removeCampaign,
 };

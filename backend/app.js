@@ -1,3 +1,4 @@
+const path = require("path");
 const cors = require("cors");
 const express = require("express");
 const helmet = require("helmet");
@@ -45,6 +46,10 @@ function createApp() {
   if (env.NODE_ENV !== "test") {
     app.use(morgan("dev"));
   }
+
+  // Uploaded files (completion-report photos, etc.) — served at /uploads/...,
+  // deliberately outside the /api/v1 prefix since these are plain static assets.
+  app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
   // ─── Routes ─────────────────────────────────────────────────────────────────
   app.get("/", (req, res) => {

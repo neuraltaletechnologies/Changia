@@ -44,10 +44,12 @@ router.post(
 );
 
 // ─── Pools ──────────────────────────────────────────────────────────────────
+// SUPER_ADMIN can't create a donor pool (platform-wide, they only manage/edit
+// pools orgs already created) — same rule as campaign creation.
 router.get("/", validate({ query: listPoolsQuerySchema }), controller.listPools);
 router.post(
   "/",
-  authorize("SUPER_ADMIN", "ORG_ADMIN", "CAMPAIGN_MANAGER"),
+  authorize("ORG_ADMIN", "CAMPAIGN_MANAGER"),
   validate({ body: createPoolSchema }),
   controller.createPool
 );

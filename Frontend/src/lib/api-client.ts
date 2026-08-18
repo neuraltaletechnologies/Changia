@@ -129,6 +129,38 @@ async function request<T>(
   return payload as T;
 }
 
+/** For multipart/form-data uploads (e.g. completion-report photos) — the
+ *  browser sets its own Content-Type with boundary, so FormData must never be
+ *  JSON.stringify'd or given an explicit Content-Type header. */
+async function requestForm<T>(path: string, formData: FormData): Promise<T> {
+  const headers: Record<string, string> = {};
+  const token = getToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: 'POST',
+    headers,
+    body: formData,
+  });
+
+  const payload = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      clearSession();
+      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+        window.location.assign(`/login?redirect=${encodeURIComponent(window.location.pathname)}`);
+      }
+    }
+    const errorBody = payload as ApiErrorBody | null;
+    const message = errorBody?.error?.message ?? 'Something went wrong. Please try again.';
+    const code = errorBody?.error?.code ?? 'UNKNOWN_ERROR';
+    throw new ApiClientError(response.status, code, message, errorBody?.error?.details);
+  }
+
+  return payload as T;
+}
+
 // ─── API methods ─────────────────────────────────────────────────────────────
 
 export const api = {
@@ -143,6 +175,8 @@ export const api = {
 
   delete: <T>(path: string, options?: Omit<RequestOptions, 'method'>) =>
     request<T>(path, { ...options, method: 'DELETE' }),
+
+  postForm: <T>(path: string, formData: FormData) => requestForm<T>(path, formData),
 };
 
 // ─── Auth API ────────────────────────────────────────────────────────────────

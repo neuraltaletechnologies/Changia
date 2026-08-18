@@ -85,6 +85,25 @@ function computeFees(goalAmount, serviceFeePercent) {
   };
 }
 
+/**
+ * The org's own default service-fee % (editable by ORG_ADMIN/SUPER_ADMIN on
+ * the organization settings page) — falls back to the platform-wide
+ * DEFAULT_SERVICE_FEE_PERCENT when the org has none set. A campaign creator
+ * who doesn't pass an explicit `serviceFeePercent` gets this rate applied
+ * automatically.
+ */
+async function getOrgDefaultFeePercent(organizationId) {
+  if (!organizationId && organizationId !== 0) return env.DEFAULT_SERVICE_FEE_PERCENT;
+  const rows = await db.query(
+    "SELECT default_service_fee_percent FROM organizations WHERE id = ?",
+    [organizationId]
+  );
+  if (rows.length === 0 || rows[0].default_service_fee_percent === null) {
+    return env.DEFAULT_SERVICE_FEE_PERCENT;
+  }
+  return Number(rows[0].default_service_fee_percent);
+}
+
 function num(value) {
   return value === null || value === undefined ? 0 : Number(value);
 }
@@ -321,6 +340,16 @@ async function createCampaign(organizationId, data, actor) {
     throw ApiError.badRequest("Campaign goal must be greater than zero");
   }
 
+  // The service-fee % is an org-level policy (see the organization settings
+  // "Platform Fee" control) — a CAMPAIGN_MANAGER can see it applied and
+  // previewed, but only ORG_ADMIN/SUPER_ADMIN may actually set it per campaign.
+  if (actor.role === "CAMPAIGN_MANAGER" && data.serviceFeePercent !== undefined) {
+    throw ApiError.forbidden(
+      "Only an organization admin can set a campaign's service fee percentage",
+      "FEE_PERCENT_NOT_ALLOWED"
+    );
+  }
+
   // SUPER_ADMIN has no organization_id (platform-wide) — their campaigns
   // belong to the dedicated "Changia Platform" organization.
   const resolvedOrgId =
@@ -348,9 +377,11 @@ async function createCampaign(organizationId, data, actor) {
       );
     }
   }
+  const effectiveFeePercent =
+    data.serviceFeePercent ?? (await getOrgDefaultFeePercent(resolvedOrgId));
   const { serviceFeePercent, serviceFeeAmount, publicTarget } = computeFees(
     data.goalAmount,
-    data.serviceFeePercent
+    effectiveFeePercent
   );
   const slug = await uniqueSlug(data.name);
 
@@ -427,6 +458,13 @@ async function createCampaign(organizationId, data, actor) {
 }
 
 async function updateCampaign(organizationId, campaignId, data, actor) {
+  if (actor.role === "CAMPAIGN_MANAGER" && data.serviceFeePercent !== undefined) {
+    throw ApiError.forbidden(
+      "Only an organization admin can set a campaign's service fee percentage",
+      "FEE_PERCENT_NOT_ALLOWED"
+    );
+  }
+
   const [orgSql, ...orgParams] = orgScope(organizationId, actor);
   const existing = await db.query(
     `SELECT * FROM campaigns WHERE id = ?${orgSql}`,
@@ -455,7 +493,11 @@ async function updateCampaign(organizationId, campaignId, data, actor) {
 
   let feeData = null;
   if (data.goalAmount !== undefined && data.goalAmount !== num(campaign.goal_amount)) {
-    feeData = computeFees(data.goalAmount, data.serviceFeePercent);
+    // Recomputing off a new goal: keep the campaign's own fee % unless the
+    // caller explicitly overrides it — don't silently fall back to the
+    // platform default and change a rate the org/manager already agreed to.
+    const percent = data.serviceFeePercent ?? num(campaign.service_fee_percent);
+    feeData = computeFees(data.goalAmount, percent);
   } else if (data.serviceFeePercent !== undefined) {
     feeData = computeFees(num(campaign.goal_amount), data.serviceFeePercent);
   }

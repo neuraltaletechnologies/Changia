@@ -23,6 +23,11 @@ const MIGRATIONS = [
   `ALTER TABLE payouts ADD COLUMN reason      TEXT NULL AFTER amount`,
   `ALTER TABLE payouts ADD CONSTRAINT fk_payouts_campaign FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE SET NULL`,
   `ALTER TABLE payouts ADD INDEX idx_payouts_campaign_status (campaign_id, status)`,
+
+  // organizations — per-org default campaign service fee (%), editable by
+  // ORG_ADMIN/SUPER_ADMIN; falls back to DEFAULT_SERVICE_FEE_PERCENT when a
+  // campaign doesn't set its own service_fee_percent.
+  `ALTER TABLE organizations ADD COLUMN default_service_fee_percent DECIMAL(5,2) NOT NULL DEFAULT 5.00 AFTER currency`,
 ];
 
 async function columnExists(table, column) {

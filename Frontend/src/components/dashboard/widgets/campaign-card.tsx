@@ -20,29 +20,42 @@ export function CampaignCard({ campaign }: { campaign: Campaign }) {
   return (
     <Link
       href={`/dashboard/campaigns/${campaign.id}`}
-      className="block bg-card border border-border rounded-xl p-4 hover:shadow-sm transition-shadow"
+      className="block bg-card border border-border rounded-xl overflow-hidden hover:shadow-sm transition-shadow"
     >
-      <div className="flex items-start justify-between gap-2 mb-3">
-        <p className="text-sm font-medium text-foreground leading-snug flex-1">{campaign.name}</p>
-        <span
-          className={cn(
-            "text-[10px] font-medium border rounded-full px-2 py-0.5 shrink-0",
-            s.className
-          )}
-        >
-          {s.label}
-        </span>
-      </div>
-      <div className="mb-2.5">
-        <div className="flex justify-between text-xs text-muted-foreground mb-1.5">
-          <span className="font-medium text-foreground">{formatTZS(campaign.raised)}</span>
-          <span>of {formatTZS(campaign.goal)}</span>
+      {campaign.image && (
+        // Plain <img>, not next/image — the cover is served from the
+        // backend's own /uploads/ origin, which isn't in next.config.mjs's
+        // remotePatterns allowlist.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={campaign.image}
+          alt={campaign.name}
+          className="h-32 w-full object-cover"
+        />
+      )}
+      <div className="p-4">
+        <div className="flex items-start justify-between gap-2 mb-3">
+          <p className="text-sm font-medium text-foreground leading-snug flex-1">{campaign.name}</p>
+          <span
+            className={cn(
+              "text-[10px] font-medium border rounded-full px-2 py-0.5 shrink-0",
+              s.className
+            )}
+          >
+            {s.label}
+          </span>
         </div>
-        <Progress value={pct} className="h-1.5" />
-      </div>
-      <div className="flex justify-between text-[11px] text-muted-foreground">
-        <span>{pct}% funded</span>
-        <span>{campaign.donors.toLocaleString()} donors</span>
+        <div className="mb-2.5">
+          <div className="flex justify-between text-xs text-muted-foreground mb-1.5">
+            <span className="font-medium text-foreground">{formatTZS(campaign.raised)}</span>
+            <span>of {formatTZS(campaign.goal)}</span>
+          </div>
+          <Progress value={pct} className="h-1.5" />
+        </div>
+        <div className="flex justify-between text-[11px] text-muted-foreground">
+          <span>{pct}% funded</span>
+          <span>{campaign.donors.toLocaleString()} donors</span>
+        </div>
       </div>
     </Link>
   );

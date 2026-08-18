@@ -12,9 +12,29 @@ async function listOrganizations() {
   );
 }
 
+function mapOrganization(o) {
+  return {
+    id: o.id,
+    name: o.name,
+    slug: o.slug,
+    email: o.email,
+    phone: o.phone,
+    address: o.address,
+    description: o.description,
+    logoUrl: o.logo_url,
+    currency: o.currency,
+    // % added on top of a campaign's goal by default (see
+    // modules/campaign/service.js computeFees) — editable by ORG_ADMIN/SUPER_ADMIN.
+    defaultServiceFeePercent: Number(o.default_service_fee_percent),
+    status: o.status,
+    createdAt: o.created_at,
+  };
+}
+
 async function getOrganization(organizationId) {
   const orgs = await db.query(
-    `SELECT id, name, slug, email, phone, address, description, logo_url, currency, status, created_at
+    `SELECT id, name, slug, email, phone, address, description, logo_url, currency,
+            default_service_fee_percent, status, created_at
      FROM organizations WHERE id = ?`,
     [organizationId]
   );
@@ -31,7 +51,7 @@ async function getOrganization(organizationId) {
     )
     .then((rows) => [rows]);
 
-  return { ...organization, _count: counts };
+  return { ...mapOrganization(organization), _count: counts };
 }
 
 async function updateOrganization(organizationId, data) {
@@ -46,6 +66,10 @@ async function updateOrganization(organizationId, data) {
   if (data.address !== undefined) { fields.push("address = ?"); values.push(data.address); }
   if (data.description !== undefined) { fields.push("description = ?"); values.push(data.description); }
   if (data.logoUrl !== undefined) { fields.push("logo_url = ?"); values.push(data.logoUrl || null); }
+  if (data.defaultServiceFeePercent !== undefined) {
+    fields.push("default_service_fee_percent = ?");
+    values.push(data.defaultServiceFeePercent);
+  }
 
   if (fields.length === 0) {
     return getOrganization(organizationId);

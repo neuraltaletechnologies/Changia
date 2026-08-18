@@ -327,12 +327,15 @@ Returns the caller's organization profile + counts.
     "description": null,
     "logoUrl": null,
     "currency": "TZS",
+    "defaultServiceFeePercent": 5,
     "status": "ACTIVE",
     "createdAt": "2026-01-01T00:00:00.000Z",
     "_count": { "users": 3, "campaigns": 2, "donors": 45 }
   }
 }
 ```
+
+`defaultServiceFeePercent` is the org's default campaign service fee (%), added on top of a campaign's goal when its creator doesn't pass their own `serviceFeePercent` (see `POST /campaigns`). Defaults to `DEFAULT_SERVICE_FEE_PERCENT` (5) until an ORG_ADMIN/SUPER_ADMIN changes it.
 
 ### `PUT /organizations` — `SUPER_ADMIN` or `ORG_ADMIN`
 
@@ -346,6 +349,7 @@ Returns the caller's organization profile + counts.
 | `address` | string | max 250 |
 | `description` | string | max 2000 |
 | `logoUrl` | string | valid URL or `""` |
+| `defaultServiceFeePercent` | number | 0–100. Only `SUPER_ADMIN`/`ORG_ADMIN` may set it — a `CAMPAIGN_MANAGER` setting a campaign's own `serviceFeePercent` is rejected with `FEE_PERCENT_NOT_ALLOWED`. |
 
 **Response — `200 OK`:** the updated organization object (same shape as GET, including `_count`).
 

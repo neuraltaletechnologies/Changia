@@ -340,9 +340,21 @@ export default function CampaignsPage() {
                 {filtered.map((c) => (
                   <tr key={c.id} className="hover:bg-muted/30 transition-colors">
                     <td className="px-4 py-3">
-                      <Link href={`/dashboard/campaigns/${c.id}`} className="font-medium text-foreground hover:text-primary transition-colors">
-                        {c.name}
-                      </Link>
+                      <div className="flex items-center gap-2.5">
+                        {c.imageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={c.imageUrl}
+                            alt=""
+                            className="w-8 h-8 rounded-md object-cover shrink-0 border border-border"
+                          />
+                        ) : (
+                          <div className="w-8 h-8 rounded-md bg-muted shrink-0" />
+                        )}
+                        <Link href={`/dashboard/campaigns/${c.id}`} className="font-medium text-foreground hover:text-primary transition-colors">
+                          {c.name}
+                        </Link>
+                      </div>
                       {c.status === "COMPLETED" && (
                         <div>
                           <span
@@ -428,6 +440,7 @@ function toCardCampaign(c: CampaignRecord): Campaign {
     ownerName: c.assignments?.[0]
       ? `${c.assignments[0].user.firstName} ${c.assignments[0].user.lastName ?? ""}`.trim()
       : undefined,
+    image: c.imageUrl ?? undefined,
   };
 }
 

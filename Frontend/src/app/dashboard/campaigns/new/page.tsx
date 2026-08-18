@@ -24,7 +24,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/dashboard/ui/select";
-import { campaignApi, poolApi, type DonorPool, type CampaignRecord } from "@/lib/dashboard/api";
+import {
+  campaignApi,
+  poolApi,
+  organizationApi,
+  type DonorPool,
+  type CampaignRecord,
+} from "@/lib/dashboard/api";
 import { formatTZS } from "@/lib/dashboard/types";
 import { cn } from "@/lib/dashboard/utils";
 
@@ -74,6 +80,12 @@ export default function NewCampaignPage() {
   const [created, setCreated] = useState<CampaignRecord | null>(null);
   const [imageWarning, setImageWarning] = useState<string | null>(null);
 
+  // The org's default campaign service fee (%), added on top of the goal —
+  // see computeFees() in Backend/modules/campaign/service.js. A manager only
+  // previews it here; changing the rate itself happens on the organisation
+  // settings page (admin-only).
+  const [serviceFeePercent, setServiceFeePercent] = useState(5);
+
   const loadPools = useCallback(async () => {
     try {
       const r = await poolApi.list({ limit: 100 });
@@ -86,6 +98,20 @@ export default function NewCampaignPage() {
   useEffect(() => {
     loadPools();
   }, [loadPools]);
+
+  useEffect(() => {
+    organizationApi
+      .getMine()
+      .then((org) => setServiceFeePercent(org.defaultServiceFeePercent))
+      .catch(() => {
+        // Keep the 5% fallback — the backend applies its own default anyway,
+        // this is only a preview.
+      });
+  }, []);
+
+  const goalAmount = Number(form.goal) || 0;
+  const serviceFeeAmount = Math.round(goalAmount * (serviceFeePercent / 100));
+  const publicTarget = goalAmount + serviceFeeAmount;
 
   const setField = (field: keyof FormState, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -358,10 +384,16 @@ export default function NewCampaignPage() {
               {errors.goal && (
                 <p className="text-xs text-destructive">{errors.goal}</p>
               )}
-              {form.goal && Number(form.goal) > 0 && (
-                <p className="text-xs text-muted-foreground">
-                  {formatTZS(Number(form.goal))}
-                </p>
+              {goalAmount > 0 && (
+                <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 space-y-0.5">
+                  <p className="text-xs text-muted-foreground">
+                    {formatTZS(goalAmount)} goal + {serviceFeePercent}% service fee (
+                    {formatTZS(serviceFeeAmount)})
+                  </p>
+                  <p className="text-xs font-medium text-foreground">
+                    Donors will see a target of {formatTZS(publicTarget)}
+                  </p>
+                </div>
               )}
             </div>
             <div className="grid gap-1.5">

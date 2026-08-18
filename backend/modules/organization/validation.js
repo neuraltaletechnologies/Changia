@@ -10,6 +10,7 @@ const updateOrganizationSchema = z.object({
   address: z.string().max(250).optional(),
   description: z.string().max(2000).optional(),
   logoUrl: z.string().url().optional().or(z.literal("")),
+  defaultServiceFeePercent: z.number().min(0).max(100).optional(),
 });
 
 module.exports = { updateOrganizationSchema };

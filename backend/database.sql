@@ -52,6 +52,11 @@ CREATE TABLE organizations (
   description TEXT          NULL,
   logo_url    VARCHAR(500)  NULL,
   currency    VARCHAR(8)    NOT NULL DEFAULT 'TZS',
+  -- Default campaign service fee for this org (%), added ON TOP of a
+  -- campaign's goal (see modules/campaign/service.js computeFees). A
+  -- CAMPAIGN_MANAGER creating a campaign doesn't set this — it's applied
+  -- automatically unless an ORG_ADMIN/SUPER_ADMIN overrides it per-campaign.
+  default_service_fee_percent DECIMAL(5,2) NOT NULL DEFAULT 5.00,
   status      VARCHAR(16)   NOT NULL DEFAULT 'ACTIVE',
   created_at  TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at  TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP

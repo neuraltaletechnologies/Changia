@@ -746,12 +746,45 @@ export interface OrganizationBrief {
   userCount: number;
 }
 
+export interface OrganizationRecord {
+  id: number;
+  name: string;
+  slug: string;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
+  description: string | null;
+  logoUrl: string | null;
+  currency: string;
+  /** % added on top of a campaign's goal when its creator doesn't set their
+   *  own rate (see CampaignRecord.serviceFeePercent). Editable by
+   *  SUPER_ADMIN/ORG_ADMIN only. */
+  defaultServiceFeePercent: number;
+  status: string;
+  createdAt: string;
+  _count: { users: number; campaigns: number; donors: number };
+}
+
 export const organizationApi = {
   listAll: () =>
     api
       .get<{ success: boolean; data: { organizations: OrganizationBrief[] } }>(
         "/organizations/all"
       )
+      .then(unwrap),
+  getMine: () =>
+    api.get<{ success: boolean; data: OrganizationRecord }>("/organizations").then(unwrap),
+  updateMine: (body: {
+    name?: string;
+    email?: string;
+    phone?: string;
+    address?: string;
+    description?: string;
+    logoUrl?: string;
+    defaultServiceFeePercent?: number;
+  }) =>
+    api
+      .put<{ success: boolean; data: OrganizationRecord }>("/organizations", body)
       .then(unwrap),
 };
 

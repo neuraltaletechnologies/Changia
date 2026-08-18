@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/dashboard/ui/button";
 import { Input } from "@/components/dashboard/ui/input";
 import { Label } from "@/components/dashboard/ui/label";
@@ -23,9 +23,11 @@ import {
   Globe,
   CreditCard,
   AlertTriangle,
+  Percent,
 } from "lucide-react";
 import { useRole } from "@/hooks/use-role";
 import { ApiClientError, changePasswordRequest } from "@/lib/api-client";
+import { organizationApi } from "@/lib/dashboard/api";
 
 const allTabs = [
   { value: "organisation", label: "Organisation", icon: Building2, permission: "settings:org" as const },
@@ -44,6 +46,48 @@ export default function SettingsPage() {
   const handleSave = () => {
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
+  };
+
+  // ─── Campaign service fee (Organisation tab, org admin+) ────────────────
+  // The % added on top of every campaign's goal by default — see
+  // computeFees() in Backend/modules/campaign/service.js. A CAMPAIGN_MANAGER
+  // only ever sees this applied (on the "New Campaign" form); changing the
+  // rate itself is restricted to SUPER_ADMIN/ORG_ADMIN.
+  const [feePercent, setFeePercent] = useState("5");
+  const [feeLoading, setFeeLoading] = useState(false);
+  const [feeSaving, setFeeSaving] = useState(false);
+  const [feeError, setFeeError] = useState<string | null>(null);
+  const [feeSaved, setFeeSaved] = useState(false);
+
+  useEffect(() => {
+    if (!canManageOrg) return;
+    setFeeLoading(true);
+    organizationApi
+      .getMine()
+      .then((org) => setFeePercent(String(org.defaultServiceFeePercent)))
+      .catch(() => setFeeError("Failed to load the current service fee."))
+      .finally(() => setFeeLoading(false));
+  }, [canManageOrg]);
+
+  const handleSaveFee = async () => {
+    setFeeError(null);
+    setFeeSaved(false);
+    const value = Number(feePercent);
+    if (Number.isNaN(value) || value < 0 || value > 100) {
+      setFeeError("Enter a percentage between 0 and 100.");
+      return;
+    }
+    setFeeSaving(true);
+    try {
+      const org = await organizationApi.updateMine({ defaultServiceFeePercent: value });
+      setFeePercent(String(org.defaultServiceFeePercent));
+      setFeeSaved(true);
+      setTimeout(() => setFeeSaved(false), 3000);
+    } catch (err) {
+      setFeeError(err instanceof ApiClientError ? err.message : "Failed to update the service fee.");
+    } finally {
+      setFeeSaving(false);
+    }
   };
 
   // ─── Password change (Security tab) ─────────────────────────────────────
@@ -172,6 +216,54 @@ export default function SettingsPage() {
             <div className="flex justify-end">
               <Button size="sm" onClick={handleSave}>
                 {saved ? "Saved!" : "Save Changes"}
+              </Button>
+            </div>
+          </div>
+
+          {/* Campaign service fee */}
+          <div className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-4">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-primary/15 flex items-center justify-center">
+                <Percent className="w-4 h-4 text-primary" />
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold text-foreground">Campaign Service Fee</h2>
+                <p className="text-xs text-muted-foreground">
+                  Added on top of every campaign&apos;s goal amount (goal + fee = public
+                  target). Campaign managers see this rate applied when they set a goal —
+                  only an organisation admin can change it here.
+                </p>
+              </div>
+            </div>
+            <div className="max-w-[220px] space-y-1.5">
+              <Label className="text-xs">Service Fee (%)</Label>
+              <div className="relative">
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={0.5}
+                  value={feePercent}
+                  onChange={(e) => setFeePercent(e.target.value)}
+                  disabled={feeLoading || feeSaving}
+                  className="h-9 text-sm pr-7"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                  %
+                </span>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                e.g. a 5,000,000 TZS goal at 5% shows donors a public target of 5,250,000 TZS.
+              </p>
+            </div>
+            {feeError && (
+              <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+                {feeError}
+              </div>
+            )}
+            <div className="flex justify-end">
+              <Button size="sm" onClick={handleSaveFee} disabled={feeLoading || feeSaving}>
+                {feeSaving ? "Saving…" : feeSaved ? "Saved!" : "Save Fee"}
               </Button>
             </div>
           </div>

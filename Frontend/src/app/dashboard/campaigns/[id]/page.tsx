@@ -219,7 +219,9 @@ export default function CampaignDetailPage() {
             <Button size="sm" onClick={() => setReminderOpen(true)}>
               <BellRing className="w-3.5 h-3.5 mr-1.5" />
               Send Reminder
-              {selected.size > 0 ? ` (${selected.size})` : ""}
+              {selected.size > 0
+                ? ` (${selected.size})`
+                : ` (all ${selectableTargets.length} unpaid)`}
             </Button>
           )}
         </div>
@@ -629,10 +631,18 @@ export default function CampaignDetailPage() {
         <ReminderDialog
           campaignId={id}
           campaignName={campaign.name}
-          donorIds={[...selected]}
-          donors={board.targets
-            .filter((t) => selected.has(t.donor.id))
-            .map((t) => t.donor)}
+          donorIds={
+            selected.size > 0
+              ? [...selected]
+              : selectableTargets.map((t) => t.donor.id)
+          }
+          donors={
+            selected.size > 0
+              ? board.targets
+                  .filter((t) => selected.has(t.donor.id))
+                  .map((t) => t.donor)
+              : selectableTargets.map((t) => t.donor)
+          }
           onClose={() => setReminderOpen(false)}
           onSent={() => {
             setReminderOpen(false);

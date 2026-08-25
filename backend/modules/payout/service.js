@@ -1,6 +1,7 @@
 const db = require("../../db");
 const { ApiError } = require("../../utils/ApiError");
 const { assertCampaignAccess } = require("../campaign/service");
+const clickPesa = require("../../utils/clickPesa");
 
 function serialize(row) {
   return {
@@ -131,16 +132,118 @@ async function decidePayout(organizationId, user, id, approved, data = {}) {
   return getPayoutRow(organizationId, id).then(serialize);
 }
 
+// ─── ClickPesa Payout Integration ───────────────────────────────────────────
+
+/**
+ * Previews a ClickPesa mobile money payout. Shows the fee breakdown
+ * before the admin confirms the actual payout.
+ */
+async function previewPayout(organizationId, id, phoneNumber) {
+  const payout = await getPayoutRow(organizationId, id);
+  if (payout.status !== "APPROVED") {
+    throw ApiError.badRequest("Only approved payouts can be previewed", "PAYOUT_NOT_APPROVED");
+  }
+
+  if (!clickPesa.CLICKPESA.enabled) {
+    // Dev mode — return a mock preview
+    const platformFee = Math.round(Number(payout.amount) * 0.06);
+    return {
+      payoutId: payout.id,
+      amount: Number(payout.amount),
+      phoneNumber: clickPesa.normalizePhone(phoneNumber),
+      providerFee: 0,
+      platformFee,
+      totalDeduction: Number(payout.amount) + platformFee,
+      channelProvider: "MOBILE MONEY (dev)",
+      receiverAccountNumber: clickPesa.normalizePhone(phoneNumber),
+      previewOnly: true,
+    };
+  }
+
+  const orderReference = clickPesa.generateOrderReference("Payout");
+  const cpResponse = await clickPesa.previewPayout({
+    amount: Number(payout.amount),
+    phoneNumber,
+    orderReference,
+  });
+
+  if (cpResponse.status >= 400) {
+    throw ApiError.badRequest(
+      cpResponse.data?.message || `ClickPesa preview failed: ${cpResponse.status}`,
+      "CLICKPESA_PREVIEW_FAILED"
+    );
+  }
+
+  return {
+    payoutId: payout.id,
+    amount: Number(payout.amount),
+    phoneNumber: clickPesa.normalizePhone(phoneNumber),
+    providerFee: cpResponse.data.fee || 0,
+    platformFee: 0,
+    totalDeduction: (cpResponse.data.amount || Number(payout.amount)),
+    channelProvider: cpResponse.data.channelProvider || "MOBILE MONEY",
+    orderReference,
+    receiverAccountNumber: cpResponse.data.receiver?.accountNumber || clickPesa.normalizePhone(phoneNumber),
+    receiverAccountName: cpResponse.data.receiver?.accountName || null,
+  };
+}
+
+/**
+ * Marks a payout as paid and initiates the ClickPesa payout if enabled.
+ * In dev mode (ClickPesa disabled), it just records the payout as paid.
+ */
 async function markPaid(organizationId, id, data) {
   const payout = await getPayoutRow(organizationId, id);
   if (payout.status !== "APPROVED") {
     throw ApiError.badRequest("Only approved payouts can be marked paid", "PAYOUT_NOT_APPROVED");
   }
+
+  let gatewayRef = data.gatewayRef || null;
+  let clickPesaResult = null;
+
+  if (clickPesa.CLICKPESA.enabled && data.phoneNumber) {
+    // Initiate actual ClickPesa payout
+    const orderReference = clickPesa.generateOrderReference("Payout");
+
+    try {
+      const cpResponse = await clickPesa.createPayout({
+        amount: Number(payout.amount),
+        phoneNumber: data.phoneNumber,
+        orderReference,
+      });
+
+      if (cpResponse.status >= 200 && cpResponse.status < 300 && cpResponse.data?.id) {
+        gatewayRef = cpResponse.data.id;
+        clickPesaResult = {
+          id: cpResponse.data.id,
+          status: cpResponse.data.status,
+          fee: cpResponse.data.fee,
+          channelProvider: cpResponse.data.channelProvider,
+        };
+      } else {
+        throw new Error(
+          cpResponse.data?.message || `ClickPesa payout creation failed: ${cpResponse.status}`
+        );
+      }
+    } catch (err) {
+      throw ApiError.badRequest(
+        `Payment transfer failed: ${err.message}`,
+        "CLICKPESA_PAYOUT_FAILED"
+      );
+    }
+  }
+
   await db.execute(
     "UPDATE payouts SET status = 'PAID', paid_at = NOW(), gateway_ref = ?, notes = COALESCE(?, notes) WHERE id = ? AND organization_id = ?",
-    [data.gatewayRef || null, data.notes || null, id, organizationId]
+    [gatewayRef, data.notes || null, id, organizationId]
   );
-  return getPayoutRow(organizationId, id).then(serialize);
+
+  const updated = await getPayoutRow(organizationId, id);
+  const serialized = serialize(updated);
+  if (clickPesaResult) {
+    serialized.clickPesa = clickPesaResult;
+  }
+  return serialized;
 }
 
-module.exports = { listPayouts, getPayout, createPayout, decidePayout, markPaid };
+module.exports = { listPayouts, getPayout, createPayout, decidePayout, previewPayout, markPaid };

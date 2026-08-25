@@ -3,6 +3,7 @@ const db = require("../../db");
 const { ApiError } = require("../../utils/ApiError");
 const { normalizePhone } = require("../../utils/phone");
 const poolService = require("../donor-pool/service");
+const clickPesa = require("../../utils/clickPesa");
 
 const MIN_PUSH_AMOUNT = 1000;
 
@@ -54,6 +55,8 @@ async function recordConfirmedDonation(data) {
   // organization's anomalous pool so they can be re-attached to a known donor.
   let donorId = data.donorId;
   let anomalousDonorCreated = false;
+  let campaignDonorTargetId = data.campaignDonorTargetId || null;
+
   if (!donorId && data.donorPhone) {
     const phone = normalizePhone(data.donorPhone);
     const existingDonor = await db.query(
@@ -105,12 +108,31 @@ async function recordConfirmedDonation(data) {
   const receiptNumber = nextReceiptNumber(new Date().getFullYear());
 
   // Everything in one transaction: donation + campaign totals update
+  // Look up campaign name + donor email for the receipt
+  const campaignInfo = await db.query(
+    "SELECT name, slug FROM campaigns WHERE id = ?",
+    [data.campaignId]
+  );
+  const campaignName = campaignInfo[0]?.name || '';
+  const campaignSlug = campaignInfo[0]?.slug || '';
+
+  // Resolve donor email: from data → from payment_attempt → from donor record
+  let donorEmail = data.donorEmail || null;
+  if (!donorEmail && data.paymentAttemptId) {
+    const paRows = await db.query("SELECT donor_email FROM payment_attempts WHERE id = ?", [data.paymentAttemptId]);
+    donorEmail = paRows[0]?.donor_email || null;
+  }
+  if (!donorEmail && donorId) {
+    const donorRows = await db.query("SELECT email FROM donors WHERE id = ?", [donorId]);
+    donorEmail = donorRows[0]?.email || null;
+  }
+
   return db.withTransaction(async (tx) => {
     const created = await tx.execute(
       `INSERT INTO donations
          (organization_id, campaign_id, donor_id, payment_attempt_id, amount, method,
-          status, donor_name, donor_phone, is_anonymous, receipt_number, gateway_ref, confirmed_at)
-       VALUES (?, ?, ?, ?, ?, ?, 'CONFIRMED', ?, ?, ?, ?, ?, NOW())`,
+          status, donor_name, donor_phone, donor_email, is_anonymous, receipt_number, gateway_ref, confirmed_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'CONFIRMED', ?, ?, ?, ?, ?, ?, ?, NOW())`,
       [
         data.organizationId,
         data.campaignId,
@@ -120,6 +142,7 @@ async function recordConfirmedDonation(data) {
         data.method,
         data.isAnonymous ? null : (data.donorName || null),
         data.donorPhone || null,
+        data.donorEmail || null,
         data.isAnonymous ? 1 : 0,
         receiptNumber,
         data.gatewayRef || null,
@@ -154,6 +177,82 @@ async function recordConfirmedDonation(data) {
       gatewayRef: data.gatewayRef || null,
       confirmedAt: new Date(),
     };
+  }).then(async (donation) => {
+    // ─── Update Campaign Donor Target Status ──────────────────────────────
+    // If this donor was in the campaign's targeted list, update their
+    // payment status so the dashboard shows who has/hasn't paid.
+    if (donation.donorId && data.campaignId) {
+      // If campaignDonorTargetId wasn't passed, try to find it now
+      if (!campaignDonorTargetId) {
+        const cdtRows = await db.query(
+          "SELECT id FROM campaign_donor_targets WHERE campaign_id = ? AND donor_id = ? LIMIT 1",
+          [data.campaignId, donation.donorId]
+        );
+        if (cdtRows.length > 0) {
+          campaignDonorTargetId = cdtRows[0].id;
+        }
+      }
+
+      if (campaignDonorTargetId) {
+        // Calculate total paid by this donor for this campaign
+        const paidResult = await db.query(
+          `SELECT COALESCE(SUM(amount), 0) AS total_paid
+           FROM donations
+           WHERE campaign_id = ? AND donor_id = ? AND status = 'CONFIRMED'`,
+          [data.campaignId, donation.donorId]
+        );
+        const totalPaid = num(paidResult[0]?.total_paid);
+
+        // Get the expected amount
+        const cdtRow = await db.query(
+          "SELECT expected_amount FROM campaign_donor_targets WHERE id = ?",
+          [campaignDonorTargetId]
+        );
+        const expectedAmount = num(cdtRow[0]?.expected_amount);
+
+        // Determine payment status
+        let paymentStatus = "UNPAID";
+        if (expectedAmount > 0 && totalPaid >= expectedAmount) {
+          paymentStatus = "PAID_FULL";
+        } else if (totalPaid > 0) {
+          paymentStatus = "PARTIAL";
+        }
+
+        await db.execute(
+          `UPDATE campaign_donor_targets
+           SET actual_amount = ?, payment_status = ?
+           WHERE id = ?`,
+          [totalPaid, paymentStatus, campaignDonorTargetId]
+        );
+      }
+    }
+
+    return donation;
+  }).then(async (donation) => {
+    // ─── Send Receipt Email ──────────────────────────────────────────────
+    // Fire-and-forget: send a receipt email with transaction ID if email available
+    if (donorEmail && !data.isAnonymous) {
+      try {
+        const { sendEmail, buildDonationReceiptEmail } = require('../../utils/email');
+        const html = buildDonationReceiptEmail({
+          donorName: data.donorName || 'Donor',
+          campaignName,
+          amount: data.amount,
+          receiptNumber,
+          transactionId: String(donation.id),
+          campaignUrl: campaignSlug ? `https://changia.org.tz/campaigns/${campaignSlug}` : null,
+        });
+        await sendEmail({
+          to: donorEmail,
+          subject: `Thank you for your donation of TZS ${Number(data.amount).toLocaleString()} — Receipt ${receiptNumber}`,
+          html,
+        });
+        console.log(`[donation] Receipt email sent to ${donorEmail} for donation #${donation.id}`);
+      } catch (err) {
+        console.error(`[donation] Failed to send receipt email:`, err.message);
+      }
+    }
+    return donation;
   });
 }
 
@@ -206,6 +305,8 @@ async function createPaymentAttempt(data) {
   }
 
   let donorId = data.donorId;
+  let campaignDonorTargetId = null;
+
   if (!donorId && data.donorPhone) {
     const phone = normalizePhone(data.donorPhone);
     const found = await db.query(
@@ -215,12 +316,29 @@ async function createPaymentAttempt(data) {
     donorId = found.length > 0 ? found[0].id : null;
   }
 
+  // ─── Campaign Donor Target Matching ────────────────────────────────────
+  // If we found a donor, check if they're a targeted donor for this
+  // specific campaign (from the donor pool). This links the payment
+  // to the expected amount so we can track who has/hasn't paid.
+  if (donorId && data.campaignId) {
+    const cdtRows = await db.query(
+      "SELECT id FROM campaign_donor_targets WHERE campaign_id = ? AND donor_id = ? LIMIT 1",
+      [data.campaignId, donorId]
+    );
+    if (cdtRows.length > 0) {
+      campaignDonorTargetId = cdtRows[0].id;
+    }
+  }
+
   const expiresInMinutes = data.expiresInMinutes ?? 15;
+  // Generate a ClickPesa-compatible order reference for idempotency
+  const clickPesaOrderRef = clickPesa.generateOrderReference();
+
   const result = await db.execute(
     `INSERT INTO payment_attempts
        (campaign_id, donor_id, organization_id, initiated_by_id, method, amount,
-        status, idempotency_key, donor_phone, donor_name, expires_at)
-     VALUES (?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? MINUTE))`,
+        status, idempotency_key, donor_phone, donor_name, donor_email, campaign_donor_target_id, expires_at)
+     VALUES (?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? MINUTE))`,
     [
       data.campaignId,
       donorId || null,
@@ -228,17 +346,63 @@ async function createPaymentAttempt(data) {
       data.initiatedById,
       data.method,
       data.amount,
-      randomUUID(),
+      clickPesaOrderRef,
       data.donorPhone ? normalizePhone(data.donorPhone) : null,
       data.donorName || null,
+      data.donorEmail || null,
+      campaignDonorTargetId,
       expiresInMinutes,
     ]
   );
 
-  const attempts = await db.query("SELECT * FROM payment_attempts WHERE id = ?", [
+  let attempts = await db.query("SELECT * FROM payment_attempts WHERE id = ?", [
     result.insertId,
   ]);
-  return { ...attempts[0], amount: num(attempts[0].amount) };
+  let attempt = { ...attempts[0], amount: num(attempts[0].amount) };
+
+  // ─── ClickPesa USSD Push ──────────────────────────────────────────────
+  // If ClickPesa is enabled and we have a phone number, initiate the
+  // actual USSD push so the donor gets a prompt on their phone.
+  console.log(`[donation] ClickPesa enabled=${clickPesa.CLICKPESA.enabled}, donorPhone=${data.donorPhone}, campaignId=${data.campaignId}`);
+  if (clickPesa.CLICKPESA.enabled && data.donorPhone) {
+    console.log(`[donation] Sending ClickPesa USSD push: amount=${data.amount}, phone=${data.donorPhone}, ref=${clickPesaOrderRef}`);
+    try {
+      const cpResponse = await clickPesa.initiateUssdPush({
+        amount: data.amount,
+        phoneNumber: data.donorPhone,
+        orderReference: clickPesaOrderRef,
+      });
+      console.log(`[donation] ClickPesa response: status=${cpResponse.status}, data=`, JSON.stringify(cpResponse.data).substring(0, 200));
+
+      if (cpResponse.status >= 200 && cpResponse.status < 300 && cpResponse.data?.id) {
+        // ClickPesa accepted the request — store the provider reference
+        await db.execute(
+          "UPDATE payment_attempts SET gateway_ref = ?, provider = 'clickpesa' WHERE id = ?",
+          [cpResponse.data.id, result.insertId]
+        );
+        attempt.gateway_ref = cpResponse.data.id;
+        attempt.provider = "clickpesa";
+        console.log(`[donation] ✅ ClickPesa push sent successfully: id=${cpResponse.data.id}`);
+      } else {
+        // ClickPesa rejected — mark the attempt as failed with the error
+        const errMsg = cpResponse.data?.message || `ClickPesa error: ${cpResponse.status}`;
+        console.error(`[donation] ❌ ClickPesa rejected: ${errMsg}`);
+        await db.execute(
+          "UPDATE payment_attempts SET status = 'FAILED', error = ? WHERE id = ?",
+          [errMsg, result.insertId]
+        );
+        attempt.status = "FAILED";
+        attempt.error = errMsg;
+      }
+    } catch (err) {
+      // Network/timeout error — keep attempt as PENDING; the donor can
+      // poll for status or a webhook may still arrive.
+      console.error("ClickPesa USSD push failed:", err.message);
+      attempt.clickPesaError = err.message;
+    }
+  }
+
+  return attempt;
 }
 
 // ─── Public (unauthenticated) self-serve contribution flow ──────────────────
@@ -268,6 +432,7 @@ async function createPublicContribution(campaignIdOrSlug, data) {
     initiatedById: null,
     donorPhone: data.donorPhone,
     donorName: data.isAnonymous ? undefined : data.donorName,
+    donorEmail: data.donorEmail || undefined,
     amount: data.amount,
     method: "LINK",
   });
@@ -385,6 +550,7 @@ async function resolvePaymentAttempt(attemptId, result) {
       method: attempt.method,
       gatewayRef: result.gatewayRef,
       paymentAttemptId: attempt.id,
+      campaignDonorTargetId: attempt.campaign_donor_target_id || undefined,
     });
 
     await db.execute(

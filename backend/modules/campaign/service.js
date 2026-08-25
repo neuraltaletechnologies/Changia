@@ -3,6 +3,7 @@ const db = require("../../db");
 const { ApiError } = require("../../utils/ApiError");
 const { env } = require("../../config");
 const { deleteUploadedFiles } = require("../../middlewares/upload");
+const { sendEmail, buildCampaignLinkEmail } = require("../../utils/email");
 
 /** Converts a stored "/uploads/..." web path back to an absolute disk path,
  *  so a superseded completion-report photo can be removed from disk. */
@@ -613,6 +614,14 @@ async function approveCampaign(organizationId, campaignId, actor) {
      VALUES (?, ?, ?, 'campaign.approved', 'campaign', ?, 'INFO')`,
     [organizationId, actor.id, actor.email, String(campaignId)]
   );
+
+  // ─── Send campaign link emails to targeted donors ────────────────────────
+  // After approval, notify all donors in the campaign's target list via email
+  // with a direct link to the campaign donation page.
+  sendCampaignLinkEmails(organizationId, campaignId).catch((err) => {
+    console.error(`[campaign-approval] Failed to send donor emails for campaign ${campaignId}:`, err.message);
+  });
+
   return getCampaign(organizationId, campaignId, actor);
 }
 
@@ -1717,6 +1726,89 @@ async function removeCampaign(organizationId, campaignId, actor) {
   );
 
   return { deleted: true };
+}
+
+// ─── Campaign Link Email Notifications ───────────────────────────────────────
+
+/**
+ * Sends campaign donation link emails to all targeted donors after
+ * a campaign is approved. Runs asynchronously — errors are logged
+ * but don't block the approval response.
+ */
+async function sendCampaignLinkEmails(organizationId, campaignId) {
+  // Fetch campaign details
+  const campaigns = await db.query(
+    `SELECT id, name, slug, story, goal_amount, organization_id
+     FROM campaigns WHERE id = ? AND organization_id = ?`,
+    [campaignId, organizationId]
+  );
+  const campaign = campaigns[0];
+  if (!campaign) return;
+
+  // Fetch organization name
+  const orgs = await db.query(
+    "SELECT name FROM organizations WHERE id = ?",
+    [organizationId]
+  );
+  const orgName = orgs[0]?.name || "Changia";
+
+  // Fetch all targeted donors with emails
+  const donors = await db.query(
+    `SELECT cdt.id AS target_id, cdt.expected_amount,
+       d.id AS donor_id, d.first_name, d.last_name, d.email, d.phone
+     FROM campaign_donor_targets cdt
+     JOIN donors d ON d.id = cdt.donor_id
+     WHERE cdt.campaign_id = ? AND d.email IS NOT NULL AND d.email != ''`,
+    [campaignId]
+  );
+
+  if (donors.length === 0) {
+    console.log(`[campaign-approval] No donors with emails for campaign ${campaignId}`);
+    return;
+  }
+
+  const campaignUrl = `${env.APP_BASE_URL}/campaigns/${campaign.slug || campaign.id}`;
+  const subject = `Support: ${campaign.name} — Your contribution matters!`;
+
+  let sent = 0;
+  let failed = 0;
+
+  for (const donor of donors) {
+    try {
+      const donorName = [donor.first_name, donor.last_name].filter(Boolean).join(" ") || "Donor";
+      const html = buildCampaignLinkEmail({
+        campaignName: campaign.name,
+        campaignStory: campaign.story || "",
+        campaignUrl,
+        goalAmount: campaign.goal_amount,
+        organizationName: orgName,
+      });
+
+      await sendEmail({
+        to: donor.email,
+        subject,
+        html,
+      });
+
+      sent++;
+    } catch (err) {
+      console.error(`[campaign-approval] Failed to email donor ${donor.donor_id} (${donor.email}):`, err.message);
+      failed++;
+    }
+  }
+
+  console.log(`[campaign-approval] Campaign ${campaignId}: sent ${sent}/${donors.length} emails (${failed} failed)`);
+
+  // Log the batch email send in audit
+  await db.execute(
+    `INSERT INTO audit_logs (organization_id, action, resource, resource_id, details, severity)
+     VALUES (?, 'campaign.emails_sent', 'campaign', ?, ?, 'INFO')`,
+    [
+      organizationId,
+      String(campaignId),
+      JSON.stringify({ sent, failed, total: donors.length, campaignUrl }),
+    ]
+  ).catch(() => {}); // Don't fail if audit log insert fails
 }
 
 module.exports = {

@@ -32,9 +32,9 @@ const env = {
   MESSAGE_PROVIDER: process.env.MESSAGE_PROVIDER || "simulated",
   SMTP: {
     host: process.env.SMTP_HOST || "",
-    port: Number(process.env.SMTP_PORT) || 587,
+    port: Number(process.env.SMTP_PORT) || 465,
     user: process.env.SMTP_USER || "",
-    password: process.env.SMTP_PASSWORD || "",
+    password: process.env.SMTP_PASSWORD || process.env.SMTP_PASS || "",
     fromEmail: process.env.SMTP_FROM_EMAIL || "",
     fromName: process.env.SMTP_FROM_NAME || "Changia",
   },
@@ -48,6 +48,16 @@ const env = {
     phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || "",
     businessAccountId: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || "",
   },
+
+  // ─── ClickPesa payment gateway ────────────────────────────────────────────────
+  CLICKPESA_ENABLED: process.env.CLICKPESA_ENABLED || "false",
+  CLICKPESA_BASE_URL:
+    process.env.CLICKPESA_BASE_URL || "https://api.clickpesa.com/third-parties",
+  CLICKPESA_CLIENT_ID: process.env.CLICKPESA_CLIENT_ID || "",
+  CLICKPESA_API_KEY: process.env.CLICKPESA_API_KEY || "",
+  CLICKPESA_USE_CHECKSUM: process.env.CLICKPESA_USE_CHECKSUM || "false",
+  CLICKPESA_CHECKSUM_SECRET: process.env.CLICKPESA_CHECKSUM_SECRET || "",
+  CLICKPESA_TIMEOUT_MS: Number(process.env.CLICKPESA_TIMEOUT_MS) || 15000,
 
   // ─── Reminder auto-resend scheduler ─────────────────────────────────────────
   REMINDER_SCHEDULER_INTERVAL_MINUTES:

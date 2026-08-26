@@ -10,15 +10,23 @@ import { cn } from "@/lib/dashboard/utils";
 
 export default function CampaignApprovalsPage() {
   const [campaigns, setCampaigns] = useState<CampaignRecord[]>([]);
+  // Campaigns (any status) with a manager's custom service-fee proposal awaiting
+  // review — the backend has no feeStatus filter, so we filter client-side.
+  const [feeProposals, setFeeProposals] = useState<CampaignRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actingId, setActingId] = useState<number | null>(null);
+  const [feeActingId, setFeeActingId] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     try {
       setError(null);
-      const result = await campaignApi.list({ status: "PENDING", limit: 100 });
-      setCampaigns(result.campaigns);
+      const [pending, all] = await Promise.all([
+        campaignApi.list({ status: "PENDING", limit: 100 }),
+        campaignApi.list({ limit: 100 }),
+      ]);
+      setCampaigns(pending.campaigns);
+      setFeeProposals(all.campaigns.filter((c) => c.feeStatus === "PENDING"));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load pending campaigns.");
     } finally {
@@ -51,6 +59,18 @@ export default function CampaignApprovalsPage() {
       setError(e instanceof Error ? e.message : "Failed to reject campaign.");
     } finally {
       setActingId(null);
+    }
+  };
+
+  const reviewFee = async (id: number, approved: boolean) => {
+    setFeeActingId(id);
+    try {
+      await campaignApi.reviewFee(id, { approved });
+      setFeeProposals((prev) => prev.filter((c) => c.id !== id));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to review the fee proposal.");
+    } finally {
+      setFeeActingId(null);
     }
   };
 
@@ -178,6 +198,72 @@ export default function CampaignApprovalsPage() {
                   onClick={() => approve(c.id)}
                 >
                   {actingId === c.id ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Check className="w-3.5 h-3.5 mr-1" />
+                  )}
+                  Approve
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Pending custom service-fee proposals from managers */}
+      {!loading && feeProposals.length > 0 && (
+        <div className="space-y-3">
+          <div>
+            <h2 className="text-base font-semibold text-foreground tracking-tight">
+              Service-fee proposals
+            </h2>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              {feeProposals.length} custom fee rate{feeProposals.length !== 1 ? "s" : ""} awaiting your review
+            </p>
+          </div>
+          {feeProposals.map((c) => (
+            <div
+              key={c.id}
+              className="bg-card border border-border rounded-xl p-5 shadow-sm flex flex-col sm:flex-row sm:items-center gap-4"
+            >
+              <div className="flex-1 min-w-0">
+                <Link
+                  href={`/dashboard/campaigns/${c.id}`}
+                  className="text-sm font-medium text-foreground hover:text-primary transition-colors truncate"
+                >
+                  {c.name}
+                </Link>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 mt-1 text-[11px] text-muted-foreground">
+                  <span>
+                    Proposed{" "}
+                    <span className="font-medium text-amber-600">
+                      {c.proposedServiceFeePercent}%
+                    </span>{" "}
+                    (current {c.serviceFeePercent}%)
+                  </span>
+                  <span>{formatTZSFull(c.goalAmount)} goal</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={feeActingId === c.id}
+                  onClick={() => reviewFee(c.id, false)}
+                >
+                  {feeActingId === c.id ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <X className="w-3.5 h-3.5 mr-1" />
+                  )}
+                  Reject
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={feeActingId === c.id}
+                  onClick={() => reviewFee(c.id, true)}
+                >
+                  {feeActingId === c.id ? (
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   ) : (
                     <Check className="w-3.5 h-3.5 mr-1" />

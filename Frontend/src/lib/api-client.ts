@@ -18,7 +18,7 @@ export interface ApiUser {
   lastName?: string | null;
   email: string;
   phone?: string | null;
-  role: 'SUPER_ADMIN' | 'ORG_ADMIN' | 'CAMPAIGN_MANAGER';
+  role: 'SUPER_ADMIN' | 'ORG_ADMIN' | 'REVIEWER' | 'CAMPAIGN_MANAGER';
   status: string;
   avatarUrl?: string | null;
   organizationId: string | null;

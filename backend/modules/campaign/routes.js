@@ -16,6 +16,7 @@ const {
   completionReportReviewSchema,
   closureRequestSchema,
   closureDecisionSchema,
+  feeReviewSchema,
 } = require("./validation");
 
 const router = Router();
@@ -79,8 +80,19 @@ router.post(
 );
 router.post(
   "/:id/approve",
-  authorize("SUPER_ADMIN", "ORG_ADMIN"),
+  authorize("SUPER_ADMIN", "ORG_ADMIN", "REVIEWER"),
   controller.approveCampaign
+);
+
+// Custom service-fee proposals: a CAMPAIGN_MANAGER can propose a fee % that
+// differs from the org default (via POST / or PUT /:id with serviceFeePercent);
+// it stays PENDING until a REVIEWER/ORG_ADMIN/SUPER_ADMIN approves or rejects
+// it here. On approval the proposed rate becomes the campaign's active fee.
+router.post(
+  "/:id/fee/review",
+  authorize("SUPER_ADMIN", "ORG_ADMIN", "REVIEWER"),
+  validate({ body: feeReviewSchema }),
+  controller.reviewFeeProposal
 );
 router.post(
   "/:id/status",
@@ -122,7 +134,7 @@ router.post(
 );
 router.post(
   "/:id/completion-report/review",
-  authorize("SUPER_ADMIN", "ORG_ADMIN"),
+  authorize("SUPER_ADMIN", "ORG_ADMIN", "REVIEWER"),
   validate({ body: completionReportReviewSchema }),
   controller.reviewCompletionReport
 );
@@ -153,7 +165,7 @@ router.post(
 );
 router.post(
   "/:id/closure-requests/:requestId/decide",
-  authorize("SUPER_ADMIN", "ORG_ADMIN"),
+  authorize("SUPER_ADMIN", "ORG_ADMIN", "REVIEWER"),
   validate({ body: closureDecisionSchema }),
   controller.decideClosureRequest
 );

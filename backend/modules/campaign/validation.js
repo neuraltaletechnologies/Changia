@@ -99,6 +99,12 @@ const closureDecisionSchema = z.object({
   notes: z.string().max(2000).optional(),
 });
 
+// A reviewer/admin approving or rejecting a manager's proposed custom fee %.
+const feeReviewSchema = z.object({
+  approved: z.boolean(),
+  notes: z.string().max(2000).optional(),
+});
+
 const publicListQuerySchema = z.object({
   featured: z.enum(["true", "false"]).optional(),
   limit: z.coerce.number().int().min(1).max(5).optional(),
@@ -123,6 +129,7 @@ module.exports = {
   completionReportReviewSchema,
   closureRequestSchema,
   closureDecisionSchema,
+  feeReviewSchema,
   publicListQuerySchema,
   publicDetailQuerySchema,
 };

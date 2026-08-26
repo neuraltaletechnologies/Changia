@@ -18,12 +18,14 @@ export type Role = ApiUser["role"];
 export const ROLE = {
   SUPER_ADMIN: "SUPER_ADMIN",
   ORG_ADMIN: "ORG_ADMIN",
+  REVIEWER: "REVIEWER",
   CAMPAIGN_MANAGER: "CAMPAIGN_MANAGER",
 } as const;
 
 export const ALL_ROLES: Role[] = [
   ROLE.SUPER_ADMIN,
   ROLE.ORG_ADMIN,
+  ROLE.REVIEWER,
   ROLE.CAMPAIGN_MANAGER,
 ];
 
@@ -55,6 +57,13 @@ export const ROLE_META: Record<Role, RoleMeta> = {
     scope:
       "Create and approve campaigns, manage donors and donor pools, manage your user and request payouts.",
   },
+  REVIEWER: {
+    label: "Reviewer",
+    shortLabel: "Reviewer",
+    tagline: "Review and approve what your campaign managers submit.",
+    scope:
+      "Approve campaigns, closure requests, completion reports and custom service-fee proposals submitted by managers. Can't create campaigns, manage users, change platform settings or handle payouts.",
+  },
   CAMPAIGN_MANAGER: {
     label: "Campaign Manager",
     shortLabel: "Campaign Manager",
@@ -75,6 +84,7 @@ export type Permission =
   | "campaign:view"
   | "campaign:create"
   | "campaign:approve"
+  | "campaign:fee_review" // approve/reject a manager's custom service-fee proposal
   | "donor:view"
   | "donor:add" // add consented donors
   | "donor:manage" // full donor CRUD + imports
@@ -95,6 +105,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     // what an organization already created, but doesn't create campaigns or
     // donor pools itself.
     "campaign:approve",
+    "campaign:fee_review",
     "donor:view",
     "donor:add",
     "donor:manage",
@@ -111,6 +122,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "campaign:view",
     "campaign:create",
     "campaign:approve",
+    "campaign:fee_review",
     "donor:view",
     "donor:add",
     "donor:manage",
@@ -120,6 +132,14 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "reports:view",
     "reminder:manage",
     "donorpool:create",
+  ],
+  REVIEWER: [
+    "dashboard:view",
+    "campaign:view",
+    "campaign:approve",
+    "campaign:fee_review",
+    "donor:view",
+    "reports:view",
   ],
   CAMPAIGN_MANAGER: [
     "dashboard:view",
@@ -147,7 +167,7 @@ export const ROUTE_ACCESS: Record<string, Role[]> = {
   "/dashboard/profile": ALL_ROLES,
   "/dashboard/campaigns": ALL_ROLES,
   "/dashboard/campaigns/new": [ROLE.ORG_ADMIN, ROLE.CAMPAIGN_MANAGER],
-  "/dashboard/campaigns/approvals": [ROLE.SUPER_ADMIN, ROLE.ORG_ADMIN],
+  "/dashboard/campaigns/approvals": [ROLE.SUPER_ADMIN, ROLE.ORG_ADMIN, ROLE.REVIEWER],
   "/dashboard/donors": ALL_ROLES,
   "/dashboard/donors/import": [ROLE.SUPER_ADMIN, ROLE.ORG_ADMIN],
   "/dashboard/pools": ALL_ROLES,

@@ -123,6 +123,15 @@ function mapCampaign(c) {
     serviceFeePercent: num(c.service_fee_percent),
     serviceFeeAmount: num(c.service_fee_amount),
     publicTarget: num(c.public_target),
+    // Custom fee proposal state (null proposed = nothing pending).
+    proposedServiceFeePercent:
+      c.proposed_service_fee_percent === null || c.proposed_service_fee_percent === undefined
+        ? null
+        : num(c.proposed_service_fee_percent),
+    feeStatus: c.fee_status || "NONE",
+    feeReviewedBy: c.fee_reviewed_by ?? null,
+    feeReviewedAt: c.fee_reviewed_at ?? null,
+    feeReviewNotes: c.fee_review_notes ?? null,
     minimumAmount: num(c.minimum_amount),
     startDate: c.start_date,
     endDate: c.end_date,
@@ -215,7 +224,9 @@ async function listCampaigns(organizationId, filters, user) {
 
   const campaigns = await db.query(
     `SELECT id, name, slug, story, name_sw, story_sw, category_sw, image_url, category, goal_amount,
-            service_fee_percent, service_fee_amount, public_target, minimum_amount, start_date, end_date,
+            service_fee_percent, service_fee_amount, public_target,
+            proposed_service_fee_percent, fee_status, fee_reviewed_by, fee_reviewed_at, fee_review_notes,
+            minimum_amount, start_date, end_date,
             status, is_public, contact_phone, raised_amount, donor_count, is_featured, featured_at,
             approved_by, approved_at, created_at, updated_at
      FROM campaigns ${whereSql}
@@ -277,7 +288,9 @@ async function getCampaign(organizationId, campaignId, user) {
   const [orgSql, ...orgParams] = orgScope(organizationId, user);
   const campaigns = await db.query(
     `SELECT id, name, slug, story, name_sw, story_sw, category_sw, image_url, category, goal_amount,
-            service_fee_percent, service_fee_amount, public_target, minimum_amount, start_date, end_date,
+            service_fee_percent, service_fee_amount, public_target,
+            proposed_service_fee_percent, fee_status, fee_reviewed_by, fee_reviewed_at, fee_review_notes,
+            minimum_amount, start_date, end_date,
             status, is_public, contact_phone, raised_amount, donor_count, is_featured, featured_at,
             approved_by, approved_at, created_at, updated_at
      FROM campaigns WHERE id = ?${orgSql}`,
@@ -340,15 +353,10 @@ async function createCampaign(organizationId, data, actor) {
     throw ApiError.badRequest("Campaign goal must be greater than zero");
   }
 
-  // The service-fee % is an org-level policy (see the organization settings
-  // "Platform Fee" control) — a CAMPAIGN_MANAGER can see it applied and
-  // previewed, but only ORG_ADMIN/SUPER_ADMIN may actually set it per campaign.
-  if (actor.role === "CAMPAIGN_MANAGER" && data.serviceFeePercent !== undefined) {
-    throw ApiError.forbidden(
-      "Only an organization admin can set a campaign's service fee percentage",
-      "FEE_PERCENT_NOT_ALLOWED"
-    );
-  }
+  // The service-fee % starts from the org default. A CAMPAIGN_MANAGER may
+  // PROPOSE a different rate — it is parked as a pending proposal (see below)
+  // and doesn't take effect until a reviewer/admin approves it. An
+  // ORG_ADMIN/SUPER_ADMIN/REVIEWER who sets a rate applies it immediately.
 
   // SUPER_ADMIN has no organization_id (platform-wide) — their campaigns
   // belong to the dedicated "Changia Platform" organization.
@@ -377,8 +385,25 @@ async function createCampaign(organizationId, data, actor) {
       );
     }
   }
-  const effectiveFeePercent =
-    data.serviceFeePercent ?? (await getOrgDefaultFeePercent(resolvedOrgId));
+  // Fee resolution + proposal handling.
+  //   - Manager passing a custom rate → keep the org default active, park the
+  //     custom rate as a PENDING proposal for a reviewer/admin to approve.
+  //   - Admin/reviewer passing a rate → apply it immediately (fee_status stays
+  //     NONE — no approval needed, they ARE the approver).
+  const isPrivilegedFeeSetter = actor.role !== "CAMPAIGN_MANAGER";
+  const orgDefaultFeePercent = await getOrgDefaultFeePercent(resolvedOrgId);
+  let effectiveFeePercent = orgDefaultFeePercent;
+  let proposedFeePercent = null;
+  let feeStatus = "NONE";
+  if (data.serviceFeePercent !== undefined) {
+    if (isPrivilegedFeeSetter) {
+      effectiveFeePercent = data.serviceFeePercent;
+    } else if (data.serviceFeePercent !== orgDefaultFeePercent) {
+      // Manager proposed a rate that differs from the default → pending review.
+      proposedFeePercent = data.serviceFeePercent;
+      feeStatus = "PENDING";
+    }
+  }
   const { serviceFeePercent, serviceFeeAmount, publicTarget } = computeFees(
     data.goalAmount,
     effectiveFeePercent
@@ -394,9 +419,10 @@ async function createCampaign(organizationId, data, actor) {
   const result = await db.execute(
     `INSERT INTO campaigns
        (organization_id, name, slug, story, name_sw, story_sw, category_sw, image_url, category,
-        goal_amount, service_fee_percent, service_fee_amount, public_target, minimum_amount,
+        goal_amount, service_fee_percent, service_fee_amount, public_target,
+        proposed_service_fee_percent, fee_status, minimum_amount,
         start_date, end_date, contact_phone, status, is_public, approved_by, approved_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       resolvedOrgId,
       data.name,
@@ -411,6 +437,8 @@ async function createCampaign(organizationId, data, actor) {
       serviceFeePercent,
       serviceFeeAmount,
       publicTarget,
+      proposedFeePercent,
+      feeStatus,
       data.minimumAmount ?? 1000,
       data.startDate ? new Date(data.startDate) : null,
       data.endDate ? new Date(data.endDate) : null,
@@ -458,12 +486,10 @@ async function createCampaign(organizationId, data, actor) {
 }
 
 async function updateCampaign(organizationId, campaignId, data, actor) {
-  if (actor.role === "CAMPAIGN_MANAGER" && data.serviceFeePercent !== undefined) {
-    throw ApiError.forbidden(
-      "Only an organization admin can set a campaign's service fee percentage",
-      "FEE_PERCENT_NOT_ALLOWED"
-    );
-  }
+  // A CAMPAIGN_MANAGER may propose a custom serviceFeePercent — it is parked
+  // as a pending proposal below rather than applied. ORG_ADMIN/SUPER_ADMIN/
+  // REVIEWER apply it immediately. (No hard block on managers anymore.)
+  const isManager = actor.role === "CAMPAIGN_MANAGER";
 
   const [orgSql, ...orgParams] = orgScope(organizationId, actor);
   const existing = await db.query(
@@ -492,14 +518,28 @@ async function updateCampaign(organizationId, campaignId, data, actor) {
   }
 
   let feeData = null;
+  // A manager's serviceFeePercent is a PROPOSAL, not an applied change; only an
+  // admin/reviewer's rate feeds into the effective computation.
+  const privilegedFeeChange = !isManager && data.serviceFeePercent !== undefined;
+  let proposalUpdate; // undefined = no change; a number = new pending proposal
   if (data.goalAmount !== undefined && data.goalAmount !== num(campaign.goal_amount)) {
-    // Recomputing off a new goal: keep the campaign's own fee % unless the
-    // caller explicitly overrides it — don't silently fall back to the
-    // platform default and change a rate the org/manager already agreed to.
-    const percent = data.serviceFeePercent ?? num(campaign.service_fee_percent);
+    // Recomputing off a new goal: an admin/reviewer may override the rate in
+    // the same call; otherwise keep the campaign's current (approved) rate so a
+    // manager's goal edit never silently shifts the fee.
+    const percent = privilegedFeeChange
+      ? data.serviceFeePercent
+      : num(campaign.service_fee_percent);
     feeData = computeFees(data.goalAmount, percent);
-  } else if (data.serviceFeePercent !== undefined) {
+  } else if (privilegedFeeChange) {
     feeData = computeFees(num(campaign.goal_amount), data.serviceFeePercent);
+  }
+  if (
+    isManager &&
+    data.serviceFeePercent !== undefined &&
+    data.serviceFeePercent !== num(campaign.service_fee_percent)
+  ) {
+    // Manager proposed a rate different from the active one → pending review.
+    proposalUpdate = data.serviceFeePercent;
   }
 
   const fields = [];
@@ -528,6 +568,23 @@ async function updateCampaign(organizationId, campaignId, data, actor) {
     fields.push("service_fee_amount = ?");
     fields.push("public_target = ?");
     values.push(feeData.serviceFeePercent, feeData.serviceFeeAmount, feeData.publicTarget);
+  }
+  if (privilegedFeeChange) {
+    // Admin/reviewer set the rate directly — it's approved by their authority;
+    // clear any pending proposal and record them as the reviewer.
+    fields.push("proposed_service_fee_percent = ?");
+    fields.push("fee_status = ?");
+    fields.push("fee_reviewed_by = ?");
+    fields.push("fee_reviewed_at = NOW()");
+    values.push(null, "APPROVED", actor.id);
+  } else if (proposalUpdate !== undefined) {
+    // Manager proposed a new rate → mark PENDING, awaiting a reviewer/admin.
+    fields.push("proposed_service_fee_percent = ?");
+    fields.push("fee_status = ?");
+    fields.push("fee_reviewed_by = ?");
+    fields.push("fee_reviewed_at = ?");
+    fields.push("fee_review_notes = ?");
+    values.push(proposalUpdate, "PENDING", null, null, null);
   }
 
   if (fields.length > 0) {
@@ -613,6 +670,81 @@ async function approveCampaign(organizationId, campaignId, actor) {
      VALUES (?, ?, ?, 'campaign.approved', 'campaign', ?, 'INFO')`,
     [organizationId, actor.id, actor.email, String(campaignId)]
   );
+  return getCampaign(organizationId, campaignId, actor);
+}
+
+/**
+ * A REVIEWER/ORG_ADMIN/SUPER_ADMIN approves or rejects a manager's proposed
+ * custom service-fee %.
+ *   - Approve → the proposed rate becomes the campaign's active fee; the
+ *     service fee amount and public target are recomputed off it.
+ *   - Reject → the proposal is discarded and the current active fee stays.
+ * Only a PENDING proposal can be decided, and (like any fee change) approving
+ * one is blocked once the campaign has received donations.
+ */
+async function reviewFeeProposal(organizationId, campaignId, actor, data) {
+  const [orgSql, ...orgParams] = orgScope(organizationId, actor);
+  const existing = await db.query(
+    `SELECT id, goal_amount, service_fee_percent, proposed_service_fee_percent,
+            fee_status, raised_amount
+     FROM campaigns WHERE id = ?${orgSql}`,
+    [campaignId, ...orgParams]
+  );
+  const campaign = existing[0];
+  if (!campaign) throw ApiError.notFound("Campaign not found");
+  if (campaign.fee_status !== "PENDING") {
+    throw ApiError.badRequest(
+      "There is no pending service-fee proposal to review",
+      "NO_PENDING_FEE_PROPOSAL"
+    );
+  }
+
+  if (data.approved) {
+    if (num(campaign.raised_amount) > 0) {
+      throw ApiError.badRequest(
+        "The service fee can't change once a campaign has received donations",
+        "GOAL_LOCKED"
+      );
+    }
+    const percent = num(campaign.proposed_service_fee_percent);
+    const feeData = computeFees(num(campaign.goal_amount), percent);
+    await db.execute(
+      `UPDATE campaigns
+       SET service_fee_percent = ?, service_fee_amount = ?, public_target = ?,
+           proposed_service_fee_percent = NULL, fee_status = 'APPROVED',
+           fee_reviewed_by = ?, fee_reviewed_at = NOW(), fee_review_notes = ?
+       WHERE id = ?`,
+      [
+        feeData.serviceFeePercent,
+        feeData.serviceFeeAmount,
+        feeData.publicTarget,
+        actor.id,
+        data.notes || null,
+        campaignId,
+      ]
+    );
+  } else {
+    await db.execute(
+      `UPDATE campaigns
+       SET proposed_service_fee_percent = NULL, fee_status = 'REJECTED',
+           fee_reviewed_by = ?, fee_reviewed_at = NOW(), fee_review_notes = ?
+       WHERE id = ?`,
+      [actor.id, data.notes || null, campaignId]
+    );
+  }
+
+  await db.execute(
+    `INSERT INTO audit_logs (organization_id, actor_id, actor_email, action, resource, resource_id, severity)
+     VALUES (?, ?, ?, ?, 'campaign', ?, 'INFO')`,
+    [
+      organizationId,
+      actor.id,
+      actor.email,
+      data.approved ? "campaign.fee_proposal.approved" : "campaign.fee_proposal.rejected",
+      String(campaignId),
+    ]
+  );
+
   return getCampaign(organizationId, campaignId, actor);
 }
 
@@ -1726,6 +1858,7 @@ module.exports = {
   updateCampaign,
   submitCampaign,
   approveCampaign,
+  reviewFeeProposal,
   changeCampaignStatus,
   setCampaignManagers,
   previewPoolImport,

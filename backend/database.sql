@@ -87,7 +87,11 @@ CREATE TABLE users (
   email           VARCHAR(255) NOT NULL UNIQUE,
   phone           VARCHAR(32)  NULL,
   password_hash   VARCHAR(255) NOT NULL,
-  role            ENUM('SUPER_ADMIN','ORG_ADMIN','CAMPAIGN_MANAGER') NOT NULL DEFAULT 'CAMPAIGN_MANAGER',
+  -- REVIEWER sits between CAMPAIGN_MANAGER and ORG_ADMIN: an org-scoped
+  -- approver that reviews/approves what managers submit (campaign approvals,
+  -- closure requests, completion reports and custom service-fee proposals) but
+  -- does NOT manage users, platform settings or payouts.
+  role            ENUM('SUPER_ADMIN','ORG_ADMIN','REVIEWER','CAMPAIGN_MANAGER') NOT NULL DEFAULT 'CAMPAIGN_MANAGER',
   status          ENUM('ACTIVE','PENDING','INACTIVE') NOT NULL DEFAULT 'PENDING',
   avatar_url      VARCHAR(500) NULL,
   last_login_at   TIMESTAMP    NULL,
@@ -203,6 +207,16 @@ CREATE TABLE campaigns (
   service_fee_percent DECIMAL(5,2)  NOT NULL DEFAULT 5.00,
   service_fee_amount  DECIMAL(14,0) NOT NULL DEFAULT 0,
   public_target       DECIMAL(14,0) NOT NULL,
+  -- Custom service-fee approval flow: a CAMPAIGN_MANAGER can PROPOSE a fee %
+  -- that differs from the org default. The proposed value is parked here with
+  -- fee_status = 'PENDING' and does NOT affect service_fee_percent / public
+  -- target until a REVIEWER/ORG_ADMIN/SUPER_ADMIN approves it. Admins/reviewers
+  -- who set a fee themselves apply it immediately (fee_status = 'APPROVED').
+  proposed_service_fee_percent DECIMAL(5,2) NULL,
+  fee_status          ENUM('NONE','PENDING','APPROVED','REJECTED') NOT NULL DEFAULT 'NONE',
+  fee_reviewed_by     BIGINT UNSIGNED NULL,
+  fee_reviewed_at     DATETIME NULL,
+  fee_review_notes    TEXT NULL,
   minimum_amount      DECIMAL(14,0) NOT NULL DEFAULT 1000,
   start_date          DATETIME NULL,
   end_date            DATETIME NULL,
@@ -221,6 +235,7 @@ CREATE TABLE campaigns (
   updated_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_campaigns_org FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
   CONSTRAINT fk_campaigns_approved_by FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_campaigns_fee_reviewed_by FOREIGN KEY (fee_reviewed_by) REFERENCES users(id) ON DELETE SET NULL,
   INDEX idx_campaigns_org_status (organization_id, status),
   INDEX idx_campaigns_featured (is_featured, featured_at)
 ) ENGINE=InnoDB;
@@ -567,7 +582,9 @@ INSERT INTO users (organization_id, first_name, last_name, email, phone, passwor
   (1, 'Amina', 'Msuya', 'admin@msuya-foundation.org.tz', '255712000001',
    '$2b$12$YBiH.YibjVq/6ydw/Pa97eEG/HbjPVWH.a2Am4NvHTPGkhBW8xVbW', 'ORG_ADMIN', 'ACTIVE'),
   (1, 'Baraka', 'Mushi', 'manager@msuya-foundation.org.tz', '255713000002',
-   '$2b$12$YBiH.YibjVq/6ydw/Pa97eEG/HbjPVWH.a2Am4NvHTPGkhBW8xVbW', 'CAMPAIGN_MANAGER', 'ACTIVE');
+   '$2b$12$YBiH.YibjVq/6ydw/Pa97eEG/HbjPVWH.a2Am4NvHTPGkhBW8xVbW', 'CAMPAIGN_MANAGER', 'ACTIVE'),
+  (1, 'Zainab', 'Kileo', 'reviewer@msuya-foundation.org.tz', '255713000003',
+   '$2b$12$YBiH.YibjVq/6ydw/Pa97eEG/HbjPVWH.a2Am4NvHTPGkhBW8xVbW', 'REVIEWER', 'ACTIVE');
 
 -- Active campaign with 5% service fee (goal 10,000,000 → target 10,500,000)
 INSERT INTO campaigns

@@ -16,6 +16,19 @@ const createSchema = z.object({
   notes: z.string().max(2000).optional(),
 });
 const decisionSchema = z.object({ notes: z.string().max(2000).optional() });
-const paidSchema = z.object({ gatewayRef: z.string().max(255).optional(), notes: z.string().max(2000).optional() });
+const paidSchema = z.object({
+  gatewayRef: z.string().max(255).optional(),
+  phoneNumber: z
+    .string()
+    .regex(/^(\+?255|0)?[67][0-9]{8}$/, "Enter a valid Tanzanian phone number")
+    .optional(),
+  notes: z.string().max(2000).optional(),
+});
 
-module.exports = { listSchema, createSchema, decisionSchema, paidSchema };
+const previewSchema = z.object({
+  phoneNumber: z
+    .string()
+    .regex(/^(\+?255|0)?[67][0-9]{8}$/, "Enter a valid Tanzanian phone number"),
+});
+
+module.exports = { listSchema, createSchema, decisionSchema, paidSchema, previewSchema };

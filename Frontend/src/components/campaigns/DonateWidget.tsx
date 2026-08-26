@@ -33,8 +33,14 @@ const STRINGS = {
   en: {
     minError: (min: string) => `Minimum contribution is ${min}`,
     phoneError: 'Enter a valid Tanzanian phone number',
+    emailError: 'Please enter a valid email address',
     genericError: 'Something went wrong. Please try again.',
-    thanks: 'Asante! Thank you.',
+    thanks: 'Asante! Thank you!',
+    paymentSuccess: 'Your payment was successful!',
+    receiptLabel: 'Receipt Number',
+    transactionIdLabel: 'Transaction ID',
+    amountLabel: 'Amount Paid',
+    emailSent: 'A receipt has been sent to your email address.',
     confirmedText: (amount: string, receipt: string) =>
       `Your contribution of ${amount} was confirmed.${receipt ? ` Receipt ${receipt}.` : ''}`,
     contributeAgain: 'Contribute again',
@@ -48,6 +54,7 @@ const STRINGS = {
     tryAgain: 'Try again',
     amountPlaceholder: (min: string) => `Amount (min. ${min})`,
     phonePlaceholder: 'Mobile-money number (e.g. 07XXXXXXXX)',
+    emailPlaceholder: 'Email address (for receipt)',
     namePlaceholder: 'Your name (optional)',
     anonymous: 'Contribute anonymously',
     sending: 'Sending request…',
@@ -57,8 +64,14 @@ const STRINGS = {
   sw: {
     minError: (min: string) => `Mchango wa chini ni ${min}`,
     phoneError: 'Weka namba sahihi ya simu ya Tanzania',
+    emailError: 'Weka anwani sahihi ya barua pepe',
     genericError: 'Hitilafu imetokea. Tafadhali jaribu tena.',
-    thanks: 'Asante!',
+    thanks: 'Asante sana!',
+    paymentSuccess: 'Malipo yako yamefanikiwa!',
+    receiptLabel: 'Nambari ya Risiti',
+    transactionIdLabel: 'Nambari ya Muamala',
+    amountLabel: 'Kiasi kilicholipwa',
+    emailSent: 'Risiti imetumwa kwenye anwani yako ya barua pepe.',
     confirmedText: (amount: string, receipt: string) =>
       `Mchango wako wa ${amount} umethibitishwa.${receipt ? ` Risiti ${receipt}.` : ''}`,
     contributeAgain: 'Changia tena',
@@ -72,6 +85,7 @@ const STRINGS = {
     tryAgain: 'Jaribu tena',
     amountPlaceholder: (min: string) => `Kiasi (chini zaidi ${min})`,
     phonePlaceholder: 'Namba ya pesa za simu (mf. 07XXXXXXXX)',
+    emailPlaceholder: 'Anwani ya barua pepe (kwa risiti)',
     namePlaceholder: 'Jina lako (si lazima)',
     anonymous: 'Changia bila jina',
     sending: 'Inatuma ombi…',
@@ -92,6 +106,7 @@ export default function DonateWidget({
   const [amount, setAmount] = useState(String(minimumAmount));
   const [donorName, setDonorName] = useState('');
   const [donorPhone, setDonorPhone] = useState('');
+  const [donorEmail, setDonorEmail] = useState('');
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [attemptId, setAttemptId] = useState<number | null>(null);
@@ -144,6 +159,7 @@ export default function DonateWidget({
         amount: amountNum,
         donorName: isAnonymous ? undefined : donorName.trim() || undefined,
         donorPhone: donorPhone.trim(),
+        donorEmail: donorEmail.trim() || undefined,
         isAnonymous,
       });
       setAttemptId(result.attemptId);
@@ -176,11 +192,49 @@ export default function DonateWidget({
   if (stage === 'success') {
     return (
       <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-6 text-center dark:border-emerald-900 dark:bg-emerald-900/20">
-        <p className="text-lg font-bold text-emerald-700 dark:text-emerald-400">{t.thanks}</p>
-        <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-          {t.confirmedText(status ? formatTZS(status.amount) : '', status?.receiptNumber || '')}
-        </p>
-        <button type="button" onClick={reset} className={`${buttonClasses} mt-4`}>
+        {/* Success Icon */}
+        <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/40">
+          <svg className="h-8 w-8 text-emerald-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+          </svg>
+        </div>
+
+        <p className="text-xl font-bold text-emerald-700 dark:text-emerald-400">{t.thanks}</p>
+        <p className="mt-1 text-sm font-medium text-emerald-600 dark:text-emerald-300">{t.paymentSuccess}</p>
+
+        {/* Transaction Details Card */}
+        <div className="mt-4 rounded-lg border border-emerald-200 bg-white p-4 text-left dark:border-emerald-800 dark:bg-neutral-900">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-neutral-500 dark:text-neutral-400">{t.amountLabel}</span>
+              <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400">{status ? formatTZS(status.amount) : ''}</span>
+            </div>
+            {status?.receiptNumber && (
+              <div className="flex items-center justify-between border-t border-neutral-100 pt-2 dark:border-neutral-700">
+                <span className="text-xs text-neutral-500 dark:text-neutral-400">{t.receiptLabel}</span>
+                <span className="font-mono text-sm font-bold text-neutral-800 dark:text-neutral-200">{status.receiptNumber}</span>
+              </div>
+            )}
+            {status?.attemptId && (
+              <div className="flex items-center justify-between border-t border-neutral-100 pt-2 dark:border-neutral-700">
+                <span className="text-xs text-neutral-500 dark:text-neutral-400">{t.transactionIdLabel}</span>
+                <span className="font-mono text-sm font-bold text-neutral-800 dark:text-neutral-200">#{status.attemptId}</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Email notification */}
+        {donorEmail && (
+          <div className="mt-3 flex items-center justify-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
+            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+            </svg>
+            <span>{t.emailSent}</span>
+          </div>
+        )}
+
+        <button type="button" onClick={reset} className={`${buttonClasses} mt-5`}>
           {t.contributeAgain}
         </button>
       </div>
@@ -258,6 +312,13 @@ export default function DonateWidget({
         placeholder={t.phonePlaceholder}
         className={inputClasses}
         required
+      />
+      <input
+        type="email"
+        value={donorEmail}
+        onChange={(e) => setDonorEmail(e.target.value)}
+        placeholder={t.emailPlaceholder}
+        className={inputClasses}
       />
       {!isAnonymous && (
         <input

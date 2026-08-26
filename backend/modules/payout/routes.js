@@ -2,7 +2,7 @@ const { Router } = require("express");
 const { authenticate, authorize } = require("../../middlewares/auth");
 const { validate } = require("../../middlewares/validate");
 const controller = require("./controller");
-const { listSchema, createSchema, decisionSchema, paidSchema } = require("./validation");
+const { listSchema, createSchema, decisionSchema, paidSchema, previewSchema } = require("./validation");
 
 // Org-level payouts (SUPER_ADMIN/ORG_ADMIN, no campaign attached) and
 // campaign-scoped manager requests (CAMPAIGN_MANAGER, campaignId + reason
@@ -32,6 +32,13 @@ router.post(
   authorize("SUPER_ADMIN", "ORG_ADMIN"),
   validate({ body: decisionSchema }),
   controller.reject
+);
+// Preview ClickPesa payout — shows fee breakdown before confirmation
+router.post(
+  "/:id/preview",
+  authorize("SUPER_ADMIN", "ORG_ADMIN"),
+  validate({ body: previewSchema }),
+  controller.preview
 );
 router.post("/:id/paid", authorize("SUPER_ADMIN"), validate({ body: paidSchema }), controller.markPaid);
 module.exports = router;

@@ -245,6 +245,8 @@ CREATE TABLE campaign_donor_targets (
   donor_id        BIGINT UNSIGNED NOT NULL,
   pool_id         BIGINT UNSIGNED NULL,
   expected_amount DECIMAL(14,0) NULL,
+  actual_amount   DECIMAL(14,0) NULL DEFAULT 0,
+  payment_status  ENUM('UNPAID','PARTIAL','PAID_FULL') NOT NULL DEFAULT 'UNPAID',
   added_by_id     BIGINT UNSIGNED NULL,
   created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_cdt_campaign FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE,
@@ -442,8 +444,11 @@ CREATE TABLE payment_attempts (
   status          ENUM('PENDING','SUCCESS','FAILED','EXPIRED','CANCELLED') NOT NULL DEFAULT 'PENDING',
   idempotency_key VARCHAR(64) NOT NULL UNIQUE,
   gateway_ref     VARCHAR(255) NULL,
+  provider        VARCHAR(64) NULL,
   donor_phone     VARCHAR(32) NULL,
   donor_name      VARCHAR(150) NULL,
+  donor_email     VARCHAR(255) NULL,
+  campaign_donor_target_id BIGINT UNSIGNED NULL,
   error           TEXT NULL,
   expires_at      DATETIME NULL,
   created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -451,7 +456,9 @@ CREATE TABLE payment_attempts (
   CONSTRAINT fk_pa_campaign FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE,
   CONSTRAINT fk_pa_donor FOREIGN KEY (donor_id) REFERENCES donors(id) ON DELETE SET NULL,
   CONSTRAINT fk_pa_user FOREIGN KEY (initiated_by_id) REFERENCES users(id) ON DELETE SET NULL,
-  INDEX idx_pa_campaign_status (campaign_id, status)
+  CONSTRAINT fk_pa_cdt FOREIGN KEY (campaign_donor_target_id) REFERENCES campaign_donor_targets(id) ON DELETE SET NULL,
+  INDEX idx_pa_campaign_status (campaign_id, status),
+  INDEX idx_pa_cdt (campaign_donor_target_id)
 ) ENGINE=InnoDB;
 
 CREATE TABLE gateway_events (
@@ -478,6 +485,7 @@ CREATE TABLE donations (
   status             ENUM('PENDING','CONFIRMED','FAILED','REFUNDED') NOT NULL DEFAULT 'PENDING',
   donor_name         VARCHAR(150) NULL,
   donor_phone        VARCHAR(32) NULL,
+  donor_email        VARCHAR(255) NULL,
   is_anonymous       TINYINT(1) NOT NULL DEFAULT 0,
   receipt_number     VARCHAR(32) NULL UNIQUE,
   gateway_ref        VARCHAR(255) NULL,

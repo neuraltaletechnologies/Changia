@@ -1,7 +1,8 @@
 const db = require("../../db");
 const { ApiError } = require("../../utils/ApiError");
 const { normalizePhone } = require("../../utils/phone");
-const { sendMessage, recipientFor } = require("../../utils/messaging");
+const { sendMessage, recipientFor, buildReminderEmailHtml } = require("../../utils/messaging");
+const { env } = require("../../config");
 const donorService = require("../donor/service");
 
 const ANOMALOUS_POOL_NAME = "Anomalous / Unmatched";
@@ -651,19 +652,36 @@ async function mergeAnomalous(organizationId, user, anomalousDonorId, data) {
 // ─── Reminders ──────────────────────────────────────────────────────────────
 
 async function sendReminder(organizationId, user, data) {
-  const campaigns = await db.query(
-    "SELECT id, name FROM campaigns WHERE id = ? AND organization_id = ?",
-    [data.campaignId, organizationId]
-  );
-  const campaign = campaigns[0];
+  // SUPER_ADMIN has no organization_id — look up campaign by ID only
+  let campaign;
+  if (organizationId) {
+    const rows = await db.query(
+      "SELECT id, name, slug, organization_id FROM campaigns WHERE id = ? AND organization_id = ?",
+      [data.campaignId, organizationId]
+    );
+    campaign = rows[0];
+  } else {
+    const rows = await db.query(
+      "SELECT id, name, slug, organization_id FROM campaigns WHERE id = ?",
+      [data.campaignId]
+    );
+    campaign = rows[0];
+  }
   if (!campaign) throw ApiError.notFound("Campaign not found");
+
+  // Derive effective org_id from the campaign (works for SUPER_ADMIN too)
+  const effectiveOrgId = organizationId || campaign.organization_id;
+
+  // Fetch organization name for email branding
+  const orgRows = await db.query("SELECT name FROM organizations WHERE id = ?", [effectiveOrgId]);
+  const orgName = orgRows[0]?.name || "Changia";
 
   const donorIds = data.donorIds.map(Number);
   const donors = await db.query(
     `SELECT id, first_name, last_name, email, phone, preferred_channel
      FROM donors
      WHERE id IN (?) AND organization_id = ?`,
-    [donorIds, organizationId]
+    [donorIds, effectiveOrgId]
   );
   if (donors.length === 0) {
     throw ApiError.badRequest("No valid donors selected for the reminder");
@@ -672,22 +690,40 @@ async function sendReminder(organizationId, user, data) {
   const subject = data.subject || `Reminder: ${campaign.name}`;
   const body = data.message;
 
+  // Build campaign URL for email channel
+  const campaignUrl = `${env.APP_BASE_URL}/campaigns/${campaign.slug || campaign.id}`;
+
   const batchResult = await db.execute(
     `INSERT INTO message_batches
        (organization_id, campaign_id, created_by_id, type, subject, body, status, recipient_count)
      VALUES (?, ?, ?, ?, ?, ?, 'SENT', ?)`,
-    [organizationId, data.campaignId, user.id, data.channel, subject, body, donors.length]
+    [effectiveOrgId, data.campaignId, user.id, data.channel, subject, body, donors.length]
   );
   const batchId = batchResult.insertId;
 
   for (const donor of donors) {
     const recipient = recipientFor(data.channel, donor) || donor.phone;
     if (!recipient) continue;
+
+    // Build HTML email for EMAIL channel with campaign link
+    let html = null;
+    if (data.channel === "EMAIL" && recipient) {
+      const donorName = [donor.first_name, donor.last_name].filter(Boolean).join(" ") || "Donor";
+      html = buildReminderEmailHtml({
+        donorName,
+        campaignName: campaign.name,
+        campaignUrl,
+        orgName,
+        messageBody: body,
+      });
+    }
+
     const result = await sendMessage({
       channel: data.channel,
       to: recipient,
       subject,
       body,
+      html,
     });
     await db.execute(
       `INSERT INTO message_deliveries
@@ -700,7 +736,7 @@ async function sendReminder(organizationId, user, data) {
   await db.execute(
     `INSERT INTO audit_logs (organization_id, actor_id, actor_email, action, resource, resource_id, severity)
      VALUES (?, ?, ?, 'reminder.sent', 'message_batch', ?, 'INFO')`,
-    [organizationId, user.id, user.email, String(batchId)]
+    [effectiveOrgId, user.id, user.email, String(batchId)]
   );
 
   const deliveries = await db.query(

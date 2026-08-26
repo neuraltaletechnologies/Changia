@@ -61,13 +61,14 @@ function getAfricasTalkingSms() {
   return cachedAtSms;
 }
 
-async function sendEmailLive({ to, subject, body }) {
+async function sendEmailLive({ to, subject, body, html }) {
   const transporter = getMailTransporter();
   const info = await transporter.sendMail({
-    from: `"${env.SMTP.fromName}" <${env.SMTP.fromEmail}>`,
+    from: `"${env.SMTP.fromName || "Changia"}" <${env.SMTP.fromEmail || env.SMTP.user}>`,
     to,
     subject: subject || "Changia",
     text: body,
+    html: html || undefined,
   });
   return {
     provider: "smtp",
@@ -136,10 +137,10 @@ function notConfigured(channel) {
 }
 
 /**
- * @param {{channel: 'SMS'|'WHATSAPP'|'EMAIL'|'PHONE', to: string, subject?: string, body: string}} input
+ * @param {{channel: 'SMS'|'WHATSAPP'|'EMAIL'|'PHONE', to: string, subject?: string, body: string, html?: string}} input
  * @returns {Promise<{provider: string, providerRef: string|null, simulated: boolean, status: string, error?: string}>}
  */
-async function sendMessage({ channel, to, subject, body }) {
+async function sendMessage({ channel, to, subject, body, html }) {
   if (!to) {
     return {
       provider: "none",
@@ -156,7 +157,7 @@ async function sendMessage({ channel, to, subject, body }) {
     try {
       if (channel === "EMAIL") {
         if (!isEmailConfigured()) return notConfigured("EMAIL");
-        return await sendEmailLive({ to, subject, body });
+        return await sendEmailLive({ to, subject, body, html });
       }
       if (channel === "SMS") {
         if (!isSmsConfigured()) return notConfigured("SMS");
@@ -207,4 +208,75 @@ function renderTemplate(text, vars) {
   );
 }
 
-module.exports = { sendMessage, recipientFor, renderTemplate };
+/**
+ * Builds an HTML email for campaign reminder/donation link notifications.
+ * Used by the reminder schedule system when EMAIL channel is enabled.
+ */
+function buildReminderEmailHtml({ donorName, campaignName, campaignUrl, orgName, messageBody }) {
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin:0;padding:0;background-color:#f4f4f4;font-family:Arial,Helvetica,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f4;padding:20px 0;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;">
+          <!-- Header -->
+          <tr>
+            <td style="background-color:#10b981;padding:24px 32px;text-align:center;">
+              <h1 style="color:#ffffff;margin:0;font-size:24px;">💚 Changia</h1>
+              <p style="color:#d1fae5;margin:8px 0 0;font-size:14px;">${orgName || "Changia"}</p>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding:32px;">
+              <h2 style="color:#1f2937;margin:0 0 16px;font-size:20px;">Hello ${donorName || "Donor"},</h2>
+
+              ${messageBody ? `<p style="color:#4b5563;font-size:15px;line-height:1.6;margin:0 0 16px;">${messageBody}</p>` : ""}
+
+              ${campaignName ? `<p style="color:#6b7280;font-size:14px;margin:0 0 8px;">Campaign: <strong style="color:#1f2937;">${campaignName}</strong></p>` : ""}
+
+              <!-- CTA Button -->
+              ${campaignUrl ? `
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="padding:16px 0;">
+                    <a href="${campaignUrl}"
+                       style="background-color:#10b981;color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:6px;font-size:16px;font-weight:bold;display:inline-block;">
+                      Donate Now →
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              ` : ""}
+
+              <p style="color:#6b7280;font-size:13px;line-height:1.5;margin:16px 0 0;">
+                Your contribution makes a difference. Click the button above to open the campaign page and contribute via mobile money.
+                Your PIN is entered only in the secure operator prompt — Changia never sees or stores it.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color:#f9fafb;padding:20px 32px;border-top:1px solid #e5e7eb;">
+              <p style="color:#9ca3af;font-size:12px;margin:0;text-align:center;">
+                This email was sent by <a href="https://changia.org.tz" style="color:#10b981;">Changia</a> — Tanzania's digital fundraising platform.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+module.exports = { sendMessage, recipientFor, renderTemplate, buildReminderEmailHtml };

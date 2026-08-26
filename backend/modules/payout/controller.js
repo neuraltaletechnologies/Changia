@@ -27,10 +27,28 @@ const reject = asyncHandler(async (req, res) => {
   await audit(req, "payout.rejected", payout.id);
   res.json({ success: true, data: payout });
 });
+
+/**
+ * Preview the ClickPesa payout — shows fee breakdown before confirmation.
+ * POST /payouts/:id/preview
+ */
+const preview = asyncHandler(async (req, res) => {
+  const preview = await service.previewPayout(
+    req.user.organizationId,
+    req.params.id,
+    req.body.phoneNumber
+  );
+  res.json({ success: true, data: preview });
+});
+
+/**
+ * Mark payout as paid and initiate ClickPesa transfer if enabled.
+ * POST /payouts/:id/paid
+ */
 const markPaid = asyncHandler(async (req, res) => {
   const payout = await service.markPaid(req.user.organizationId, req.params.id, req.body);
   await audit(req, "payout.paid", payout.id);
   res.json({ success: true, data: payout });
 });
 
-module.exports = { list, get, create, approve, reject, markPaid };
+module.exports = { list, get, create, approve, reject, preview, markPaid };

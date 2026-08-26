@@ -184,7 +184,7 @@ async function publicPost<T>(path: string, body?: unknown): Promise<T> {
 
 export function startContribution(
   campaignSlug: string,
-  data: { amount: number; donorName?: string; donorPhone: string; isAnonymous?: boolean }
+  data: { amount: number; donorName?: string; donorPhone: string; donorEmail?: string; isAnonymous?: boolean }
 ): Promise<ContributionStarted> {
   return publicPost(`/public/donations/campaigns/${encodeURIComponent(campaignSlug)}/contributions`, data);
 }

@@ -44,6 +44,7 @@ const publicContributionSchema = z.object({
     .int("Amount must be a whole TZS number")
     .positive("Amount must be greater than zero"),
   donorName: z.string().max(150).optional(),
+  donorEmail: z.string().email("Enter a valid email address").optional(),
   donorPhone: z
     .string()
     .regex(/^(\+?255|0)?[67][0-9]{8}$/, "Enter a valid Tanzanian phone number"),

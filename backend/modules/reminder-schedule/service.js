@@ -1,6 +1,7 @@
 const db = require("../../db");
 const { ApiError } = require("../../utils/ApiError");
-const { sendMessage, recipientFor, renderTemplate } = require("../../utils/messaging");
+const { sendMessage, recipientFor, renderTemplate, buildReminderEmailHtml } = require("../../utils/messaging");
+const { env } = require("../../config");
 const poolService = require("../donor-pool/service");
 
 function isAdminRole(role) {
@@ -393,6 +394,18 @@ async function confirmPending(organizationId, user, id) {
   const batchIds = [];
   const deliveries = [];
 
+  // Fetch campaign slug for building donation links
+  let campaignUrl = null;
+  if (batch.campaign_id) {
+    const campRows = await db.query(
+      "SELECT slug, name FROM campaigns WHERE id = ?",
+      [batch.campaign_id]
+    );
+    if (campRows[0]) {
+      campaignUrl = `${env.APP_BASE_URL}/campaigns/${campRows[0].slug || batch.campaign_id}`;
+    }
+  }
+
   for (const [channel, channelDonors] of Object.entries(byChannel)) {
     const template = await getTemplate(channel);
     const batchResult = await db.execute(
@@ -423,8 +436,20 @@ async function confirmPending(organizationId, user, id) {
       const body = renderTemplate(template?.body || `Reminder from ${orgName}`, vars);
       const recipient = recipientFor(channel, donor) || donor.phone;
 
+      // Build HTML email for EMAIL channel with campaign link
+      let html = null;
+      if (channel === "EMAIL" && recipient) {
+        html = buildReminderEmailHtml({
+          donorName: vars.donorName,
+          campaignName: subjectContext,
+          campaignUrl,
+          orgName,
+          messageBody: body,
+        });
+      }
+
       const result = recipient
-        ? await sendMessage({ channel, to: recipient, subject, body })
+        ? await sendMessage({ channel, to: recipient, subject, body, html })
         : { status: "FAILED", providerRef: null, error: "Donor has no contact for this channel" };
 
       await db.execute(

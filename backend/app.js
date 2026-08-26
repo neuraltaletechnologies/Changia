@@ -20,6 +20,7 @@ const reminderTemplateRoutes = require("./modules/reminder-template/routes");
 const reminderScheduleRoutes = require("./modules/reminder-schedule/routes");
 const payoutRoutes = require("./modules/payout/routes");
 const settingsRoutes = require("./modules/settings/routes");
+const webhookRoutes = require("./routes/webhooks");
 
 function createApp() {
   const app = express();
@@ -81,6 +82,9 @@ function createApp() {
   app.use("/api/v1/reminder-schedules", reminderScheduleRoutes);
   app.use("/api/v1/payouts", payoutRoutes);
   app.use("/api/v1/settings", settingsRoutes);
+
+  // ─── Webhooks (unauthenticated — verified by checksum) ────────────────────
+  app.use("/webhooks", webhookRoutes);
 
   // ─── 404 & error handling (must be last) ────────────────────────────────────
   app.use(notFoundHandler);

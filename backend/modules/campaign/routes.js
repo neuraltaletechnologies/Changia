@@ -16,6 +16,8 @@ const {
   completionReportReviewSchema,
   closureRequestSchema,
   closureDecisionSchema,
+  feeReviewSchema,
+  rejectCampaignSchema,
 } = require("./validation");
 
 const router = Router();
@@ -54,12 +56,13 @@ router.delete(
   controller.removeDonorTarget
 );
 
-// Creation is available to ORG_ADMIN/CAMPAIGN_MANAGER and activates
-// immediately — they're trusted org staff, not the public, so there's no
-// separate approval gate. submit/approve below remain only for any campaign
-// still sitting in a legacy PENDING state. SUPER_ADMIN deliberately can't
-// create campaigns (or donor pools) — platform-wide, they only manage/edit
-// what orgs already created.
+// Creation is available to ORG_ADMIN/CAMPAIGN_MANAGER. An ORG_ADMIN's own
+// campaign activates immediately (self-approved — they're already an
+// approver). A CAMPAIGN_MANAGER's campaign instead needs TWO independent
+// approvals via POST /:id/approve (PENDING -> REVIEWED -> ACTIVE, see
+// campaignService.approveCampaign) before it goes live. SUPER_ADMIN
+// deliberately can't create campaigns (or donor pools) — platform-wide, they
+// only manage/edit/approve what orgs already created.
 router.post(
   "/",
   authorize("ORG_ADMIN", "CAMPAIGN_MANAGER"),
@@ -79,8 +82,28 @@ router.post(
 );
 router.post(
   "/:id/approve",
-  authorize("SUPER_ADMIN", "ORG_ADMIN"),
+  authorize("SUPER_ADMIN", "ORG_ADMIN", "REVIEWER"),
   controller.approveCampaign
+);
+// Scoped narrower than POST /:id/status below (which is admin-only and works
+// on any status) — this only rejects a campaign still in the approval chain
+// (PENDING/REVIEWED), which is what a REVIEWER is actually meant to gatekeep.
+router.post(
+  "/:id/reject",
+  authorize("SUPER_ADMIN", "ORG_ADMIN", "REVIEWER"),
+  validate({ body: rejectCampaignSchema }),
+  controller.rejectCampaign
+);
+
+// Custom service-fee proposals: a CAMPAIGN_MANAGER can propose a fee % that
+// differs from the org default (via POST / or PUT /:id with serviceFeePercent);
+// it stays PENDING until a REVIEWER/ORG_ADMIN/SUPER_ADMIN approves or rejects
+// it here. On approval the proposed rate becomes the campaign's active fee.
+router.post(
+  "/:id/fee/review",
+  authorize("SUPER_ADMIN", "ORG_ADMIN", "REVIEWER"),
+  validate({ body: feeReviewSchema }),
+  controller.reviewFeeProposal
 );
 router.post(
   "/:id/status",
@@ -122,7 +145,7 @@ router.post(
 );
 router.post(
   "/:id/completion-report/review",
-  authorize("SUPER_ADMIN", "ORG_ADMIN"),
+  authorize("SUPER_ADMIN", "ORG_ADMIN", "REVIEWER"),
   validate({ body: completionReportReviewSchema }),
   controller.reviewCompletionReport
 );
@@ -153,7 +176,7 @@ router.post(
 );
 router.post(
   "/:id/closure-requests/:requestId/decide",
-  authorize("SUPER_ADMIN", "ORG_ADMIN"),
+  authorize("SUPER_ADMIN", "ORG_ADMIN", "REVIEWER"),
   validate({ body: closureDecisionSchema }),
   controller.decideClosureRequest
 );

@@ -1,6 +1,6 @@
 const { z } = require("zod");
 
-const ROLES = ["SUPER_ADMIN", "ORG_ADMIN", "CAMPAIGN_MANAGER"];
+const ROLES = ["SUPER_ADMIN", "ORG_ADMIN", "REVIEWER", "CAMPAIGN_MANAGER"];
 
 const createUserSchema = z.object({
   firstName: z.string().min(2).max(100),

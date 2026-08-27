@@ -89,6 +89,7 @@ import { cn } from "@/lib/dashboard/utils";
 const STATUS_BADGE: Record<string, string> = {
   DRAFT: "bg-slate-50 text-slate-600 border-slate-200",
   PENDING: "bg-orange-50 text-orange-700 border-orange-200",
+  REVIEWED: "bg-blue-50 text-blue-700 border-blue-200",
   ACTIVE: "bg-emerald-50 text-emerald-700 border-emerald-200",
   PAUSED: "bg-amber-50 text-amber-700 border-amber-200",
   COMPLETED: "bg-sky-50 text-sky-700 border-sky-200",
@@ -97,8 +98,11 @@ const STATUS_BADGE: Record<string, string> = {
 
 export default function CampaignDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { isSuperAdmin, isOrgAdmin, isCampaignManager } = useRole();
+  const { isSuperAdmin, isOrgAdmin, isCampaignManager, hasPermission, user } = useRole();
   const isAdmin = isSuperAdmin || isOrgAdmin;
+  // REVIEWER can approve too (two-stage chain) — isAdmin above stays reserved
+  // for admin-only actions (delete, feature) further down this page.
+  const canApproveRole = hasPermission("campaign:approve");
 
   const [campaign, setCampaign] = useState<CampaignRecord | null>(null);
   const [board, setBoard] = useState<CampaignTargetsResponse | null>(null);
@@ -365,16 +369,31 @@ export default function CampaignDetailPage() {
                   </Button>
                 </>
               )}
-              {isAdmin && campaign.status === "PENDING" && (
-                <Button
-                  size="sm"
-                  disabled={acting}
-                  onClick={() => act(() => campaignApi.approve(id))}
-                >
-                  {acting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5 mr-1" />}
-                  Approve
-                </Button>
-              )}
+              {canApproveRole &&
+                (campaign.status === "PENDING" || campaign.status === "REVIEWED") &&
+                (() => {
+                  const isOwnFirstApproval =
+                    campaign.status === "REVIEWED" &&
+                    user != null &&
+                    String(campaign.firstApprovedBy ?? "") === String(user.id);
+                  if (isOwnFirstApproval) {
+                    return (
+                      <span className="text-[11px] text-muted-foreground italic">
+                        Awaiting a different reviewer or admin for the final approval
+                      </span>
+                    );
+                  }
+                  return (
+                    <Button
+                      size="sm"
+                      disabled={acting}
+                      onClick={() => act(() => campaignApi.approve(id))}
+                    >
+                      {acting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5 mr-1" />}
+                      {campaign.status === "REVIEWED" ? "Give final approval" : "Give first approval"}
+                    </Button>
+                  );
+                })()}
               {isAdmin && campaign.status === "ACTIVE" && (
                 <DropdownMenu>
                   <DropdownMenuTrigger className="inline-flex items-center justify-center gap-1.5 rounded-md h-8 px-3 text-sm font-medium border border-border bg-card hover:bg-accent hover:text-accent-foreground transition-colors">
@@ -435,7 +454,10 @@ export default function CampaignDetailPage() {
                   </DropdownMenuContent>
                 </DropdownMenu>
               )}
-              {isAdmin && (campaign.status === "DRAFT" || campaign.status === "PENDING") && (
+              {isAdmin &&
+                (campaign.status === "DRAFT" ||
+                  campaign.status === "PENDING" ||
+                  campaign.status === "REVIEWED") && (
                 <Button
                   size="sm"
                   variant="outline"

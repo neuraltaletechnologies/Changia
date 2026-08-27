@@ -132,7 +132,7 @@ async function recordConfirmedDonation(data) {
       `INSERT INTO donations
          (organization_id, campaign_id, donor_id, payment_attempt_id, amount, method,
           status, donor_name, donor_phone, donor_email, is_anonymous, receipt_number, gateway_ref, confirmed_at)
-       VALUES (?, ?, ?, ?, ?, ?, 'CONFIRMED', ?, ?, ?, ?, ?, ?, ?, NOW())`,
+       VALUES (?, ?, ?, ?, ?, ?, 'CONFIRMED', ?, ?, ?, ?, ?, ?, NOW())`,
       [
         data.organizationId,
         data.campaignId,

@@ -114,16 +114,27 @@ export interface CampaignRecord {
   serviceFeePercent: number;
   serviceFeeAmount: number;
   publicTarget: number;
+  /** A manager's proposed custom fee % awaiting review (null = none pending). */
+  proposedServiceFeePercent?: number | null;
+  /** State of the last custom fee proposal. */
+  feeStatus?: "NONE" | "PENDING" | "APPROVED" | "REJECTED";
+  feeReviewedBy?: number | null;
+  feeReviewedAt?: string | null;
+  feeReviewNotes?: string | null;
   minimumAmount: number;
   startDate: string | null;
   endDate: string | null;
-  status: "DRAFT" | "PENDING" | "ACTIVE" | "PAUSED" | "COMPLETED" | "CANCELLED";
+  status: "DRAFT" | "PENDING" | "REVIEWED" | "ACTIVE" | "PAUSED" | "COMPLETED" | "CANCELLED";
   isPublic: boolean;
   contactPhone: string | null;
   raisedAmount: number;
   donorCount: number;
   isFeatured: boolean;
   featuredAt: string | null;
+  /** First of the two required approvals (PENDING -> REVIEWED). */
+  firstApprovedBy?: number | null;
+  firstApprovedAt?: string | null;
+  /** Second, decisive approval (REVIEWED -> ACTIVE) — must be a different user than firstApprovedBy. */
   approvedBy: number | null;
   approvedAt: string | null;
   createdAt: string;
@@ -539,6 +550,14 @@ export const campaignApi = {
     api.post<{ success: boolean; data: CampaignRecord }>(`/campaigns/${id}/submit`).then(unwrap),
   approve: (id: string | number) =>
     api.post<{ success: boolean; data: CampaignRecord }>(`/campaigns/${id}/approve`).then(unwrap),
+  /** Reviewer/admin rejects a campaign still awaiting approval (PENDING/REVIEWED) — narrower than changeStatus. */
+  reject: (id: string | number, notes?: string) =>
+    api.post<{ success: boolean; data: CampaignRecord }>(`/campaigns/${id}/reject`, { notes }).then(unwrap),
+  /** Reviewer/admin approves or rejects a manager's proposed custom fee %. */
+  reviewFee: (id: string | number, body: { approved: boolean; notes?: string }) =>
+    api
+      .post<{ success: boolean; data: CampaignRecord }>(`/campaigns/${id}/fee/review`, body)
+      .then(unwrap),
   changeStatus: (id: string | number, status: string) =>
     api
       .post<{ success: boolean; data: CampaignRecord }>(`/campaigns/${id}/status`, { status })
@@ -686,7 +705,7 @@ export const payoutApi = {
 
 // ─── User members (used for the admin "per manager" filter) ──────────────────
 
-export type UserRole = "SUPER_ADMIN" | "ORG_ADMIN" | "CAMPAIGN_MANAGER";
+export type UserRole = "SUPER_ADMIN" | "ORG_ADMIN" | "REVIEWER" | "CAMPAIGN_MANAGER";
 
 export interface UserRecord {
   id: number;

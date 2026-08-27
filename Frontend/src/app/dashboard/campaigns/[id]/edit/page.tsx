@@ -37,6 +37,7 @@ interface FormState {
   category: string;
   description: string;
   goal: string;
+  serviceFee: string;
   startDate: string;
   endDate: string;
   contactPhone: string;
@@ -51,6 +52,7 @@ export default function EditCampaignPage() {
     category: "",
     description: "",
     goal: "",
+    serviceFee: "",
     startDate: "",
     endDate: "",
     contactPhone: "",
@@ -73,6 +75,12 @@ export default function EditCampaignPage() {
         category: c.category ?? "",
         description: c.story ?? "",
         goal: String(c.goalAmount),
+        // Show a pending proposed rate if there is one, otherwise the active rate.
+        serviceFee: String(
+          c.feeStatus === "PENDING" && c.proposedServiceFeePercent != null
+            ? c.proposedServiceFeePercent
+            : c.serviceFeePercent
+        ),
         startDate: c.startDate ? new Date(c.startDate).toISOString().split("T")[0] : "",
         endDate: c.endDate ? new Date(c.endDate).toISOString().split("T")[0] : "",
         contactPhone: c.contactPhone ?? "",
@@ -117,11 +125,19 @@ export default function EditCampaignPage() {
     setSubmitting(true);
     setSubmitError(null);
     try {
+      // Only send serviceFeePercent when the rate actually changed from the
+      // campaign's active rate. For a manager the backend records it as a
+      // proposal pending review; for an admin/reviewer it applies immediately.
+      const feeChanged =
+        form.serviceFee.trim() !== "" &&
+        campaign != null &&
+        Number(form.serviceFee) !== Number(campaign.serviceFeePercent);
       await campaignApi.update(id, {
         name: form.name.trim(),
         category: form.category || undefined,
         story: form.description.trim() || undefined,
         goalAmount: Number(form.goal),
+        serviceFeePercent: feeChanged ? Number(form.serviceFee) : undefined,
         startDate: form.startDate ? new Date(form.startDate).toISOString() : undefined,
         endDate: form.endDate ? new Date(form.endDate).toISOString() : undefined,
         contactPhone: form.contactPhone.trim() || undefined,
@@ -257,6 +273,38 @@ export default function EditCampaignPage() {
             {form.goal && Number(form.goal) > 0 && (
               <p className="text-xs text-muted-foreground">
                 {formatTZS(Number(form.goal))}
+              </p>
+            )}
+          </div>
+
+          <div className="grid gap-1.5">
+            <Label htmlFor="campaign-fee">Service fee (%)</Label>
+            <Input
+              id="campaign-fee"
+              type="number"
+              min={0}
+              max={100}
+              step="0.01"
+              value={form.serviceFee}
+              onChange={(e) => setField("serviceFee", e.target.value)}
+              className="h-9"
+            />
+            {campaign?.feeStatus === "PENDING" ? (
+              <p className="text-xs text-amber-600">
+                A custom rate of {campaign?.proposedServiceFeePercent}% is awaiting
+                reviewer/admin approval. The campaign still uses {campaign?.serviceFeePercent}%
+                until it&apos;s approved.
+              </p>
+            ) : campaign?.feeStatus === "REJECTED" ? (
+              <p className="text-xs text-muted-foreground">
+                Your last custom-rate proposal was declined
+                {campaign?.feeReviewNotes ? `: ${campaign.feeReviewNotes}` : "."} The
+                active rate is {campaign?.serviceFeePercent}%.
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Changing this proposes a custom rate — a reviewer or admin approves
+                it before it applies (admins&apos; changes apply immediately).
               </p>
             )}
           </div>

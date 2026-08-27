@@ -60,12 +60,14 @@ const PAGE_SIZE = 10;
 const ROLE_LABEL: Record<UserRole, string> = {
   SUPER_ADMIN: "Super Admin",
   ORG_ADMIN: "Org Admin",
+  REVIEWER: "Reviewer",
   CAMPAIGN_MANAGER: "Campaign Manager",
 };
 
 const ROLE_BADGE: Record<UserRole, string> = {
   SUPER_ADMIN: "bg-rose-50 text-rose-700 border-rose-200",
   ORG_ADMIN: "bg-violet-50 text-violet-700 border-violet-200",
+  REVIEWER: "bg-amber-50 text-amber-700 border-amber-200",
   CAMPAIGN_MANAGER: "bg-sky-50 text-sky-700 border-sky-200",
 };
 
@@ -202,6 +204,7 @@ export default function UserPage() {
                 <SelectItem value="all">All Roles</SelectItem>
                 <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
                 <SelectItem value="ORG_ADMIN">Org Admin</SelectItem>
+                <SelectItem value="REVIEWER">Reviewer</SelectItem>
                 <SelectItem value="CAMPAIGN_MANAGER">Campaign Manager</SelectItem>
               </SelectContent>
             </Select>
@@ -628,8 +631,8 @@ function AddMemberDialog({
   const [loading, setLoading] = useState(false);
 
   const roleOptions: UserRole[] = isSuperAdmin
-    ? ["SUPER_ADMIN", "ORG_ADMIN", "CAMPAIGN_MANAGER"]
-    : ["ORG_ADMIN", "CAMPAIGN_MANAGER"];
+    ? ["SUPER_ADMIN", "ORG_ADMIN", "REVIEWER", "CAMPAIGN_MANAGER"]
+    : ["ORG_ADMIN", "REVIEWER", "CAMPAIGN_MANAGER"];
 
   useEffect(() => {
     if (open) {
@@ -907,8 +910,8 @@ function ChangeRoleDialog({
               </SelectTrigger>
               <SelectContent>
                 {(isSuperAdmin
-                  ? ["SUPER_ADMIN", "ORG_ADMIN", "CAMPAIGN_MANAGER"]
-                  : ["ORG_ADMIN", "CAMPAIGN_MANAGER"]
+                  ? ["SUPER_ADMIN", "ORG_ADMIN", "REVIEWER", "CAMPAIGN_MANAGER"]
+                  : ["ORG_ADMIN", "REVIEWER", "CAMPAIGN_MANAGER"]
                 ).map((r) => (
                   <SelectItem key={r} value={r}>
                     {ROLE_LABEL[r as UserRole]}
@@ -1094,8 +1097,8 @@ function EditMemberDialog({
                 </SelectTrigger>
                 <SelectContent>
                   {(isSuperAdmin
-                    ? ["SUPER_ADMIN", "ORG_ADMIN", "CAMPAIGN_MANAGER"]
-                    : ["ORG_ADMIN", "CAMPAIGN_MANAGER"]
+                    ? ["SUPER_ADMIN", "ORG_ADMIN", "REVIEWER", "CAMPAIGN_MANAGER"]
+                    : ["ORG_ADMIN", "REVIEWER", "CAMPAIGN_MANAGER"]
                   ).map((r) => (
                     <SelectItem key={r} value={r}>
                       {ROLE_LABEL[r as UserRole]}

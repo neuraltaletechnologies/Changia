@@ -81,10 +81,13 @@ export default function NewCampaignPage() {
   const [imageWarning, setImageWarning] = useState<string | null>(null);
 
   // The org's default campaign service fee (%), added on top of the goal —
-  // see computeFees() in Backend/modules/campaign/service.js. A manager only
-  // previews it here; changing the rate itself happens on the organisation
-  // settings page (admin-only).
+  // see computeFees() in Backend/modules/campaign/service.js. A manager may
+  // PROPOSE a different rate for this campaign: it needs a reviewer/admin's
+  // approval before it takes effect, so until then the campaign still shows the
+  // default rate. `orgDefaultFee` remembers the default so we can tell whether
+  // the entered value is a custom proposal.
   const [serviceFeePercent, setServiceFeePercent] = useState(5);
+  const [orgDefaultFee, setOrgDefaultFee] = useState(5);
 
   const loadPools = useCallback(async () => {
     try {
@@ -102,15 +105,22 @@ export default function NewCampaignPage() {
   useEffect(() => {
     organizationApi
       .getMine()
-      .then((org) => setServiceFeePercent(org.defaultServiceFeePercent))
+      .then((org) => {
+        setServiceFeePercent(org.defaultServiceFeePercent);
+        setOrgDefaultFee(org.defaultServiceFeePercent);
+      })
       .catch(() => {
-        // Keep the 5% fallback — the backend applies its own default anyway,
-        // this is only a preview.
+        // Keep the 5% fallback — the backend applies its own default anyway.
       });
   }, []);
 
   const goalAmount = Number(form.goal) || 0;
-  const serviceFeeAmount = Math.round(goalAmount * (serviceFeePercent / 100));
+  // A rate different from the org default is a custom proposal that a
+  // reviewer/admin must approve before it applies — so the target donors will
+  // actually see is still computed off the default until that happens.
+  const isCustomFee = Number(serviceFeePercent) !== Number(orgDefaultFee);
+  const effectiveFeePercent = isCustomFee ? orgDefaultFee : serviceFeePercent;
+  const serviceFeeAmount = Math.round(goalAmount * (effectiveFeePercent / 100));
   const publicTarget = goalAmount + serviceFeeAmount;
 
   const setField = (field: keyof FormState, value: string) => {
@@ -174,6 +184,9 @@ export default function NewCampaignPage() {
         endDate: form.endDate ? new Date(form.endDate).toISOString() : undefined,
         contactPhone: form.contactPhone.trim() || undefined,
         poolIds: poolIds.length > 0 ? poolIds : undefined,
+        // Only send a rate when it differs from the org default — a custom
+        // value is stored as a proposal pending reviewer/admin approval.
+        serviceFeePercent: isCustomFee ? Number(serviceFeePercent) : undefined,
       });
 
       // Images are a separate call — the campaign already exists once this
@@ -387,7 +400,7 @@ export default function NewCampaignPage() {
               {goalAmount > 0 && (
                 <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 space-y-0.5">
                   <p className="text-xs text-muted-foreground">
-                    {formatTZS(goalAmount)} goal + {serviceFeePercent}% service fee (
+                    {formatTZS(goalAmount)} goal + {effectiveFeePercent}% service fee (
                     {formatTZS(serviceFeeAmount)})
                   </p>
                   <p className="text-xs font-medium text-foreground">
@@ -414,6 +427,32 @@ export default function NewCampaignPage() {
                 <p className="text-xs text-muted-foreground">Defaults to TZS 1,000 if left blank.</p>
               )}
             </div>
+          </div>
+
+          <div className="grid gap-1.5">
+            <Label htmlFor="campaign-fee">Service fee (%)</Label>
+            <Input
+              id="campaign-fee"
+              type="number"
+              min={0}
+              max={100}
+              step="0.01"
+              value={serviceFeePercent}
+              onChange={(e) => setServiceFeePercent(Number(e.target.value))}
+              className="h-9"
+            />
+            {isCustomFee ? (
+              <p className="text-xs text-amber-600">
+                Custom rate (default is {orgDefaultFee}%). This needs a reviewer or
+                admin to approve it before it applies — until then the campaign
+                uses the {orgDefaultFee}% default.
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Your organisation&apos;s default rate, added on top of the goal. Change
+                it to propose a custom rate for this campaign.
+              </p>
+            )}
           </div>
 
           <div className="grid sm:grid-cols-2 gap-4">

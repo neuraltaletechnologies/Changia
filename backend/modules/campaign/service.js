@@ -143,6 +143,10 @@ function mapCampaign(c) {
     donorCount: c.donor_count,
     isFeatured: Boolean(c.is_featured),
     featuredAt: c.featured_at,
+    // Two-stage approval: firstApprovedBy/At is the first (PENDING -> REVIEWED)
+    // sign-off; approvedBy/At is the second, decisive one (REVIEWED -> ACTIVE).
+    firstApprovedBy: c.first_approved_by ?? null,
+    firstApprovedAt: c.first_approved_at ?? null,
     approvedBy: c.approved_by,
     approvedAt: c.approved_at,
     createdAt: c.created_at,
@@ -185,7 +189,13 @@ function mapPublicCampaign(c, locale = "en") {
 }
 
 async function assertCampaignAccess(organizationId, user, campaignId) {
-  if (!user || user.role === "SUPER_ADMIN" || user.role === "ORG_ADMIN") return;
+  // REVIEWER reviews/approves whatever a manager submits org-wide (campaign
+  // approvals, closure requests, completion reports, fee proposals) — they
+  // are never added to campaign_assignments, so they'd otherwise be locked
+  // out of every campaign they're specifically authorized to act on.
+  if (!user || user.role === "SUPER_ADMIN" || user.role === "ORG_ADMIN" || user.role === "REVIEWER") {
+    return;
+  }
   const rows = await db.query(
     `SELECT c.id FROM campaigns c JOIN campaign_assignments ca ON ca.campaign_id = c.id
      WHERE c.id = ? AND c.organization_id = ? AND ca.user_id = ?`,
@@ -229,7 +239,7 @@ async function listCampaigns(organizationId, filters, user) {
             proposed_service_fee_percent, fee_status, fee_reviewed_by, fee_reviewed_at, fee_review_notes,
             minimum_amount, start_date, end_date,
             status, is_public, contact_phone, raised_amount, donor_count, is_featured, featured_at,
-            approved_by, approved_at, created_at, updated_at
+            first_approved_by, first_approved_at, approved_by, approved_at, created_at, updated_at
      FROM campaigns ${whereSql}
      ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`,
     values
@@ -293,7 +303,7 @@ async function getCampaign(organizationId, campaignId, user) {
             proposed_service_fee_percent, fee_status, fee_reviewed_by, fee_reviewed_at, fee_review_notes,
             minimum_amount, start_date, end_date,
             status, is_public, contact_phone, raised_amount, donor_count, is_featured, featured_at,
-            approved_by, approved_at, created_at, updated_at
+            first_approved_by, first_approved_at, approved_by, approved_at, created_at, updated_at
      FROM campaigns WHERE id = ?${orgSql}`,
     [campaignId, ...orgParams]
   );
@@ -412,10 +422,12 @@ async function createCampaign(organizationId, data, actor) {
   const slug = await uniqueSlug(data.name);
 
   // ORG_ADMIN is already an approver, so their own campaign activates
-  // immediately (self-approved). A CAMPAIGN_MANAGER's campaign must wait for
-  // an ORG_ADMIN/SUPER_ADMIN to approve it — it goes straight to PENDING
-  // (skipping DRAFT, since creating already IS "submitting for review") and
-  // stays unlisted (is_public = 0) until POST /campaigns/:id/approve.
+  // immediately (self-approved). A CAMPAIGN_MANAGER's campaign must clear TWO
+  // independent approvals — it goes straight to PENDING (skipping DRAFT,
+  // since creating already IS "submitting for review") and stays unlisted
+  // (is_public = 0) until POST /campaigns/:id/approve has been called twice
+  // by two different REVIEWER/ORG_ADMIN/SUPER_ADMIN accounts (see
+  // approveCampaign below for the PENDING -> REVIEWED -> ACTIVE chain).
   const selfApproved = actor.role !== "CAMPAIGN_MANAGER";
   const result = await db.execute(
     `INSERT INTO campaigns
@@ -650,15 +662,54 @@ async function submitCampaign(organizationId, campaignId, actor) {
   return getCampaign(organizationId, campaignId, actor);
 }
 
+/**
+ * Two-stage approval — the "flow of power" a CAMPAIGN_MANAGER's campaign must
+ * clear before it goes live, neither stage being the manager themself:
+ *
+ *   PENDING  -> REVIEWED  : first REVIEWER/ORG_ADMIN/SUPER_ADMIN sign-off.
+ *   REVIEWED -> ACTIVE    : a SECOND, DIFFERENT REVIEWER/ORG_ADMIN/SUPER_ADMIN
+ *                           signs off; only then does it go public and the
+ *                           donor-target link emails go out.
+ *
+ * Same endpoint both times — the caller just POSTs /:id/approve again. The
+ * same person approving twice is rejected so one reviewer can never
+ * unilaterally activate a campaign.
+ */
 async function approveCampaign(organizationId, campaignId, actor) {
   const [orgSql, ...orgParams] = orgScope(organizationId, actor);
   const existing = await db.query(
-    `SELECT status FROM campaigns WHERE id = ?${orgSql}`,
+    `SELECT status, first_approved_by FROM campaigns WHERE id = ?${orgSql}`,
     [campaignId, ...orgParams]
   );
   if (existing.length === 0) throw ApiError.notFound("Campaign not found");
-  if (existing[0].status !== "PENDING") {
-    throw ApiError.badRequest("Only pending campaigns can be approved");
+  const campaign = existing[0];
+
+  if (campaign.status === "PENDING") {
+    await db.execute(
+      `UPDATE campaigns SET status = 'REVIEWED', first_approved_by = ?, first_approved_at = NOW()
+       WHERE id = ?`,
+      [actor.id, campaignId]
+    );
+    await db.execute(
+      `INSERT INTO audit_logs (organization_id, actor_id, actor_email, action, resource, resource_id, severity)
+       VALUES (?, ?, ?, 'campaign.first_approved', 'campaign', ?, 'INFO')`,
+      [organizationId, actor.id, actor.email, String(campaignId)]
+    );
+    return getCampaign(organizationId, campaignId, actor);
+  }
+
+  if (campaign.status !== "REVIEWED") {
+    throw ApiError.badRequest(
+      "Only campaigns awaiting review or final approval can be approved",
+      "INVALID_APPROVAL_STATE"
+    );
+  }
+
+  if (campaign.first_approved_by && Number(campaign.first_approved_by) === Number(actor.id)) {
+    throw ApiError.badRequest(
+      "You already gave this campaign its first approval — a different reviewer or admin must give the second, final approval",
+      "SAME_APPROVER"
+    );
   }
 
   await db.execute(
@@ -673,11 +724,47 @@ async function approveCampaign(organizationId, campaignId, actor) {
   );
 
   // ─── Send campaign link emails to targeted donors ────────────────────────
-  // After approval, notify all donors in the campaign's target list via email
-  // with a direct link to the campaign donation page.
+  // After the final approval, notify all donors in the campaign's target list
+  // via email with a direct link to the campaign donation page.
   sendCampaignLinkEmails(organizationId, campaignId).catch((err) => {
     console.error(`[campaign-approval] Failed to send donor emails for campaign ${campaignId}:`, err.message);
   });
+
+  return getCampaign(organizationId, campaignId, actor);
+}
+
+/**
+ * A REVIEWER/ORG_ADMIN/SUPER_ADMIN rejects a campaign still in the approval
+ * chain (PENDING = awaiting 1st approval, REVIEWED = awaiting 2nd). Scoped
+ * deliberately narrower than changeCampaignStatus — REVIEWER only gets to
+ * gatekeep what a manager submits, not pause/complete/cancel a campaign
+ * that's already live. Mirrors the reject side of fee/completion-report/
+ * closure-request review: sets status to CANCELLED so the manager can start
+ * fresh, and records the reason for the audit trail.
+ */
+async function rejectCampaign(organizationId, campaignId, actor, notes) {
+  const [orgSql, ...orgParams] = orgScope(organizationId, actor);
+  const existing = await db.query(
+    `SELECT status FROM campaigns WHERE id = ?${orgSql}`,
+    [campaignId, ...orgParams]
+  );
+  if (existing.length === 0) throw ApiError.notFound("Campaign not found");
+  if (existing[0].status !== "PENDING" && existing[0].status !== "REVIEWED") {
+    throw ApiError.badRequest(
+      "Only campaigns awaiting review or final approval can be rejected",
+      "INVALID_APPROVAL_STATE"
+    );
+  }
+
+  await db.execute(
+    "UPDATE campaigns SET status = 'CANCELLED', is_public = 0 WHERE id = ?",
+    [campaignId]
+  );
+  await db.execute(
+    `INSERT INTO audit_logs (organization_id, actor_id, actor_email, action, resource, resource_id, details, severity)
+     VALUES (?, ?, ?, 'campaign.rejected', 'campaign', ?, ?, 'WARNING')`,
+    [organizationId, actor.id, actor.email, String(campaignId), notes ? JSON.stringify({ notes }) : null]
+  );
 
   return getCampaign(organizationId, campaignId, actor);
 }
@@ -1950,6 +2037,7 @@ module.exports = {
   updateCampaign,
   submitCampaign,
   approveCampaign,
+  rejectCampaign,
   reviewFeeProposal,
   changeCampaignStatus,
   setCampaignManagers,

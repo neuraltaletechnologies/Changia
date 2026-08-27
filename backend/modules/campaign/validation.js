@@ -99,6 +99,12 @@ const closureDecisionSchema = z.object({
   notes: z.string().max(2000).optional(),
 });
 
+// REVIEWER/ORG_ADMIN/SUPER_ADMIN rejecting a campaign still awaiting
+// approval (PENDING or REVIEWED) — see campaignService.rejectCampaign.
+const rejectCampaignSchema = z.object({
+  notes: z.string().max(2000).optional(),
+});
+
 // A reviewer/admin approving or rejecting a manager's proposed custom fee %.
 const feeReviewSchema = z.object({
   approved: z.boolean(),
@@ -129,6 +135,7 @@ module.exports = {
   completionReportReviewSchema,
   closureRequestSchema,
   closureDecisionSchema,
+  rejectCampaignSchema,
   feeReviewSchema,
   publicListQuerySchema,
   publicDetailQuerySchema,

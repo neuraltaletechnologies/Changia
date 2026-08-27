@@ -45,6 +45,7 @@ import { cn } from "@/lib/dashboard/utils";
 const statusChips: { status: string; styles: string }[] = [
   { status: "ACTIVE", styles: "bg-emerald-50 text-emerald-700 border-emerald-200" },
   { status: "PENDING", styles: "bg-orange-50 text-orange-700 border-orange-200" },
+  { status: "REVIEWED", styles: "bg-blue-50 text-blue-700 border-blue-200" },
   { status: "DRAFT", styles: "bg-slate-50 text-slate-600 border-slate-200" },
   { status: "COMPLETED", styles: "bg-sky-50 text-sky-700 border-sky-200" },
   { status: "PAUSED", styles: "bg-amber-50 text-amber-700 border-amber-200" },
@@ -68,6 +69,9 @@ export default function CampaignsPage() {
   const { hasPermission, isSuperAdmin, isOrgAdmin, user } = useRole();
   const canCreate = hasPermission("campaign:create");
   const isAdmin = isSuperAdmin || isOrgAdmin;
+  // REVIEWER can approve too (two-stage chain), unlike isAdmin above which
+  // gates other admin-only actions (delete, feature, edit-any).
+  const canApproveRole = hasPermission("campaign:approve");
 
   const [viewMode, setViewMode] = useState<"card" | "list">("list");
   const [search, setSearch] = useState("");
@@ -302,6 +306,7 @@ export default function CampaignsPage() {
                 <CampaignActionsMenu
                   campaign={c}
                   isAdmin={isAdmin}
+                  canApproveRole={canApproveRole}
                   currentUserId={user?.id}
                   onApprove={() => act(() => campaignApi.approve(c.id))}
                   onDelete={() => act(() => campaignApi.remove(c.id))}
@@ -394,6 +399,7 @@ export default function CampaignsPage() {
                       <CampaignActionsMenu
                         campaign={c}
                         isAdmin={isAdmin}
+                        canApproveRole={canApproveRole}
                         currentUserId={user?.id}
                         onApprove={() => act(() => campaignApi.approve(c.id))}
                         onDelete={() => act(() => campaignApi.remove(c.id))}
@@ -449,6 +455,7 @@ function toCardCampaign(c: CampaignRecord): Campaign {
 function CampaignActionsMenu({
   campaign,
   isAdmin,
+  canApproveRole,
   currentUserId,
   onApprove,
   onDelete,
@@ -456,6 +463,8 @@ function CampaignActionsMenu({
 }: {
   campaign: CampaignRecord;
   isAdmin: boolean;
+  /** Has the campaign:approve permission (ORG_ADMIN/SUPER_ADMIN/REVIEWER). */
+  canApproveRole: boolean;
   currentUserId?: string;
   onApprove: () => void;
   onDelete: () => void;
@@ -468,7 +477,17 @@ function CampaignActionsMenu({
   const canEdit =
     (isAdmin || isAssigned) && campaign.status !== "COMPLETED" && campaign.status !== "CANCELLED";
   const canDelete = isAdmin && campaign.status !== "ACTIVE" && campaign.status !== "COMPLETED";
-  const canApprove = isAdmin && campaign.status === "PENDING";
+  // Two-stage approval: PENDING needs a first approval, REVIEWED needs a
+  // second one from someone OTHER than whoever gave the first (the backend
+  // enforces this too — this just avoids showing a button that will 400).
+  const isOwnFirstApproval =
+    campaign.status === "REVIEWED" &&
+    currentUserId != null &&
+    String(campaign.firstApprovedBy ?? "") === currentUserId;
+  const canApprove =
+    canApproveRole &&
+    (campaign.status === "PENDING" || campaign.status === "REVIEWED") &&
+    !isOwnFirstApproval;
   const canFeature = isAdmin && campaign.status === "ACTIVE" && campaign.isPublic;
 
   const wrap = (fn: () => void) => async () => {
@@ -502,7 +521,7 @@ function CampaignActionsMenu({
         {canApprove && (
           <DropdownMenuItem onClick={wrap(onApprove)}>
             <Check className="w-3.5 h-3.5 mr-1.5" />
-            Approve
+            {campaign.status === "REVIEWED" ? "Give final approval" : "Give first approval"}
           </DropdownMenuItem>
         )}
         {canFeature && (

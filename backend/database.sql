@@ -220,7 +220,15 @@ CREATE TABLE campaigns (
   minimum_amount      DECIMAL(14,0) NOT NULL DEFAULT 1000,
   start_date          DATETIME NULL,
   end_date            DATETIME NULL,
-  status              ENUM('DRAFT','PENDING','ACTIVE','PAUSED','COMPLETED','CANCELLED') NOT NULL DEFAULT 'DRAFT',
+  -- Two-stage approval, both stages by a REVIEWER/ORG_ADMIN/SUPER_ADMIN (never
+  -- the manager who created it): a manager's campaign moves DRAFT -> PENDING
+  -- on submit, PENDING -> REVIEWED on the first independent approval, then
+  -- REVIEWED -> ACTIVE on a *second* approval by someone other than the first
+  -- approver (enforced in the service layer via first_approved_by below). An
+  -- ORG_ADMIN/SUPER_ADMIN creating their own campaign still self-approves and
+  -- skips straight to ACTIVE — the two-person rule only applies to what a
+  -- CAMPAIGN_MANAGER submits.
+  status              ENUM('DRAFT','PENDING','REVIEWED','ACTIVE','PAUSED','COMPLETED','CANCELLED') NOT NULL DEFAULT 'DRAFT',
   is_public           TINYINT(1) NOT NULL DEFAULT 0,
   contact_phone       VARCHAR(32) NULL,
   raised_amount       DECIMAL(14,0) NOT NULL DEFAULT 0,
@@ -229,11 +237,16 @@ CREATE TABLE campaigns (
   -- at a time (enforced in the service layer, not the schema).
   is_featured         TINYINT(1) NOT NULL DEFAULT 0,
   featured_at         DATETIME NULL,
+  -- First-stage approver (PENDING -> REVIEWED). approved_by/approved_at below
+  -- record the second, decisive approval (REVIEWED -> ACTIVE).
+  first_approved_by   BIGINT UNSIGNED NULL,
+  first_approved_at   DATETIME NULL,
   approved_by         BIGINT UNSIGNED NULL,
   approved_at         DATETIME NULL,
   created_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_campaigns_org FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+  CONSTRAINT fk_campaigns_first_approved_by FOREIGN KEY (first_approved_by) REFERENCES users(id) ON DELETE SET NULL,
   CONSTRAINT fk_campaigns_approved_by FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL,
   CONSTRAINT fk_campaigns_fee_reviewed_by FOREIGN KEY (fee_reviewed_by) REFERENCES users(id) ON DELETE SET NULL,
   INDEX idx_campaigns_org_status (organization_id, status),
@@ -592,6 +605,11 @@ INSERT INTO users (organization_id, first_name, last_name, email, phone, passwor
   (1, 'Baraka', 'Mushi', 'manager@msuya-foundation.org.tz', '255713000002',
    '$2b$12$YBiH.YibjVq/6ydw/Pa97eEG/HbjPVWH.a2Am4NvHTPGkhBW8xVbW', 'CAMPAIGN_MANAGER', 'ACTIVE'),
   (1, 'Zainab', 'Kileo', 'reviewer@msuya-foundation.org.tz', '255713000003',
+   '$2b$12$YBiH.YibjVq/6ydw/Pa97eEG/HbjPVWH.a2Am4NvHTPGkhBW8xVbW', 'REVIEWER', 'ACTIVE'),
+  -- A second, independent reviewer — campaigns need two DIFFERENT approvers
+  -- (see campaigns.first_approved_by), so a single-reviewer org can never
+  -- activate a manager's campaign. Same demo password as everyone else.
+  (1, 'Elias', 'Mrema', 'reviewer2@msuya-foundation.org.tz', '255713000004',
    '$2b$12$YBiH.YibjVq/6ydw/Pa97eEG/HbjPVWH.a2Am4NvHTPGkhBW8xVbW', 'REVIEWER', 'ACTIVE');
 
 -- Active campaign with 5% service fee (goal 10,000,000 → target 10,500,000)

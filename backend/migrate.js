@@ -42,6 +42,35 @@ const MIGRATIONS = [
   `ALTER TABLE campaigns ADD COLUMN fee_reviewed_at DATETIME NULL AFTER fee_reviewed_by`,
   `ALTER TABLE campaigns ADD COLUMN fee_review_notes TEXT NULL AFTER fee_reviewed_at`,
   `ALTER TABLE campaigns ADD CONSTRAINT fk_campaigns_fee_reviewed_by FOREIGN KEY (fee_reviewed_by) REFERENCES users(id) ON DELETE SET NULL`,
+
+  // campaigns — two-stage approval. A manager's campaign now needs a second,
+  // independent approval (REVIEWED -> ACTIVE) on top of the first
+  // (PENDING -> REVIEWED); first_approved_by/at track who gave the first one
+  // so the service layer can require a *different* person for the second.
+  `ALTER TABLE campaigns MODIFY COLUMN status ENUM('DRAFT','PENDING','REVIEWED','ACTIVE','PAUSED','COMPLETED','CANCELLED') NOT NULL DEFAULT 'DRAFT'`,
+  `ALTER TABLE campaigns ADD COLUMN first_approved_by BIGINT UNSIGNED NULL AFTER featured_at`,
+  `ALTER TABLE campaigns ADD COLUMN first_approved_at DATETIME NULL AFTER first_approved_by`,
+  `ALTER TABLE campaigns ADD CONSTRAINT fk_campaigns_first_approved_by FOREIGN KEY (first_approved_by) REFERENCES users(id) ON DELETE SET NULL`,
+
+  // payment_attempts — donor_email/provider/campaign_donor_target_id are in
+  // database.sql but were missing here, so any DB older than that addition
+  // 500s on every public/push contribution ("Unknown column 'donor_email'").
+  `ALTER TABLE payment_attempts ADD COLUMN donor_email VARCHAR(255) NULL AFTER donor_name`,
+  `ALTER TABLE payment_attempts ADD COLUMN provider VARCHAR(64) NULL AFTER gateway_ref`,
+  `ALTER TABLE payment_attempts ADD COLUMN campaign_donor_target_id BIGINT UNSIGNED NULL AFTER donor_email`,
+  `ALTER TABLE payment_attempts ADD CONSTRAINT fk_pa_cdt FOREIGN KEY (campaign_donor_target_id) REFERENCES campaign_donor_targets(id) ON DELETE SET NULL`,
+  `ALTER TABLE payment_attempts ADD INDEX idx_pa_cdt (campaign_donor_target_id)`,
+
+  // donations — donor_email is in database.sql but was missing here too
+  // (receipt emails silently had nowhere to read the address from).
+  `ALTER TABLE donations ADD COLUMN donor_email VARCHAR(255) NULL AFTER donor_phone`,
+
+  // campaign_donor_targets — actual_amount/payment_status are what the whole
+  // "who has/hasn't paid their pledge" board and payment-confirmation update
+  // depend on (see donation/service.js); missing here on an older DB meant
+  // every payment silently failed to move a donor out of UNPAID.
+  `ALTER TABLE campaign_donor_targets ADD COLUMN actual_amount DECIMAL(14,0) NULL DEFAULT 0 AFTER expected_amount`,
+  `ALTER TABLE campaign_donor_targets ADD COLUMN payment_status ENUM('UNPAID','PARTIAL','PAID_FULL') NOT NULL DEFAULT 'UNPAID' AFTER actual_amount`,
 ];
 
 async function columnExists(table, column) {
@@ -112,6 +141,40 @@ async function runMigrations() {
   }
   if (applied > 0) {
     console.log(`🔄 Auto-migration: ${applied} column(s) added`);
+  }
+
+  await seedReviewers();
+}
+
+/**
+ * Two-stage campaign approval requires two DIFFERENT approvers. Older/live
+ * copies of the demo org (Msuya Foundation, id 1) may have zero or one
+ * REVIEWER seeded, which would leave campaigns permanently stuck in
+ * REVIEWED. Top up to two, once, if that org exists.
+ */
+async function seedReviewers() {
+  const REVIEWERS = [
+    ["Zainab", "Kileo", "reviewer@msuya-foundation.org.tz", "255713000003"],
+    ["Elias", "Mrema", "reviewer2@msuya-foundation.org.tz", "255713000004"],
+  ];
+  try {
+    const org = await db.query("SELECT id FROM organizations WHERE id = 1");
+    if (org.length === 0) return;
+
+    for (const [firstName, lastName, email, phone] of REVIEWERS) {
+      const existing = await db.query("SELECT id FROM users WHERE email = ?", [email]);
+      if (existing.length > 0) continue;
+
+      await db.execute(
+        `INSERT INTO users (organization_id, first_name, last_name, email, phone, password_hash, role, status)
+         VALUES (1, ?, ?, ?, ?,
+                 '$2b$12$YBiH.YibjVq/6ydw/Pa97eEG/HbjPVWH.a2Am4NvHTPGkhBW8xVbW', 'REVIEWER', 'ACTIVE')`,
+        [firstName, lastName, email, phone]
+      );
+      console.log(`🔄 Auto-migration: seeded demo reviewer (${email})`);
+    }
+  } catch (err) {
+    console.warn(`⚠️  Second-reviewer seed warning: ${err.message}`);
   }
 }
 

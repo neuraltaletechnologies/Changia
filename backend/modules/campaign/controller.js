@@ -57,6 +57,16 @@ const approveCampaign = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true, data: campaign });
 });
 
+const rejectCampaign = asyncHandler(async (req, res) => {
+  const campaign = await campaignService.rejectCampaign(
+    req.user.organizationId,
+    req.params.id,
+    req.user,
+    req.body?.notes
+  );
+  res.status(200).json({ success: true, data: campaign });
+});
+
 const reviewFeeProposal = asyncHandler(async (req, res) => {
   const campaign = await campaignService.reviewFeeProposal(
     req.user.organizationId,
@@ -285,6 +295,7 @@ module.exports = {
   updateCampaign,
   submitCampaign,
   approveCampaign,
+  rejectCampaign,
   reviewFeeProposal,
   changeStatus,
   setManagers,

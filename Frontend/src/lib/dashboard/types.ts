@@ -32,7 +32,16 @@ export interface Donor {
   notes?: string;
 }
 
-export type CampaignStatus = "DRAFT" | "PENDING" | "ACTIVE" | "PAUSED" | "COMPLETED" | "CANCELLED";
+// REVIEWED = has its first of two required approvals; awaiting a second,
+// different approver before it goes ACTIVE (see campaigns/approvals page).
+export type CampaignStatus =
+  | "DRAFT"
+  | "PENDING"
+  | "REVIEWED"
+  | "ACTIVE"
+  | "PAUSED"
+  | "COMPLETED"
+  | "CANCELLED";
 
 export interface Campaign {
   id: string;

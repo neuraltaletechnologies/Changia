@@ -10,6 +10,7 @@ export const campaignStatusMap: Record<Campaign["status"], { label: string; clas
   COMPLETED: { label: "Completed", className: "bg-sky-50 text-sky-700 border-sky-200" },
   PAUSED: { label: "Paused", className: "bg-amber-50 text-amber-700 border-amber-200" },
   PENDING: { label: "Pending Approval", className: "bg-orange-50 text-orange-700 border-orange-200" },
+  REVIEWED: { label: "Awaiting 2nd Approval", className: "bg-blue-50 text-blue-700 border-blue-200" },
   CANCELLED: { label: "Cancelled", className: "bg-rose-50 text-rose-700 border-rose-200" },
 };
 

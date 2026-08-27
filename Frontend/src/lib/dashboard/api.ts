@@ -124,13 +124,17 @@ export interface CampaignRecord {
   minimumAmount: number;
   startDate: string | null;
   endDate: string | null;
-  status: "DRAFT" | "PENDING" | "ACTIVE" | "PAUSED" | "COMPLETED" | "CANCELLED";
+  status: "DRAFT" | "PENDING" | "REVIEWED" | "ACTIVE" | "PAUSED" | "COMPLETED" | "CANCELLED";
   isPublic: boolean;
   contactPhone: string | null;
   raisedAmount: number;
   donorCount: number;
   isFeatured: boolean;
   featuredAt: string | null;
+  /** First of the two required approvals (PENDING -> REVIEWED). */
+  firstApprovedBy?: number | null;
+  firstApprovedAt?: string | null;
+  /** Second, decisive approval (REVIEWED -> ACTIVE) — must be a different user than firstApprovedBy. */
   approvedBy: number | null;
   approvedAt: string | null;
   createdAt: string;
@@ -546,6 +550,9 @@ export const campaignApi = {
     api.post<{ success: boolean; data: CampaignRecord }>(`/campaigns/${id}/submit`).then(unwrap),
   approve: (id: string | number) =>
     api.post<{ success: boolean; data: CampaignRecord }>(`/campaigns/${id}/approve`).then(unwrap),
+  /** Reviewer/admin rejects a campaign still awaiting approval (PENDING/REVIEWED) — narrower than changeStatus. */
+  reject: (id: string | number, notes?: string) =>
+    api.post<{ success: boolean; data: CampaignRecord }>(`/campaigns/${id}/reject`, { notes }).then(unwrap),
   /** Reviewer/admin approves or rejects a manager's proposed custom fee %. */
   reviewFee: (id: string | number, body: { approved: boolean; notes?: string }) =>
     api

@@ -29,9 +29,13 @@ const MIGRATIONS = [
   // campaign doesn't set its own service_fee_percent.
   `ALTER TABLE organizations ADD COLUMN default_service_fee_percent DECIMAL(5,2) NOT NULL DEFAULT 5.00 AFTER currency`,
 
-  // users — add the REVIEWER role (org-scoped approver between ORG_ADMIN and
-  // CAMPAIGN_MANAGER). Idempotent: skipped once the enum already lists it.
+  // users — add the REVIEWER role. Idempotent: skipped once the enum lists it.
   `ALTER TABLE users MODIFY COLUMN role ENUM('SUPER_ADMIN','ORG_ADMIN','REVIEWER','CAMPAIGN_MANAGER') NOT NULL DEFAULT 'CAMPAIGN_MANAGER'`,
+
+  // REVIEWER is a platform-level role (vets campaigns for every org, like
+  // SUPER_ADMIN) — detach any reviewer that an earlier build scoped to an org.
+  // Bounded by IS NOT NULL, so a no-op after the first run.
+  `UPDATE users SET organization_id = NULL WHERE role = 'REVIEWER' AND organization_id IS NOT NULL`,
 
   // campaigns — custom service-fee proposal/approval flow. A manager's proposed
   // rate is parked in proposed_service_fee_percent (fee_status='PENDING') until
@@ -218,9 +222,9 @@ async function runMigrations() {
 
 /**
  * Two-stage campaign approval requires two DIFFERENT approvers. Older/live
- * copies of the demo org (Msuya Foundation, id 1) may have zero or one
- * REVIEWER seeded, which would leave campaigns permanently stuck in
- * REVIEWED. Top up to two, once, if that org exists.
+ * copies of the DB may have zero or one REVIEWER seeded, which would leave
+ * campaigns permanently stuck in REVIEWED. Top up to two, once. Reviewers are
+ * platform-level (organization_id NULL) — they vet campaigns for every org.
  */
 async function seedReviewers() {
   const REVIEWERS = [
@@ -228,16 +232,13 @@ async function seedReviewers() {
     ["Elias", "Mrema", "reviewer2@msuya-foundation.org.tz", "255713000004"],
   ];
   try {
-    const org = await db.query("SELECT id FROM organizations WHERE id = 1");
-    if (org.length === 0) return;
-
     for (const [firstName, lastName, email, phone] of REVIEWERS) {
       const existing = await db.query("SELECT id FROM users WHERE email = ?", [email]);
       if (existing.length > 0) continue;
 
       await db.execute(
         `INSERT INTO users (organization_id, first_name, last_name, email, phone, password_hash, role, status)
-         VALUES (1, ?, ?, ?, ?,
+         VALUES (NULL, ?, ?, ?, ?,
                  '$2b$12$YBiH.YibjVq/6ydw/Pa97eEG/HbjPVWH.a2Am4NvHTPGkhBW8xVbW', 'REVIEWER', 'ACTIVE')`,
         [firstName, lastName, email, phone]
       );

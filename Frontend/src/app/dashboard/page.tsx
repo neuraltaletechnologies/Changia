@@ -149,10 +149,44 @@ export default function DashboardPage() {
   const canManageDonors = hasPermission("donor:manage");
   const canRequestPayout = hasPermission("payout:request");
   const isPlatformRole = role === ROLE.SUPER_ADMIN;
+  const isReviewer = role === ROLE.REVIEWER;
 
-  // Role-specific stats. Super admins get a platform overview; everyone else
-  // gets an operational view (campaign managers see their assigned campaigns).
-  const stats = isPlatformRole
+  // Role-specific stats. Super admins get a platform overview; reviewers get a
+  // review-queue view (no donor data — they're platform-level with no org);
+  // everyone else gets an operational view.
+  const reviewerStats = [
+    {
+      label: "Awaiting Review",
+      value: pendingApprovalCount.toString(),
+      sub: "Campaigns & edits in the queue",
+      icon: BadgeCheck,
+      iconBg: "bg-emerald-50",
+      iconColor: "text-emerald-600",
+      href: "/dashboard/campaigns/approvals",
+    },
+    {
+      label: "Active Campaigns",
+      value: activeCampaigns.length.toString(),
+      sub: "Live across all organisations",
+      icon: Megaphone,
+      iconBg: "bg-sky-50",
+      iconColor: "text-sky-600",
+      href: "/dashboard/campaigns",
+    },
+    {
+      label: "Total Raised",
+      value: formatTZS(totalRaised),
+      sub: "Across all organisations",
+      icon: Wallet,
+      iconBg: "bg-amber-50",
+      iconColor: "text-amber-600",
+      href: "/dashboard/campaigns",
+    },
+  ];
+
+  const stats = isReviewer
+    ? reviewerStats
+    : isPlatformRole
     ? [
         {
           label: "Active Campaigns",
@@ -370,19 +404,17 @@ export default function DashboardPage() {
               <div className="flex items-start gap-2.5">
                 <Info className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  As a {meta.label} you work on your assigned campaigns and add{" "}
-                  <span className="text-foreground font-medium">
-                    consented donors
-                  </span>{" "}
-                  only (no unsolicited contact), and you can send approved push
-                  requests.
+                  <span className="text-foreground font-medium">{meta.label}.</span>{" "}
+                  {meta.scope}
                 </p>
               </div>
               <ul className="text-xs text-muted-foreground space-y-1.5">
-                <li className="flex items-center gap-2">
-                  <BadgeCheck className="w-3.5 h-3.5 text-emerald-600" />
-                  {consentedDonors.length} consented donors ready to engage
-                </li>
+                {!isReviewer && (
+                  <li className="flex items-center gap-2">
+                    <BadgeCheck className="w-3.5 h-3.5 text-emerald-600" />
+                    {consentedDonors.length} consented donors ready to engage
+                  </li>
+                )}
                 <li className="flex items-center gap-2">
                   <ShieldCheck className="w-3.5 h-3.5 text-muted-foreground" />
                   Withdrawals, payouts and platform settings are admin-only

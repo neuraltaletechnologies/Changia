@@ -709,7 +709,7 @@ export default function CampaignDetailPage() {
           <TabsContent value="closure" className="pt-2">
             <ClosureRequestTab
               campaignId={id}
-              isAdmin={isAdmin}
+              canReview={canApproveRole}
               canRequest={isCampaignManager}
               onDecided={refresh}
             />
@@ -730,7 +730,7 @@ export default function CampaignDetailPage() {
           <TabsContent value="completion" className="pt-2">
             <CompletionReportTab
               campaignId={id}
-              isAdmin={isAdmin}
+              canReview={canApproveRole}
               canSubmit={isCampaignManager}
               onReviewed={refresh}
             />
@@ -1362,12 +1362,13 @@ const REPORT_STATUS_BADGE: Record<string, string> = {
 
 function CompletionReportTab({
   campaignId,
-  isAdmin,
+  canReview,
   canSubmit,
   onReviewed,
 }: {
   campaignId: string;
-  isAdmin: boolean;
+  /** REVIEWER / ORG_ADMIN / SUPER_ADMIN — may approve/reject the report. */
+  canReview: boolean;
   canSubmit: boolean;
   onReviewed: () => void;
 }) {
@@ -1448,7 +1449,7 @@ function CompletionReportTab({
               </p>
             )}
 
-            {isAdmin && report.status === "PENDING_REVIEW" && (
+            {canReview && report.status === "PENDING_REVIEW" && (
               <ReviewReportForm
                 campaignId={campaignId}
                 onDone={() => {
@@ -1669,12 +1670,13 @@ const REQUEST_STATUS_BADGE: Record<string, string> = {
 
 function ClosureRequestTab({
   campaignId,
-  isAdmin,
+  canReview,
   canRequest,
   onDecided,
 }: {
   campaignId: string;
-  isAdmin: boolean;
+  /** REVIEWER / ORG_ADMIN / SUPER_ADMIN — may approve/reject the request. */
+  canReview: boolean;
   canRequest: boolean;
   onDecided: () => void;
 }) {
@@ -1737,7 +1739,7 @@ function ClosureRequestTab({
                     Admin note: &quot;{r.decisionNotes}&quot;
                   </p>
                 )}
-                {isAdmin && r.status === "PENDING" && (
+                {canReview && r.status === "PENDING" && (
                   <DecideClosureForm
                     campaignId={campaignId}
                     requestId={r.id}

@@ -47,7 +47,7 @@ const updateCampaignSchema = createCampaignSchema.partial();
 
 const listCampaignsQuerySchema = z.object({
   status: z
-    .enum(["DRAFT", "PENDING", "ACTIVE", "PAUSED", "COMPLETED", "CANCELLED"])
+    .enum(["DRAFT", "PENDING", "REVIEWED", "ACTIVE", "PAUSED", "COMPLETED", "CANCELLED"])
     .optional(),
   search: z.string().max(100).optional(),
   page: z.coerce.number().int().min(1).default(1),

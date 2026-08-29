@@ -90,10 +90,17 @@ function slugify(name) {
 
 /**
  * Returns [sqlFragment, ...params] for org-scoping queries.
- * SUPER_ADMIN and ORG_ADMIN see all orgs; CAMPAIGN_MANAGER is scoped.
+ * SUPER_ADMIN, ORG_ADMIN and REVIEWER see all orgs (a REVIEWER is a
+ * platform-level role that vets every org's campaigns before an org admin
+ * gives the final approval); CAMPAIGN_MANAGER is scoped to their own org.
  */
 function orgScope(organizationId, user) {
-  if (user && (user.role === "SUPER_ADMIN" || user.role === "ORG_ADMIN")) return ["", []];
+  if (
+    user &&
+    (user.role === "SUPER_ADMIN" || user.role === "ORG_ADMIN" || user.role === "REVIEWER")
+  ) {
+    return ["", []];
+  }
   if (!organizationId && organizationId !== 0) return ["", []];
   return [" AND organization_id = ?", [organizationId]];
 }
@@ -276,7 +283,14 @@ async function listCampaigns(organizationId, filters, user) {
   const where = [];
   const values = [];
 
-  if (user && user.role !== "SUPER_ADMIN" && user.role !== "ORG_ADMIN") {
+  // SUPER_ADMIN / ORG_ADMIN / REVIEWER are not org-scoped (the REVIEWER vets
+  // every org's campaigns platform-wide). Everyone else sees only their org.
+  if (
+    user &&
+    user.role !== "SUPER_ADMIN" &&
+    user.role !== "ORG_ADMIN" &&
+    user.role !== "REVIEWER"
+  ) {
     where.push("organization_id = ?");
     values.push(organizationId);
   }
@@ -1014,6 +1028,9 @@ async function decideChangeRequest(organizationId, campaignId, requestId, actor,
   ]);
   const campaign = campaigns[0];
   if (!campaign) throw ApiError.notFound("Campaign not found");
+  // A platform REVIEWER carries no organization_id — fall back to the
+  // campaign's own org for audit rows and org-admin notifications.
+  organizationId = campaign.organization_id ?? organizationId;
 
   const rows = await db.query(
     "SELECT * FROM campaign_change_requests WHERE id = ? AND campaign_id = ?",
@@ -1214,11 +1231,16 @@ async function submitCampaign(organizationId, campaignId, actor) {
 async function approveCampaign(organizationId, campaignId, actor) {
   const [orgSql, ...orgParams] = orgScope(organizationId, actor);
   const existing = await db.query(
-    `SELECT id, name, status, first_approved_by, created_by_id FROM campaigns WHERE id = ?${orgSql}`,
+    `SELECT id, name, status, organization_id, first_approved_by, created_by_id
+     FROM campaigns WHERE id = ?${orgSql}`,
     [campaignId, ...orgParams]
   );
   if (existing.length === 0) throw ApiError.notFound("Campaign not found");
   const campaign = existing[0];
+  // A platform REVIEWER carries no organization_id — audit rows and the
+  // "ready for final approval" notification to org admins must use the
+  // campaign's own org, not the actor's.
+  organizationId = campaign.organization_id ?? organizationId;
 
   if (campaign.status === "PENDING") {
     assertApprovalStage({ actor, stage: 1, creatorId: campaign.created_by_id });
@@ -1302,11 +1324,12 @@ async function rejectCampaign(organizationId, campaignId, actor, notes) {
   }
   const [orgSql, ...orgParams] = orgScope(organizationId, actor);
   const existing = await db.query(
-    `SELECT id, name, status FROM campaigns WHERE id = ?${orgSql}`,
+    `SELECT id, name, status, organization_id FROM campaigns WHERE id = ?${orgSql}`,
     [campaignId, ...orgParams]
   );
   if (existing.length === 0) throw ApiError.notFound("Campaign not found");
   const campaign = existing[0];
+  organizationId = campaign.organization_id ?? organizationId;
   if (campaign.status !== "PENDING" && campaign.status !== "REVIEWED") {
     throw ApiError.badRequest(
       "Only campaigns awaiting review or final approval can be rejected",
@@ -1347,11 +1370,12 @@ async function requestCampaignChanges(organizationId, campaignId, actor, notes) 
   }
   const [orgSql, ...orgParams] = orgScope(organizationId, actor);
   const existing = await db.query(
-    `SELECT id, name, status FROM campaigns WHERE id = ?${orgSql}`,
+    `SELECT id, name, status, organization_id FROM campaigns WHERE id = ?${orgSql}`,
     [campaignId, ...orgParams]
   );
   if (existing.length === 0) throw ApiError.notFound("Campaign not found");
   const campaign = existing[0];
+  organizationId = campaign.organization_id ?? organizationId;
   if (campaign.status !== "PENDING" && campaign.status !== "REVIEWED") {
     throw ApiError.badRequest(
       "Only campaigns awaiting review or final approval can be sent back",
@@ -1401,13 +1425,14 @@ async function reviewFeeProposal(organizationId, campaignId, actor, data) {
 
   const [orgSql, ...orgParams] = orgScope(organizationId, actor);
   const existing = await db.query(
-    `SELECT id, name, goal_amount, service_fee_percent, proposed_service_fee_percent,
+    `SELECT id, name, organization_id, goal_amount, service_fee_percent, proposed_service_fee_percent,
             fee_status, raised_amount
      FROM campaigns WHERE id = ?${orgSql}`,
     [campaignId, ...orgParams]
   );
   const campaign = existing[0];
   if (!campaign) throw ApiError.notFound("Campaign not found");
+  organizationId = campaign.organization_id ?? organizationId;
   if (campaign.fee_status !== "PENDING") {
     throw ApiError.badRequest(
       "There is no pending service-fee proposal to review",
@@ -2136,11 +2161,12 @@ async function reviewCompletionReport(organizationId, campaignId, actor, data) {
   }
 
   const [orgSql, ...orgParams] = orgScope(organizationId, actor);
-  const campaigns = await db.query(`SELECT id, name FROM campaigns WHERE id = ?${orgSql}`, [
-    campaignId,
-    ...orgParams,
-  ]);
+  const campaigns = await db.query(
+    `SELECT id, name, organization_id FROM campaigns WHERE id = ?${orgSql}`,
+    [campaignId, ...orgParams]
+  );
   if (campaigns.length === 0) throw ApiError.notFound("Campaign not found");
+  organizationId = campaigns[0].organization_id ?? organizationId;
 
   const existing = await db.query(
     "SELECT id, status FROM campaign_completion_reports WHERE campaign_id = ?",
@@ -2431,11 +2457,12 @@ async function decideClosureRequest(organizationId, campaignId, requestId, actor
   }
 
   const [orgSql, ...orgParams] = orgScope(organizationId, actor);
-  const campaigns = await db.query(`SELECT id, name FROM campaigns WHERE id = ?${orgSql}`, [
-    campaignId,
-    ...orgParams,
-  ]);
+  const campaigns = await db.query(
+    `SELECT id, name, organization_id FROM campaigns WHERE id = ?${orgSql}`,
+    [campaignId, ...orgParams]
+  );
   if (campaigns.length === 0) throw ApiError.notFound("Campaign not found");
+  organizationId = campaigns[0].organization_id ?? organizationId;
 
   const requests = await db.query(
     "SELECT id, status FROM campaign_closure_requests WHERE id = ? AND campaign_id = ?",

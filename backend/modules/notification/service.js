@@ -64,13 +64,17 @@ async function notify(userIds, payload) {
   );
 }
 
-/** All ACTIVE REVIEWER + ORG_ADMIN users in an org (the campaign approval pool). */
+/**
+ * The campaign approval pool for an org: every ACTIVE platform REVIEWER
+ * (reviewers vet all orgs, so they are not filtered by organization_id) plus
+ * the org's own ACTIVE ORG_ADMINs.
+ */
 async function orgReviewersAndAdmins(organizationId) {
-  if (!organizationId) return [];
   const rows = await db.query(
     `SELECT id FROM users
-     WHERE organization_id = ? AND status = 'ACTIVE' AND role IN ('REVIEWER','ORG_ADMIN')`,
-    [organizationId]
+     WHERE status = 'ACTIVE'
+       AND (role = 'REVIEWER' OR (role = 'ORG_ADMIN' AND organization_id = ?))`,
+    [organizationId ?? null]
   );
   return rows.map((r) => r.id);
 }

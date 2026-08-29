@@ -630,9 +630,13 @@ function AddMemberDialog({
   const [serverError, setServerError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // REVIEWER is a platform-level role (vets every org's campaigns) — only a
+  // super admin can create one, and it carries no organization.
   const roleOptions: UserRole[] = isSuperAdmin
     ? ["SUPER_ADMIN", "ORG_ADMIN", "REVIEWER", "CAMPAIGN_MANAGER"]
-    : ["ORG_ADMIN", "REVIEWER", "CAMPAIGN_MANAGER"];
+    : ["ORG_ADMIN", "CAMPAIGN_MANAGER"];
+
+  const isPlatformRole = role === "SUPER_ADMIN" || role === "REVIEWER";
 
   useEffect(() => {
     if (open) {
@@ -662,11 +666,14 @@ function AddMemberDialog({
     if (phone.trim() && !/^(\+?255|0)?[67][0-9]{8}$/.test(phone.replace(/[\s-]/g, ""))) {
       nextErrors.phone = "Enter a valid Tanzanian phone number.";
     }
-    if (isSuperAdmin && role !== "SUPER_ADMIN" && !orgId) {
+    if (isSuperAdmin && !isPlatformRole && !orgId) {
       nextErrors.orgId = "Select an organization for this member.";
     }
-    if (orgId && role === "SUPER_ADMIN") {
-      nextErrors.orgId = "Super admins are platform-level and have no organization.";
+    if (orgId && isPlatformRole) {
+      nextErrors.orgId =
+        role === "SUPER_ADMIN"
+          ? "Super admins are platform-level and have no organization."
+          : "Reviewers are platform-level (they vet every organisation) and have no organization.";
     }
 
     setErrors(nextErrors);
@@ -777,7 +784,14 @@ function AddMemberDialog({
 
           <div className="space-y-1.5">
             <Label className="text-xs">Role</Label>
-            <Select value={role} onValueChange={(v) => setRole((v ?? "CAMPAIGN_MANAGER") as UserRole)}>
+            <Select
+              value={role}
+              onValueChange={(v) => {
+                const next = (v ?? "CAMPAIGN_MANAGER") as UserRole;
+                setRole(next);
+                if (next === "SUPER_ADMIN" || next === "REVIEWER") setOrgId("");
+              }}
+            >
               <SelectTrigger className="h-9 text-sm">
                 <SelectValue />
               </SelectTrigger>
@@ -797,10 +811,12 @@ function AddMemberDialog({
               <Select
                 value={orgId}
                 onValueChange={(v) => setOrgId(v ?? "")}
-                disabled={role === "SUPER_ADMIN"}
+                disabled={isPlatformRole}
               >
                 <SelectTrigger className="h-9 text-sm">
-                  <SelectValue placeholder={role === "SUPER_ADMIN" ? "Platform (no org)" : "Select organization"} />
+                  <SelectValue
+                    placeholder={isPlatformRole ? "Platform (no org)" : "Select organization"}
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   {organizations.map((o) => (

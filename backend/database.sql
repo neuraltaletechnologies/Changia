@@ -89,10 +89,11 @@ CREATE TABLE users (
   email           VARCHAR(255) NOT NULL UNIQUE,
   phone           VARCHAR(32)  NULL,
   password_hash   VARCHAR(255) NOT NULL,
-  -- REVIEWER sits between CAMPAIGN_MANAGER and ORG_ADMIN: an org-scoped
-  -- approver that reviews/approves what managers submit (campaign approvals,
-  -- closure requests, completion reports and custom service-fee proposals) but
-  -- does NOT manage users, platform settings or payouts.
+  -- REVIEWER is a PLATFORM-level approver (organization_id IS NULL, like
+  -- SUPER_ADMIN): it gives the first-stage review on campaigns submitted by
+  -- managers across EVERY organisation — plus closure requests, completion
+  -- reports and custom service-fee proposals — before an ORG_ADMIN gives the
+  -- final approval. It does NOT manage users, platform settings or payouts.
   role            ENUM('SUPER_ADMIN','ORG_ADMIN','REVIEWER','CAMPAIGN_MANAGER') NOT NULL DEFAULT 'CAMPAIGN_MANAGER',
   status          ENUM('ACTIVE','PENDING','INACTIVE') NOT NULL DEFAULT 'PENDING',
   avatar_url      VARCHAR(500) NULL,
@@ -669,12 +670,12 @@ INSERT INTO users (organization_id, first_name, last_name, email, phone, passwor
    '$2b$12$YBiH.YibjVq/6ydw/Pa97eEG/HbjPVWH.a2Am4NvHTPGkhBW8xVbW', 'ORG_ADMIN', 'ACTIVE'),
   (1, 'Baraka', 'Mushi', 'manager@msuya-foundation.org.tz', '255713000002',
    '$2b$12$YBiH.YibjVq/6ydw/Pa97eEG/HbjPVWH.a2Am4NvHTPGkhBW8xVbW', 'CAMPAIGN_MANAGER', 'ACTIVE'),
-  (1, 'Zainab', 'Kileo', 'reviewer@msuya-foundation.org.tz', '255713000003',
+  -- Platform reviewers (organization_id NULL) — they vet campaigns for every
+  -- org, then an ORG_ADMIN gives the final approval. Two are seeded so the
+  -- "two different approvers" rule is testable end to end.
+  (NULL, 'Zainab', 'Kileo', 'reviewer@msuya-foundation.org.tz', '255713000003',
    '$2b$12$YBiH.YibjVq/6ydw/Pa97eEG/HbjPVWH.a2Am4NvHTPGkhBW8xVbW', 'REVIEWER', 'ACTIVE'),
-  -- A second, independent reviewer — campaigns need two DIFFERENT approvers
-  -- (see campaigns.first_approved_by), so a single-reviewer org can never
-  -- activate a manager's campaign. Same demo password as everyone else.
-  (1, 'Elias', 'Mrema', 'reviewer2@msuya-foundation.org.tz', '255713000004',
+  (NULL, 'Elias', 'Mrema', 'reviewer2@msuya-foundation.org.tz', '255713000004',
    '$2b$12$YBiH.YibjVq/6ydw/Pa97eEG/HbjPVWH.a2Am4NvHTPGkhBW8xVbW', 'REVIEWER', 'ACTIVE');
 
 -- Active campaign with 5% service fee (goal 10,000,000 → target 10,500,000)

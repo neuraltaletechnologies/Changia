@@ -76,6 +76,7 @@ export default function DashboardPage() {
   const { role, meta, resolved, hasPermission, canAccessRoute } = useRole();
 
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
   const [donors, setDonors] = useState<Donor[]>([]);
   const [user, setUser] = useState<User[]>([]);
   const [hydrated, setHydrated] = useState(false);
@@ -86,6 +87,14 @@ export default function DashboardPage() {
     campaignApi
       .list({ limit: 100 })
       .then((r) => {
+        setPendingApprovalCount(
+          r.campaigns.filter(
+            (c) =>
+              c.status === "PENDING" ||
+              c.status === "REVIEWED" ||
+              c.hasPendingChanges === true
+          ).length
+        );
         setCampaigns(
           r.campaigns.map((c: CampaignRecord) => ({
             id: String(c.id),
@@ -110,7 +119,7 @@ export default function DashboardPage() {
 
   if (!resolved || !hydrated) {
     return (
-      <div className="space-y-6 max-w-[1400px]">
+      <div className="space-y-6">
         <div className="h-9 w-56 rounded bg-muted animate-pulse" />
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {Array.from({ length: 4 }).map((_, i) => (
@@ -123,7 +132,6 @@ export default function DashboardPage() {
   }
 
   const activeCampaigns = campaigns.filter((c) => c.status === "ACTIVE");
-  const pendingCampaigns = campaigns.filter((c) => c.status === "PENDING");
   const totalRaised = campaigns.reduce((sum, c) => sum + c.raised, 0);
   const givingDonors = donors.filter((d) => d.totalGiven > 0);
   const avgGift =
@@ -246,10 +254,10 @@ export default function DashboardPage() {
       accent: "bg-sky-50 text-sky-600",
     });
   }
-  if (canApproveCampaigns && pendingCampaigns.length > 0) {
+  if (canApproveCampaigns && pendingApprovalCount > 0) {
     quickActions.push({
-      label: "Approve Campaigns",
-      sub: `${pendingCampaigns.length} awaiting approval`,
+      label: "Review Campaigns",
+      sub: `${pendingApprovalCount} awaiting review`,
       href: "/dashboard/campaigns/approvals",
       icon: BadgeCheck,
       accent: "bg-emerald-50 text-emerald-600",
@@ -272,7 +280,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="space-y-6 max-w-[1400px]">
+    <div className="space-y-6">
       {/* Page header */}
       <div>
         <div className="flex items-center gap-3">

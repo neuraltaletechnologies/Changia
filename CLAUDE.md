@@ -14,14 +14,27 @@ Run from the repo root unless noted:
 
 ```bash
 pnpm install                              # install everything once
-pnpm dev                                  # backend :5000 + frontend :3000 in parallel (turbo)
+pnpm dev                                  # backend :5000 + frontend :3000 via the turbo TUI
+                                          #   (arrow keys / mouse switch panes; each task keeps its own log)
+pnpm preview                              # public preview: cloudflare tunnels + both servers,
+                                          #   all four as turbo TUI panes (see start-preview.ps1)
 pnpm build                                # build all packages
 pnpm lint                                 # lint all packages that define a lint script
 pnpm format:check / pnpm format:fix       # prettier, all packages
 
-pnpm turbo run dev --filter=changia       # frontend only
-pnpm turbo run dev --filter=changia-api   # backend only
+pnpm dev:web                              # frontend only  (turbo run dev --filter=changia)
+pnpm dev:api                              # backend only   (turbo run dev --filter=changia-api)
 ```
+
+`turbo.json` sets `"ui": "tui"`, so every `turbo run` renders the interactive
+pane switcher. Task wiring for the preview: `Backend`/`Frontend` each expose a
+`tunnel` script (`scripts/tunnel.js` → cloudflare quick tunnel, writes the public
+URL to `.preview/<api|web>.url`) and a `dev:preview` script
+(`scripts/preview-run.js` waits for both `.preview/*.url`, injects the public URLs
+into the env — `API_PUBLIC_URL`/`APP_BASE_URL`/`CORS_ORIGINS` for the API,
+`NEXT_PUBLIC_API_URL` for the web — then runs the normal `dev` script). No `.env`
+file is patched. `start-preview.ps1` just cleans old processes and opens one
+visible window running `pnpm preview`; `-Stop` / `-Check` still work.
 
 Backend-only (from `Backend/`):
 ```bash
@@ -69,7 +82,13 @@ Config comes from `config.js` (env vars, see `.env.example`); no `.env` file is 
 Route groups:
 - `src/app/(marketing)/` — public marketing site (home, campaigns, blog, insights, products, services, contact). Swahili is served as a **parallel literal path tree** under `(marketing)/sw/...` (not a Next.js i18n routing feature) — a new marketing page generally needs a companion under `sw/`.
 - `src/app/dashboard/` — the authenticated org dashboard (campaigns, donors, donor pools, team, audit-log, settings). Has its own `layout.tsx`/`globals.css`/`error.tsx` distinct from the marketing shell.
-- `src/app/login`, `src/app/register` — auth entry points outside both groups.
+- Auth has **no standalone route**. Login/register/recover happen in the navbar
+  modals on the marketing site (`src/components/ui/forms/*Modal.tsx`, wired via
+  `src/components/sections/misc/Authentication.tsx`). `?auth=login` /
+  `?auth=register` on the landing page auto-opens the matching modal
+  (`AuthModalController`), and a `next=<path>` param is where the user lands
+  after signing in. The dashboard `AuthGuard` and `api-client`'s 401 handler
+  both bounce to `/?auth=login&next=…`.
 
 Content collections (blog/insights/products) are **not** Astro — `src/lib/content.ts` reimplements a `getCollection()` reader over `.md`/`.mdx` files under `src/content/<dir>` using `gray-matter`, keyed by `lang/slug` id. Note the `campaigns` collection is backed by the on-disk `src/content/products/` directory (kept for historical reasons — don't be thrown by the mismatch). Docs under `src/content/docs/` are still MDX with many locale subfolders left over from a prior Starlight setup.
 
@@ -86,4 +105,4 @@ Dashboard-specific logic lives in `src/lib/dashboard/`:
 
 Path aliases (`tsconfig.json`): `@/*` → `src/*`. Images referenced via `src/lib/images.ts` (`resolveImage`/`resolveImageRequired`).
 
-`Frontend/vercel.json` sets a strict CSP/security header set for deployment — keep new external resources (fonts, images, scripts) consistent with the existing `connect-src`/`img-src`/`script-src` allowlist or update it deliberately.
+`Frontend/next.config.mjs` `headers()` emits a strict CSP/security header set in production (`next start` on any host) — the API origin is derived from `NEXT_PUBLIC_API_URL` for `connect-src`/`img-src`. Keep new external resources (fonts, images, scripts) consistent with that allowlist or update it deliberately. (There is no `vercel.json` — it was removed to avoid a stale duplicate CSP.)

@@ -4,6 +4,67 @@ const { ApiError } = require("../../utils/ApiError");
 const { env } = require("../../config");
 const { deleteUploadedFiles } = require("../../middlewares/upload");
 const { sendEmail, buildCampaignLinkEmail } = require("../../utils/email");
+const notificationService = require("../notification/service");
+
+// ─── Strict ordered approval chain ──────────────────────────────────────────
+// Every campaign (and every material edit to a live one) clears the same two
+// stages, and neither stage may be the campaign's creator:
+//   stage 1 ("review")  — a REVIEWER (or SUPER_ADMIN)
+//   stage 2 ("final")    — an ORG_ADMIN (or SUPER_ADMIN), different person
+const STAGE1_ROLES = ["REVIEWER", "SUPER_ADMIN"];
+const STAGE2_ROLES = ["ORG_ADMIN", "SUPER_ADMIN"];
+
+// Editing any of these on an already-live campaign parks the change in
+// campaign_change_requests and re-runs the chain. Anything else (Swahili
+// translations, gallery photos, the featured flag) applies immediately.
+const MATERIAL_FIELDS = [
+  "name",
+  "story",
+  "goalAmount",
+  "serviceFeePercent",
+  "category",
+  "startDate",
+  "endDate",
+  "minimumAmount",
+  "contactPhone",
+];
+
+const LIVE_STATUSES = ["ACTIVE", "PAUSED"];
+
+function assertApprovalStage({ actor, stage, firstApprovedBy, creatorId }) {
+  const roles = stage === 1 ? STAGE1_ROLES : STAGE2_ROLES;
+  if (!roles.includes(actor.role)) {
+    throw ApiError.forbidden(
+      stage === 1
+        ? "The first approval must come from a reviewer"
+        : "The final approval must come from an organisation admin",
+      stage === 1 ? "NEEDS_REVIEWER" : "NEEDS_ORG_ADMIN"
+    );
+  }
+  if (creatorId && Number(creatorId) === Number(actor.id)) {
+    throw ApiError.badRequest("You can't approve a campaign you created", "SAME_AS_CREATOR");
+  }
+  if (stage === 2 && firstApprovedBy && Number(firstApprovedBy) === Number(actor.id)) {
+    throw ApiError.badRequest(
+      "A different person must give the final approval",
+      "SAME_APPROVER"
+    );
+  }
+}
+
+/** Fire-and-forget notification — never lets a notify failure break the flow. */
+async function notifySafe(recipients, payload) {
+  try {
+    const ids = typeof recipients?.then === "function" ? await recipients : recipients;
+    await notificationService.notify(ids, payload);
+  } catch (err) {
+    console.error("[campaign-notify] failed:", err.message);
+  }
+}
+
+function campaignLink(campaignId) {
+  return `/dashboard/campaigns/${campaignId}`;
+}
 
 /** Converts a stored "/uploads/..." web path back to an absolute disk path,
  *  so a superseded completion-report photo can be removed from disk. */
@@ -149,6 +210,13 @@ function mapCampaign(c) {
     firstApprovedAt: c.first_approved_at ?? null,
     approvedBy: c.approved_by,
     approvedAt: c.approved_at,
+    createdBy: c.created_by_id ?? null,
+    // Last reject / "request changes" feedback from a reviewer/admin, and
+    // whether the manager still needs to act on it. hasPendingChanges = an
+    // open campaign_change_requests row is waiting (see `changeRequest`).
+    reviewNotes: c.review_notes ?? null,
+    reviewState: c.review_state || "NONE",
+    hasPendingChanges: Boolean(c.has_pending_changes),
     createdAt: c.created_at,
     updatedAt: c.updated_at,
   };
@@ -239,7 +307,8 @@ async function listCampaigns(organizationId, filters, user) {
             proposed_service_fee_percent, fee_status, fee_reviewed_by, fee_reviewed_at, fee_review_notes,
             minimum_amount, start_date, end_date,
             status, is_public, contact_phone, raised_amount, donor_count, is_featured, featured_at,
-            first_approved_by, first_approved_at, approved_by, approved_at, created_at, updated_at
+            first_approved_by, first_approved_at, approved_by, approved_at,
+            created_by_id, review_notes, review_state, has_pending_changes, created_at, updated_at
      FROM campaigns ${whereSql}
      ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`,
     values
@@ -271,11 +340,13 @@ async function listCampaigns(organizationId, filters, user) {
 
   const completedIds = campaigns.filter((c) => c.status === "COMPLETED").map((c) => c.id);
   const allIds = campaigns.map((c) => c.id);
-  const [reportByCampaign, imagesByCampaign, closureByCampaign] = await Promise.all([
-    loadCompletionReportSummaries(completedIds),
-    loadCampaignImages(allIds),
-    loadLatestClosureRequests(allIds),
-  ]);
+  const [reportByCampaign, imagesByCampaign, closureByCampaign, changeReqByCampaign] =
+    await Promise.all([
+      loadCompletionReportSummaries(completedIds),
+      loadCampaignImages(allIds),
+      loadLatestClosureRequests(allIds),
+      loadOpenChangeRequests(allIds),
+    ]);
 
   return {
     campaigns: campaigns.map((c) => ({
@@ -284,6 +355,7 @@ async function listCampaigns(organizationId, filters, user) {
       completionReport: reportByCampaign[c.id] || null,
       images: imagesByCampaign[c.id] || [],
       latestClosureRequest: closureByCampaign[c.id] || null,
+      changeRequest: changeReqByCampaign[c.id] || null,
     })),
     pagination: {
       page,
@@ -303,7 +375,8 @@ async function getCampaign(organizationId, campaignId, user) {
             proposed_service_fee_percent, fee_status, fee_reviewed_by, fee_reviewed_at, fee_review_notes,
             minimum_amount, start_date, end_date,
             status, is_public, contact_phone, raised_amount, donor_count, is_featured, featured_at,
-            first_approved_by, first_approved_at, approved_by, approved_at, created_at, updated_at
+            first_approved_by, first_approved_at, approved_by, approved_at,
+            created_by_id, review_notes, review_state, has_pending_changes, created_at, updated_at
      FROM campaigns WHERE id = ?${orgSql}`,
     [campaignId, ...orgParams]
   );
@@ -329,11 +402,13 @@ async function getCampaign(organizationId, campaignId, user) {
 
   const raised = num(campaign.raised_amount);
   const target = num(campaign.public_target);
-  const [reportByCampaign, imagesByCampaign, closureByCampaign] = await Promise.all([
-    campaign.status === "COMPLETED" ? loadCompletionReportSummaries([campaign.id]) : {},
-    loadCampaignImages([campaign.id]),
-    loadLatestClosureRequests([campaign.id]),
-  ]);
+  const [reportByCampaign, imagesByCampaign, closureByCampaign, changeReqByCampaign] =
+    await Promise.all([
+      campaign.status === "COMPLETED" ? loadCompletionReportSummaries([campaign.id]) : {},
+      loadCampaignImages([campaign.id]),
+      loadLatestClosureRequests([campaign.id]),
+      loadOpenChangeRequests([campaign.id]),
+    ]);
 
   return {
     ...mapCampaign(campaign),
@@ -343,6 +418,7 @@ async function getCampaign(organizationId, campaignId, user) {
     completionReport: reportByCampaign[campaign.id] || null,
     images: imagesByCampaign[campaign.id] || [],
     latestClosureRequest: closureByCampaign[campaign.id] || null,
+    changeRequest: changeReqByCampaign[campaign.id] || null,
     donations: donations.map((d) => ({
       id: d.id,
       amount: num(d.amount),
@@ -421,23 +497,21 @@ async function createCampaign(organizationId, data, actor) {
   );
   const slug = await uniqueSlug(data.name);
 
-  // ORG_ADMIN is already an approver, so their own campaign activates
-  // immediately (self-approved). A CAMPAIGN_MANAGER's campaign must clear TWO
-  // independent approvals — it goes straight to PENDING (skipping DRAFT,
-  // since creating already IS "submitting for review") and stays unlisted
-  // (is_public = 0) until POST /campaigns/:id/approve has been called twice
-  // by two different REVIEWER/ORG_ADMIN/SUPER_ADMIN accounts (see
-  // approveCampaign below for the PENDING -> REVIEWED -> ACTIVE chain).
-  const selfApproved = actor.role !== "CAMPAIGN_MANAGER";
+  // No self-approval: EVERY campaign (whoever creates it) goes straight to
+  // PENDING (skipping DRAFT — creating already IS "submitting for review") and
+  // stays unlisted (is_public = 0) until it clears the strict two-stage chain
+  // — stage 1 by a REVIEWER, stage 2 by an ORG_ADMIN, neither being the
+  // creator (see approveCampaign for PENDING -> REVIEWED -> ACTIVE).
   const result = await db.execute(
     `INSERT INTO campaigns
-       (organization_id, name, slug, story, name_sw, story_sw, category_sw, image_url, category,
+       (organization_id, created_by_id, name, slug, story, name_sw, story_sw, category_sw, image_url, category,
         goal_amount, service_fee_percent, service_fee_amount, public_target,
         proposed_service_fee_percent, fee_status, minimum_amount,
         start_date, end_date, contact_phone, status, is_public, approved_by, approved_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       resolvedOrgId,
+      actor.id,
       data.name,
       slug,
       data.story || null,
@@ -456,10 +530,10 @@ async function createCampaign(organizationId, data, actor) {
       data.startDate ? new Date(data.startDate) : null,
       data.endDate ? new Date(data.endDate) : null,
       data.contactPhone || null,
-      selfApproved ? "ACTIVE" : "PENDING",
-      selfApproved ? 1 : 0,
-      selfApproved ? actor.id : null,
-      selfApproved ? new Date() : null,
+      "PENDING",
+      0,
+      null,
+      null,
     ]
   );
   const campaignId = result.insertId;
@@ -495,6 +569,16 @@ async function createCampaign(organizationId, data, actor) {
     [resolvedOrgId, actor.id, actor.email, String(campaignId)]
   );
 
+  await notifySafe(notificationService.orgReviewersAndAdmins(resolvedOrgId), {
+    type: "campaign",
+    title: "New campaign awaiting review",
+    body: `"${data.name}" was submitted and needs a reviewer's first approval.`,
+    link: campaignLink(campaignId),
+    resource: "campaign",
+    resourceId: campaignId,
+    organizationId: resolvedOrgId,
+  });
+
   return getCampaign(resolvedOrgId, campaignId, actor);
 }
 
@@ -528,6 +612,35 @@ async function updateCampaign(organizationId, campaignId, data, actor) {
       "The goal amount can't change once a campaign has received donations",
       "GOAL_LOCKED"
     );
+  }
+
+  // ── Live campaign (ACTIVE / PAUSED): a material edit is NOT applied to the
+  //    row — it is parked in campaign_change_requests and must clear the
+  //    two-stage chain again. The campaign keeps serving its last-approved
+  //    values meanwhile. Non-material fields (translations / cover URL /
+  //    is_public) still apply immediately below.
+  const isLive = LIVE_STATUSES.includes(campaign.status);
+  if (isLive) {
+    const materialChanges = collectMaterialChanges(campaign, data);
+    if (Object.keys(materialChanges).length > 0) {
+      await upsertChangeRequest(campaign, actor, materialChanges, undefined);
+      await applyImmediateFields(campaignId, data);
+      await db.execute(
+        `INSERT INTO audit_logs (organization_id, actor_id, actor_email, action, resource, resource_id, severity)
+         VALUES (?, ?, ?, 'campaign.change_request.submitted', 'campaign', ?, 'INFO')`,
+        [organizationId, actor.id, actor.email, String(campaignId)]
+      );
+      await notifySafe(notificationService.orgReviewersAndAdmins(organizationId), {
+        type: "campaign",
+        title: "Campaign changes awaiting review",
+        body: `"${campaign.name}" has edits that need a reviewer's approval before they show publicly.`,
+        link: campaignLink(campaignId),
+        resource: "campaign",
+        resourceId: campaignId,
+        organizationId,
+      });
+      return getCampaign(organizationId, campaignId, actor);
+    }
   }
 
   let feeData = null;
@@ -600,6 +713,18 @@ async function updateCampaign(organizationId, campaignId, data, actor) {
     values.push(proposalUpdate, "PENDING", null, null, null);
   }
 
+  // Editing a not-yet-live campaign resets its place in the chain so a review
+  // always covers the latest content: a REVIEWED campaign drops back to
+  // PENDING and its stage-1 sign-off is cleared; a "changes requested" flag is
+  // lifted now that the manager has acted.
+  if (campaign.status === "REVIEWED") {
+    fields.push("status = ?", "first_approved_by = NULL", "first_approved_at = NULL");
+    values.push("PENDING");
+  }
+  if (campaign.review_state === "CHANGES_REQUESTED") {
+    fields.push("review_state = 'NONE'");
+  }
+
   if (fields.length > 0) {
     values.push(campaignId);
     await db.execute(`UPDATE campaigns SET ${fields.join(", ")} WHERE id = ?`, values);
@@ -610,6 +735,406 @@ async function updateCampaign(organizationId, campaignId, data, actor) {
      VALUES (?, ?, ?, 'campaign.updated', 'campaign', ?, 'INFO')`,
     [organizationId, actor.id, actor.email, String(campaignId)]
   );
+
+  if (campaign.status === "REVIEWED" || campaign.review_state === "CHANGES_REQUESTED") {
+    await notifySafe(notificationService.orgReviewersAndAdmins(organizationId), {
+      type: "campaign",
+      title: "Campaign re-submitted for review",
+      body: `"${campaign.name}" was updated and needs a reviewer's first approval again.`,
+      link: campaignLink(campaignId),
+      resource: "campaign",
+      resourceId: campaignId,
+      organizationId,
+    });
+  }
+
+  return getCampaign(organizationId, campaignId, actor);
+}
+
+// ─── Campaign change requests (material edits to a live campaign) ─────────────
+//
+// A material edit (see MATERIAL_FIELDS) to an ACTIVE/PAUSED campaign is parked
+// here as a JSON payload and must clear the SAME strict two-stage chain
+// (REVIEWER -> ORG_ADMIN) before it is written onto the campaign. The live
+// campaign keeps serving its last-approved values until then. Only one open
+// request (PENDING / REVIEWED / CHANGES_REQUESTED) exists per campaign.
+
+const CHANGE_REQUEST_OPEN = ["PENDING", "REVIEWED", "CHANGES_REQUESTED"];
+
+async function writeAudit(organizationId, actor, action, resourceId, severity = "INFO", details) {
+  await db.execute(
+    `INSERT INTO audit_logs (organization_id, actor_id, actor_email, action, resource, resource_id, details, severity)
+     VALUES (?, ?, ?, ?, 'campaign', ?, ?, ?)`,
+    [
+      organizationId,
+      actor.id,
+      actor.email,
+      action,
+      String(resourceId),
+      details ? JSON.stringify(details) : null,
+      severity,
+    ]
+  );
+}
+
+function parsePayload(raw) {
+  if (raw && typeof raw === "object") return raw;
+  if (typeof raw === "string") {
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return {};
+    }
+  }
+  return {};
+}
+
+function mapChangeRequest(r) {
+  return {
+    id: r.id,
+    campaignId: r.campaign_id,
+    status: r.status,
+    payload: parsePayload(r.payload),
+    hasStagedCover: Boolean(r.staged_cover_path),
+    stagedCoverUrl: r.staged_cover_path ? toAbsoluteImageUrl(r.staged_cover_path) : null,
+    submittedBy: r.submitted_by_id ?? null,
+    firstApprovedBy: r.first_approved_by ?? null,
+    firstApprovedAt: r.first_approved_at ?? null,
+    approvedBy: r.approved_by ?? null,
+    approvedAt: r.approved_at ?? null,
+    reviewNotes: r.review_notes ?? null,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+    decidedAt: r.decided_at ?? null,
+  };
+}
+
+/** { [campaignId]: mapChangeRequest } — newest open request per campaign. */
+async function loadOpenChangeRequests(campaignIds) {
+  if (!campaignIds || campaignIds.length === 0) return {};
+  const rows = await db.query(
+    `SELECT * FROM campaign_change_requests
+     WHERE campaign_id IN (?) AND status IN ('PENDING','REVIEWED','CHANGES_REQUESTED')
+     ORDER BY id DESC`,
+    [campaignIds]
+  );
+  const byId = {};
+  for (const r of rows) {
+    if (!byId[r.campaign_id]) byId[r.campaign_id] = mapChangeRequest(r);
+  }
+  return byId;
+}
+
+async function getOpenChangeRequestRow(campaignId) {
+  const rows = await db.query(
+    `SELECT * FROM campaign_change_requests
+     WHERE campaign_id = ? AND status IN ('PENDING','REVIEWED','CHANGES_REQUESTED')
+     ORDER BY id DESC LIMIT 1`,
+    [campaignId]
+  );
+  return rows[0] || null;
+}
+
+/** Which MATERIAL_FIELDS in `data` actually differ from the campaign row. */
+function collectMaterialChanges(campaign, data) {
+  const currentTime = (v) => (v ? new Date(v).getTime() : null);
+  const changes = {};
+  for (const key of MATERIAL_FIELDS) {
+    if (data[key] === undefined) continue;
+    const raw = data[key];
+    if (key === "startDate" || key === "endDate") {
+      const col = key === "startDate" ? campaign.start_date : campaign.end_date;
+      if (currentTime(raw) !== currentTime(col)) changes[key] = raw || null;
+    } else if (key === "goalAmount") {
+      if (Number(raw) !== num(campaign.goal_amount)) changes[key] = Number(raw);
+    } else if (key === "serviceFeePercent") {
+      if (Number(raw) !== num(campaign.service_fee_percent)) changes[key] = Number(raw);
+    } else if (key === "minimumAmount") {
+      if (Number(raw) !== num(campaign.minimum_amount)) changes[key] = Number(raw);
+    } else {
+      const col = key === "name" ? campaign.name : key === "story" ? campaign.story : campaign.category;
+      const v = raw === "" ? null : raw ?? null;
+      if (v !== (col ?? null)) changes[key] = v;
+    }
+  }
+  return changes;
+}
+
+/** Applies only the non-material (immediately-editable) fields of an edit. */
+async function applyImmediateFields(campaignId, data) {
+  const fields = [];
+  const values = [];
+  if (data.nameSw !== undefined) { fields.push("name_sw = ?"); values.push(data.nameSw || null); }
+  if (data.storySw !== undefined) { fields.push("story_sw = ?"); values.push(data.storySw || null); }
+  if (data.categorySw !== undefined) { fields.push("category_sw = ?"); values.push(data.categorySw || null); }
+  if (data.imageUrl !== undefined) { fields.push("image_url = ?"); values.push(data.imageUrl || null); }
+  if (data.isPublic !== undefined) { fields.push("is_public = ?"); values.push(data.isPublic ? 1 : 0); }
+  if (fields.length === 0) return;
+  values.push(campaignId);
+  await db.execute(`UPDATE campaigns SET ${fields.join(", ")} WHERE id = ?`, values);
+}
+
+/**
+ * Upserts the single open change request for a campaign with `materialChanges`
+ * merged into its payload, resetting it to PENDING (a fresh review).
+ * `stagedCoverPath`: undefined = leave the staged cover untouched; a string =
+ * set/replace it.
+ */
+async function upsertChangeRequest(campaign, actor, materialChanges, stagedCoverPath) {
+  const setStagedCover = stagedCoverPath !== undefined;
+  const open = await getOpenChangeRequestRow(campaign.id);
+
+  if (open) {
+    const merged = { ...parsePayload(open.payload), ...materialChanges };
+    if (
+      setStagedCover &&
+      open.staged_cover_path &&
+      open.staged_cover_path !== stagedCoverPath &&
+      open.staged_cover_path.startsWith("/uploads/campaigns/")
+    ) {
+      deleteUploadedFiles([{ path: uploadWebPathToDiskPath(open.staged_cover_path) }]);
+    }
+    const sets = [
+      "payload = ?",
+      "submitted_by_id = ?",
+      "status = 'PENDING'",
+      "first_approved_by = NULL",
+      "first_approved_at = NULL",
+      "approved_by = NULL",
+      "approved_at = NULL",
+      "review_notes = NULL",
+      "decided_at = NULL",
+    ];
+    const params = [JSON.stringify(merged), actor.id];
+    if (setStagedCover) {
+      sets.push("staged_cover_path = ?");
+      params.push(stagedCoverPath);
+    }
+    params.push(open.id);
+    await db.execute(
+      `UPDATE campaign_change_requests SET ${sets.join(", ")} WHERE id = ?`,
+      params
+    );
+  } else {
+    await db.execute(
+      `INSERT INTO campaign_change_requests
+         (campaign_id, organization_id, submitted_by_id, payload, staged_cover_path, status)
+       VALUES (?, ?, ?, ?, ?, 'PENDING')`,
+      [
+        campaign.id,
+        campaign.organization_id,
+        actor.id,
+        JSON.stringify(materialChanges),
+        setStagedCover ? stagedCoverPath : null,
+      ]
+    );
+  }
+
+  await db.execute(
+    "UPDATE campaigns SET has_pending_changes = 1, review_state = 'NONE' WHERE id = ?",
+    [campaign.id]
+  );
+}
+
+/** Writes an approved change-request payload onto the campaign row. */
+async function applyChangeRequestPayload(campaign, payload, stagedCoverPath) {
+  const p = payload || {};
+  const fields = [];
+  const values = [];
+  if (p.name !== undefined) { fields.push("name = ?"); values.push(p.name); }
+  if (p.story !== undefined) { fields.push("story = ?"); values.push(p.story); }
+  if (p.category !== undefined) { fields.push("category = ?"); values.push(p.category); }
+  if (p.minimumAmount !== undefined) { fields.push("minimum_amount = ?"); values.push(p.minimumAmount); }
+  if (p.contactPhone !== undefined) { fields.push("contact_phone = ?"); values.push(p.contactPhone); }
+  if (p.startDate !== undefined) {
+    fields.push("start_date = ?");
+    values.push(p.startDate ? new Date(p.startDate) : null);
+  }
+  if (p.endDate !== undefined) {
+    fields.push("end_date = ?");
+    values.push(p.endDate ? new Date(p.endDate) : null);
+  }
+
+  const goalChanged = p.goalAmount !== undefined;
+  const feeChanged = p.serviceFeePercent !== undefined;
+  if (goalChanged || feeChanged) {
+    const goal = goalChanged ? Number(p.goalAmount) : num(campaign.goal_amount);
+    const percent = feeChanged ? Number(p.serviceFeePercent) : num(campaign.service_fee_percent);
+    const fee = computeFees(goal, percent);
+    fields.push("goal_amount = ?", "service_fee_percent = ?", "service_fee_amount = ?", "public_target = ?");
+    values.push(goal, fee.serviceFeePercent, fee.serviceFeeAmount, fee.publicTarget);
+    if (feeChanged) {
+      fields.push("proposed_service_fee_percent = NULL", "fee_status = 'APPROVED'", "fee_reviewed_at = NOW()");
+    }
+  }
+
+  if (stagedCoverPath) {
+    if (campaign.image_url && campaign.image_url.startsWith("/uploads/campaigns/")) {
+      deleteUploadedFiles([{ path: uploadWebPathToDiskPath(campaign.image_url) }]);
+    }
+    fields.push("image_url = ?");
+    values.push(stagedCoverPath);
+  }
+
+  if (fields.length > 0) {
+    values.push(campaign.id);
+    await db.execute(`UPDATE campaigns SET ${fields.join(", ")} WHERE id = ?`, values);
+  }
+}
+
+async function listChangeRequests(organizationId, campaignId, user) {
+  await assertCampaignAccess(organizationId, user, campaignId);
+  const [orgSql, ...orgParams] = orgScope(organizationId, user);
+  const campaigns = await db.query(`SELECT id FROM campaigns WHERE id = ?${orgSql}`, [
+    campaignId,
+    ...orgParams,
+  ]);
+  if (campaigns.length === 0) throw ApiError.notFound("Campaign not found");
+  const rows = await db.query(
+    "SELECT * FROM campaign_change_requests WHERE campaign_id = ? ORDER BY created_at DESC, id DESC",
+    [campaignId]
+  );
+  return rows.map(mapChangeRequest);
+}
+
+/**
+ * A REVIEWER/ORG_ADMIN/SUPER_ADMIN decides an open change request.
+ *   action: 'approve' | 'request_changes' | 'reject'
+ *   - approve @ PENDING  -> REVIEWED   (stage-1, must be a REVIEWER/SUPER_ADMIN, not the creator)
+ *   - approve @ REVIEWED -> APPLIED    (stage-2, must be an ORG_ADMIN/SUPER_ADMIN, a different
+ *                                       person, not the creator) — payload written onto the campaign
+ *   - request_changes    -> CHANGES_REQUESTED (mandatory note; manager re-edits)
+ *   - reject             -> REJECTED   (mandatory reason; live campaign keeps its values)
+ */
+async function decideChangeRequest(organizationId, campaignId, requestId, actor, data) {
+  const [orgSql, ...orgParams] = orgScope(organizationId, actor);
+  const campaigns = await db.query(`SELECT * FROM campaigns WHERE id = ?${orgSql}`, [
+    campaignId,
+    ...orgParams,
+  ]);
+  const campaign = campaigns[0];
+  if (!campaign) throw ApiError.notFound("Campaign not found");
+
+  const rows = await db.query(
+    "SELECT * FROM campaign_change_requests WHERE id = ? AND campaign_id = ?",
+    [requestId, campaignId]
+  );
+  const request = rows[0];
+  if (!request) throw ApiError.notFound("Change request not found");
+  if (!["PENDING", "REVIEWED"].includes(request.status)) {
+    throw ApiError.badRequest("This change request can no longer be decided", "CHANGE_REQUEST_CLOSED");
+  }
+
+  const action = data.action;
+  const notes = (data.notes || "").trim();
+  if ((action === "reject" || action === "request_changes") && notes.length < 10) {
+    throw ApiError.badRequest("A reason of at least 10 characters is required", "REASON_REQUIRED");
+  }
+
+  if (action === "approve" && request.status === "PENDING") {
+    assertApprovalStage({ actor, stage: 1, creatorId: campaign.created_by_id });
+    await db.execute(
+      `UPDATE campaign_change_requests
+       SET status = 'REVIEWED', first_approved_by = ?, first_approved_at = NOW(), review_notes = NULL
+       WHERE id = ?`,
+      [actor.id, requestId]
+    );
+    await writeAudit(organizationId, actor, "campaign.change_request.first_approved", campaignId);
+    await notifySafe(notificationService.orgAdmins(organizationId), {
+      type: "campaign",
+      title: "Campaign changes ready for final approval",
+      body: `Edits to "${campaign.name}" passed first review.`,
+      link: campaignLink(campaignId),
+      resource: "campaign",
+      resourceId: campaignId,
+      organizationId,
+    });
+    await notifySafe(notificationService.campaignManagerAudience(campaignId), {
+      type: "campaign",
+      title: "Your campaign edits passed first review",
+      body: `"${campaign.name}" edits now need a final approval from an admin.`,
+      link: campaignLink(campaignId),
+      resource: "campaign",
+      resourceId: campaignId,
+      organizationId,
+    });
+  } else if (action === "approve") {
+    // request.status === 'REVIEWED'
+    assertApprovalStage({
+      actor,
+      stage: 2,
+      firstApprovedBy: request.first_approved_by,
+      creatorId: campaign.created_by_id,
+    });
+    await applyChangeRequestPayload(campaign, parsePayload(request.payload), request.staged_cover_path);
+    await db.execute(
+      `UPDATE campaign_change_requests
+       SET status = 'APPLIED', approved_by = ?, approved_at = NOW(), decided_at = NOW()
+       WHERE id = ?`,
+      [actor.id, requestId]
+    );
+    await db.execute(
+      "UPDATE campaigns SET has_pending_changes = 0, review_state = 'NONE', review_notes = NULL WHERE id = ?",
+      [campaignId]
+    );
+    await writeAudit(organizationId, actor, "campaign.change_request.approved", campaignId);
+    await notifySafe(notificationService.campaignManagerAudience(campaignId), {
+      type: "campaign",
+      title: "Your campaign changes are live",
+      body: `The approved edits to "${campaign.name}" are now public.`,
+      link: campaignLink(campaignId),
+      resource: "campaign",
+      resourceId: campaignId,
+      organizationId,
+    });
+  } else if (action === "request_changes") {
+    await db.execute(
+      `UPDATE campaign_change_requests
+       SET status = 'CHANGES_REQUESTED', first_approved_by = NULL, first_approved_at = NULL, review_notes = ?
+       WHERE id = ?`,
+      [notes, requestId]
+    );
+    await db.execute(
+      "UPDATE campaigns SET review_state = 'CHANGES_REQUESTED', review_notes = ? WHERE id = ?",
+      [notes, campaignId]
+    );
+    await writeAudit(organizationId, actor, "campaign.change_request.changes_requested", campaignId, "INFO", { notes });
+    await notifySafe(notificationService.campaignManagerAudience(campaignId), {
+      type: "campaign",
+      title: "Changes requested on your campaign edit",
+      body: notes,
+      link: campaignLink(campaignId),
+      resource: "campaign",
+      resourceId: campaignId,
+      organizationId,
+    });
+  } else if (action === "reject") {
+    if (request.staged_cover_path && request.staged_cover_path.startsWith("/uploads/campaigns/")) {
+      deleteUploadedFiles([{ path: uploadWebPathToDiskPath(request.staged_cover_path) }]);
+    }
+    await db.execute(
+      `UPDATE campaign_change_requests
+       SET status = 'REJECTED', review_notes = ?, decided_at = NOW()
+       WHERE id = ?`,
+      [notes, requestId]
+    );
+    await db.execute(
+      "UPDATE campaigns SET has_pending_changes = 0, review_state = 'NONE', review_notes = ? WHERE id = ?",
+      [notes, campaignId]
+    );
+    await writeAudit(organizationId, actor, "campaign.change_request.rejected", campaignId, "WARNING", { notes });
+    await notifySafe(notificationService.campaignManagerAudience(campaignId), {
+      type: "campaign",
+      title: "Campaign edit rejected",
+      body: notes,
+      link: campaignLink(campaignId),
+      resource: "campaign",
+      resourceId: campaignId,
+      organizationId,
+    });
+  } else {
+    throw ApiError.badRequest("Unknown decision", "INVALID_ACTION");
+  }
 
   return getCampaign(organizationId, campaignId, actor);
 }
@@ -653,48 +1178,76 @@ async function submitCampaign(organizationId, campaignId, actor) {
     throw ApiError.badRequest("Only draft campaigns can be submitted for approval");
   }
 
-  await db.execute("UPDATE campaigns SET status = 'PENDING' WHERE id = ?", [campaignId]);
+  await db.execute(
+    "UPDATE campaigns SET status = 'PENDING', review_state = 'NONE' WHERE id = ?",
+    [campaignId]
+  );
   await db.execute(
     `INSERT INTO audit_logs (organization_id, actor_id, actor_email, action, resource, resource_id, severity)
      VALUES (?, ?, ?, 'campaign.submitted', 'campaign', ?, 'INFO')`,
     [organizationId, actor.id, actor.email, String(campaignId)]
   );
+  await notifySafe(notificationService.orgReviewersAndAdmins(organizationId), {
+    type: "campaign",
+    title: "Campaign submitted for review",
+    body: "A campaign was submitted and needs a reviewer's first approval.",
+    link: campaignLink(campaignId),
+    resource: "campaign",
+    resourceId: campaignId,
+    organizationId,
+  });
   return getCampaign(organizationId, campaignId, actor);
 }
 
 /**
- * Two-stage approval — the "flow of power" a CAMPAIGN_MANAGER's campaign must
- * clear before it goes live, neither stage being the manager themself:
+ * Strict ordered two-stage approval — EVERY campaign clears both stages, and
+ * neither stage may be the campaign's creator:
  *
- *   PENDING  -> REVIEWED  : first REVIEWER/ORG_ADMIN/SUPER_ADMIN sign-off.
- *   REVIEWED -> ACTIVE    : a SECOND, DIFFERENT REVIEWER/ORG_ADMIN/SUPER_ADMIN
- *                           signs off; only then does it go public and the
- *                           donor-target link emails go out.
+ *   PENDING  -> REVIEWED  : stage 1, a REVIEWER (or SUPER_ADMIN).
+ *   REVIEWED -> ACTIVE     : stage 2, an ORG_ADMIN (or SUPER_ADMIN) who is a
+ *                            DIFFERENT person from the stage-1 approver; only
+ *                            then does it go public and the donor-target link
+ *                            emails go out.
  *
- * Same endpoint both times — the caller just POSTs /:id/approve again. The
- * same person approving twice is rejected so one reviewer can never
- * unilaterally activate a campaign.
+ * Same endpoint both times — the caller just POSTs /:id/approve again.
  */
 async function approveCampaign(organizationId, campaignId, actor) {
   const [orgSql, ...orgParams] = orgScope(organizationId, actor);
   const existing = await db.query(
-    `SELECT status, first_approved_by FROM campaigns WHERE id = ?${orgSql}`,
+    `SELECT id, name, status, first_approved_by, created_by_id FROM campaigns WHERE id = ?${orgSql}`,
     [campaignId, ...orgParams]
   );
   if (existing.length === 0) throw ApiError.notFound("Campaign not found");
   const campaign = existing[0];
 
   if (campaign.status === "PENDING") {
+    assertApprovalStage({ actor, stage: 1, creatorId: campaign.created_by_id });
     await db.execute(
-      `UPDATE campaigns SET status = 'REVIEWED', first_approved_by = ?, first_approved_at = NOW()
+      `UPDATE campaigns
+       SET status = 'REVIEWED', first_approved_by = ?, first_approved_at = NOW(),
+           review_state = 'NONE', review_notes = NULL
        WHERE id = ?`,
       [actor.id, campaignId]
     );
-    await db.execute(
-      `INSERT INTO audit_logs (organization_id, actor_id, actor_email, action, resource, resource_id, severity)
-       VALUES (?, ?, ?, 'campaign.first_approved', 'campaign', ?, 'INFO')`,
-      [organizationId, actor.id, actor.email, String(campaignId)]
-    );
+    await writeAudit(organizationId, actor, "campaign.first_approved", campaignId);
+    await notifySafe(notificationService.orgAdmins(organizationId), {
+      type: "campaign",
+      title: "Campaign ready for final approval",
+      body: `"${campaign.name}" passed first review and needs an admin's final approval.`,
+      link: campaignLink(campaignId),
+      resource: "campaign",
+      resourceId: campaignId,
+      organizationId,
+    });
+    await notifySafe(notificationService.campaignManagerAudience(campaignId), {
+      type: "campaign",
+      title: "Your campaign passed first review",
+      body: `"${campaign.name}" now needs a final approval from an admin.`,
+      link: campaignLink(campaignId),
+      resource: "campaign",
+      resourceId: campaignId,
+      organizationId,
+    });
     return getCampaign(organizationId, campaignId, actor);
   }
 
@@ -705,27 +1258,30 @@ async function approveCampaign(organizationId, campaignId, actor) {
     );
   }
 
-  if (campaign.first_approved_by && Number(campaign.first_approved_by) === Number(actor.id)) {
-    throw ApiError.badRequest(
-      "You already gave this campaign its first approval — a different reviewer or admin must give the second, final approval",
-      "SAME_APPROVER"
-    );
-  }
+  assertApprovalStage({
+    actor,
+    stage: 2,
+    firstApprovedBy: campaign.first_approved_by,
+    creatorId: campaign.created_by_id,
+  });
 
   await db.execute(
     `UPDATE campaigns SET status = 'ACTIVE', is_public = 1, approved_by = ?, approved_at = NOW()
      WHERE id = ?`,
     [actor.id, campaignId]
   );
-  await db.execute(
-    `INSERT INTO audit_logs (organization_id, actor_id, actor_email, action, resource, resource_id, severity)
-     VALUES (?, ?, ?, 'campaign.approved', 'campaign', ?, 'INFO')`,
-    [organizationId, actor.id, actor.email, String(campaignId)]
-  );
+  await writeAudit(organizationId, actor, "campaign.approved", campaignId);
+  await notifySafe(notificationService.campaignManagerAudience(campaignId), {
+    type: "campaign",
+    title: "Campaign is live",
+    body: `"${campaign.name}" cleared both approvals and is now public.`,
+    link: campaignLink(campaignId),
+    resource: "campaign",
+    resourceId: campaignId,
+    organizationId,
+  });
 
   // ─── Send campaign link emails to targeted donors ────────────────────────
-  // After the final approval, notify all donors in the campaign's target list
-  // via email with a direct link to the campaign donation page.
   sendCampaignLinkEmails(organizationId, campaignId).catch((err) => {
     console.error(`[campaign-approval] Failed to send donor emails for campaign ${campaignId}:`, err.message);
   });
@@ -735,21 +1291,23 @@ async function approveCampaign(organizationId, campaignId, actor) {
 
 /**
  * A REVIEWER/ORG_ADMIN/SUPER_ADMIN rejects a campaign still in the approval
- * chain (PENDING = awaiting 1st approval, REVIEWED = awaiting 2nd). Scoped
- * deliberately narrower than changeCampaignStatus — REVIEWER only gets to
- * gatekeep what a manager submits, not pause/complete/cancel a campaign
- * that's already live. Mirrors the reject side of fee/completion-report/
- * closure-request review: sets status to CANCELLED so the manager can start
- * fresh, and records the reason for the audit trail.
+ * chain (PENDING / REVIEWED). Terminal: status -> CANCELLED. A reason is
+ * mandatory (enforced in validation) and is stored on the campaign
+ * (review_notes) so the manager sees why, plus in the audit trail.
  */
 async function rejectCampaign(organizationId, campaignId, actor, notes) {
+  const reason = (notes || "").trim();
+  if (reason.length < 10) {
+    throw ApiError.badRequest("A rejection reason of at least 10 characters is required", "REASON_REQUIRED");
+  }
   const [orgSql, ...orgParams] = orgScope(organizationId, actor);
   const existing = await db.query(
-    `SELECT status FROM campaigns WHERE id = ?${orgSql}`,
+    `SELECT id, name, status FROM campaigns WHERE id = ?${orgSql}`,
     [campaignId, ...orgParams]
   );
   if (existing.length === 0) throw ApiError.notFound("Campaign not found");
-  if (existing[0].status !== "PENDING" && existing[0].status !== "REVIEWED") {
+  const campaign = existing[0];
+  if (campaign.status !== "PENDING" && campaign.status !== "REVIEWED") {
     throw ApiError.badRequest(
       "Only campaigns awaiting review or final approval can be rejected",
       "INVALID_APPROVAL_STATE"
@@ -757,31 +1315,93 @@ async function rejectCampaign(organizationId, campaignId, actor, notes) {
   }
 
   await db.execute(
-    "UPDATE campaigns SET status = 'CANCELLED', is_public = 0 WHERE id = ?",
-    [campaignId]
+    `UPDATE campaigns
+     SET status = 'CANCELLED', is_public = 0, review_state = 'NONE', review_notes = ?
+     WHERE id = ?`,
+    [reason, campaignId]
   );
-  await db.execute(
-    `INSERT INTO audit_logs (organization_id, actor_id, actor_email, action, resource, resource_id, details, severity)
-     VALUES (?, ?, ?, 'campaign.rejected', 'campaign', ?, ?, 'WARNING')`,
-    [organizationId, actor.id, actor.email, String(campaignId), notes ? JSON.stringify({ notes }) : null]
-  );
+  await writeAudit(organizationId, actor, "campaign.rejected", campaignId, "WARNING", { notes: reason });
+  await notifySafe(notificationService.campaignManagerAudience(campaignId), {
+    type: "campaign",
+    title: "Campaign rejected",
+    body: reason,
+    link: campaignLink(campaignId),
+    resource: "campaign",
+    resourceId: campaignId,
+    organizationId,
+  });
 
   return getCampaign(organizationId, campaignId, actor);
 }
 
 /**
- * A REVIEWER/ORG_ADMIN/SUPER_ADMIN approves or rejects a manager's proposed
- * custom service-fee %.
- *   - Approve → the proposed rate becomes the campaign's active fee; the
- *     service fee amount and public target are recomputed off it.
- *   - Reject → the proposal is discarded and the current active fee stays.
- * Only a PENDING proposal can be decided, and (like any fee change) approving
- * one is blocked once the campaign has received donations.
+ * A REVIEWER/ORG_ADMIN/SUPER_ADMIN sends a campaign in the approval chain
+ * (PENDING / REVIEWED) back to the manager to fix — non-terminal. A note is
+ * mandatory. The campaign returns to PENDING with its stage-1 sign-off
+ * cleared, and review_state = 'CHANGES_REQUESTED' until the manager re-edits.
  */
-async function reviewFeeProposal(organizationId, campaignId, actor, data) {
+async function requestCampaignChanges(organizationId, campaignId, actor, notes) {
+  const reason = (notes || "").trim();
+  if (reason.length < 10) {
+    throw ApiError.badRequest("A note of at least 10 characters is required", "REASON_REQUIRED");
+  }
   const [orgSql, ...orgParams] = orgScope(organizationId, actor);
   const existing = await db.query(
-    `SELECT id, goal_amount, service_fee_percent, proposed_service_fee_percent,
+    `SELECT id, name, status FROM campaigns WHERE id = ?${orgSql}`,
+    [campaignId, ...orgParams]
+  );
+  if (existing.length === 0) throw ApiError.notFound("Campaign not found");
+  const campaign = existing[0];
+  if (campaign.status !== "PENDING" && campaign.status !== "REVIEWED") {
+    throw ApiError.badRequest(
+      "Only campaigns awaiting review or final approval can be sent back",
+      "INVALID_APPROVAL_STATE"
+    );
+  }
+
+  await db.execute(
+    `UPDATE campaigns
+     SET status = 'PENDING', first_approved_by = NULL, first_approved_at = NULL,
+         review_state = 'CHANGES_REQUESTED', review_notes = ?
+     WHERE id = ?`,
+    [reason, campaignId]
+  );
+  await writeAudit(organizationId, actor, "campaign.changes_requested", campaignId, "INFO", { notes: reason });
+  await notifySafe(notificationService.campaignManagerAudience(campaignId), {
+    type: "campaign",
+    title: "Changes requested on your campaign",
+    body: reason,
+    link: campaignLink(campaignId),
+    resource: "campaign",
+    resourceId: campaignId,
+    organizationId,
+  });
+
+  return getCampaign(organizationId, campaignId, actor);
+}
+
+/**
+ * A REVIEWER/ORG_ADMIN/SUPER_ADMIN decides a manager's proposed custom
+ * service-fee %.  data.action:
+ *   - 'approve'         → the proposed rate becomes the campaign's active fee;
+ *                         service fee amount and public target are recomputed.
+ *   - 'reject'          → the proposal is discarded, current fee stays
+ *                         (mandatory reason).
+ *   - 'request_changes' → proposal stays PENDING with a note for the manager
+ *                         to revise (mandatory note).
+ * Only a PENDING proposal can be decided; approving is blocked once the
+ * campaign has received donations.
+ */
+async function reviewFeeProposal(organizationId, campaignId, actor, data) {
+  const action = data.action || (data.approved ? "approve" : "reject");
+  const notes = (data.notes || "").trim();
+  if ((action === "reject" || action === "request_changes") && notes.length < 10) {
+    throw ApiError.badRequest("A reason of at least 10 characters is required", "REASON_REQUIRED");
+  }
+
+  const [orgSql, ...orgParams] = orgScope(organizationId, actor);
+  const existing = await db.query(
+    `SELECT id, name, goal_amount, service_fee_percent, proposed_service_fee_percent,
             fee_status, raised_amount
      FROM campaigns WHERE id = ?${orgSql}`,
     [campaignId, ...orgParams]
@@ -795,7 +1415,9 @@ async function reviewFeeProposal(organizationId, campaignId, actor, data) {
     );
   }
 
-  if (data.approved) {
+  let auditAction;
+  let notifyTitle;
+  if (action === "approve") {
     if (num(campaign.raised_amount) > 0) {
       throw ApiError.badRequest(
         "The service fee can't change once a campaign has received donations",
@@ -815,31 +1437,50 @@ async function reviewFeeProposal(organizationId, campaignId, actor, data) {
         feeData.serviceFeeAmount,
         feeData.publicTarget,
         actor.id,
-        data.notes || null,
+        notes || null,
         campaignId,
       ]
     );
+    auditAction = "campaign.fee_proposal.approved";
+    notifyTitle = "Your custom service fee was approved";
+  } else if (action === "request_changes") {
+    await db.execute(
+      `UPDATE campaigns
+       SET fee_status = 'PENDING', fee_reviewed_by = ?, fee_reviewed_at = NOW(), fee_review_notes = ?
+       WHERE id = ?`,
+      [actor.id, notes, campaignId]
+    );
+    auditAction = "campaign.fee_proposal.changes_requested";
+    notifyTitle = "Changes requested on your service-fee proposal";
   } else {
     await db.execute(
       `UPDATE campaigns
        SET proposed_service_fee_percent = NULL, fee_status = 'REJECTED',
            fee_reviewed_by = ?, fee_reviewed_at = NOW(), fee_review_notes = ?
        WHERE id = ?`,
-      [actor.id, data.notes || null, campaignId]
+      [actor.id, notes, campaignId]
     );
+    auditAction = "campaign.fee_proposal.rejected";
+    notifyTitle = "Your custom service-fee proposal was rejected";
   }
 
-  await db.execute(
-    `INSERT INTO audit_logs (organization_id, actor_id, actor_email, action, resource, resource_id, severity)
-     VALUES (?, ?, ?, ?, 'campaign', ?, 'INFO')`,
-    [
-      organizationId,
-      actor.id,
-      actor.email,
-      data.approved ? "campaign.fee_proposal.approved" : "campaign.fee_proposal.rejected",
-      String(campaignId),
-    ]
+  await writeAudit(
+    organizationId,
+    actor,
+    auditAction,
+    campaignId,
+    action === "reject" ? "WARNING" : "INFO",
+    notes ? { notes } : undefined
   );
+  await notifySafe(notificationService.campaignManagerAudience(campaignId), {
+    type: "campaign",
+    title: notifyTitle,
+    body: notes || `"${campaign.name}"`,
+    link: campaignLink(campaignId),
+    resource: "campaign",
+    resourceId: campaignId,
+    organizationId,
+  });
 
   return getCampaign(organizationId, campaignId, actor);
 }
@@ -847,7 +1488,7 @@ async function reviewFeeProposal(organizationId, campaignId, actor, data) {
 async function changeCampaignStatus(organizationId, campaignId, status, actor) {
   const [orgSql, ...orgParams] = orgScope(organizationId, actor);
   const existing = await db.query(
-    `SELECT status FROM campaigns WHERE id = ?${orgSql}`,
+    `SELECT status, name FROM campaigns WHERE id = ?${orgSql}`,
     [campaignId, ...orgParams]
   );
   if (existing.length === 0) throw ApiError.notFound("Campaign not found");
@@ -872,6 +1513,17 @@ async function changeCampaignStatus(organizationId, campaignId, status, actor) {
       status === "CANCELLED" ? "WARNING" : "INFO",
     ]
   );
+
+  const STATUS_LABEL = { PAUSED: "paused", COMPLETED: "completed", CANCELLED: "cancelled" };
+  await notifySafe(notificationService.campaignManagerAudience(campaignId), {
+    type: "campaign",
+    title: `Campaign ${STATUS_LABEL[status] || status.toLowerCase()}`,
+    body: `An admin marked "${existing[0].name || `campaign #${campaignId}`}" as ${status}.`,
+    link: campaignLink(campaignId),
+    resource: "campaign",
+    resourceId: campaignId,
+    organizationId,
+  });
   return getCampaign(organizationId, campaignId, actor);
 }
 
@@ -1457,13 +2109,34 @@ async function submitCompletionReport(organizationId, campaignId, actor, data, f
     [organizationId, actor.id, actor.email, String(campaignId)]
   );
 
+  await notifySafe(notificationService.orgReviewersAndAdmins(organizationId), {
+    type: "campaign",
+    title: "Completion report to review",
+    body: "A campaign manager submitted proof of how the funds were used.",
+    link: campaignLink(campaignId),
+    resource: "campaign",
+    resourceId: campaignId,
+    organizationId,
+  });
+
   return getCompletionReport(organizationId, campaignId, actor);
 }
 
-/** ORG_ADMIN/SUPER_ADMIN approves or rejects a pending completion report. */
+/**
+ * A REVIEWER/ORG_ADMIN/SUPER_ADMIN decides a pending completion report.
+ *   data.action: 'approve' | 'request_changes' | 'reject' (last two need a note).
+ * 'request_changes' and 'reject' both set REJECTED (the manager resubmits) —
+ * the difference is the wording of the feedback and notification.
+ */
 async function reviewCompletionReport(organizationId, campaignId, actor, data) {
+  const action = data.action || (data.approved ? "approve" : "reject");
+  const notes = (data.notes || "").trim();
+  if ((action === "reject" || action === "request_changes") && notes.length < 10) {
+    throw ApiError.badRequest("A reason of at least 10 characters is required", "REASON_REQUIRED");
+  }
+
   const [orgSql, ...orgParams] = orgScope(organizationId, actor);
-  const campaigns = await db.query(`SELECT id FROM campaigns WHERE id = ?${orgSql}`, [
+  const campaigns = await db.query(`SELECT id, name FROM campaigns WHERE id = ?${orgSql}`, [
     campaignId,
     ...orgParams,
   ]);
@@ -1478,25 +2151,44 @@ async function reviewCompletionReport(organizationId, campaignId, actor, data) {
     throw ApiError.badRequest("Only a pending report can be reviewed", "REPORT_NOT_PENDING");
   }
 
-  const status = data.approved ? "APPROVED" : "REJECTED";
+  const status = action === "approve" ? "APPROVED" : "REJECTED";
   await db.execute(
     `UPDATE campaign_completion_reports
      SET status = ?, reviewed_by_id = ?, reviewed_at = NOW(), review_notes = ?
      WHERE id = ?`,
-    [status, actor.id, data.notes || null, existing[0].id]
+    [status, actor.id, notes || null, existing[0].id]
   );
 
-  await db.execute(
-    `INSERT INTO audit_logs (organization_id, actor_id, actor_email, action, resource, resource_id, severity)
-     VALUES (?, ?, ?, ?, 'campaign', ?, 'INFO')`,
-    [
-      organizationId,
-      actor.id,
-      actor.email,
-      data.approved ? "campaign.completion_report.approved" : "campaign.completion_report.rejected",
-      String(campaignId),
-    ]
+  const auditAction =
+    action === "approve"
+      ? "campaign.completion_report.approved"
+      : action === "request_changes"
+        ? "campaign.completion_report.changes_requested"
+        : "campaign.completion_report.rejected";
+  await writeAudit(
+    organizationId,
+    actor,
+    auditAction,
+    campaignId,
+    action === "reject" ? "WARNING" : "INFO",
+    notes ? { notes } : undefined
   );
+
+  const notifyTitle =
+    action === "approve"
+      ? "Completion report approved"
+      : action === "request_changes"
+        ? "Changes requested on your completion report"
+        : "Completion report rejected";
+  await notifySafe(notificationService.campaignManagerAudience(campaignId), {
+    type: "campaign",
+    title: notifyTitle,
+    body: notes || `"${campaigns[0].name}"`,
+    link: campaignLink(campaignId),
+    resource: "campaign",
+    resourceId: campaignId,
+    organizationId,
+  });
 
   return getCompletionReport(organizationId, campaignId, actor);
 }
@@ -1528,10 +2220,10 @@ async function loadCampaignImages(campaignIds) {
 async function uploadCampaignImages(organizationId, campaignId, actor, files) {
   await assertCampaignAccess(organizationId, actor, campaignId);
   const [orgSql, ...orgParams] = orgScope(organizationId, actor);
-  const existing = await db.query(`SELECT id, image_url FROM campaigns WHERE id = ?${orgSql}`, [
-    campaignId,
-    ...orgParams,
-  ]);
+  const existing = await db.query(
+    `SELECT id, organization_id, image_url, status FROM campaigns WHERE id = ?${orgSql}`,
+    [campaignId, ...orgParams]
+  );
   const campaign = existing[0];
   if (!campaign) throw ApiError.notFound("Campaign not found");
 
@@ -1543,13 +2235,29 @@ async function uploadCampaignImages(organizationId, campaignId, actor, files) {
 
   if (coverFile) {
     const coverPath = `/uploads/campaigns/${campaignId}/${coverFile.filename}`;
-    const oldImageUrl = campaign.image_url;
-    await db.execute("UPDATE campaigns SET image_url = ? WHERE id = ?", [coverPath, campaignId]);
-    // Best-effort: remove the previous cover file from disk once the new one
-    // is confirmed set, but only if it was one of ours (an /uploads/ path —
-    // never delete an externally-hosted imageUrl some campaigns still have).
-    if (oldImageUrl && oldImageUrl.startsWith("/uploads/campaigns/")) {
-      deleteUploadedFiles([{ path: uploadWebPathToDiskPath(oldImageUrl) }]);
+    if (LIVE_STATUSES.includes(campaign.status)) {
+      // A live campaign's cover change is parked for re-approval — the file
+      // stays on disk but is NOT wired to image_url until the change request
+      // clears both stages.
+      await upsertChangeRequest(campaign, actor, {}, coverPath);
+      await notifySafe(notificationService.orgReviewersAndAdmins(organizationId), {
+        type: "campaign",
+        title: "Campaign cover change awaiting review",
+        body: "A new cover image needs a reviewer's approval before it shows publicly.",
+        link: campaignLink(campaignId),
+        resource: "campaign",
+        resourceId: campaignId,
+        organizationId,
+      });
+    } else {
+      const oldImageUrl = campaign.image_url;
+      await db.execute("UPDATE campaigns SET image_url = ? WHERE id = ?", [coverPath, campaignId]);
+      // Best-effort: remove the previous cover file from disk once the new one
+      // is confirmed set, but only if it was one of ours (an /uploads/ path —
+      // never delete an externally-hosted imageUrl some campaigns still have).
+      if (oldImageUrl && oldImageUrl.startsWith("/uploads/campaigns/")) {
+        deleteUploadedFiles([{ path: uploadWebPathToDiskPath(oldImageUrl) }]);
+      }
     }
   }
 
@@ -1679,6 +2387,16 @@ async function requestClosure(organizationId, campaignId, actor, data) {
     [organizationId, actor.id, actor.email, String(campaignId)]
   );
 
+  await notifySafe(notificationService.orgReviewersAndAdmins(organizationId), {
+    type: "campaign",
+    title: "Closure request to review",
+    body: "A campaign manager asked to close a campaign.",
+    link: campaignLink(campaignId),
+    resource: "campaign",
+    resourceId: campaignId,
+    organizationId,
+  });
+
   return listClosureRequests(organizationId, campaignId, actor);
 }
 
@@ -1698,11 +2416,22 @@ async function listClosureRequests(organizationId, campaignId, user) {
   return rows.map(mapClosureRequest);
 }
 
-/** ORG_ADMIN/SUPER_ADMIN approves (→ campaign COMPLETED) or rejects (with a
- *  decision note shown back to the manager, who may request again). */
+/**
+ * A REVIEWER/ORG_ADMIN/SUPER_ADMIN decides a pending closure request.
+ *   data.action: 'approve' | 'request_changes' | 'reject' (last two need a note).
+ *   - approve         → request APPROVED, campaign -> COMPLETED.
+ *   - request_changes → request REJECTED with a note (manager files a new one).
+ *   - reject          → request REJECTED with a reason.
+ */
 async function decideClosureRequest(organizationId, campaignId, requestId, actor, data) {
+  const action = data.action || (data.approved ? "approve" : "reject");
+  const notes = (data.notes || "").trim();
+  if ((action === "reject" || action === "request_changes") && notes.length < 10) {
+    throw ApiError.badRequest("A reason of at least 10 characters is required", "REASON_REQUIRED");
+  }
+
   const [orgSql, ...orgParams] = orgScope(organizationId, actor);
-  const campaigns = await db.query(`SELECT id FROM campaigns WHERE id = ?${orgSql}`, [
+  const campaigns = await db.query(`SELECT id, name FROM campaigns WHERE id = ?${orgSql}`, [
     campaignId,
     ...orgParams,
   ]);
@@ -1718,29 +2447,48 @@ async function decideClosureRequest(organizationId, campaignId, requestId, actor
     throw ApiError.badRequest("Only a pending request can be decided", "CLOSURE_REQUEST_NOT_PENDING");
   }
 
-  const status = data.approved ? "APPROVED" : "REJECTED";
+  const status = action === "approve" ? "APPROVED" : "REJECTED";
   await db.execute(
     `UPDATE campaign_closure_requests
      SET status = ?, decided_by_id = ?, decided_at = NOW(), decision_notes = ?
      WHERE id = ?`,
-    [status, actor.id, data.notes || null, requestId]
+    [status, actor.id, notes || null, requestId]
   );
 
-  if (data.approved) {
+  if (action === "approve") {
     await changeCampaignStatus(organizationId, campaignId, "COMPLETED", actor);
   }
 
-  await db.execute(
-    `INSERT INTO audit_logs (organization_id, actor_id, actor_email, action, resource, resource_id, severity)
-     VALUES (?, ?, ?, ?, 'campaign', ?, 'INFO')`,
-    [
-      organizationId,
-      actor.id,
-      actor.email,
-      data.approved ? "campaign.closure_request.approved" : "campaign.closure_request.rejected",
-      String(campaignId),
-    ]
+  const auditAction =
+    action === "approve"
+      ? "campaign.closure_request.approved"
+      : action === "request_changes"
+        ? "campaign.closure_request.changes_requested"
+        : "campaign.closure_request.rejected";
+  await writeAudit(
+    organizationId,
+    actor,
+    auditAction,
+    campaignId,
+    action === "reject" ? "WARNING" : "INFO",
+    notes ? { notes } : undefined
   );
+
+  const notifyTitle =
+    action === "approve"
+      ? "Closure request approved"
+      : action === "request_changes"
+        ? "Changes requested on your closure request"
+        : "Closure request rejected";
+  await notifySafe(notificationService.campaignManagerAudience(campaignId), {
+    type: "campaign",
+    title: notifyTitle,
+    body: notes || `"${campaigns[0].name}"`,
+    link: campaignLink(campaignId),
+    resource: "campaign",
+    resourceId: campaignId,
+    organizationId,
+  });
 
   return listClosureRequests(organizationId, campaignId, actor);
 }
@@ -1795,8 +2543,33 @@ async function getPublicCampaign(idOrSlug, locale) {
     [campaign.id]
   );
 
+  // Supporting photos the organizer uploaded (cover stays on image_url).
+  const imagesByCampaign = await loadCampaignImages([campaign.id]);
+
+  // Approved proof of how the funds were used — only surfaces once the campaign
+  // is COMPLETED and an admin/reviewer has approved the completion report.
+  let completionProof = null;
+  if (campaign.status === "COMPLETED") {
+    const reportRows = await db.query(
+      `SELECT id, summary, amount_utilized FROM campaign_completion_reports
+       WHERE campaign_id = ? AND status = 'APPROVED' LIMIT 1`,
+      [campaign.id]
+    );
+    const report = reportRows[0];
+    if (report) {
+      const proofByReport = await loadReportImages([report.id]);
+      completionProof = {
+        summary: report.summary,
+        amountUtilized: report.amount_utilized == null ? null : num(report.amount_utilized),
+        images: proofByReport[report.id] || [],
+      };
+    }
+  }
+
   return {
     ...mapPublicCampaign(campaign, locale),
+    images: imagesByCampaign[campaign.id] || [],
+    completionProof,
     recentDonations: donations.map((d) => ({
       amount: num(d.amount),
       donorName: d.is_anonymous ? null : d.donor_name,
@@ -1904,7 +2677,7 @@ async function getPublicCompletedCampaign(idOrSlug, locale = "en") {
     title: (sw && c.name_sw) || c.name,
     campaignStory: (sw && c.story_sw) || c.story,
     category: (sw && c.category_sw) || c.category,
-    image: c.image_url,
+    image: toAbsoluteImageUrl(c.image_url),
     organizationName: c.organization_name,
     goalAmount: num(c.goal_amount),
     raisedAmount: raised,
@@ -2038,7 +2811,10 @@ module.exports = {
   submitCampaign,
   approveCampaign,
   rejectCampaign,
+  requestCampaignChanges,
   reviewFeeProposal,
+  listChangeRequests,
+  decideChangeRequest,
   changeCampaignStatus,
   setCampaignManagers,
   previewPoolImport,

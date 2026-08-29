@@ -6,11 +6,20 @@ import type { ApiUser } from "@/lib/api-client";
  * Roles come straight from the backend user object (ApiUser.role):
  *   - SUPER_ADMIN        → platform config, fee/gateway settings, org setup,
  *                          support + audit access
- *   - ORG_ADMIN          → creates/approves campaigns, manages org users +
- *                          donor pool, views reports, requests payouts
+ *   - ORG_ADMIN          → creates campaigns, gives the FINAL (stage-2)
+ *                          approval, manages the donor pool, views reports,
+ *                          requests payouts. User & role management is
+ *                          SUPER_ADMIN-only.
+ *   - REVIEWER           → gives the FIRST (stage-1) approval and reviews
+ *                          closure requests, completion reports and fee
+ *                          proposals. Creates nothing.
  *   - CAMPAIGN_MANAGER   → works only on assigned campaigns, adds consented
  *                          donors, sends approved push requests. NO withdrawal
  *                          / payout access.
+ *
+ * Campaign approval is a strict ordered chain: REVIEWER (stage 1) → ORG_ADMIN
+ * (stage 2) → live, two different people, neither the creator. SUPER_ADMIN can
+ * stand in for either stage. See `canReviewCampaign` / `canFinalApproveCampaign`.
  */
 
 export type Role = ApiUser["role"];
@@ -53,16 +62,16 @@ export const ROLE_META: Record<Role, RoleMeta> = {
   ORG_ADMIN: {
     label: "Org Admin",
     shortLabel: "Org Admin",
-    tagline: "Campaigns, donors, users and payouts for your organisation.",
+    tagline: "Campaigns, donors and payouts for your organisation.",
     scope:
-      "Create and approve campaigns, manage donors and donor pools, manage your user and request payouts.",
+      "Create campaigns, give the final (stage-2) approval, manage donors and donor pools, and request payouts. User and role management is handled by a platform super admin.",
   },
   REVIEWER: {
     label: "Reviewer",
     shortLabel: "Reviewer",
-    tagline: "Review and approve what your campaign managers submit.",
+    tagline: "Give the first review on what your campaign managers submit.",
     scope:
-      "Approve campaigns, closure requests, completion reports and custom service-fee proposals submitted by managers. Can't create campaigns, manage users, change platform settings or handle payouts.",
+      "Give campaigns their first approval, and review closure requests, completion reports and custom service-fee proposals. Can't create campaigns, manage users, change platform settings or handle payouts.",
   },
   CAMPAIGN_MANAGER: {
     label: "Campaign Manager",
@@ -126,7 +135,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "donor:view",
     "donor:add",
     "donor:manage",
-    "user:manage",
+    // NOTE: no "user:manage" — all user & role management is SUPER_ADMIN-only.
     "settings:org",
     "payout:request",
     "reports:view",
@@ -157,6 +166,19 @@ export function hasPermission(role: Role | undefined, perm: Permission): boolean
   return ROLE_PERMISSIONS[role].includes(perm);
 }
 
+// ─── Ordered campaign-approval chain ─────────────────────────────────────────
+// Stage 1 ("first review") — a REVIEWER (or SUPER_ADMIN).
+// Stage 2 ("final approval") — an ORG_ADMIN (or SUPER_ADMIN).
+// The backend additionally enforces "two different people, neither the creator".
+
+export function canReviewCampaign(role: Role | undefined): boolean {
+  return role === "REVIEWER" || role === "SUPER_ADMIN";
+}
+
+export function canFinalApproveCampaign(role: Role | undefined): boolean {
+  return role === "ORG_ADMIN" || role === "SUPER_ADMIN";
+}
+
 // ─── Route access ────────────────────────────────────────────────────────────
 //
 // Kept in one place so the sidebar, mobile nav, route guard and dashboard all
@@ -176,7 +198,8 @@ export const ROUTE_ACCESS: Record<string, Role[]> = {
   "/dashboard/reminders": ALL_ROLES,
   "/dashboard/reminders/templates": ALL_ROLES,
   "/dashboard/reminders/schedules": ALL_ROLES,
-  "/dashboard/user": [ROLE.SUPER_ADMIN, ROLE.ORG_ADMIN],
+  "/dashboard/notifications": ALL_ROLES,
+  "/dashboard/user": [ROLE.SUPER_ADMIN],
   "/dashboard/audit-log": [ROLE.SUPER_ADMIN],
   "/dashboard/settings": ALL_ROLES,
   "/dashboard/payouts": [ROLE.SUPER_ADMIN, ROLE.ORG_ADMIN],

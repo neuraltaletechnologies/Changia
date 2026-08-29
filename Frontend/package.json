@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "tunnel": "node ../scripts/tunnel.js --name web --port 3000",
+    "dev:preview": "node ../scripts/preview-run.js --target web -- npm run dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",

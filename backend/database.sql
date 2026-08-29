@@ -19,6 +19,8 @@ CREATE DATABASE IF NOT EXISTS changia
 USE changia;
 
 SET FOREIGN_KEY_CHECKS = 0;
+DROP TABLE IF EXISTS notifications;
+DROP TABLE IF EXISTS campaign_change_requests;
 DROP TABLE IF EXISTS campaign_donor_targets;
 DROP TABLE IF EXISTS organization_settings;
 DROP TABLE IF EXISTS donor_pool_members;
@@ -193,6 +195,9 @@ CREATE TABLE consents (
 CREATE TABLE campaigns (
   id                  BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   organization_id     BIGINT UNSIGNED NOT NULL,
+  -- Who created the campaign. Used to keep an approver from approving their own
+  -- campaign (neither approval stage may be the creator). NULL for legacy rows.
+  created_by_id       BIGINT UNSIGNED NULL,
   name                VARCHAR(150) NOT NULL,
   slug                VARCHAR(180) NOT NULL UNIQUE,
   story               TEXT NULL,
@@ -220,14 +225,12 @@ CREATE TABLE campaigns (
   minimum_amount      DECIMAL(14,0) NOT NULL DEFAULT 1000,
   start_date          DATETIME NULL,
   end_date            DATETIME NULL,
-  -- Two-stage approval, both stages by a REVIEWER/ORG_ADMIN/SUPER_ADMIN (never
-  -- the manager who created it): a manager's campaign moves DRAFT -> PENDING
-  -- on submit, PENDING -> REVIEWED on the first independent approval, then
-  -- REVIEWED -> ACTIVE on a *second* approval by someone other than the first
-  -- approver (enforced in the service layer via first_approved_by below). An
-  -- ORG_ADMIN/SUPER_ADMIN creating their own campaign still self-approves and
-  -- skips straight to ACTIVE — the two-person rule only applies to what a
-  -- CAMPAIGN_MANAGER submits.
+  -- Strict ordered two-stage approval for EVERY campaign, regardless of who
+  -- creates it (no self-approval): DRAFT -> PENDING on create/submit,
+  -- PENDING -> REVIEWED on stage-1 sign-off by a REVIEWER (or SUPER_ADMIN),
+  -- REVIEWED -> ACTIVE on stage-2 sign-off by an ORG_ADMIN (or SUPER_ADMIN)
+  -- who is neither the creator nor the stage-1 approver. Enforced in the
+  -- service layer via created_by_id + first_approved_by.
   status              ENUM('DRAFT','PENDING','REVIEWED','ACTIVE','PAUSED','COMPLETED','CANCELLED') NOT NULL DEFAULT 'DRAFT',
   is_public           TINYINT(1) NOT NULL DEFAULT 0,
   contact_phone       VARCHAR(32) NULL,
@@ -243,9 +246,17 @@ CREATE TABLE campaigns (
   first_approved_at   DATETIME NULL,
   approved_by         BIGINT UNSIGNED NULL,
   approved_at         DATETIME NULL,
+  -- Last reject / "request changes" reason from a reviewer or admin, shown back
+  -- to the manager. review_state = 'CHANGES_REQUESTED' while the manager still
+  -- needs to act on that feedback. has_pending_changes is a denormalised flag
+  -- (see campaign_change_requests) so list views can badge without a join.
+  review_notes        TEXT NULL,
+  review_state        ENUM('NONE','CHANGES_REQUESTED') NOT NULL DEFAULT 'NONE',
+  has_pending_changes TINYINT(1) NOT NULL DEFAULT 0,
   created_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_campaigns_org FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+  CONSTRAINT fk_campaigns_created_by FOREIGN KEY (created_by_id) REFERENCES users(id) ON DELETE SET NULL,
   CONSTRAINT fk_campaigns_first_approved_by FOREIGN KEY (first_approved_by) REFERENCES users(id) ON DELETE SET NULL,
   CONSTRAINT fk_campaigns_approved_by FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL,
   CONSTRAINT fk_campaigns_fee_reviewed_by FOREIGN KEY (fee_reviewed_by) REFERENCES users(id) ON DELETE SET NULL,
@@ -358,6 +369,38 @@ CREATE TABLE campaign_closure_requests (
   CONSTRAINT fk_ccreq_campaign FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE,
   CONSTRAINT fk_ccreq_org FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
   INDEX idx_ccreq_campaign_status (campaign_id, status)
+) ENGINE=InnoDB;
+
+-- A material edit (name, story, goal, fee, category, dates, minimum amount,
+-- contact phone, cover image) to an already-approved / live campaign is NOT
+-- applied directly — it is parked here as a payload and must clear the same
+-- strict two-stage chain (REVIEWER then ORG_ADMIN) before it is written onto
+-- the campaign. The live campaign keeps serving its last-approved values
+-- meanwhile. "Only one open request per campaign" (PENDING / REVIEWED /
+-- CHANGES_REQUESTED) is enforced in the service layer.
+CREATE TABLE campaign_change_requests (
+  id                BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  campaign_id       BIGINT UNSIGNED NOT NULL,
+  organization_id   BIGINT UNSIGNED NOT NULL,
+  submitted_by_id   BIGINT UNSIGNED NULL,
+  payload           JSON NOT NULL,
+  staged_cover_path VARCHAR(500) NULL,
+  status            ENUM('PENDING','REVIEWED','APPLIED','REJECTED','CHANGES_REQUESTED') NOT NULL DEFAULT 'PENDING',
+  first_approved_by BIGINT UNSIGNED NULL,
+  first_approved_at DATETIME NULL,
+  approved_by       BIGINT UNSIGNED NULL,
+  approved_at       DATETIME NULL,
+  review_notes      TEXT NULL,
+  decided_at        DATETIME NULL,
+  created_at        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_ccr2_campaign  FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE,
+  CONSTRAINT fk_ccr2_org       FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+  CONSTRAINT fk_ccr2_submitter FOREIGN KEY (submitted_by_id) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_ccr2_first     FOREIGN KEY (first_approved_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_ccr2_approver  FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL,
+  INDEX idx_ccr2_campaign_status (campaign_id, status),
+  INDEX idx_ccr2_org_status (organization_id, status)
 ) ENGINE=InnoDB;
 
 -- ─── Message batches and deliveries ──────────────────────────────────────────
@@ -585,6 +628,28 @@ CREATE TABLE audit_logs (
   CONSTRAINT fk_audit_user FOREIGN KEY (actor_id) REFERENCES users(id) ON DELETE SET NULL,
   INDEX idx_audit_org_created (organization_id, created_at),
   INDEX idx_audit_action (action)
+) ENGINE=InnoDB;
+
+-- ─── In-app notifications (per-user staff notification centre) ────────────────
+-- A lightweight per-user feed surfaced by the dashboard header bell and the
+-- /dashboard/notifications page. Written fire-and-forget (never inside a
+-- mutation transaction) on approval-chain events — see modules/notification.
+CREATE TABLE notifications (
+  id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id         BIGINT UNSIGNED NOT NULL,
+  organization_id BIGINT UNSIGNED NULL,
+  type            VARCHAR(48) NOT NULL DEFAULT 'system',
+  title           VARCHAR(200) NOT NULL,
+  body            VARCHAR(600) NULL,
+  link            VARCHAR(300) NULL,
+  resource        VARCHAR(48) NULL,
+  resource_id     VARCHAR(48) NULL,
+  read_at         DATETIME NULL,
+  created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_notif_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_notif_org  FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+  INDEX idx_notif_user_unread (user_id, read_at, created_at),
+  INDEX idx_notif_user_created (user_id, created_at)
 ) ENGINE=InnoDB;
 
 -- =============================================================================

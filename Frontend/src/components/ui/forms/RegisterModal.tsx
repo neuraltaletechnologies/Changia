@@ -8,6 +8,11 @@ import Checkbox from './input/Checkbox';
 import GoogleBtn from '../buttons/GoogleBtn';
 import AuthBtn from '../buttons/AuthBtn';
 import { ApiClientError, registerRequest, setSession } from '@/lib/api-client';
+import {
+  closeAuthModal,
+  getAuthNextFromLocation,
+  REGISTER_MODAL_SELECTOR,
+} from './auth-modal-utils';
 
 const config = {
   id: 'hs-toggle-between-modals-register-modal',
@@ -84,7 +89,8 @@ export default function RegisterModal() {
         termsAccepted,
       });
       setSession(accessToken, user);
-      router.push('/dashboard');
+      closeAuthModal(REGISTER_MODAL_SELECTOR);
+      router.push(getAuthNextFromLocation());
       router.refresh();
     } catch (err) {
       setError(

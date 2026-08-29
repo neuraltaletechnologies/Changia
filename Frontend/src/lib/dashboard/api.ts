@@ -137,6 +137,40 @@ export interface CampaignRecord {
   /** Second, decisive approval (REVIEWED -> ACTIVE) — must be a different user than firstApprovedBy. */
   approvedBy: number | null;
   approvedAt: string | null;
+  /** Who created the campaign — an approver may never approve their own campaign. */
+  createdBy?: number | null;
+  /** Last reject / "request changes" feedback from a reviewer or admin. */
+  reviewNotes?: string | null;
+  /** 'CHANGES_REQUESTED' while the manager still needs to act on that feedback. */
+  reviewState?: "NONE" | "CHANGES_REQUESTED";
+  /** A material edit is parked awaiting re-approval (see `changeRequest`). */
+  hasPendingChanges?: boolean;
+  /** The open change request for a live campaign, if any. */
+  changeRequest?: {
+    id: number;
+    status: "PENDING" | "REVIEWED" | "APPLIED" | "REJECTED" | "CHANGES_REQUESTED";
+    payload: Partial<
+      Record<
+        | "name"
+        | "story"
+        | "goalAmount"
+        | "serviceFeePercent"
+        | "category"
+        | "startDate"
+        | "endDate"
+        | "minimumAmount"
+        | "contactPhone",
+        string | number | null
+      >
+    >;
+    hasStagedCover: boolean;
+    stagedCoverUrl: string | null;
+    submittedBy: number | null;
+    firstApprovedBy: number | null;
+    firstApprovedAt: string | null;
+    reviewNotes: string | null;
+    createdAt: string;
+  } | null;
   createdAt: string;
   updatedAt: string;
   assignments: { user: { id: number; firstName: string; lastName: string; email: string } }[];
@@ -191,6 +225,27 @@ export interface ClosureRequest {
   status: "PENDING" | "APPROVED" | "REJECTED";
   decisionNotes: string | null;
   requestedAt: string;
+  decidedAt: string | null;
+}
+
+/** The three outcomes a reviewer/admin can pick on any review decision. */
+export type ReviewAction = "approve" | "request_changes" | "reject";
+
+export interface ChangeRequestRecord {
+  id: number;
+  campaignId: number;
+  status: "PENDING" | "REVIEWED" | "APPLIED" | "REJECTED" | "CHANGES_REQUESTED";
+  payload: Record<string, string | number | null>;
+  hasStagedCover: boolean;
+  stagedCoverUrl: string | null;
+  submittedBy: number | null;
+  firstApprovedBy: number | null;
+  firstApprovedAt: string | null;
+  approvedBy: number | null;
+  approvedAt: string | null;
+  reviewNotes: string | null;
+  createdAt: string;
+  updatedAt: string;
   decidedAt: string | null;
 }
 
@@ -548,15 +603,38 @@ export const campaignApi = {
     api.put<{ success: boolean; data: CampaignRecord }>(`/campaigns/${id}`, body).then(unwrap),
   submit: (id: string | number) =>
     api.post<{ success: boolean; data: CampaignRecord }>(`/campaigns/${id}/submit`).then(unwrap),
+  /** Advances the ordered chain: PENDING -> REVIEWED (a reviewer) -> ACTIVE (an admin). */
   approve: (id: string | number) =>
     api.post<{ success: boolean; data: CampaignRecord }>(`/campaigns/${id}/approve`).then(unwrap),
-  /** Reviewer/admin rejects a campaign still awaiting approval (PENDING/REVIEWED) — narrower than changeStatus. */
-  reject: (id: string | number, notes?: string) =>
+  /** Reviewer/admin rejects a campaign still awaiting approval (PENDING/REVIEWED) — terminal, reason required. */
+  reject: (id: string | number, notes: string) =>
     api.post<{ success: boolean; data: CampaignRecord }>(`/campaigns/${id}/reject`, { notes }).then(unwrap),
-  /** Reviewer/admin approves or rejects a manager's proposed custom fee %. */
-  reviewFee: (id: string | number, body: { approved: boolean; notes?: string }) =>
+  /** Reviewer/admin sends a campaign back to the manager to fix — non-terminal, note required. */
+  requestChanges: (id: string | number, notes: string) =>
+    api
+      .post<{ success: boolean; data: CampaignRecord }>(`/campaigns/${id}/request-changes`, { notes })
+      .then(unwrap),
+  /** Reviewer/admin decides a manager's proposed custom fee % (approve / request_changes / reject). */
+  reviewFee: (id: string | number, body: { action: ReviewAction; notes?: string }) =>
     api
       .post<{ success: boolean; data: CampaignRecord }>(`/campaigns/${id}/fee/review`, body)
+      .then(unwrap),
+  /** History of change requests (parked material edits) for a campaign. */
+  listChangeRequests: (id: string | number) =>
+    api
+      .get<{ success: boolean; data: ChangeRequestRecord[] }>(`/campaigns/${id}/change-requests`)
+      .then(unwrap),
+  /** Reviewer/admin decides an open change request (approve / request_changes / reject). */
+  decideChangeRequest: (
+    id: string | number,
+    requestId: string | number,
+    body: { action: ReviewAction; notes?: string }
+  ) =>
+    api
+      .post<{ success: boolean; data: CampaignRecord }>(
+        `/campaigns/${id}/change-requests/${requestId}/decide`,
+        body
+      )
       .then(unwrap),
   changeStatus: (id: string | number, status: string) =>
     api
@@ -594,7 +672,10 @@ export const campaignApi = {
       .postForm<{ success: boolean; data: CompletionReport }>(`/campaigns/${id}/completion-report`, form)
       .then(unwrap);
   },
-  reviewCompletionReport: (id: string | number, body: { approved: boolean; notes?: string }) =>
+  reviewCompletionReport: (
+    id: string | number,
+    body: { action: ReviewAction; notes?: string }
+  ) =>
     api
       .post<{ success: boolean; data: CompletionReport }>(`/campaigns/${id}/completion-report/review`, body)
       .then(unwrap),
@@ -654,13 +735,50 @@ export const campaignApi = {
   decideClosureRequest: (
     id: string | number,
     requestId: string | number,
-    body: { approved: boolean; notes?: string }
+    body: { action: ReviewAction; notes?: string }
   ) =>
     api
       .post<{ success: boolean; data: ClosureRequest[] }>(
         `/campaigns/${id}/closure-requests/${requestId}/decide`,
         body
       )
+      .then(unwrap),
+};
+
+// ─── Notifications (in-app staff notification centre) ────────────────────────
+
+export interface NotificationRecord {
+  id: number;
+  type: string;
+  title: string;
+  body: string | null;
+  link: string | null;
+  resource: string | null;
+  resourceId: string | null;
+  read: boolean;
+  readAt: string | null;
+  createdAt: string;
+}
+
+export const notificationApi = {
+  list: (params?: { unreadOnly?: boolean; page?: number; limit?: number }) =>
+    api
+      .get<{
+        success: boolean;
+        data: { notifications: NotificationRecord[]; unreadCount: number; pagination: unknown };
+      }>(`/notifications${qs(params || {})}`)
+      .then(unwrap),
+  unreadCount: () =>
+    api
+      .get<{ success: boolean; data: { unreadCount: number } }>(`/notifications/unread-count`)
+      .then(unwrap),
+  markRead: (id: string | number) =>
+    api
+      .post<{ success: boolean; data: { unreadCount: number } }>(`/notifications/${id}/read`)
+      .then(unwrap),
+  markAllRead: () =>
+    api
+      .post<{ success: boolean; data: { unreadCount: number } }>(`/notifications/read-all`)
       .then(unwrap),
 };
 

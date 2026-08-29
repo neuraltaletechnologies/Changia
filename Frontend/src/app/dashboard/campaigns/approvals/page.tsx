@@ -1,39 +1,67 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { campaignApi, formatTZSFull, type CampaignRecord } from "@/lib/dashboard/api";
+import {
+  campaignApi,
+  formatTZSFull,
+  type CampaignRecord,
+  type ReviewAction,
+} from "@/lib/dashboard/api";
 import { Button } from "@/components/dashboard/ui/button";
 import { Avatar, AvatarFallback } from "@/components/dashboard/ui/avatar";
-import { ArrowLeft, Check, Clock, Loader2, Megaphone, ShieldCheck, X } from "lucide-react";
-import { cn } from "@/lib/dashboard/utils";
+import {
+  ArrowLeft,
+  Check,
+  Clock,
+  Loader2,
+  Megaphone,
+  PencilRuler,
+  ShieldCheck,
+} from "lucide-react";
 import { useRole } from "@/hooks/use-role";
+import { ReviewDecisionDialog } from "@/components/dashboard/campaigns/review-decision-dialog";
+
+type DialogTarget =
+  | { kind: "campaign"; id: number; action: Exclude<ReviewAction, "approve"> }
+  | {
+      kind: "change-request";
+      id: number;
+      requestId: number;
+      action: Exclude<ReviewAction, "approve">;
+    }
+  | { kind: "fee"; id: number; action: Exclude<ReviewAction, "approve"> };
+
+const FIELD_LABELS: Record<string, string> = {
+  name: "Name",
+  story: "Story",
+  goalAmount: "Goal amount",
+  serviceFeePercent: "Service fee %",
+  category: "Category",
+  startDate: "Start date",
+  endDate: "End date",
+  minimumAmount: "Minimum amount",
+  contactPhone: "Contact phone",
+};
 
 export default function CampaignApprovalsPage() {
-  const { user } = useRole();
-  // Two-stage chain: PENDING = awaiting the first approval, REVIEWED =
-  // awaiting a second, different approval before going ACTIVE.
-  const [campaigns, setCampaigns] = useState<CampaignRecord[]>([]);
-  // Campaigns (any status) with a manager's custom service-fee proposal awaiting
-  // review — the backend has no feeStatus filter, so we filter client-side.
-  const [feeProposals, setFeeProposals] = useState<CampaignRecord[]>([]);
+  const { user, canReviewCampaign, canFinalApproveCampaign, isSuperAdmin } = useRole();
+  const uid = user ? String(user.id) : null;
+
+  const [all, setAll] = useState<CampaignRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [actingId, setActingId] = useState<number | null>(null);
-  const [feeActingId, setFeeActingId] = useState<number | null>(null);
+  const [actingId, setActingId] = useState<string | null>(null);
+  const [dialog, setDialog] = useState<DialogTarget | null>(null);
+  const [dialogSubmitting, setDialogSubmitting] = useState(false);
 
   const load = useCallback(async () => {
     try {
       setError(null);
-      const [pending, reviewed, all] = await Promise.all([
-        campaignApi.list({ status: "PENDING", limit: 100 }),
-        campaignApi.list({ status: "REVIEWED", limit: 100 }),
-        campaignApi.list({ limit: 100 }),
-      ]);
-      setCampaigns([...pending.campaigns, ...reviewed.campaigns]);
-      setFeeProposals(all.campaigns.filter((c) => c.feeStatus === "PENDING"));
+      const res = await campaignApi.list({ limit: 100 });
+      setAll(res.campaigns);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load pending campaigns.");
+      setError(e instanceof Error ? e.message : "Failed to load pending items.");
     } finally {
       setLoading(false);
     }
@@ -43,64 +71,133 @@ export default function CampaignApprovalsPage() {
     load();
   }, [load]);
 
-  const approve = async (id: number) => {
-    setActingId(id);
+  // ── Queues ────────────────────────────────────────────────────────────────
+  const stage1Campaigns = useMemo(
+    () =>
+      all.filter(
+        (c) =>
+          c.status === "PENDING" &&
+          (canReviewCampaign || isSuperAdmin) &&
+          String(c.createdBy ?? "") !== uid
+      ),
+    [all, canReviewCampaign, isSuperAdmin, uid]
+  );
+  const stage2Campaigns = useMemo(
+    () =>
+      all.filter(
+        (c) =>
+          c.status === "REVIEWED" &&
+          (canFinalApproveCampaign || isSuperAdmin) &&
+          String(c.firstApprovedBy ?? "") !== uid &&
+          String(c.createdBy ?? "") !== uid
+      ),
+    [all, canFinalApproveCampaign, isSuperAdmin, uid]
+  );
+  const changeRequests = useMemo(
+    () =>
+      all
+        .filter((c) => c.changeRequest && ["PENDING", "REVIEWED"].includes(c.changeRequest.status))
+        .filter((c) => {
+          const cr = c.changeRequest!;
+          if (cr.status === "PENDING") return canReviewCampaign || isSuperAdmin;
+          return (
+            (canFinalApproveCampaign || isSuperAdmin) &&
+            String(cr.firstApprovedBy ?? "") !== uid
+          );
+        }),
+    [all, canReviewCampaign, canFinalApproveCampaign, isSuperAdmin, uid]
+  );
+  const feeProposals = useMemo(() => all.filter((c) => c.feeStatus === "PENDING"), [all]);
+
+  const totalPending =
+    stage1Campaigns.length + stage2Campaigns.length + changeRequests.length + feeProposals.length;
+
+  // ── Actions ───────────────────────────────────────────────────────────────
+  const run = async (key: string, fn: () => Promise<unknown>) => {
+    setActingId(key);
     try {
-      await campaignApi.approve(id);
-      setCampaigns((prev) => prev.filter((c) => c.id !== id));
+      await fn();
+      await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to approve campaign.");
+      setError(e instanceof Error ? e.message : "Action failed.");
     } finally {
       setActingId(null);
     }
   };
 
-  const reject = async (id: number) => {
-    setActingId(id);
+  const submitDialog = async (notes: string) => {
+    if (!dialog) return;
+    setDialogSubmitting(true);
     try {
-      // Dedicated endpoint (not changeStatus/"CANCELLED") — REVIEWER can call
-      // this one too, scoped to only PENDING/REVIEWED campaigns.
-      await campaignApi.reject(id);
-      setCampaigns((prev) => prev.filter((c) => c.id !== id));
+      if (dialog.kind === "campaign") {
+        if (dialog.action === "reject") await campaignApi.reject(dialog.id, notes);
+        else await campaignApi.requestChanges(dialog.id, notes);
+      } else if (dialog.kind === "change-request") {
+        await campaignApi.decideChangeRequest(dialog.id, dialog.requestId, {
+          action: dialog.action,
+          notes,
+        });
+      } else {
+        await campaignApi.reviewFee(dialog.id, { action: dialog.action, notes });
+      }
+      setDialog(null);
+      await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to reject campaign.");
+      setError(e instanceof Error ? e.message : "Action failed.");
     } finally {
-      setActingId(null);
+      setDialogSubmitting(false);
     }
   };
 
-  const reviewFee = async (id: number, approved: boolean) => {
-    setFeeActingId(id);
-    try {
-      await campaignApi.reviewFee(id, { approved });
-      setFeeProposals((prev) => prev.filter((c) => c.id !== id));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to review the fee proposal.");
-    } finally {
-      setFeeActingId(null);
-    }
-  };
+  const ActionRow = ({
+    approveLabel,
+    onApprove,
+    onRequestChanges,
+    onReject,
+    busyKey,
+  }: {
+    approveLabel: string;
+    onApprove: () => void;
+    onRequestChanges: () => void;
+    onReject: () => void;
+    busyKey: string;
+  }) => (
+    <div className="flex flex-wrap items-center gap-2 shrink-0">
+      <Button size="sm" variant="outline" onClick={onRequestChanges}>
+        Request changes
+      </Button>
+      <Button size="sm" variant="destructive" onClick={onReject}>
+        Reject
+      </Button>
+      <Button size="sm" onClick={onApprove} disabled={actingId === busyKey}>
+        {actingId === busyKey ? (
+          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+        ) : (
+          <Check className="w-3.5 h-3.5 mr-1" />
+        )}
+        {approveLabel}
+      </Button>
+    </div>
+  );
 
   return (
-    <div className="space-y-6 max-w-[1200px]">
-      <div className="flex items-center justify-between gap-3">
+    <div className="space-y-8 max-w-[1200px]">
+      <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          nativeButton={false}
+          render={<Link href="/dashboard/campaigns" />}
+        >
+          <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
+          Back
+        </Button>
         <div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              nativeButton={false}
-              render={<Link href="/dashboard/campaigns" />}
-            >
-              <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
-              Back
-            </Button>
-            <h1 className="text-xl font-semibold text-foreground tracking-tight">
-              Campaign Approvals
-            </h1>
-          </div>
+          <h1 className="text-xl font-semibold text-foreground tracking-tight">
+            Campaign Approvals
+          </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {campaigns.length} campaign{campaigns.length !== 1 ? "s" : ""} pending review
+            {totalPending} item{totalPending !== 1 ? "s" : ""} awaiting your review
           </p>
         </div>
       </div>
@@ -117,135 +214,154 @@ export default function CampaignApprovalsPage() {
             <div key={i} className="h-28 bg-card border border-border rounded-xl animate-pulse" />
           ))}
         </div>
-      ) : campaigns.length === 0 ? (
+      ) : totalPending === 0 ? (
         <div className="text-center py-20 bg-card border border-border rounded-xl">
           <Megaphone className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
-          <p className="text-sm text-muted-foreground">No campaigns pending approval.</p>
+          <p className="text-sm text-muted-foreground">Nothing is waiting for your approval.</p>
         </div>
-      ) : (
-        <div className="space-y-3">
-          {campaigns.map((c) => {
-            const isSecondStage = c.status === "REVIEWED";
-            const isOwnFirstApproval =
-              isSecondStage && user != null && String(c.firstApprovedBy ?? "") === String(user.id);
-            return (
-            <div
+      ) : null}
+
+      {/* ── Stage 1: first review ─────────────────────────────────────────── */}
+      {stage1Campaigns.length > 0 && (
+        <section className="space-y-3">
+          <SectionHeading
+            icon={Clock}
+            title="Awaiting first review"
+            sub="New campaigns needing a reviewer's first approval."
+          />
+          {stage1Campaigns.map((c) => (
+            <CampaignCard key={c.id} c={c} badge="Awaiting 1st approval" badgeTone="orange">
+              <ActionRow
+                approveLabel="Give first approval"
+                busyKey={`c-${c.id}`}
+                onApprove={() => run(`c-${c.id}`, () => campaignApi.approve(c.id))}
+                onRequestChanges={() =>
+                  setDialog({ kind: "campaign", id: c.id, action: "request_changes" })
+                }
+                onReject={() => setDialog({ kind: "campaign", id: c.id, action: "reject" })}
+              />
+            </CampaignCard>
+          ))}
+        </section>
+      )}
+
+      {/* ── Stage 2: final approval ───────────────────────────────────────── */}
+      {stage2Campaigns.length > 0 && (
+        <section className="space-y-3">
+          <SectionHeading
+            icon={ShieldCheck}
+            title="Awaiting final approval"
+            sub="First review done — an admin gives the decisive approval."
+          />
+          {stage2Campaigns.map((c) => (
+            <CampaignCard
               key={c.id}
-              className="bg-card border border-border rounded-xl p-5 shadow-sm flex flex-col sm:flex-row sm:items-center gap-4"
+              c={c}
+              badge="1st approval done — needs a different final approver"
+              badgeTone="blue"
             >
-              {c.imageUrl ? (
-                /* eslint-disable-next-line @next/next/no-img-element */
-                <img
-                  src={c.imageUrl}
-                  alt={c.name}
-                  className="w-full sm:w-20 h-20 rounded-lg object-cover shrink-0"
-                />
-              ) : (
-                <div className="w-full sm:w-20 h-20 rounded-lg bg-muted/40 flex items-center justify-center shrink-0">
-                  <Megaphone className="w-6 h-6 text-muted-foreground/40" />
-                </div>
-              )}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
+              <ActionRow
+                approveLabel="Give final approval"
+                busyKey={`c-${c.id}`}
+                onApprove={() => run(`c-${c.id}`, () => campaignApi.approve(c.id))}
+                onRequestChanges={() =>
+                  setDialog({ kind: "campaign", id: c.id, action: "request_changes" })
+                }
+                onReject={() => setDialog({ kind: "campaign", id: c.id, action: "reject" })}
+              />
+            </CampaignCard>
+          ))}
+        </section>
+      )}
+
+      {/* ── Campaign changes (parked material edits) ──────────────────────── */}
+      {changeRequests.length > 0 && (
+        <section className="space-y-3">
+          <SectionHeading
+            icon={PencilRuler}
+            title="Campaign changes"
+            sub="Edits to live campaigns — the current version stays public until these clear both approvals."
+          />
+          {changeRequests.map((c) => {
+            const cr = c.changeRequest!;
+            const stage2 = cr.status === "REVIEWED";
+            return (
+              <div
+                key={c.id}
+                className="bg-card border border-border rounded-xl p-5 shadow-sm space-y-3"
+              >
+                <div className="flex items-start justify-between gap-3">
                   <Link
                     href={`/dashboard/campaigns/${c.id}`}
-                    className="text-sm font-medium text-foreground hover:text-primary transition-colors truncate"
+                    className="text-sm font-medium text-foreground hover:text-primary transition-colors"
                   >
                     {c.name}
                   </Link>
-                  {isSecondStage ? (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-medium border rounded-full px-2 py-0.5 bg-blue-50 text-blue-700 border-blue-200 shrink-0">
-                      <ShieldCheck className="w-3 h-3" />
-                      1st approval done — needs a 2nd, different approver
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-medium border rounded-full px-2 py-0.5 bg-orange-50 text-orange-700 border-orange-200 shrink-0">
-                      <Clock className="w-3 h-3" />
-                      Awaiting 1st approval
-                    </span>
-                  )}
-                </div>
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 mt-1 text-[11px] text-muted-foreground">
-                  {c.category && <span>{c.category}</span>}
-                  <span>{formatTZSFull(c.publicTarget)} target</span>
-                  {c.startDate && c.endDate && (
-                    <span>
-                      {new Date(c.startDate).toLocaleDateString()} →{" "}
-                      {new Date(c.endDate).toLocaleDateString()}
-                    </span>
-                  )}
-                </div>
-                {c.assignments?.[0] && (
-                  <div className="flex items-center gap-2 mt-2">
-                    <Avatar className="w-5 h-5">
-                      <AvatarFallback className="text-[9px] bg-primary/10 text-primary font-semibold">
-                        {c.assignments[0].user.firstName[0]}
-                      </AvatarFallback>
-                    </Avatar>
-                    <span className="text-[11px] text-muted-foreground">
-                      {c.assignments[0].user.firstName} {c.assignments[0].user.lastName ?? ""}
-                    </span>
-                  </div>
-                )}
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  nativeButton={false}
-                  render={<Link href={`/dashboard/campaigns/${c.id}`} />}
-                >
-                  View
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={actingId === c.id}
-                  onClick={() => reject(c.id)}
-                >
-                  {actingId === c.id ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <X className="w-3.5 h-3.5 mr-1" />
-                  )}
-                  Reject
-                </Button>
-                {isOwnFirstApproval ? (
-                  <span className="text-[11px] text-muted-foreground italic px-1">
-                    You gave the 1st approval — a different reviewer/admin must give the 2nd
-                  </span>
-                ) : (
-                  <Button
-                    size="sm"
-                    disabled={actingId === c.id}
-                    onClick={() => approve(c.id)}
+                  <span
+                    className={`text-[10px] font-medium border rounded-full px-2 py-0.5 shrink-0 ${
+                      stage2
+                        ? "bg-blue-50 text-blue-700 border-blue-200"
+                        : "bg-orange-50 text-orange-700 border-orange-200"
+                    }`}
                   >
-                    {actingId === c.id ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <Check className="w-3.5 h-3.5 mr-1" />
-                    )}
-                    {isSecondStage ? "Give final approval" : "Give 1st approval"}
-                  </Button>
-                )}
+                    {stage2 ? "Needs final approval" : "Needs first review"}
+                  </span>
+                </div>
+                <dl className="grid sm:grid-cols-2 gap-x-6 gap-y-1 text-[12px]">
+                  {Object.entries(cr.payload).map(([k, v]) => (
+                    <div key={k} className="flex gap-2">
+                      <dt className="text-muted-foreground shrink-0">{FIELD_LABELS[k] ?? k}:</dt>
+                      <dd className="font-medium text-foreground truncate">{String(v)}</dd>
+                    </div>
+                  ))}
+                  {cr.hasStagedCover && (
+                    <div className="flex gap-2">
+                      <dt className="text-muted-foreground">Cover image:</dt>
+                      <dd className="font-medium text-foreground">new image staged</dd>
+                    </div>
+                  )}
+                </dl>
+                <div className="flex justify-end">
+                  <ActionRow
+                    approveLabel={stage2 ? "Give final approval" : "Give first approval"}
+                    busyKey={`cr-${cr.id}`}
+                    onApprove={() =>
+                      run(`cr-${cr.id}`, () =>
+                        campaignApi.decideChangeRequest(c.id, cr.id, { action: "approve" })
+                      )
+                    }
+                    onRequestChanges={() =>
+                      setDialog({
+                        kind: "change-request",
+                        id: c.id,
+                        requestId: cr.id,
+                        action: "request_changes",
+                      })
+                    }
+                    onReject={() =>
+                      setDialog({
+                        kind: "change-request",
+                        id: c.id,
+                        requestId: cr.id,
+                        action: "reject",
+                      })
+                    }
+                  />
+                </div>
               </div>
-            </div>
             );
           })}
-        </div>
+        </section>
       )}
 
-      {/* Pending custom service-fee proposals from managers */}
-      {!loading && feeProposals.length > 0 && (
-        <div className="space-y-3">
-          <div>
-            <h2 className="text-base font-semibold text-foreground tracking-tight">
-              Service-fee proposals
-            </h2>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              {feeProposals.length} custom fee rate{feeProposals.length !== 1 ? "s" : ""} awaiting your review
-            </p>
-          </div>
+      {/* ── Service-fee proposals ─────────────────────────────────────────── */}
+      {feeProposals.length > 0 && (
+        <section className="space-y-3">
+          <SectionHeading
+            icon={ShieldCheck}
+            title="Service-fee proposals"
+            sub="Custom fee rates a manager proposed instead of the org default."
+          />
           {feeProposals.map((c) => (
             <div
               key={c.id}
@@ -254,7 +370,7 @@ export default function CampaignApprovalsPage() {
               <div className="flex-1 min-w-0">
                 <Link
                   href={`/dashboard/campaigns/${c.id}`}
-                  className="text-sm font-medium text-foreground hover:text-primary transition-colors truncate"
+                  className="text-sm font-medium text-foreground hover:text-primary transition-colors"
                 >
                   {c.name}
                 </Link>
@@ -269,37 +385,121 @@ export default function CampaignApprovalsPage() {
                   <span>{formatTZSFull(c.goalAmount)} goal</span>
                 </div>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={feeActingId === c.id}
-                  onClick={() => reviewFee(c.id, false)}
-                >
-                  {feeActingId === c.id ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <X className="w-3.5 h-3.5 mr-1" />
-                  )}
-                  Reject
-                </Button>
-                <Button
-                  size="sm"
-                  disabled={feeActingId === c.id}
-                  onClick={() => reviewFee(c.id, true)}
-                >
-                  {feeActingId === c.id ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <Check className="w-3.5 h-3.5 mr-1" />
-                  )}
-                  Approve
-                </Button>
-              </div>
+              <ActionRow
+                approveLabel="Approve rate"
+                busyKey={`fee-${c.id}`}
+                onApprove={() =>
+                  run(`fee-${c.id}`, () => campaignApi.reviewFee(c.id, { action: "approve" }))
+                }
+                onRequestChanges={() =>
+                  setDialog({ kind: "fee", id: c.id, action: "request_changes" })
+                }
+                onReject={() => setDialog({ kind: "fee", id: c.id, action: "reject" })}
+              />
             </div>
           ))}
+        </section>
+      )}
+
+      {dialog && (
+        <ReviewDecisionDialog
+          open
+          onOpenChange={(v) => !v && setDialog(null)}
+          action={dialog.action}
+          submitting={dialogSubmitting}
+          onSubmit={submitDialog}
+        />
+      )}
+    </div>
+  );
+}
+
+function SectionHeading({
+  icon: Icon,
+  title,
+  sub,
+}: {
+  icon: React.ElementType;
+  title: string;
+  sub: string;
+}) {
+  return (
+    <div className="flex items-start gap-2">
+      <Icon className="w-4 h-4 mt-0.5 text-muted-foreground shrink-0" />
+      <div>
+        <h2 className="text-base font-semibold text-foreground tracking-tight">{title}</h2>
+        <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>
+      </div>
+    </div>
+  );
+}
+
+function CampaignCard({
+  c,
+  badge,
+  badgeTone,
+  children,
+}: {
+  c: CampaignRecord;
+  badge: string;
+  badgeTone: "orange" | "blue";
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="bg-card border border-border rounded-xl p-5 shadow-sm flex flex-col sm:flex-row sm:items-center gap-4">
+      {c.imageUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={c.imageUrl}
+          alt={c.name}
+          className="w-full sm:w-20 h-20 rounded-lg object-cover shrink-0"
+        />
+      ) : (
+        <div className="w-full sm:w-20 h-20 rounded-lg bg-muted/40 flex items-center justify-center shrink-0">
+          <Megaphone className="w-6 h-6 text-muted-foreground/40" />
         </div>
       )}
+      <div className="flex-1 min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href={`/dashboard/campaigns/${c.id}`}
+            className="text-sm font-medium text-foreground hover:text-primary transition-colors"
+          >
+            {c.name}
+          </Link>
+          <span
+            className={`inline-flex items-center gap-1 text-[10px] font-medium border rounded-full px-2 py-0.5 ${
+              badgeTone === "blue"
+                ? "bg-blue-50 text-blue-700 border-blue-200"
+                : "bg-orange-50 text-orange-700 border-orange-200"
+            }`}
+          >
+            {badge}
+          </span>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 mt-1 text-[11px] text-muted-foreground">
+          {c.category && <span>{c.category}</span>}
+          <span>{formatTZSFull(c.publicTarget)} target</span>
+        </div>
+        {c.assignments?.[0] && (
+          <div className="flex items-center gap-2 mt-2">
+            <Avatar className="w-5 h-5">
+              <AvatarFallback className="text-[9px] bg-primary/10 text-primary font-semibold">
+                {c.assignments[0].user.firstName[0]}
+              </AvatarFallback>
+            </Avatar>
+            <span className="text-[11px] text-muted-foreground">
+              {c.assignments[0].user.firstName} {c.assignments[0].user.lastName ?? ""}
+            </span>
+          </div>
+        )}
+        {c.reviewNotes && c.reviewState === "CHANGES_REQUESTED" && (
+          <p className="text-[11px] text-amber-600 mt-2">
+            Previously sent back: “{c.reviewNotes}”
+          </p>
+        )}
+      </div>
+      {children}
     </div>
   );
 }

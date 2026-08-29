@@ -20,6 +20,7 @@ const reminderTemplateRoutes = require("./modules/reminder-template/routes");
 const reminderScheduleRoutes = require("./modules/reminder-schedule/routes");
 const payoutRoutes = require("./modules/payout/routes");
 const settingsRoutes = require("./modules/settings/routes");
+const notificationRoutes = require("./modules/notification/routes");
 const webhookRoutes = require("./routes/webhooks");
 
 function createApp() {
@@ -48,9 +49,16 @@ function createApp() {
     app.use(morgan("dev"));
   }
 
-  // Uploaded files (completion-report photos, etc.) — served at /uploads/...,
+  // Uploaded files (campaign + completion-report photos) — served at /uploads/...,
   // deliberately outside the /api/v1 prefix since these are plain static assets.
-  app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+  // helmet()'s default `Cross-Origin-Resource-Policy: same-origin` would stop the
+  // web app (served from its own origin/subdomain) from loading these photos in
+  // <img> tags, so relax CORP for this path only.
+  app.use(
+    "/uploads",
+    helmet.crossOriginResourcePolicy({ policy: "cross-origin" }),
+    express.static(path.join(__dirname, "uploads"))
+  );
 
   // ─── Routes ─────────────────────────────────────────────────────────────────
   app.get("/", (req, res) => {
@@ -82,6 +90,7 @@ function createApp() {
   app.use("/api/v1/reminder-schedules", reminderScheduleRoutes);
   app.use("/api/v1/payouts", payoutRoutes);
   app.use("/api/v1/settings", settingsRoutes);
+  app.use("/api/v1/notifications", notificationRoutes);
 
   // ─── Webhooks (unauthenticated — verified by checksum) ────────────────────
   app.use("/webhooks", webhookRoutes);

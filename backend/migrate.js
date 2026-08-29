@@ -71,6 +71,72 @@ const MIGRATIONS = [
   // every payment silently failed to move a donor out of UNPAID.
   `ALTER TABLE campaign_donor_targets ADD COLUMN actual_amount DECIMAL(14,0) NULL DEFAULT 0 AFTER expected_amount`,
   `ALTER TABLE campaign_donor_targets ADD COLUMN payment_status ENUM('UNPAID','PARTIAL','PAID_FULL') NOT NULL DEFAULT 'UNPAID' AFTER actual_amount`,
+
+  // campaigns — strict ordered approval + edit-re-approval + reviewer feedback.
+  // created_by_id: keeps an approver from approving a campaign they created.
+  // review_notes/review_state: last reject / "request changes" feedback shown
+  // to the manager. has_pending_changes: denormalised flag for list badges
+  // (source of truth is campaign_change_requests below).
+  `ALTER TABLE campaigns ADD COLUMN created_by_id BIGINT UNSIGNED NULL AFTER organization_id`,
+  `ALTER TABLE campaigns ADD COLUMN review_notes TEXT NULL AFTER approved_at`,
+  `ALTER TABLE campaigns ADD COLUMN review_state ENUM('NONE','CHANGES_REQUESTED') NOT NULL DEFAULT 'NONE' AFTER review_notes`,
+  `ALTER TABLE campaigns ADD COLUMN has_pending_changes TINYINT(1) NOT NULL DEFAULT 0 AFTER review_state`,
+  `ALTER TABLE campaigns ADD CONSTRAINT fk_campaigns_created_by FOREIGN KEY (created_by_id) REFERENCES users(id) ON DELETE SET NULL`,
+  // Best-effort backfill of created_by_id for existing campaigns from the
+  // earliest assignment (bounded by IS NULL, so it's a no-op after the first run).
+  `UPDATE campaigns c
+     LEFT JOIN (
+       SELECT campaign_id, MIN(user_id) AS user_id
+       FROM campaign_assignments GROUP BY campaign_id
+     ) a ON a.campaign_id = c.id
+   SET c.created_by_id = a.user_id
+   WHERE c.created_by_id IS NULL AND a.user_id IS NOT NULL`,
+
+  // campaign_change_requests — parked material edits to a live campaign that
+  // must clear the two-stage chain before being written onto the campaign.
+  `CREATE TABLE IF NOT EXISTS campaign_change_requests (
+    id                BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    campaign_id       BIGINT UNSIGNED NOT NULL,
+    organization_id   BIGINT UNSIGNED NOT NULL,
+    submitted_by_id   BIGINT UNSIGNED NULL,
+    payload           JSON NOT NULL,
+    staged_cover_path VARCHAR(500) NULL,
+    status            ENUM('PENDING','REVIEWED','APPLIED','REJECTED','CHANGES_REQUESTED') NOT NULL DEFAULT 'PENDING',
+    first_approved_by BIGINT UNSIGNED NULL,
+    first_approved_at DATETIME NULL,
+    approved_by       BIGINT UNSIGNED NULL,
+    approved_at       DATETIME NULL,
+    review_notes      TEXT NULL,
+    decided_at        DATETIME NULL,
+    created_at        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_ccr2_campaign  FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE,
+    CONSTRAINT fk_ccr2_org       FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+    CONSTRAINT fk_ccr2_submitter FOREIGN KEY (submitted_by_id) REFERENCES users(id) ON DELETE SET NULL,
+    CONSTRAINT fk_ccr2_first     FOREIGN KEY (first_approved_by) REFERENCES users(id) ON DELETE SET NULL,
+    CONSTRAINT fk_ccr2_approver  FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX idx_ccr2_campaign_status (campaign_id, status),
+    INDEX idx_ccr2_org_status (organization_id, status)
+  ) ENGINE=InnoDB`,
+
+  // notifications — per-user in-app staff notification centre.
+  `CREATE TABLE IF NOT EXISTS notifications (
+    id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id         BIGINT UNSIGNED NOT NULL,
+    organization_id BIGINT UNSIGNED NULL,
+    type            VARCHAR(48) NOT NULL DEFAULT 'system',
+    title           VARCHAR(200) NOT NULL,
+    body            VARCHAR(600) NULL,
+    link            VARCHAR(300) NULL,
+    resource        VARCHAR(48) NULL,
+    resource_id     VARCHAR(48) NULL,
+    read_at         DATETIME NULL,
+    created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_notif_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_notif_org  FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+    INDEX idx_notif_user_unread (user_id, read_at, created_at),
+    INDEX idx_notif_user_created (user_id, created_at)
+  ) ENGINE=InnoDB`,
 ];
 
 async function columnExists(table, column) {
@@ -134,8 +200,12 @@ async function runMigrations() {
       applied++;
     } catch (err) {
       // 1060=Duplicate column, 1061=Duplicate key name, 1051=Unknown table,
-      // 1091=Can't drop, 1826=Duplicate foreign key constraint name
-      if ([1060, 1061, 1051, 1091, 1826].includes(err.errno)) continue;
+      // 1091=Can't drop, 1826=Duplicate foreign key constraint name,
+      // 121=duplicate constraint name (some MySQL builds report ADD CONSTRAINT
+      // re-runs this way), 1050=table already exists (CREATE TABLE IF NOT EXISTS
+      // still surfaces it on some builds)
+      // 1005 = Can't create table (mysql2 wraps a duplicate-FK "errno: 121" this way)
+      if ([1060, 1061, 1051, 1091, 1826, 121, 1050, 1005].includes(err.errno)) continue;
       console.warn(`⚠️  Migration warning: ${err.message}`);
     }
   }

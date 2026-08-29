@@ -6,6 +6,8 @@
   "main": "server.js",
   "scripts": {
     "dev": "node --watch server.js",
+    "tunnel": "node ../scripts/tunnel.js --name api --port 5000",
+    "dev:preview": "node ../scripts/preview-run.js --target api -- npm run dev",
     "start": "node server.js",
     "setup": "npm install && mysql -u root -p < database.sql"
   },

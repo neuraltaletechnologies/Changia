@@ -79,6 +79,21 @@ export function isAuthenticated(): boolean {
   return Boolean(getToken()) && Boolean(getStoredUser());
 }
 
+/**
+ * Bounce the browser to the landing page and auto-open the login modal, keeping
+ * the current location so the modal can send the user back after they sign in.
+ * There is no standalone /login route any more — all auth happens in the
+ * navbar modals on the marketing site.
+ */
+function redirectToLogin() {
+  if (typeof window === 'undefined') return;
+  const { pathname, search } = window.location;
+  // Already on the landing page (modal will handle it) — don't loop.
+  if (pathname === '/' || pathname === '/sw') return;
+  const next = encodeURIComponent(pathname + search);
+  window.location.assign(`/?auth=login&next=${next}`);
+}
+
 // ─── Request helpers ─────────────────────────────────────────────────────────
 
 interface RequestOptions {
@@ -111,13 +126,13 @@ async function request<T>(
   const payload = await response.json().catch(() => null);
 
   if (!response.ok) {
-    // Expired/invalid token: clear the stale session so the auth guard can
-    // redirect the user back to login.
-    if (response.status === 401) {
+    // Expired/invalid token on an authenticated call: clear the stale session
+    // and send the user to the landing page to sign in again. A 401 from an
+    // unauthenticated call (e.g. wrong credentials on /auth/login) must NOT
+    // redirect — the caller shows the error inline.
+    if (response.status === 401 && auth) {
       clearSession();
-      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
-        window.location.assign(`/login?redirect=${encodeURIComponent(window.location.pathname)}`);
-      }
+      redirectToLogin();
     }
     const errorBody = payload as ApiErrorBody | null;
     const message =
@@ -148,9 +163,7 @@ async function requestForm<T>(path: string, formData: FormData): Promise<T> {
   if (!response.ok) {
     if (response.status === 401) {
       clearSession();
-      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
-        window.location.assign(`/login?redirect=${encodeURIComponent(window.location.pathname)}`);
-      }
+      redirectToLogin();
     }
     const errorBody = payload as ApiErrorBody | null;
     const message = errorBody?.error?.message ?? 'Something went wrong. Please try again.';

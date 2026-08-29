@@ -1,5 +1,6 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "ui": "tui",
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
@@ -11,6 +12,14 @@
       "persistent": true
     },
     "start": {
+      "cache": false,
+      "persistent": true
+    },
+    "tunnel": {
+      "cache": false,
+      "persistent": true
+    },
+    "dev:preview": {
       "cache": false,
       "persistent": true
     }

@@ -8,6 +8,11 @@ import Checkbox from './input/Checkbox';
 import AuthBtn from '../buttons/AuthBtn';
 import GoogleBtn from '../buttons/GoogleBtn';
 import { ApiClientError, loginRequest, setSession } from '@/lib/api-client';
+import {
+  closeAuthModal,
+  getAuthNextFromLocation,
+  LOGIN_MODAL_SELECTOR,
+} from './auth-modal-utils';
 
 const config = {
   id: 'hs-toggle-between-modals-login-modal',
@@ -44,7 +49,8 @@ export default function LoginModal() {
     try {
       const { accessToken, user } = await loginRequest(email, password);
       setSession(accessToken, user);
-      router.push('/dashboard');
+      closeAuthModal(LOGIN_MODAL_SELECTOR);
+      router.push(getAuthNextFromLocation());
       router.refresh();
     } catch (err) {
       setError(

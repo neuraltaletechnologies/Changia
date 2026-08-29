@@ -2,7 +2,7 @@
 
 import "./globals.css";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Sidebar } from "@/components/dashboard/layout/sidebar";
 import { Header } from "@/components/dashboard/layout/header";
 import { MobileNav } from "@/components/dashboard/layout/mobile-nav";
@@ -17,6 +17,18 @@ export default function DashboardLayout({
 }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // The marketing site's theme script adds `.dark` to <html> for visitors whose
+  // OS prefers dark. The dashboard has no dark theme, so drop the class while
+  // we're in the dashboard and restore it on the way out (back to marketing).
+  useEffect(() => {
+    const root = document.documentElement;
+    const wasDark = root.classList.contains("dark");
+    if (wasDark) root.classList.remove("dark");
+    return () => {
+      if (wasDark) root.classList.add("dark");
+    };
+  }, []);
 
   return (
     <TooltipProvider delay={200}>

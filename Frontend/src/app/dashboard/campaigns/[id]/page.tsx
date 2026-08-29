@@ -85,6 +85,8 @@ import {
 } from "@/lib/dashboard/api";
 import { useRole } from "@/hooks/use-role";
 import { cn } from "@/lib/dashboard/utils";
+import { CampaignPhotosCard } from "@/components/dashboard/campaigns/campaign-photos-card";
+import { ReviewDecisionDialog } from "@/components/dashboard/campaigns/review-decision-dialog";
 
 const STATUS_BADGE: Record<string, string> = {
   DRAFT: "bg-slate-50 text-slate-600 border-slate-200",
@@ -98,11 +100,24 @@ const STATUS_BADGE: Record<string, string> = {
 
 export default function CampaignDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { isSuperAdmin, isOrgAdmin, isCampaignManager, hasPermission, user } = useRole();
+  const {
+    isSuperAdmin,
+    isOrgAdmin,
+    isCampaignManager,
+    hasPermission,
+    canReviewCampaign,
+    canFinalApproveCampaign,
+    user,
+  } = useRole();
   const isAdmin = isSuperAdmin || isOrgAdmin;
   // REVIEWER can approve too (two-stage chain) — isAdmin above stays reserved
   // for admin-only actions (delete, feature) further down this page.
   const canApproveRole = hasPermission("campaign:approve");
+  const uid = user ? String(user.id) : null;
+  const [reviewDialog, setReviewDialog] = useState<
+    null | { kind: "campaign" | "change-request"; action: "reject" | "request_changes" }
+  >(null);
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
 
   const [campaign, setCampaign] = useState<CampaignRecord | null>(null);
   const [board, setBoard] = useState<CampaignTargetsResponse | null>(null);
@@ -285,6 +300,37 @@ export default function CampaignDetailPage() {
           </span>
         </div>
       )}
+      {campaign.reviewState === "CHANGES_REQUESTED" && campaign.reviewNotes && (
+        <div className="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+          <span>
+            <strong>Changes requested by a reviewer:</strong> {campaign.reviewNotes}
+            {(campaign.status === "PENDING" || campaign.status === "REVIEWED") && (
+              <>
+                {" "}
+                <Link href={`/dashboard/campaigns/${id}/edit`} className="underline">
+                  Edit the campaign
+                </Link>{" "}
+                to address this and re-submit.
+              </>
+            )}
+          </span>
+        </div>
+      )}
+      {campaign.changeRequest &&
+        ["PENDING", "REVIEWED"].includes(campaign.changeRequest.status) && (
+          <div className="flex items-start gap-2.5 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800">
+            <ShieldCheck className="w-4 h-4 mt-0.5 shrink-0" />
+            <span>
+              This campaign has edits{" "}
+              {campaign.changeRequest.status === "REVIEWED"
+                ? "with first approval done, waiting on an admin"
+                : "awaiting a reviewer's first approval"}
+              . The public page keeps showing the last-approved version until they
+              clear. See the <strong>Changes</strong> tab.
+            </span>
+          </div>
+        )}
 
       {/* Header */}
       <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
@@ -335,6 +381,11 @@ export default function CampaignDetailPage() {
               >
                 {campaign.status}
               </span>
+              {campaign.hasPendingChanges && (
+                <span className="text-[10px] font-medium border rounded-full px-2.5 py-1 bg-sky-50 text-sky-700 border-sky-200">
+                  Changes pending review
+                </span>
+              )}
               {isAdmin && campaign.status === "ACTIVE" && campaign.isPublic && (
                 <Button
                   size="sm"
@@ -369,29 +420,63 @@ export default function CampaignDetailPage() {
                   </Button>
                 </>
               )}
-              {canApproveRole &&
-                (campaign.status === "PENDING" || campaign.status === "REVIEWED") &&
+              {(campaign.status === "PENDING" || campaign.status === "REVIEWED") &&
                 (() => {
-                  const isOwnFirstApproval =
-                    campaign.status === "REVIEWED" &&
-                    user != null &&
-                    String(campaign.firstApprovedBy ?? "") === String(user.id);
-                  if (isOwnFirstApproval) {
+                  const stage = campaign.status === "PENDING" ? 1 : 2;
+                  const canActThisStage =
+                    stage === 1 ? canReviewCampaign : canFinalApproveCampaign;
+                  const isCreator = String(campaign.createdBy ?? "") === uid;
+                  const isOwnFirst =
+                    stage === 2 && String(campaign.firstApprovedBy ?? "") === uid;
+                  if (!canActThisStage) {
+                    return canApproveRole ? (
+                      <span className="text-[11px] text-muted-foreground italic">
+                        {stage === 1
+                          ? "Waiting for a reviewer's first approval"
+                          : "Waiting for an admin's final approval"}
+                      </span>
+                    ) : null;
+                  }
+                  if (isCreator || isOwnFirst) {
                     return (
                       <span className="text-[11px] text-muted-foreground italic">
-                        Awaiting a different reviewer or admin for the final approval
+                        {isCreator
+                          ? "You created this — another reviewer/admin must approve it"
+                          : "You gave the first approval — a different admin gives the final one"}
                       </span>
                     );
                   }
                   return (
-                    <Button
-                      size="sm"
-                      disabled={acting}
-                      onClick={() => act(() => campaignApi.approve(id))}
-                    >
-                      {acting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5 mr-1" />}
-                      {campaign.status === "REVIEWED" ? "Give final approval" : "Give first approval"}
-                    </Button>
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                          setReviewDialog({ kind: "campaign", action: "request_changes" })
+                        }
+                      >
+                        Request changes
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => setReviewDialog({ kind: "campaign", action: "reject" })}
+                      >
+                        Reject
+                      </Button>
+                      <Button
+                        size="sm"
+                        disabled={acting}
+                        onClick={() => act(() => campaignApi.approve(id))}
+                      >
+                        {acting ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Check className="w-3.5 h-3.5 mr-1" />
+                        )}
+                        {stage === 2 ? "Give final approval" : "Give first approval"}
+                      </Button>
+                    </>
                   );
                 })()}
               {isAdmin && campaign.status === "ACTIVE" && (
@@ -519,6 +604,16 @@ export default function CampaignDetailPage() {
             User ({campaign.assignments?.length ?? 0})
           </TabsTrigger>
           <TabsTrigger value="translation">Swahili</TabsTrigger>
+          {campaign.changeRequest &&
+            ["PENDING", "REVIEWED", "CHANGES_REQUESTED"].includes(
+              campaign.changeRequest.status
+            ) && (
+              <TabsTrigger value="changes">
+                Changes
+                {["PENDING", "REVIEWED"].includes(campaign.changeRequest.status) &&
+                  " (review needed)"}
+              </TabsTrigger>
+            )}
           {(campaign.status === "ACTIVE" || campaign.status === "PAUSED") && (
             <TabsTrigger value="closure">
               Closure
@@ -566,7 +661,12 @@ export default function CampaignDetailPage() {
                 </div>
               </div>
             </div>
-            <GalleryCard campaignId={id} images={campaign.images ?? []} canManage={isAdmin || isCampaignManager} onChanged={refresh} />
+            <CampaignPhotosCard
+              campaignId={id}
+              images={campaign.images ?? []}
+              canManage={isAdmin || isCampaignManager}
+              onChanged={refresh}
+            />
           </div>
         </TabsContent>
 
@@ -636,7 +736,63 @@ export default function CampaignDetailPage() {
             />
           </TabsContent>
         )}
+
+        {campaign.changeRequest &&
+          ["PENDING", "REVIEWED", "CHANGES_REQUESTED"].includes(
+            campaign.changeRequest.status
+          ) && (
+            <TabsContent value="changes" className="pt-2">
+              <ChangeRequestTab
+                campaignId={id}
+                campaign={campaign}
+                canReview={canReviewCampaign}
+                canFinalApprove={canFinalApproveCampaign}
+                currentUserId={uid}
+                acting={acting}
+                onApprove={() =>
+                  act(() =>
+                    campaignApi.decideChangeRequest(id, campaign.changeRequest!.id, {
+                      action: "approve",
+                    })
+                  )
+                }
+                onNegative={() => setReviewDialog({ kind: "change-request", action: "reject" })}
+                onRequestChanges={() =>
+                  setReviewDialog({ kind: "change-request", action: "request_changes" })
+                }
+              />
+            </TabsContent>
+          )}
       </Tabs>
+
+      {reviewDialog && campaign && (
+        <ReviewDecisionDialog
+          open
+          onOpenChange={(v) => !v && setReviewDialog(null)}
+          action={reviewDialog.action}
+          submitting={reviewSubmitting}
+          onSubmit={async (notes) => {
+            setReviewSubmitting(true);
+            try {
+              if (reviewDialog.kind === "campaign") {
+                if (reviewDialog.action === "reject") await campaignApi.reject(id, notes);
+                else await campaignApi.requestChanges(id, notes);
+              } else {
+                await campaignApi.decideChangeRequest(id, campaign.changeRequest!.id, {
+                  action: reviewDialog.action,
+                  notes,
+                });
+              }
+              setReviewDialog(null);
+              await refresh();
+            } catch (e) {
+              setActError(e instanceof Error ? e.message : "Action failed.");
+            } finally {
+              setReviewSubmitting(false);
+            }
+          }}
+        />
+      )}
 
       {importOpen && (
         <ImportPoolDialog
@@ -1434,12 +1590,20 @@ function ReviewReportForm({ campaignId, onDone }: { campaignId: string; onDone: 
   const [notes, setNotes] = useState("");
   const [acting, setActing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [touched, setTouched] = useState(false);
 
-  const decide = async (approved: boolean) => {
+  const decide = async (action: "approve" | "request_changes" | "reject") => {
+    if (action !== "approve" && notes.trim().length < 10) {
+      setTouched(true);
+      return;
+    }
     setActing(true);
     setError(null);
     try {
-      await campaignApi.reviewCompletionReport(campaignId, { approved, notes: notes.trim() || undefined });
+      await campaignApi.reviewCompletionReport(campaignId, {
+        action,
+        notes: notes.trim() || undefined,
+      });
       onDone();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to record the review.");
@@ -1453,129 +1617,42 @@ function ReviewReportForm({ campaignId, onDone }: { campaignId: string; onDone: 
       <Textarea
         value={notes}
         onChange={(e) => setNotes(e.target.value)}
-        placeholder="Notes (optional)"
+        placeholder="Notes — required to reject or request changes"
         className="min-h-16 text-sm"
       />
+      {touched && notes.trim().length < 10 && (
+        <p className="text-xs text-destructive">
+          A reason of at least 10 characters is required to reject or request changes.
+        </p>
+      )}
       {error && (
         <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
           {error}
         </div>
       )}
-      <div className="flex gap-2">
-        <Button size="sm" onClick={() => decide(true)} disabled={acting}>
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" onClick={() => decide("approve")} disabled={acting}>
           {acting ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Check className="w-3.5 h-3.5 mr-1.5" />}
           Approve
         </Button>
         <Button
           size="sm"
           variant="outline"
-          className="text-destructive hover:text-destructive"
-          onClick={() => decide(false)}
+          onClick={() => decide("request_changes")}
+          disabled={acting}
+        >
+          Request changes
+        </Button>
+        <Button
+          size="sm"
+          variant="destructive"
+          onClick={() => decide("reject")}
           disabled={acting}
         >
           <XCircle className="w-3.5 h-3.5 mr-1.5" />
           Reject
         </Button>
       </div>
-    </div>
-  );
-}
-
-// ─── Photo gallery (cover set separately at creation; this is the extra set) ─
-
-function GalleryCard({
-  campaignId,
-  images,
-  canManage,
-  onChanged,
-}: {
-  campaignId: string;
-  images: { id: number; url: string }[];
-  canManage: boolean;
-  onChanged: () => void;
-}) {
-  const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const addPhotos = async (files: FileList | null) => {
-    if (!files || files.length === 0) return;
-    setUploading(true);
-    setError(null);
-    try {
-      const form = new FormData();
-      Array.from(files)
-        .slice(0, 8)
-        .forEach((f) => form.append("gallery", f));
-      await campaignApi.uploadImages(campaignId, form);
-      onChanged();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to upload photos.");
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const removeImage = async (imageId: number) => {
-    setError(null);
-    try {
-      await campaignApi.removeImage(campaignId, imageId);
-      onChanged();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to remove photo.");
-    }
-  };
-
-  if (images.length === 0 && !canManage) return null;
-
-  return (
-    <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-semibold text-foreground">Photos</h2>
-        {canManage && (
-          <label className="inline-flex items-center gap-1.5 text-xs text-primary cursor-pointer hover:underline">
-            {uploading ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <ImageIcon className="w-3.5 h-3.5" />
-            )}
-            Add photos
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              multiple
-              className="hidden"
-              disabled={uploading}
-              onChange={(e) => addPhotos(e.target.files)}
-            />
-          </label>
-        )}
-      </div>
-      {error && <p className="text-xs text-destructive mb-3">{error}</p>}
-      {images.length === 0 ? (
-        <p className="text-xs text-muted-foreground">No supporting photos yet.</p>
-      ) : (
-        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-          {images.map((img) => (
-            <div
-              key={img.id}
-              className="relative group aspect-square rounded-lg overflow-hidden border border-border"
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={img.url} alt="Campaign photo" className="w-full h-full object-cover" />
-              {canManage && (
-                <button
-                  type="button"
-                  onClick={() => removeImage(img.id)}
-                  className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                  aria-label="Remove photo"
-                >
-                  <XCircle className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
@@ -1769,13 +1846,18 @@ function DecideClosureForm({
   const [notes, setNotes] = useState("");
   const [acting, setActing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [touched, setTouched] = useState(false);
 
-  const decide = async (approved: boolean) => {
+  const decide = async (action: "approve" | "request_changes" | "reject") => {
+    if (action !== "approve" && notes.trim().length < 10) {
+      setTouched(true);
+      return;
+    }
     setActing(true);
     setError(null);
     try {
       await campaignApi.decideClosureRequest(campaignId, requestId, {
-        approved,
+        action,
         notes: notes.trim() || undefined,
       });
       onDone();
@@ -1790,30 +1872,163 @@ function DecideClosureForm({
       <Textarea
         value={notes}
         onChange={(e) => setNotes(e.target.value)}
-        placeholder="Notes (optional, shown to the manager)"
+        placeholder="Notes — required to reject or request changes"
         className="min-h-16 text-sm"
       />
+      {touched && notes.trim().length < 10 && (
+        <p className="text-xs text-destructive">
+          A reason of at least 10 characters is required to reject or request changes.
+        </p>
+      )}
       {error && (
         <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
           {error}
         </div>
       )}
-      <div className="flex gap-2">
-        <Button size="xs" onClick={() => decide(true)} disabled={acting}>
+      <div className="flex flex-wrap gap-2">
+        <Button size="xs" onClick={() => decide("approve")} disabled={acting}>
           {acting ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Check className="w-3 h-3 mr-1" />}
           Approve (completes campaign)
         </Button>
+        <Button size="xs" variant="outline" onClick={() => decide("request_changes")} disabled={acting}>
+          Request changes
+        </Button>
         <Button
           size="xs"
-          variant="outline"
-          className="text-destructive hover:text-destructive"
-          onClick={() => decide(false)}
+          variant="destructive"
+          onClick={() => decide("reject")}
           disabled={acting}
         >
           <XCircle className="w-3 h-3 mr-1" />
           Reject
         </Button>
       </div>
+    </div>
+  );
+}
+
+// ─── Campaign changes tab (parked material edits awaiting re-approval) ───────
+
+const CR_FIELD_LABELS: Record<string, string> = {
+  name: "Name",
+  story: "Story",
+  goalAmount: "Goal amount",
+  serviceFeePercent: "Service fee %",
+  category: "Category",
+  startDate: "Start date",
+  endDate: "End date",
+  minimumAmount: "Minimum amount",
+  contactPhone: "Contact phone",
+};
+
+function ChangeRequestTab({
+  campaign,
+  canReview,
+  canFinalApprove,
+  currentUserId,
+  acting,
+  onApprove,
+  onNegative,
+  onRequestChanges,
+}: {
+  campaignId: string;
+  campaign: CampaignRecord;
+  canReview: boolean;
+  canFinalApprove: boolean;
+  currentUserId: string | null;
+  acting: boolean;
+  onApprove: () => void;
+  onNegative: () => void;
+  onRequestChanges: () => void;
+}) {
+  const cr = campaign.changeRequest!;
+  const stage = cr.status === "PENDING" ? 1 : cr.status === "REVIEWED" ? 2 : 0;
+  const canActThisStage = stage === 1 ? canReview : stage === 2 ? canFinalApprove : false;
+  const isOwnFirst = stage === 2 && String(cr.firstApprovedBy ?? "") === currentUserId;
+  const current: Record<string, unknown> = {
+    name: campaign.name,
+    story: campaign.story,
+    goalAmount: campaign.goalAmount,
+    serviceFeePercent: campaign.serviceFeePercent,
+    category: campaign.category,
+    startDate: campaign.startDate,
+    endDate: campaign.endDate,
+    minimumAmount: campaign.minimumAmount,
+    contactPhone: campaign.contactPhone,
+  };
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-5 shadow-sm space-y-4">
+      <div>
+        <p className="text-sm font-semibold text-foreground">Proposed changes</p>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          {cr.status === "CHANGES_REQUESTED"
+            ? "A reviewer asked for changes — the manager needs to edit and resubmit."
+            : cr.status === "REVIEWED"
+              ? "First approval done — an admin gives the final approval."
+              : "Awaiting a reviewer's first approval. The public campaign is unchanged until this clears."}
+        </p>
+      </div>
+
+      {cr.reviewNotes && (
+        <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+          Reviewer note: “{cr.reviewNotes}”
+        </p>
+      )}
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="text-muted-foreground border-b border-border">
+              <th className="text-left font-medium py-1.5 pr-4">Field</th>
+              <th className="text-left font-medium py-1.5 pr-4">Current (public)</th>
+              <th className="text-left font-medium py-1.5">Proposed</th>
+            </tr>
+          </thead>
+          <tbody>
+            {Object.entries(cr.payload).map(([k, v]) => (
+              <tr key={k} className="border-b border-border/50">
+                <td className="py-1.5 pr-4 text-muted-foreground">{CR_FIELD_LABELS[k] ?? k}</td>
+                <td className="py-1.5 pr-4 text-muted-foreground line-through">
+                  {String(current[k] ?? "—")}
+                </td>
+                <td className="py-1.5 font-medium text-foreground">{String(v ?? "—")}</td>
+              </tr>
+            ))}
+            {cr.hasStagedCover && (
+              <tr>
+                <td className="py-1.5 pr-4 text-muted-foreground">Cover image</td>
+                <td className="py-1.5 pr-4 text-muted-foreground">current cover</td>
+                <td className="py-1.5 font-medium text-foreground">new image staged</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {stage > 0 && canActThisStage && !isOwnFirst && (
+        <div className="flex flex-wrap gap-2 pt-1">
+          <Button size="sm" onClick={onApprove} disabled={acting}>
+            {acting ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+            ) : (
+              <Check className="w-3.5 h-3.5 mr-1.5" />
+            )}
+            {stage === 2 ? "Give final approval" : "Give first approval"}
+          </Button>
+          <Button size="sm" variant="outline" onClick={onRequestChanges}>
+            Request changes
+          </Button>
+          <Button size="sm" variant="destructive" onClick={onNegative}>
+            Reject
+          </Button>
+        </div>
+      )}
+      {isOwnFirst && (
+        <p className="text-[11px] text-muted-foreground italic">
+          You gave the first approval — a different admin gives the final one.
+        </p>
+      )}
     </div>
   );
 }

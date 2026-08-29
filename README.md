@@ -151,14 +151,13 @@ Tanzania-first, fast campaign money platform for simple, transparent, auditable 
 
 ## Quick start
 
-Plain **npm** scripts — no pnpm or Turborepo needed. Install each app, import
-the database, then run either app separately or both together from the root.
+A **pnpm + Turborepo** monorepo. Install once from the root, import the
+database, then run both apps together (or either one) from the root.
 
-**1. Install dependencies** (in each app folder)
+**1. Install dependencies** (once, from the repo root)
 
 ```bash
-cd backend && npm install
-cd ../Frontend && npm install
+pnpm install
 ```
 
 **2. Create the database** — import `backend/database.sql` into your MySQL
@@ -174,15 +173,26 @@ cd backend && cp .env.example .env   # then edit config.js / .env if your MySQL 
 **4. Run everything (backend + frontend together)**
 
 ```bash
-npm run dev     # backend → http://localhost:5000,  frontend → http://localhost:3000
+pnpm dev        # backend → http://localhost:5000,  frontend → http://localhost:3000
 ```
+
+This opens the **turbo TUI** — use the arrow keys or the mouse to switch between
+the `changia-api` and `changia` panes; each keeps its own scrollback of logs.
 
 Or run them separately:
 
 ```bash
-npm run dev:api    # backend API only
-npm run dev:web    # frontend only
-npm start          # backend API (production mode)
+pnpm dev:api    # backend API only
+pnpm dev:web    # frontend only
+```
+
+**Public preview** (share a working copy over the internet via cloudflare
+tunnels — needs `cloudflared` installed):
+
+```bash
+pnpm preview                                   # tunnels + both servers, all in the turbo TUI
+powershell -File .\start-preview.ps1           # same, but launched in its own window (Windows)
+powershell -File .\start-preview.ps1 -Stop     # tear it down
 ```
 
 Visit `http://localhost:3000/login` and sign in with `admin@changia.org.tz` / `Changia@2026`,

@@ -9,29 +9,31 @@ const router = Router();
 router.use(authenticate);
 
 /**
- * Lets a user update their own profile (name/phone) regardless of role —
- * the service layer already blocks a self-update from touching role/status
- * — while still requiring an admin to edit anyone else.
+ * All user & role MANAGEMENT (create / edit role or status / deactivate /
+ * remove / re-invite) is SUPER_ADMIN-only. A user may still update their OWN
+ * profile (name/phone) — the service layer blocks a self-update from touching
+ * role/status. `GET /` stays available to any authenticated org member so the
+ * campaign "assign managers" picker can list teammates by name.
  */
-function authorizeSelfOrAdmin(req, res, next) {
+function authorizeSelfOrSuperAdmin(req, res, next) {
   if (String(req.user.id) === String(req.params.id)) return next();
-  return authorize("SUPER_ADMIN", "ORG_ADMIN")(req, res, next);
+  return authorize("SUPER_ADMIN")(req, res, next);
 }
 
 router.get("/", validate({ query: listUsersQuerySchema }), controller.listUsers);
 router.post(
   "/",
-  authorize("SUPER_ADMIN", "ORG_ADMIN"),
+  authorize("SUPER_ADMIN"),
   validate({ body: createUserSchema }),
   controller.createUser
 );
 router.put(
   "/:id",
-  authorizeSelfOrAdmin,
+  authorizeSelfOrSuperAdmin,
   validate({ body: updateUserSchema }),
   controller.updateUser
 );
-router.post("/:id/resend-invite", authorize("SUPER_ADMIN", "ORG_ADMIN"), controller.resendInvite);
-router.delete("/:id", authorize("SUPER_ADMIN", "ORG_ADMIN"), controller.deleteUser);
+router.post("/:id/resend-invite", authorize("SUPER_ADMIN"), controller.resendInvite);
+router.delete("/:id", authorize("SUPER_ADMIN"), controller.deleteUser);
 
 module.exports = router;

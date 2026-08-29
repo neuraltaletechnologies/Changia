@@ -18,7 +18,7 @@
       "Jarida la ukaguzi na ripoti"
     ],
     "purchaseBtnTitle": "Anzisha kampeni",
-    "purchaseLink": "/login"
+    "purchaseLink": "/?auth=register"
   },
 
   "professionalToolbox": {

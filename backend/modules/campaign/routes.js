@@ -18,6 +18,8 @@ const {
   closureDecisionSchema,
   feeReviewSchema,
   rejectCampaignSchema,
+  requestChangesSchema,
+  changeRequestDecisionSchema,
 } = require("./validation");
 
 const router = Router();
@@ -93,6 +95,25 @@ router.post(
   authorize("SUPER_ADMIN", "ORG_ADMIN", "REVIEWER"),
   validate({ body: rejectCampaignSchema }),
   controller.rejectCampaign
+);
+// Send a campaign in the approval chain back to the manager to fix — a
+// non-terminal alternative to reject. Mandatory note.
+router.post(
+  "/:id/request-changes",
+  authorize("SUPER_ADMIN", "ORG_ADMIN", "REVIEWER"),
+  validate({ body: requestChangesSchema }),
+  controller.requestCampaignChanges
+);
+
+// Material edits to a live campaign are parked as change requests that clear
+// the same two-stage chain. Anyone who can view the campaign can list them;
+// only reviewers/admins decide them.
+router.get("/:id/change-requests", controller.listChangeRequests);
+router.post(
+  "/:id/change-requests/:requestId/decide",
+  authorize("SUPER_ADMIN", "ORG_ADMIN", "REVIEWER"),
+  validate({ body: changeRequestDecisionSchema }),
+  controller.decideChangeRequest
 );
 
 // Custom service-fee proposals: a CAMPAIGN_MANAGER can propose a fee % that

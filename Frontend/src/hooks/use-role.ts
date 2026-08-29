@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { getStoredUser, type ApiUser } from "@/lib/api-client";
 import {
   canAccessRoute,
+  canFinalApproveCampaign,
+  canReviewCampaign,
   getRoleMeta,
   hasPermission,
   type Permission,
@@ -33,7 +35,12 @@ export function useRole() {
     meta,
     isSuperAdmin: role === "SUPER_ADMIN",
     isOrgAdmin: role === "ORG_ADMIN",
+    isReviewer: role === "REVIEWER",
     isCampaignManager: role === "CAMPAIGN_MANAGER",
+    /** Can give a campaign / campaign-edit its FIRST (stage-1) approval. */
+    canReviewCampaign: canReviewCampaign(role ?? undefined),
+    /** Can give a campaign / campaign-edit its FINAL (stage-2) approval. */
+    canFinalApproveCampaign: canFinalApproveCampaign(role ?? undefined),
     hasPermission: (perm: Permission) => hasPermission(role ?? undefined, perm),
     canAccessRoute: (pathname: string) => canAccessRoute(role ?? undefined, pathname),
     resolved: role !== null,

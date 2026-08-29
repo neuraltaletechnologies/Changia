@@ -21,6 +21,8 @@ import {
 } from "@/components/dashboard/ui/select";
 import { campaignApi, type CampaignRecord } from "@/lib/dashboard/api";
 import { formatTZS } from "@/lib/dashboard/types";
+import { useRole } from "@/hooks/use-role";
+import { CampaignPhotosCard } from "@/components/dashboard/campaigns/campaign-photos-card";
 
 const CATEGORIES = [
   "Community",
@@ -46,6 +48,12 @@ interface FormState {
 export default function EditCampaignPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  // Only an admin (org/super) or reviewer can change the service-fee rate.
+  const { hasPermission, isOrgAdmin, isCampaignManager } = useRole();
+  const canSetFee = hasPermission("campaign:fee_review");
+  // The backend image endpoint is ORG_ADMIN / CAMPAIGN_MANAGER only (same as
+  // campaign creation) — SUPER_ADMIN can't upload campaign photos.
+  const canManagePhotos = isOrgAdmin || isCampaignManager;
   const [campaign, setCampaign] = useState<CampaignRecord | null>(null);
   const [form, setForm] = useState<FormState>({
     name: "",
@@ -65,8 +73,8 @@ export default function EditCampaignPage() {
   const loadCampaign = useCallback(async () => {
     try {
       const c = await campaignApi.get(id);
-      if (c.status !== "DRAFT" && c.status !== "PENDING") {
-        setSubmitError("Only draft or pending campaigns can be edited.");
+      if (c.status === "COMPLETED" || c.status === "CANCELLED") {
+        setSubmitError("Completed or cancelled campaigns can't be edited.");
         return;
       }
       setCampaign(c);
@@ -129,6 +137,7 @@ export default function EditCampaignPage() {
       // campaign's active rate. For a manager the backend records it as a
       // proposal pending review; for an admin/reviewer it applies immediately.
       const feeChanged =
+        canSetFee &&
         form.serviceFee.trim() !== "" &&
         campaign != null &&
         Number(form.serviceFee) !== Number(campaign.serviceFeePercent);
@@ -179,7 +188,7 @@ export default function EditCampaignPage() {
             Edit Campaign
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Update your campaign details before submitting for approval.
+            Update your campaign details.
           </p>
         </div>
         <Button
@@ -192,6 +201,35 @@ export default function EditCampaignPage() {
           Back
         </Button>
       </div>
+
+      {campaign && campaign.reviewState === "CHANGES_REQUESTED" && campaign.reviewNotes && (
+        <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <span className="font-medium">Changes requested:</span> {campaign.reviewNotes}
+        </div>
+      )}
+
+      {campaign && campaign.changeRequest &&
+        ["PENDING", "REVIEWED", "CHANGES_REQUESTED"].includes(campaign.changeRequest.status) && (
+          <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800">
+            You have edits awaiting review
+            {campaign.changeRequest.status === "REVIEWED"
+              ? " — first approval done, waiting on an admin."
+              : campaign.changeRequest.status === "CHANGES_REQUESTED"
+                ? `. A reviewer asked for changes${campaign.changeRequest.reviewNotes ? `: "${campaign.changeRequest.reviewNotes}"` : "."}`
+                : " by a reviewer, then an admin."}{" "}
+            The public campaign still shows the last-approved version until they clear.
+          </div>
+        )}
+
+      {campaign && (campaign.status === "ACTIVE" || campaign.status === "PAUSED") && (
+        <div className="rounded-xl border border-border bg-muted/40 px-4 py-3 text-xs text-muted-foreground">
+          This campaign is live. Saved changes to the name, story, goal, service
+          fee, category, dates, minimum amount, contact phone or cover image need
+          a reviewer&apos;s <span className="font-medium">and</span> an
+          admin&apos;s approval before they show publicly. Swahili translations
+          and gallery photos apply right away.
+        </div>
+      )}
 
       <form
         onSubmit={handleSubmit}
@@ -288,8 +326,15 @@ export default function EditCampaignPage() {
               value={form.serviceFee}
               onChange={(e) => setField("serviceFee", e.target.value)}
               className="h-9"
+              disabled={!canSetFee}
+              readOnly={!canSetFee}
             />
-            {campaign?.feeStatus === "PENDING" ? (
+            {!canSetFee ? (
+              <p className="text-xs text-muted-foreground">
+                The active rate for this campaign, added on top of the goal. Only
+                an admin or reviewer can change it.
+              </p>
+            ) : campaign?.feeStatus === "PENDING" ? (
               <p className="text-xs text-amber-600">
                 A custom rate of {campaign?.proposedServiceFeePercent}% is awaiting
                 reviewer/admin approval. The campaign still uses {campaign?.serviceFeePercent}%
@@ -297,14 +342,18 @@ export default function EditCampaignPage() {
               </p>
             ) : campaign?.feeStatus === "REJECTED" ? (
               <p className="text-xs text-muted-foreground">
-                Your last custom-rate proposal was declined
+                The last custom-rate proposal was declined
                 {campaign?.feeReviewNotes ? `: ${campaign.feeReviewNotes}` : "."} The
                 active rate is {campaign?.serviceFeePercent}%.
               </p>
+            ) : campaign?.status === "ACTIVE" || campaign?.status === "PAUSED" ? (
+              <p className="text-xs text-muted-foreground">
+                A change to this rate needs reviewer + admin approval before it
+                takes effect.
+              </p>
             ) : (
               <p className="text-xs text-muted-foreground">
-                Changing this proposes a custom rate — a reviewer or admin approves
-                it before it applies (admins&apos; changes apply immediately).
+                Your change to this rate applies immediately.
               </p>
             )}
           </div>
@@ -379,6 +428,17 @@ export default function EditCampaignPage() {
           </Button>
         </div>
       </form>
+
+      {campaign && (
+        <CampaignPhotosCard
+          campaignId={id}
+          images={campaign.images ?? []}
+          coverUrl={campaign.imageUrl}
+          canManage={canManagePhotos}
+          showCover
+          onChanged={loadCampaign}
+        />
+      )}
     </div>
   );
 }

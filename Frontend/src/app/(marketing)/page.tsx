@@ -45,7 +45,7 @@ export default async function HomePage() {
         title='Connect people<span class="text-emerald-600 dark:text-emerald-400"> in need</span> with those who want <span class="text-blue-600 dark:text-blue-400">to help</span>'
         subTitle="Changia connects people who need help — whether it's a medical emergency, education, a family crisis, or a community need — with people who are willing to give. With money, with things, or both."
         primaryBtn="Start a Fundraiser"
-        primaryBtnURL="/login?redirect=%2Fdashboard%2FCampaigns%2Fnew"
+        primaryBtnURL="/?auth=login&next=%2Fdashboard%2Fcampaigns%2Fnew"
         secondaryBtn="Explore the Campaigns"
         secondaryBtnURL="/campaigns"
         withReview

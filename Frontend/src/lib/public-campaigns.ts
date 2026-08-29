@@ -34,6 +34,15 @@ export interface PublicCampaign {
 }
 
 export interface PublicCampaignDetail extends PublicCampaign {
+  /** Supporting photos the organizer uploaded (the cover stays on imageUrl). */
+  images: { id: number; url: string }[];
+  /** Approved proof of how the funds were used — only present for a COMPLETED
+   *  campaign whose completion report an admin/reviewer has approved. */
+  completionProof: {
+    summary: string;
+    amountUtilized: number | null;
+    images: string[];
+  } | null;
   recentDonations: {
     amount: number;
     donorName: string | null;

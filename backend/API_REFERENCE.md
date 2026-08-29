@@ -43,9 +43,10 @@ The middleware reloads the user from the database on every request, so role/stat
 
 | Role | Meaning |
 |------|---------|
-| `SUPER_ADMIN` | Platform-wide administrator (no organization) |
-| `ORG_ADMIN` | Administrator of one organization |
-| `CAMPAIGN_MANAGER` | Field fundraiser: can push payment requests, manage donors |
+| `SUPER_ADMIN` | Platform-wide administrator (no organization). Sole user/role manager. Can fill either campaign-approval stage. |
+| `ORG_ADMIN` | Administrator of one organization. Creates campaigns; gives the **final** (stage-2) approval. |
+| `REVIEWER` | Org-scoped gatekeeper: gives campaigns their **first** (stage-1) approval and reviews closure requests, completion reports and fee proposals. Creates nothing. |
+| `CAMPAIGN_MANAGER` | Field fundraiser: can push payment requests, manage donors, run assigned campaigns |
 
 ---
 
@@ -381,6 +382,13 @@ Dashboard summary numbers for the caller's org.
 
 Routes: `/users` — all authenticated, org-scoped (you only ever see your own org's user).
 
+> **User & role management is `SUPER_ADMIN`-only.** `POST/PUT/DELETE /users` and
+> `POST /users/:id/resend-invite` reject anyone else with `403 INSUFFICIENT_ROLE`
+> — an `ORG_ADMIN` can no longer add or re-role teammates. `GET /users` and a
+> user editing **their own** profile (`PUT /users/:id` for `:id === self`) stay
+> open to any authenticated member (the former powers the campaign
+> "assign managers" picker).
+
 ### `GET /users`
 
 Lists user members.
@@ -413,7 +421,7 @@ Lists user members.
 }
 ```
 
-### `POST /users` — `SUPER_ADMIN` or `ORG_ADMIN`
+### `POST /users` — `SUPER_ADMIN` only
 
 Invites a user member. The system generates a **temporary password** (returned once in the response — share it securely).
 
@@ -458,13 +466,13 @@ Invites a user member. The system generates a **temporary password** (returned o
 
 **Errors:** `409` (email already exists), `403 INSUFFICIENT_ROLE`.
 
-### `PUT /users/:id` — `SUPER_ADMIN` or `ORG_ADMIN`
+### `PUT /users/:id` — `SUPER_ADMIN` (or the user editing their own profile)
 
 **All fields optional:** `firstName`, `lastName`, `phone`, `role` (`ORG_ADMIN` | `CAMPAIGN_MANAGER`), `status` (`ACTIVE` | `PENDING` | `INACTIVE`).
 
 **Response — `200 OK`:** the updated user object (same shape as above, without `temporaryPassword`).
 
-### `DELETE /users/:id` — `SUPER_ADMIN` or `ORG_ADMIN`
+### `DELETE /users/:id` — `SUPER_ADMIN` only
 
 **Response — `200 OK`:**
 
@@ -596,27 +604,52 @@ Detail view: campaign + its assigned managers + the **10 most recent confirmed d
 
 **Response — `201 Created`:** the full campaign object (status will be `DRAFT`, fee already computed — e.g. 10,000,000 goal → 500,000 fee → 10,500,000 public target).
 
-### `PUT /campaigns/:id` — `SUPER_ADMIN` or `ORG_ADMIN`
+### `PUT /campaigns/:id` — `SUPER_ADMIN`, `ORG_ADMIN` or assigned `CAMPAIGN_MANAGER`
 
-**All fields optional** — same fields as `POST /campaigns`. Changing `goalAmount` or `serviceFeePercent` recomputes `serviceFeeAmount` and `publicTarget`.
+**All fields optional** — same fields as `POST /campaigns`.
 
-> ⚠️ Only campaigns in `DRAFT` or `PENDING` can be edited — otherwise `400 CAMPAIGN_LOCKED`.
+- `COMPLETED` / `CANCELLED` campaigns can't be edited → `400 CAMPAIGN_LOCKED`.
+- Goal/fee can't change once a campaign has taken a donation → `400 GOAL_LOCKED`.
+- Editing a **material** field (`name`, `story`, `goalAmount`, `serviceFeePercent`, `category`, `startDate`, `endDate`, `minimumAmount`, `contactPhone`) of a **live** (`ACTIVE`/`PAUSED`) campaign does NOT apply immediately — it is parked as a **change request** (`hasPendingChanges: true`, `changeRequest` populated) that must clear the two-stage chain (see below). The live campaign keeps its last-approved values until then. Swahili translations and gallery photos always apply immediately.
+- Editing a not-yet-live campaign applies inline; a `REVIEWED` campaign drops back to `PENDING` (its first approval is cleared) so a review always covers the latest content.
 
 **Response — `200 OK`:** the updated campaign object.
 
-### `POST /campaigns/:id/submit` — `SUPER_ADMIN` or `ORG_ADMIN`
+### `POST /campaigns/:id/submit` — `SUPER_ADMIN`, `ORG_ADMIN` or assigned `CAMPAIGN_MANAGER`
 
-Moves the campaign `DRAFT → PENDING` (ready for approval). **No body.**
+Moves the campaign `DRAFT → PENDING`. **No body.** `400` if not currently `DRAFT`.
 
-**Response — `200 OK`:** the campaign object (status `PENDING`).
-**Errors:** `400` if not currently `DRAFT`.
+### Two-stage campaign approval
 
-### `POST /campaigns/:id/approve` — `SUPER_ADMIN` or `ORG_ADMIN`
+Every campaign (whoever creates it) clears a strict ordered chain, and **neither stage may be the campaign's creator**:
 
-Moves the campaign `PENDING → ACTIVE` and sets `isPublic = true`. **No body.**
+```
+PENDING  --stage 1 (a REVIEWER or SUPER_ADMIN)-->  REVIEWED
+REVIEWED --stage 2 (an ORG_ADMIN or SUPER_ADMIN, ≠ stage-1 person)-->  ACTIVE (isPublic=true, donor link emails sent)
+```
 
-**Response — `200 OK`:** the campaign object (status `ACTIVE`, `isPublic: true`, `approvedBy`/`approvedAt` set).
-**Errors:** `400` if not currently `PENDING`.
+#### `POST /campaigns/:id/approve` — `SUPER_ADMIN`, `ORG_ADMIN` or `REVIEWER`
+
+Advances one stage (call it again for the next). **No body.**
+**Errors:** `403 NEEDS_REVIEWER` (a non-reviewer tried stage 1), `403 NEEDS_ORG_ADMIN` (a non-admin tried stage 2), `400 SAME_AS_CREATOR`, `400 SAME_APPROVER` (stage-2 by the stage-1 person), `400 INVALID_APPROVAL_STATE`.
+
+#### `POST /campaigns/:id/reject` — `SUPER_ADMIN`, `ORG_ADMIN` or `REVIEWER`
+
+Terminal. `PENDING`/`REVIEWED` → `CANCELLED`. **Required body** `{ "notes": "reason ≥ 10 chars" }` — stored on `campaign.reviewNotes` and shown to the manager.
+
+#### `POST /campaigns/:id/request-changes` — `SUPER_ADMIN`, `ORG_ADMIN` or `REVIEWER`
+
+Non-terminal — sends the campaign back to the manager. `PENDING`/`REVIEWED` → `PENDING` with `reviewState: "CHANGES_REQUESTED"`, `firstApprovedBy` cleared. **Required body** `{ "notes": "≥ 10 chars" }`.
+
+### Campaign change requests (parked material edits to a live campaign)
+
+#### `GET /campaigns/:id/change-requests` — any authenticated org member
+
+Returns the full history (`ChangeRequest[]`). The open one is also embedded on the campaign as `changeRequest`.
+
+#### `POST /campaigns/:id/change-requests/:requestId/decide` — `SUPER_ADMIN`, `ORG_ADMIN` or `REVIEWER`
+
+**Required body** `{ "action": "approve" | "request_changes" | "reject", "notes": "…" }` (`notes` ≥ 10 chars required for the two negative actions). `approve` advances the change request through the same two-stage chain (`PENDING → REVIEWED → APPLIED`); on the final approval the payload (and any staged cover image) is written onto the campaign.
 
 ### `POST /campaigns/:id/status` — `SUPER_ADMIN` or `ORG_ADMIN`
 
@@ -692,16 +725,28 @@ Resubmitting (after a `REJECTED` review, or before any review) **replaces** the 
 **Response — `201 Created`:** the report object (as above).
 **Errors:** `400 CAMPAIGN_NOT_COMPLETED` (campaign isn't `COMPLETED` yet), `400 PROOF_IMAGES_REQUIRED` (no images attached), `400 INVALID_IMAGE_TYPE`, `409 REPORT_ALREADY_APPROVED`, `404` (not the assigned manager, or campaign not found).
 
-#### `POST /campaigns/:id/completion-report/review` — `SUPER_ADMIN` or `ORG_ADMIN`
+#### `POST /campaigns/:id/completion-report/review` — `SUPER_ADMIN`, `ORG_ADMIN` or `REVIEWER`
 
-**Required body:**
-
-```json
-{ "approved": true, "notes": "Confirmed with the receipts attached." }
-```
+**Required body:** `{ "action": "approve" | "request_changes" | "reject", "notes": "…" }` — `notes` (≥ 10 chars) is required for `request_changes` and `reject`. (`{ "approved": true|false }` is still accepted for backwards compatibility.)
 
 **Response — `200 OK`:** the report object with `status: "APPROVED"` or `"REJECTED"`.
-**Errors:** `404` (no report submitted yet), `400 REPORT_NOT_PENDING` (already reviewed).
+**Errors:** `404` (no report submitted yet), `400 REPORT_NOT_PENDING`, `400 REASON_REQUIRED`.
+
+### Service-fee proposals & closure requests
+
+Both use the same three-outcome decision body — `{ "action": "approve" | "request_changes" | "reject", "notes": "…" }`, `notes` (≥ 10) required for the negatives:
+
+- `POST /campaigns/:id/fee/review` — `SUPER_ADMIN`, `ORG_ADMIN` or `REVIEWER`. Decides a manager's pending custom `serviceFeePercent`. `approve` recomputes the fee/target; `reject` discards it; `request_changes` keeps it pending with a note.
+- `POST /campaigns/:id/closure-requests/:requestId/decide` — `SUPER_ADMIN`, `ORG_ADMIN` or `REVIEWER`. `approve` → campaign `COMPLETED`.
+
+### Notifications module — `/notifications` (authenticated, per-user)
+
+- `GET /notifications?unreadOnly=&page=&limit=` → `{ notifications: Notification[], unreadCount, pagination }`
+- `GET /notifications/unread-count` → `{ unreadCount }`
+- `POST /notifications/:id/read` — marks one read
+- `POST /notifications/read-all` — marks all read
+
+`Notification`: `{ id, type, title, body, link, resource, resourceId, read, readAt, createdAt }`. Written server-side (fire-and-forget) on every approval-chain event — see `modules/notification`.
 
 ---
 

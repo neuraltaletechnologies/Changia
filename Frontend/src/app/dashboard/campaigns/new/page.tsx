@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft,
-  CheckCircle2,
   Clock,
   ImageIcon,
   Megaphone,
@@ -33,6 +32,7 @@ import {
 } from "@/lib/dashboard/api";
 import { formatTZS } from "@/lib/dashboard/types";
 import { cn } from "@/lib/dashboard/utils";
+import { useRole } from "@/hooks/use-role";
 
 const CATEGORIES = [
   "Community",
@@ -68,6 +68,10 @@ const initialForm: FormState = {
 
 export default function NewCampaignPage() {
   const router = useRouter();
+  // Only an admin (org/super) or reviewer sets the service-fee rate. A campaign
+  // manager sees the org's rate but can't change it.
+  const { hasPermission } = useRole();
+  const canSetFee = hasPermission("campaign:fee_review");
   const [form, setForm] = useState<FormState>(initialForm);
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
   const [pools, setPools] = useState<DonorPool[]>([]);
@@ -81,11 +85,10 @@ export default function NewCampaignPage() {
   const [imageWarning, setImageWarning] = useState<string | null>(null);
 
   // The org's default campaign service fee (%), added on top of the goal —
-  // see computeFees() in Backend/modules/campaign/service.js. A manager may
-  // PROPOSE a different rate for this campaign: it needs a reviewer/admin's
-  // approval before it takes effect, so until then the campaign still shows the
-  // default rate. `orgDefaultFee` remembers the default so we can tell whether
-  // the entered value is a custom proposal.
+  // see computeFees() in Backend/modules/campaign/service.js. Only an admin or
+  // reviewer (`canSetFee`) can change it per-campaign; a campaign manager just
+  // sees the default. `orgDefaultFee` remembers the default so we can tell
+  // whether an admin entered a custom rate.
   const [serviceFeePercent, setServiceFeePercent] = useState(5);
   const [orgDefaultFee, setOrgDefaultFee] = useState(5);
 
@@ -115,11 +118,10 @@ export default function NewCampaignPage() {
   }, []);
 
   const goalAmount = Number(form.goal) || 0;
-  // A rate different from the org default is a custom proposal that a
-  // reviewer/admin must approve before it applies — so the target donors will
-  // actually see is still computed off the default until that happens.
+  // Only an admin/reviewer can reach the fee input, and their rate applies
+  // immediately — so the entered rate is always the effective one.
   const isCustomFee = Number(serviceFeePercent) !== Number(orgDefaultFee);
-  const effectiveFeePercent = isCustomFee ? orgDefaultFee : serviceFeePercent;
+  const effectiveFeePercent = serviceFeePercent;
   const serviceFeeAmount = Math.round(goalAmount * (effectiveFeePercent / 100));
   const publicTarget = goalAmount + serviceFeeAmount;
 
@@ -184,9 +186,10 @@ export default function NewCampaignPage() {
         endDate: form.endDate ? new Date(form.endDate).toISOString() : undefined,
         contactPhone: form.contactPhone.trim() || undefined,
         poolIds: poolIds.length > 0 ? poolIds : undefined,
-        // Only send a rate when it differs from the org default — a custom
-        // value is stored as a proposal pending reviewer/admin approval.
-        serviceFeePercent: isCustomFee ? Number(serviceFeePercent) : undefined,
+        // Only an admin/reviewer can set this, and only send it when it differs
+        // from the org default (managers never send it).
+        serviceFeePercent:
+          canSetFee && isCustomFee ? Number(serviceFeePercent) : undefined,
       });
 
       // Images are a separate call — the campaign already exists once this
@@ -213,52 +216,26 @@ export default function NewCampaignPage() {
   };
 
   if (created) {
-    const isPending = created.status === "PENDING";
     return (
       <div className="space-y-6 max-w-[720px]">
         <div className="bg-card border border-border rounded-xl p-8 text-center shadow-sm">
-          <div
-            className={cn(
-              "mx-auto w-12 h-12 rounded-full flex items-center justify-center",
-              isPending ? "bg-orange-50" : "bg-emerald-50"
-            )}
-          >
-            {isPending ? (
-              <Clock className="w-6 h-6 text-orange-600" />
-            ) : (
-              <CheckCircle2 className="w-6 h-6 text-emerald-600" />
-            )}
+          <div className="mx-auto w-12 h-12 rounded-full flex items-center justify-center bg-orange-50">
+            <Clock className="w-6 h-6 text-orange-600" />
           </div>
           <h1 className="text-xl font-semibold text-foreground tracking-tight mt-4">
-            {isPending ? "Submitted for approval" : "Campaign is live"}
+            Submitted for review
           </h1>
           <p className="text-sm text-muted-foreground mt-2 max-w-md mx-auto">
-            {isPending ? (
-              <>
-                Your campaign has been created and{" "}
-                <span className="font-medium text-foreground">
-                  is waiting for an admin to review and approve it
-                </span>
-                . You&apos;ll be able to share it once it&apos;s approved.
-              </>
-            ) : (
-              <>
-                Your campaign has been created and is{" "}
-                <span className="font-medium text-foreground">already public and accepting contributions</span>.
-                You can share it with donors right away.
-              </>
-            )}
+            Your campaign has been created and{" "}
+            <span className="font-medium text-foreground">
+              needs two approvals before it goes live
+            </span>{" "}
+            — first a reviewer, then an admin. You&apos;ll be notified as it moves
+            through, and can share it once it&apos;s approved.
           </p>
-          <div
-            className={cn(
-              "inline-flex items-center gap-2 mt-4 rounded-full border px-3 py-1 text-xs font-medium",
-              isPending
-                ? "border-orange-200 bg-orange-50 text-orange-700"
-                : "border-emerald-200 bg-emerald-50 text-emerald-700"
-            )}
-          >
-            {isPending ? <Clock className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-            {isPending ? "Pending Approval" : "Active"}
+          <div className="inline-flex items-center gap-2 mt-4 rounded-full border px-3 py-1 text-xs font-medium border-orange-200 bg-orange-50 text-orange-700">
+            <Clock className="w-3.5 h-3.5" />
+            Pending first review
           </div>
           {imageWarning && (
             <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 text-left">
@@ -303,9 +280,8 @@ export default function NewCampaignPage() {
             Start a New Campaign
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Fill in the details below. A campaign you create as a manager needs
-            admin approval before it goes live; an admin&apos;s own campaign goes
-            live immediately.
+            Fill in the details below. Every campaign is reviewed before it goes
+            live — first by a reviewer, then by an admin.
           </p>
         </div>
         <Button
@@ -431,27 +407,44 @@ export default function NewCampaignPage() {
 
           <div className="grid gap-1.5">
             <Label htmlFor="campaign-fee">Service fee (%)</Label>
-            <Input
-              id="campaign-fee"
-              type="number"
-              min={0}
-              max={100}
-              step="0.01"
-              value={serviceFeePercent}
-              onChange={(e) => setServiceFeePercent(Number(e.target.value))}
-              className="h-9"
-            />
-            {isCustomFee ? (
-              <p className="text-xs text-amber-600">
-                Custom rate (default is {orgDefaultFee}%). This needs a reviewer or
-                admin to approve it before it applies — until then the campaign
-                uses the {orgDefaultFee}% default.
-              </p>
+            {canSetFee ? (
+              <>
+                <Input
+                  id="campaign-fee"
+                  type="number"
+                  min={0}
+                  max={100}
+                  step="0.01"
+                  value={serviceFeePercent}
+                  onChange={(e) => setServiceFeePercent(Number(e.target.value))}
+                  className="h-9"
+                />
+                {isCustomFee ? (
+                  <p className="text-xs text-amber-600">
+                    Custom rate (default is {orgDefaultFee}%). This applies to this
+                    campaign only.
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Your organisation&apos;s default rate, added on top of the goal.
+                  </p>
+                )}
+              </>
             ) : (
-              <p className="text-xs text-muted-foreground">
-                Your organisation&apos;s default rate, added on top of the goal. Change
-                it to propose a custom rate for this campaign.
-              </p>
+              <>
+                <Input
+                  id="campaign-fee"
+                  type="number"
+                  value={serviceFeePercent}
+                  disabled
+                  readOnly
+                  className="h-9"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Your organisation&apos;s default rate ({orgDefaultFee}%), added on
+                  top of the goal. Only an admin or reviewer can change it.
+                </p>
+              </>
             )}
           </div>
 

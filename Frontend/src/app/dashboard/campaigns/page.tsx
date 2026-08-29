@@ -66,12 +66,16 @@ export default function CampaignsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const { hasPermission, isSuperAdmin, isOrgAdmin, user } = useRole();
+  const {
+    hasPermission,
+    isSuperAdmin,
+    isOrgAdmin,
+    canReviewCampaign,
+    canFinalApproveCampaign,
+    user,
+  } = useRole();
   const canCreate = hasPermission("campaign:create");
   const isAdmin = isSuperAdmin || isOrgAdmin;
-  // REVIEWER can approve too (two-stage chain), unlike isAdmin above which
-  // gates other admin-only actions (delete, feature, edit-any).
-  const canApproveRole = hasPermission("campaign:approve");
 
   const [viewMode, setViewMode] = useState<"card" | "list">("list");
   const [search, setSearch] = useState("");
@@ -142,7 +146,7 @@ export default function CampaignsPage() {
   };
 
   return (
-    <div className="space-y-6 max-w-[1400px]">
+    <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-foreground tracking-tight">
@@ -306,7 +310,8 @@ export default function CampaignsPage() {
                 <CampaignActionsMenu
                   campaign={c}
                   isAdmin={isAdmin}
-                  canApproveRole={canApproveRole}
+                  canReviewCampaign={canReviewCampaign}
+                  canFinalApproveCampaign={canFinalApproveCampaign}
                   currentUserId={user?.id}
                   onApprove={() => act(() => campaignApi.approve(c.id))}
                   onDelete={() => act(() => campaignApi.remove(c.id))}
@@ -399,7 +404,8 @@ export default function CampaignsPage() {
                       <CampaignActionsMenu
                         campaign={c}
                         isAdmin={isAdmin}
-                        canApproveRole={canApproveRole}
+                        canReviewCampaign={canReviewCampaign}
+                        canFinalApproveCampaign={canFinalApproveCampaign}
                         currentUserId={user?.id}
                         onApprove={() => act(() => campaignApi.approve(c.id))}
                         onDelete={() => act(() => campaignApi.remove(c.id))}
@@ -455,7 +461,8 @@ function toCardCampaign(c: CampaignRecord): Campaign {
 function CampaignActionsMenu({
   campaign,
   isAdmin,
-  canApproveRole,
+  canReviewCampaign,
+  canFinalApproveCampaign,
   currentUserId,
   onApprove,
   onDelete,
@@ -463,8 +470,10 @@ function CampaignActionsMenu({
 }: {
   campaign: CampaignRecord;
   isAdmin: boolean;
-  /** Has the campaign:approve permission (ORG_ADMIN/SUPER_ADMIN/REVIEWER). */
-  canApproveRole: boolean;
+  /** Can give the FIRST (stage-1) approval — REVIEWER / SUPER_ADMIN. */
+  canReviewCampaign: boolean;
+  /** Can give the FINAL (stage-2) approval — ORG_ADMIN / SUPER_ADMIN. */
+  canFinalApproveCampaign: boolean;
   currentUserId?: string;
   onApprove: () => void;
   onDelete: () => void;
@@ -477,17 +486,19 @@ function CampaignActionsMenu({
   const canEdit =
     (isAdmin || isAssigned) && campaign.status !== "COMPLETED" && campaign.status !== "CANCELLED";
   const canDelete = isAdmin && campaign.status !== "ACTIVE" && campaign.status !== "COMPLETED";
-  // Two-stage approval: PENDING needs a first approval, REVIEWED needs a
-  // second one from someone OTHER than whoever gave the first (the backend
-  // enforces this too — this just avoids showing a button that will 400).
+  // Ordered chain: PENDING → a reviewer's first approval; REVIEWED → a
+  // different admin's final approval. Neither may be the creator. The backend
+  // enforces all of this — this just picks which quick-action to show.
+  const isCreator = String(campaign.createdBy ?? "") === currentUserId;
   const isOwnFirstApproval =
     campaign.status === "REVIEWED" &&
     currentUserId != null &&
     String(campaign.firstApprovedBy ?? "") === currentUserId;
   const canApprove =
-    canApproveRole &&
-    (campaign.status === "PENDING" || campaign.status === "REVIEWED") &&
-    !isOwnFirstApproval;
+    !isCreator &&
+    !isOwnFirstApproval &&
+    ((campaign.status === "PENDING" && canReviewCampaign) ||
+      (campaign.status === "REVIEWED" && canFinalApproveCampaign));
   const canFeature = isAdmin && campaign.status === "ACTIVE" && campaign.isPublic;
 
   const wrap = (fn: () => void) => async () => {

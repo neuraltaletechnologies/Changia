@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bell, Search, Menu, X, LogOut } from "lucide-react";
 import { Badge } from "@/components/dashboard/ui/badge";
+import { NotificationIcon } from "@/components/dashboard/layout/notification-icon";
+import { useNotifications } from "@/hooks/use-notifications";
 import { Avatar, AvatarFallback } from "@/components/dashboard/ui/avatar";
 import {
   DropdownMenu,
@@ -36,11 +38,35 @@ function initials(name: string): string {
   return letters || "U";
 }
 
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.round(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.round(hrs / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString();
+}
+
+const NOTIF_TYPES = new Set(["donation", "campaign", "system", "user"]);
+
 export function Header({ onMobileMenuToggle, mobileMenuOpen }: HeaderProps) {
   const router = useRouter();
   const { user, meta, hasPermission } = useRole();
-  const unreadCount = 0;
+  const { unreadCount, items, load, markRead, markAllRead } = useNotifications();
   const [notifOpen, setNotifOpen] = useState(false);
+
+  useEffect(() => {
+    if (notifOpen) load();
+  }, [notifOpen, load]);
+
+  const openNotification = (n: (typeof items)[number]) => {
+    if (!n.read) markRead(n.id);
+    setNotifOpen(false);
+    if (n.link) router.push(n.link);
+  };
 
   const displayName =
     user && user.firstName
@@ -51,7 +77,10 @@ export function Header({ onMobileMenuToggle, mobileMenuOpen }: HeaderProps) {
 
   const handleSignOut = () => {
     clearSession();
-    router.replace("/login");
+    // Sign-out drops the user back on the public landing page. (An expired
+    // session mid-session is sent to "/?auth=login" by the guard instead.)
+    router.replace("/");
+    router.refresh();
   };
 
   return (
@@ -107,13 +136,66 @@ export function Header({ onMobileMenuToggle, mobileMenuOpen }: HeaderProps) {
               )}
             </div>
             <div className="divide-y divide-border max-h-80 overflow-y-auto">
-              <div className="py-12 text-center text-sm text-muted-foreground">
-                No notifications yet.
-              </div>
+              {items.length === 0 ? (
+                <div className="py-12 text-center text-sm text-muted-foreground">
+                  No notifications yet.
+                </div>
+              ) : (
+                items.slice(0, 8).map((n) => (
+                  <button
+                    key={n.id}
+                    onClick={() => openNotification(n)}
+                    className="w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-muted/50 transition-colors"
+                  >
+                    <NotificationIcon
+                      type={
+                        (NOTIF_TYPES.has(n.type) ? n.type : "system") as
+                          | "donation"
+                          | "campaign"
+                          | "system"
+                          | "user"
+                      }
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p
+                        className={`text-xs leading-snug ${
+                          n.read ? "text-muted-foreground" : "font-medium text-foreground"
+                        }`}
+                      >
+                        {n.title}
+                      </p>
+                      {n.body && (
+                        <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">
+                          {n.body}
+                        </p>
+                      )}
+                      <p className="text-[10px] text-muted-foreground/70 mt-1">
+                        {relativeTime(n.createdAt)}
+                      </p>
+                    </div>
+                    {!n.read && (
+                      <span className="mt-1 w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
+                    )}
+                  </button>
+                ))
+              )}
             </div>
-            <div className="px-4 py-2.5 border-t border-border">
-              <button className="text-xs text-primary hover:underline">
+            <div className="flex items-center justify-between px-4 py-2.5 border-t border-border">
+              <button
+                className="text-xs text-primary hover:underline disabled:opacity-40"
+                onClick={() => markAllRead()}
+                disabled={unreadCount === 0}
+              >
                 Mark all as read
+              </button>
+              <button
+                className="text-xs text-muted-foreground hover:text-foreground"
+                onClick={() => {
+                  setNotifOpen(false);
+                  router.push("/dashboard/notifications");
+                }}
+              >
+                View all
               </button>
             </div>
           </PopoverContent>

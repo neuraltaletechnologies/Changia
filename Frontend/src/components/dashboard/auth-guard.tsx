@@ -5,8 +5,10 @@ import { useRouter } from 'next/navigation';
 import { isAuthenticated } from '@/lib/api-client';
 
 /**
- * Protects dashboard routes: redirects to /login when no valid session exists.
- * Place inside the dashboard layout, wrapping its children.
+ * Protects dashboard routes. When there is no valid session it sends the user
+ * to the landing page with the login modal auto-opened (`?auth=login`) and the
+ * current path in `next` so the modal can return them here after they sign in.
+ * There is no standalone /login route.
  */
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -14,8 +16,10 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!isAuthenticated()) {
-      const redirect = encodeURIComponent(window.location.pathname);
-      router.replace(`/login?redirect=${redirect}`);
+      const next = encodeURIComponent(
+        window.location.pathname + window.location.search
+      );
+      router.replace(`/?auth=login&next=${next}`);
     } else {
       setChecked(true);
     }

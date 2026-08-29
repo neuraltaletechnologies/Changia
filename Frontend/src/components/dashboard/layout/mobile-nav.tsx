@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/dashboard/utils";
 import { useRole } from "@/hooks/use-role";
 import { usePendingReminderCount } from "@/hooks/use-pending-reminders";
+import { usePendingApprovalCount } from "@/hooks/use-pending-approvals";
+import { useNotifications } from "@/hooks/use-notifications";
 import {
   LayoutDashboard,
   Megaphone,
@@ -16,14 +18,18 @@ import {
   X,
   Layers,
   BellRing,
+  Bell,
+  ShieldCheck,
   HandCoins,
 } from "lucide-react";
 
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Donor Pools", href: "/dashboard/pools", icon: Layers },
   { label: "Campaigns", href: "/dashboard/campaigns", icon: Megaphone },
+  { label: "Approvals", href: "/dashboard/campaigns/approvals", icon: ShieldCheck },
+  { label: "Donor Pools", href: "/dashboard/pools", icon: Layers },
   { label: "Reminders", href: "/dashboard/reminders", icon: BellRing },
+  { label: "Notifications", href: "/dashboard/notifications", icon: Bell },
   { label: "User", href: "/dashboard/user", icon: UserCog },
   { label: "Audit Log", href: "/dashboard/audit-log", icon: ClipboardList },
   { label: "Payouts", href: "/dashboard/payouts", icon: HandCoins },
@@ -40,6 +46,15 @@ export function MobileNav({ open, onClose }: MobileNavProps) {
   const { canAccessRoute, meta } = useRole();
   const visibleItems = navItems.filter((item) => canAccessRoute(item.href));
   const pendingReminders = usePendingReminderCount();
+  const pendingApprovals = usePendingApprovalCount();
+  const { unreadCount } = useNotifications();
+
+  const badgeFor = (href: string): number => {
+    if (href === "/dashboard/reminders") return pendingReminders;
+    if (href === "/dashboard/campaigns/approvals") return pendingApprovals;
+    if (href === "/dashboard/notifications") return unreadCount;
+    return 0;
+  };
 
   const isActive = (href: string) => {
     if (href === "/dashboard") return pathname === "/dashboard";
@@ -111,9 +126,9 @@ export function MobileNav({ open, onClose }: MobileNavProps) {
               >
                 <Icon className="w-4 h-4 shrink-0" />
                 <span className="flex-1">{item.label}</span>
-                {item.href === "/dashboard/reminders" && pendingReminders > 0 && (
+                {badgeFor(item.href) > 0 && (
                   <span className="shrink-0 rounded-full bg-amber-500 text-white text-[10px] font-semibold leading-none min-w-[18px] h-[18px] px-1 flex items-center justify-center">
-                    {pendingReminders}
+                    {badgeFor(item.href)}
                   </span>
                 )}
               </Link>

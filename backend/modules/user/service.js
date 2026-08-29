@@ -107,7 +107,10 @@ async function listUsers(caller, filters) {
     [...values, limit, offset]
   );
 
-  const countWhere = whereSql.replace(/u\./g, "");
+  // whereSql already begins with "WHERE " — strip it (and the `u.` alias, which
+  // this count query doesn't use) before reattaching, so a scoped listing
+  // doesn't produce "WHERE WHERE ...".
+  const countWhere = whereSql.replace(/u\./g, "").replace(/^WHERE\s+/, "");
   const [[countRow]] = await db
     .query(`SELECT COUNT(*) AS total FROM users ${countWhere ? `WHERE ${countWhere}` : ""}`, values)
     .then((rows) => [rows]);

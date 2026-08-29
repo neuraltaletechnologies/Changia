@@ -67,6 +67,36 @@ const rejectCampaign = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true, data: campaign });
 });
 
+const requestCampaignChanges = asyncHandler(async (req, res) => {
+  const campaign = await campaignService.requestCampaignChanges(
+    req.user.organizationId,
+    req.params.id,
+    req.user,
+    req.body?.notes
+  );
+  res.status(200).json({ success: true, data: campaign });
+});
+
+const listChangeRequests = asyncHandler(async (req, res) => {
+  const requests = await campaignService.listChangeRequests(
+    req.user.organizationId,
+    req.params.id,
+    req.user
+  );
+  res.status(200).json({ success: true, data: requests });
+});
+
+const decideChangeRequest = asyncHandler(async (req, res) => {
+  const campaign = await campaignService.decideChangeRequest(
+    req.user.organizationId,
+    req.params.id,
+    req.params.requestId,
+    { id: req.user.id, email: req.user.email, role: req.user.role },
+    req.body
+  );
+  res.status(200).json({ success: true, data: campaign });
+});
+
 const reviewFeeProposal = asyncHandler(async (req, res) => {
   const campaign = await campaignService.reviewFeeProposal(
     req.user.organizationId,
@@ -296,6 +326,9 @@ module.exports = {
   submitCampaign,
   approveCampaign,
   rejectCampaign,
+  requestCampaignChanges,
+  listChangeRequests,
+  decideChangeRequest,
   reviewFeeProposal,
   changeStatus,
   setManagers,

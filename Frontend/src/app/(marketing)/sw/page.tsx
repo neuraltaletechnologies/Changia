@@ -44,7 +44,7 @@ export default async function SwahiliHomePage() {
         title='Tunaleta watu pamoja kusaidia watu <span class="text-emerald-600 dark:text-emerald-400">wanahitaji msaada</span>'
         subTitle="Changia inawaunganisha wanaohitaji msaada — iwe ni dharura ya matibabu, elimu, mgogoro wa kifamilia, au hitaji la jamii — na watu walio tayari kusaidia. Kwa fedha, kwa vitu, au zote mbili."
         primaryBtn="Anzisha kampeni ya misaada"
-        primaryBtnURL="/login?redirect=%2Fdashboard%2FCampaigns%2Fnew"
+        primaryBtnURL="/?auth=login&next=%2Fdashboard%2Fcampaigns%2Fnew"
         secondaryBtn="Chunguza kampani"
         secondaryBtnURL="/sw/campaigns"
         withReview

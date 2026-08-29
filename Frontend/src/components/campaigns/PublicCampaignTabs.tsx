@@ -41,6 +41,9 @@ const STRINGS = {
     recentSupporters: 'Recent supporters',
     beFirst: 'Be the first to contribute to this campaign.',
     anonymous: 'Anonymous',
+    photosTitle: 'Photos',
+    proofTitle: 'Proof of impact',
+    proofAmountUtilized: (amount: string) => `Amount utilized: ${amount}`,
   },
   sw: {
     tabs: ['Maelezo', 'Wigo', 'Ukubalifu'],
@@ -73,6 +76,9 @@ const STRINGS = {
     recentSupporters: 'Wafadhili wa hivi karibuni',
     beFirst: 'Kuwa wa kwanza kuchangia kampeni hii.',
     anonymous: 'Bila jina',
+    photosTitle: 'Picha',
+    proofTitle: 'Uthibitisho wa athari',
+    proofAmountUtilized: (amount: string) => `Kiasi kilichotumika: ${amount}`,
   },
 } as const;
 
@@ -125,6 +131,7 @@ export default function PublicCampaignTabs({ campaign, locale = 'en' }: PublicCa
 
       <div className="mx-auto max-w-[85rem] px-4 pb-10 pt-12 sm:px-6 lg:px-8 lg:pb-14 md:mt-4">
         {active === 0 && (
+          <div className="space-y-12">
           <div className="grid gap-12 md:grid-cols-2">
             <div>
               <h2 className="text-2xl font-bold text-neutral-800 dark:text-neutral-200">
@@ -160,6 +167,55 @@ export default function PublicCampaignTabs({ campaign, locale = 'en' }: PublicCa
                 </p>
               </div>
             </div>
+          </div>
+
+          {campaign.images && campaign.images.length > 0 && (
+            <div>
+              <h3 className="text-xl font-bold text-neutral-800 dark:text-neutral-200">
+                {t.photosTitle}
+              </h3>
+              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {campaign.images.map((img) => (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    key={img.id}
+                    src={img.url}
+                    alt={campaign.name}
+                    className="aspect-square w-full rounded-xl border border-neutral-200 object-cover dark:border-neutral-700"
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {campaign.completionProof && (
+            <div>
+              <h3 className="text-xl font-bold text-neutral-800 dark:text-neutral-200">
+                {t.proofTitle}
+              </h3>
+              {campaign.completionProof.amountUtilized != null && (
+                <p className="mt-2 text-sm font-medium text-neutral-600 dark:text-neutral-400">
+                  {t.proofAmountUtilized(formatTZS(campaign.completionProof.amountUtilized))}
+                </p>
+              )}
+              <p className="mt-2 text-pretty text-neutral-700 dark:text-neutral-300">
+                {campaign.completionProof.summary}
+              </p>
+              {campaign.completionProof.images.length > 0 && (
+                <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  {campaign.completionProof.images.map((src) => (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      key={src}
+                      src={src}
+                      alt={t.proofTitle}
+                      className="aspect-square w-full rounded-xl border border-neutral-200 object-cover dark:border-neutral-700"
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           </div>
         )}
 

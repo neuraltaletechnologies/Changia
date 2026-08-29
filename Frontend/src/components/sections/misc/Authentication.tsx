@@ -2,6 +2,7 @@ import LoginModal from '@/components/ui/forms/LoginModal';
 import RegisterModal from '@/components/ui/forms/RegisterModal';
 import RecoverModal from '@/components/ui/forms/RecoverModal';
 import LoginBtn from '@/components/ui/buttons/LoginBtn';
+import AuthModalController from '@/components/sections/misc/AuthModalController';
 
 export default function Authentication() {
   return (
@@ -10,6 +11,7 @@ export default function Authentication() {
       <LoginModal />
       <RegisterModal />
       <RecoverModal />
+      <AuthModalController />
     </>
   );
 }

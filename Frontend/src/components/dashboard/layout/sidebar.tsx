@@ -17,11 +17,15 @@ import {
   ExternalLink,
   Layers,
   BellRing,
+  Bell,
+  ShieldCheck,
   HandCoins,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/dashboard/ui/tooltip";
 import { useRole } from "@/hooks/use-role";
 import { usePendingReminderCount } from "@/hooks/use-pending-reminders";
+import { usePendingApprovalCount } from "@/hooks/use-pending-approvals";
+import { useNotifications } from "@/hooks/use-notifications";
 
 const navItems = [
   {
@@ -38,6 +42,11 @@ const navItems = [
         icon: Megaphone,
       },
       {
+        label: "Approvals",
+        href: "/dashboard/campaigns/approvals",
+        icon: ShieldCheck,
+      },
+      {
         label: "Donor Pools",
         href: "/dashboard/pools",
         icon: Layers,
@@ -47,7 +56,11 @@ const navItems = [
         href: "/dashboard/reminders",
         icon: BellRing,
       },
-
+      {
+        label: "Notifications",
+        href: "/dashboard/notifications",
+        icon: Bell,
+      },
     ],
   },
   {
@@ -86,6 +99,15 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
   const { canAccessRoute, meta } = useRole();
   const pendingReminders = usePendingReminderCount();
+  const pendingApprovals = usePendingApprovalCount();
+  const { unreadCount } = useNotifications();
+
+  const badgeFor = (href: string): number => {
+    if (href === "/dashboard/reminders") return pendingReminders;
+    if (href === "/dashboard/campaigns/approvals") return pendingApprovals;
+    if (href === "/dashboard/notifications") return unreadCount;
+    return 0;
+  };
 
   // Only show nav sections/items the current role is allowed to open.
   const visibleSections = navItems
@@ -172,14 +194,14 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                     {!collapsed && (
                       <span className="flex-1 truncate">{item.label}</span>
                     )}
-                    {item.href === "/dashboard/reminders" && pendingReminders > 0 && (
+                    {badgeFor(item.href) > 0 && (
                       <span
                         className={cn(
                           "shrink-0 rounded-full bg-amber-500 text-white text-[10px] font-semibold leading-none flex items-center justify-center",
                           collapsed ? "absolute top-1 right-1 w-2 h-2" : "min-w-[18px] h-[18px] px-1"
                         )}
                       >
-                        {collapsed ? "" : pendingReminders}
+                        {collapsed ? "" : badgeFor(item.href)}
                       </span>
                     )}
                   </Link>

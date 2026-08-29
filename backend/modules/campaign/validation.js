@@ -85,31 +85,54 @@ const completionReportSchema = z.object({
   amountUtilized: z.coerce.number().int().min(0).optional(),
 });
 
-const completionReportReviewSchema = z.object({
-  approved: z.boolean(),
-  notes: z.string().max(2000).optional(),
-});
+// Shared shape for the three-outcome review actions (fee proposal, completion
+// report, closure request, campaign change request): 'approve' needs no note;
+// 'request_changes' and 'reject' both require a reason of >= 10 chars.
+const reviewDecisionSchema = z
+  .object({
+    action: z.enum(["approve", "request_changes", "reject"]).optional(),
+    approved: z.boolean().optional(), // legacy callers
+    notes: z.string().max(2000).optional(),
+  })
+  .superRefine((val, ctx) => {
+    const action = val.action || (val.approved === true ? "approve" : val.approved === false ? "reject" : undefined);
+    if (!action) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "An action is required", path: ["action"] });
+      return;
+    }
+    if ((action === "request_changes" || action === "reject") && (!val.notes || val.notes.trim().length < 10)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "A reason of at least 10 characters is required",
+        path: ["notes"],
+      });
+    }
+  });
+
+const completionReportReviewSchema = reviewDecisionSchema;
 
 const closureRequestSchema = z.object({
   reason: z.string().min(10, "Explain why this campaign should close (at least 10 characters)").max(5000),
 });
 
-const closureDecisionSchema = z.object({
-  approved: z.boolean(),
-  notes: z.string().max(2000).optional(),
-});
+const closureDecisionSchema = reviewDecisionSchema;
 
-// REVIEWER/ORG_ADMIN/SUPER_ADMIN rejecting a campaign still awaiting
-// approval (PENDING or REVIEWED) — see campaignService.rejectCampaign.
+// REVIEWER/ORG_ADMIN/SUPER_ADMIN rejecting a campaign still awaiting approval
+// (PENDING or REVIEWED) — reason is now mandatory (shown back to the manager).
 const rejectCampaignSchema = z.object({
-  notes: z.string().max(2000).optional(),
+  notes: z.string().min(10, "A rejection reason of at least 10 characters is required").max(2000),
 });
 
-// A reviewer/admin approving or rejecting a manager's proposed custom fee %.
-const feeReviewSchema = z.object({
-  approved: z.boolean(),
-  notes: z.string().max(2000).optional(),
+// Reviewer/admin sending a campaign back to the manager to fix (non-terminal).
+const requestChangesSchema = z.object({
+  notes: z.string().min(10, "A note of at least 10 characters is required").max(2000),
 });
+
+// Deciding an open campaign_change_requests row.
+const changeRequestDecisionSchema = reviewDecisionSchema;
+
+// A reviewer/admin deciding a manager's proposed custom fee %.
+const feeReviewSchema = reviewDecisionSchema;
 
 const publicListQuerySchema = z.object({
   featured: z.enum(["true", "false"]).optional(),
@@ -136,6 +159,8 @@ module.exports = {
   closureRequestSchema,
   closureDecisionSchema,
   rejectCampaignSchema,
+  requestChangesSchema,
+  changeRequestDecisionSchema,
   feeReviewSchema,
   publicListQuerySchema,
   publicDetailQuerySchema,

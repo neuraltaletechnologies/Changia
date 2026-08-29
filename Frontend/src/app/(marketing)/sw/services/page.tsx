@@ -93,7 +93,7 @@ export default function ServicesPage() {
         subTitle="Changia inachanganya ukusanyaji wa kidijitali kwa wingi na ukusanyaji wa mbugani unaoendeshwa na maafisa. Kutoka ukurasa wazi wa kampeni hadi malipo yaliyothibitishwa ya All money transfer, kila hatua imeundwa kupunguza usumbufu na kuweka hesabu wazi."
         btnExists
         btnTitle="Anzisha kampeni"
-        btnURL="/login?redirect=%2Fdashboard%2FCampaigns%2Fnew"
+        btnURL="/?auth=login&next=%2Fdashboard%2Fcampaigns%2Fnew"
       />
 
       {articles.map((article) =>

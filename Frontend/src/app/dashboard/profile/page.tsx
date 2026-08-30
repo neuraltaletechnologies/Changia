@@ -83,7 +83,7 @@ export default function ProfilePage() {
 
   if (!resolved || !user) {
     return (
-      <div className="space-y-6 max-w-[700px]">
+      <div className="space-y-6">
         <div className="h-9 w-40 rounded bg-muted animate-pulse" />
         <div className="h-64 rounded-xl bg-muted/60 animate-pulse" />
       </div>
@@ -91,7 +91,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="space-y-6 max-w-[700px]">
+    <div className="space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-xl font-semibold text-foreground tracking-tight">Profile</h1>

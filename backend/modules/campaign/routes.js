@@ -9,6 +9,7 @@ const {
   listCampaignsQuerySchema,
   setManagersSchema,
   campaignStatusSchema,
+  statusChangeRequestSchema,
   poolExpectedSchema,
   targetExpectedSchema,
   featuredSchema,
@@ -20,6 +21,7 @@ const {
   rejectCampaignSchema,
   requestChangesSchema,
   changeRequestDecisionSchema,
+  createGiftSchema,
 } = require("./validation");
 
 const router = Router();
@@ -28,8 +30,27 @@ router.use(authenticate);
 
 // All authenticated org members can view campaigns
 router.get("/", validate({ query: listCampaignsQuerySchema }), controller.listCampaigns);
+// Per-campaign payment breakdown (paid / unpaid / promised / gifts) for the
+// caller's campaigns — a distinct 2-segment path, registered before "/:id".
+router.get("/payments/breakdown", controller.getPaymentsBreakdown);
 router.get("/:id", controller.getCampaign);
 router.get("/:id/donor-targets", controller.getDonorTargets);
+
+// In-kind gifts recorded against a campaign (non-monetary contributions with an
+// estimated TZS value). Viewable by anyone with campaign access; recorded /
+// removed by the assigned manager or an admin.
+router.get("/:id/gifts", controller.listGifts);
+router.post(
+  "/:id/gifts",
+  authorize("SUPER_ADMIN", "ORG_ADMIN", "CAMPAIGN_MANAGER"),
+  validate({ body: createGiftSchema }),
+  controller.addGift
+);
+router.delete(
+  "/:id/gifts/:giftId",
+  authorize("SUPER_ADMIN", "ORG_ADMIN", "CAMPAIGN_MANAGER"),
+  controller.removeGift
+);
 
 // Donor pool import into a campaign (start of campaign or mid-campaign)
 router.post(
@@ -109,6 +130,15 @@ router.post(
 // the same two-stage chain. Anyone who can view the campaign can list them;
 // only reviewers/admins decide them.
 router.get("/:id/change-requests", controller.listChangeRequests);
+// A CAMPAIGN_MANAGER asks to suspend (PAUSE) or resume a campaign — parked as a
+// STATUS change request that clears the same two-stage chain. Decided via the
+// same POST /:id/change-requests/:requestId/decide below.
+router.post(
+  "/:id/status-requests",
+  authorize("CAMPAIGN_MANAGER"),
+  validate({ body: statusChangeRequestSchema }),
+  controller.requestStatusChange
+);
 router.post(
   "/:id/change-requests/:requestId/decide",
   authorize("SUPER_ADMIN", "ORG_ADMIN", "REVIEWER"),

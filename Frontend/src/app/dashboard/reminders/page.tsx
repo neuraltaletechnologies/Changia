@@ -23,6 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/dashboard/ui/dialog";
+import { ActionStatusBadge, type ActionState } from "@/components/dashboard/ui/action-status";
 import { reminderScheduleApi, type PendingReminderBatch, type ReminderChannel } from "@/lib/dashboard/api";
 import { cn } from "@/lib/dashboard/utils";
 
@@ -37,6 +38,13 @@ export default function PendingRemindersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reviewing, setReviewing] = useState<PendingReminderBatch | null>(null);
+  // Per-row outcome of the last Skip / Confirm action, so the result stays
+  // visible on the row after the corner toast fades.
+  const [rowStatus, setRowStatus] = useState<
+    Record<number, { state: ActionState; label: string }>
+  >({});
+  const setRow = (id: number, state: ActionState, label: string) =>
+    setRowStatus((prev) => ({ ...prev, [id]: { state, label } }));
 
   const refresh = useCallback(async () => {
     try {
@@ -56,12 +64,18 @@ export default function PendingRemindersPage() {
 
   const skip = async (id: number) => {
     if (!window.confirm("Skip this resend cycle? No messages will be sent this time.")) return;
-    await reminderScheduleApi.skipPending(id);
-    refresh();
+    setRow(id, "pending", "Skipping…");
+    try {
+      await reminderScheduleApi.skipPending(id);
+      setRow(id, "done", "Skipped");
+      setTimeout(refresh, 1400);
+    } catch {
+      setRow(id, "failed", "Not skipped");
+    }
   };
 
   return (
-    <div className="space-y-6 max-w-[900px]">
+    <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-foreground tracking-tight">
@@ -118,7 +132,9 @@ export default function PendingRemindersPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {pending.map((batch) => (
+          {pending.map((batch) => {
+            const rs = rowStatus[batch.id];
+            return (
             <div
               key={batch.id}
               className="bg-card border border-border rounded-xl p-4 shadow-sm flex flex-col sm:flex-row sm:items-center gap-3"
@@ -145,23 +161,38 @@ export default function PendingRemindersPage() {
                 </p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <Button size="sm" variant="outline" onClick={() => skip(batch.id)}>
-                  <SkipForward className="w-3.5 h-3.5 mr-1.5" />
-                  Skip
-                </Button>
-                <Button size="sm" onClick={() => setReviewing(batch)}>
-                  <BellRing className="w-3.5 h-3.5 mr-1.5" />
-                  Review &amp; Confirm
-                </Button>
+                {rs && (
+                  <ActionStatusBadge
+                    state={rs.state}
+                    pendingLabel={rs.label}
+                    doneLabel={rs.label}
+                    failedLabel={rs.label}
+                  />
+                )}
+                {(!rs || rs.state === "failed") && (
+                  <>
+                    <Button size="sm" variant="outline" onClick={() => skip(batch.id)}>
+                      <SkipForward className="w-3.5 h-3.5 mr-1.5" />
+                      Skip
+                    </Button>
+                    <Button size="sm" onClick={() => setReviewing(batch)}>
+                      <BellRing className="w-3.5 h-3.5 mr-1.5" />
+                      Review &amp; Confirm
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
       {reviewing && (
         <ConfirmDialog
           batch={reviewing}
+          onConfirmed={() => setRow(reviewing.id, "done", "Sent")}
+          onFailed={() => setRow(reviewing.id, "failed", "Not sent")}
           onClose={() => setReviewing(null)}
           onDone={() => {
             setReviewing(null);
@@ -177,10 +208,14 @@ function ConfirmDialog({
   batch,
   onClose,
   onDone,
+  onConfirmed,
+  onFailed,
 }: {
   batch: PendingReminderBatch;
   onClose: () => void;
   onDone: () => void;
+  onConfirmed: () => void;
+  onFailed: () => void;
 }) {
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -192,8 +227,10 @@ function ConfirmDialog({
     try {
       await reminderScheduleApi.confirmPending(batch.id);
       setDone(true);
+      onConfirmed();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to send this batch.");
+      onFailed();
     } finally {
       setConfirming(false);
     }

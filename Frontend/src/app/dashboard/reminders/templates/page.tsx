@@ -27,6 +27,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/dashboard/ui/dropdown-menu";
+import { ActionStatusBadge, type ActionState } from "@/components/dashboard/ui/action-status";
 import { templateApi, type MessageTemplate, type ReminderChannel } from "@/lib/dashboard/api";
 import { cn } from "@/lib/dashboard/utils";
 
@@ -45,6 +46,9 @@ export default function TemplatesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<MessageTemplate | "new" | null>(null);
+  const [rowStatus, setRowStatus] = useState<
+    Record<number, { state: ActionState; label: string }>
+  >({});
 
   const refresh = useCallback(async () => {
     try {
@@ -64,12 +68,18 @@ export default function TemplatesPage() {
 
   const remove = async (id: number) => {
     if (!window.confirm("Delete this template?")) return;
-    await templateApi.remove(id);
-    refresh();
+    setRowStatus((p) => ({ ...p, [id]: { state: "pending", label: "Deleting…" } }));
+    try {
+      await templateApi.remove(id);
+      setRowStatus((p) => ({ ...p, [id]: { state: "done", label: "Deleted" } }));
+      setTimeout(refresh, 1200);
+    } catch {
+      setRowStatus((p) => ({ ...p, [id]: { state: "failed", label: "Not deleted" } }));
+    }
   };
 
   return (
-    <div className="space-y-6 max-w-[900px]">
+    <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <Button
@@ -150,6 +160,15 @@ export default function TemplatesPage() {
                 )}
                 <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{t.body}</p>
               </div>
+              {rowStatus[t.id] && (
+                <ActionStatusBadge
+                  state={rowStatus[t.id].state}
+                  pendingLabel={rowStatus[t.id].label}
+                  doneLabel={rowStatus[t.id].label}
+                  failedLabel={rowStatus[t.id].label}
+                  className="mt-1 shrink-0"
+                />
+              )}
               <DropdownMenu>
                 <DropdownMenuTrigger className="flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0">
                   <MoreHorizontal className="w-4 h-4" />

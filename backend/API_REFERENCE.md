@@ -739,6 +739,13 @@ Both use the same three-outcome decision body — `{ "action": "approve" | "requ
 - `POST /campaigns/:id/fee/review` — `SUPER_ADMIN`, `ORG_ADMIN` or `REVIEWER`. Decides a manager's pending custom `serviceFeePercent`. `approve` recomputes the fee/target; `reject` discards it; `request_changes` keeps it pending with a note.
 - `POST /campaigns/:id/closure-requests/:requestId/decide` — `SUPER_ADMIN`, `ORG_ADMIN` or `REVIEWER`. `approve` → campaign `COMPLETED`.
 
+### In-kind gifts & payment breakdown
+
+- `GET /campaigns/payments/breakdown` — any authenticated member. Per-campaign payment split (TZS) for the caller's campaigns (a `CAMPAIGN_MANAGER` sees only assigned campaigns). Each row: `{ campaignId, name, goal, raised, paid, unpaid, promisedPaid, promisedUnpaid, giftValue }` where `paid` = confirmed money not tied to a pledge, `unpaid` = goal not covered by a pledge, `promisedPaid` / `promisedUnpaid` = money received / still owed against donor pledges, `giftValue` = estimated value of in-kind gifts. A row sums to `goal + giftValue`.
+- `GET /campaigns/:id/gifts` — any member with campaign access. `Gift[]`: `{ id, campaignId, donorId, donorName, description, estimatedValue, receivedAt, createdAt }`.
+- `POST /campaigns/:id/gifts` — `SUPER_ADMIN`, `ORG_ADMIN` or assigned `CAMPAIGN_MANAGER`. Body `{ description (1–300, required), estimatedValue? (int TZS ≥ 0, default 0), donorId?, receivedAt? (YYYY-MM-DD) }`. Returns the updated `Gift[]`.
+- `DELETE /campaigns/:id/gifts/:giftId` — same roles. Returns the updated `Gift[]`.
+
 ### Notifications module — `/notifications` (authenticated, per-user)
 
 - `GET /notifications?unreadOnly=&page=&limit=` → `{ notifications: Notification[], unreadCount, pagination }`

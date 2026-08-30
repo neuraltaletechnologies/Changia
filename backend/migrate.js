@@ -29,9 +29,13 @@ const MIGRATIONS = [
   // campaign doesn't set its own service_fee_percent.
   `ALTER TABLE organizations ADD COLUMN default_service_fee_percent DECIMAL(5,2) NOT NULL DEFAULT 5.00 AFTER currency`,
 
-  // users — add the REVIEWER role (org-scoped approver between ORG_ADMIN and
-  // CAMPAIGN_MANAGER). Idempotent: skipped once the enum already lists it.
+  // users — add the REVIEWER role. Idempotent: skipped once the enum lists it.
   `ALTER TABLE users MODIFY COLUMN role ENUM('SUPER_ADMIN','ORG_ADMIN','REVIEWER','CAMPAIGN_MANAGER') NOT NULL DEFAULT 'CAMPAIGN_MANAGER'`,
+
+  // REVIEWER is a platform-level role (vets campaigns for every org, like
+  // SUPER_ADMIN) — detach any reviewer that an earlier build scoped to an org.
+  // Bounded by IS NOT NULL, so a no-op after the first run.
+  `UPDATE users SET organization_id = NULL WHERE role = 'REVIEWER' AND organization_id IS NOT NULL`,
 
   // campaigns — custom service-fee proposal/approval flow. A manager's proposed
   // rate is parked in proposed_service_fee_percent (fee_status='PENDING') until
@@ -119,6 +123,14 @@ const MIGRATIONS = [
     INDEX idx_ccr2_org_status (organization_id, status)
   ) ENGINE=InnoDB`,
 
+  // campaign_change_requests — also carries manager-initiated PAUSE / RESUME
+  // ("suspend" / "resume") requests, which clear the very same two-stage chain
+  // (REVIEWER then ORG_ADMIN) before the campaign's status actually changes.
+  // request_kind='EDIT' is the original parked-edit behaviour; 'STATUS' rows
+  // set status_action and keep the reason (if any) in payload.
+  `ALTER TABLE campaign_change_requests ADD COLUMN request_kind ENUM('EDIT','STATUS') NOT NULL DEFAULT 'EDIT' AFTER organization_id`,
+  `ALTER TABLE campaign_change_requests ADD COLUMN status_action ENUM('PAUSE','RESUME') NULL AFTER request_kind`,
+
   // notifications — per-user in-app staff notification centre.
   `CREATE TABLE IF NOT EXISTS notifications (
     id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -136,6 +148,42 @@ const MIGRATIONS = [
     CONSTRAINT fk_notif_org  FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
     INDEX idx_notif_user_unread (user_id, read_at, created_at),
     INDEX idx_notif_user_created (user_id, created_at)
+  ) ENGINE=InnoDB`,
+
+  // campaign_gifts — in-kind ("gift") contributions to a campaign, each with an
+  // estimated TZS value so non-monetary support shows up in the campaign
+  // payment breakdown alongside cash. Optionally attributed to a known donor.
+  `CREATE TABLE IF NOT EXISTS campaign_gifts (
+    id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    campaign_id     BIGINT UNSIGNED NOT NULL,
+    organization_id BIGINT UNSIGNED NOT NULL,
+    donor_id        BIGINT UNSIGNED NULL,
+    description     VARCHAR(300) NOT NULL,
+    estimated_value DECIMAL(14,0) NOT NULL DEFAULT 0,
+    received_at     DATE NULL,
+    recorded_by_id  BIGINT UNSIGNED NULL,
+    created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_gift_campaign FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE,
+    CONSTRAINT fk_gift_org      FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+    CONSTRAINT fk_gift_donor    FOREIGN KEY (donor_id) REFERENCES donors(id) ON DELETE SET NULL,
+    CONSTRAINT fk_gift_recorder FOREIGN KEY (recorded_by_id) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX idx_gift_campaign (campaign_id)
+  ) ENGINE=InnoDB`,
+
+  // organization_settings — org-wide preferences edited on the dashboard
+  // Settings page (registration no., default channel, localisation, email
+  // notification toggles). One row per org, created on first save.
+  `CREATE TABLE IF NOT EXISTS organization_settings (
+    organization_id      BIGINT UNSIGNED PRIMARY KEY,
+    registration_number  VARCHAR(100) NULL,
+    default_channel      ENUM('SMS','WHATSAPP','EMAIL') NOT NULL DEFAULT 'SMS',
+    language             ENUM('en','sw') NOT NULL DEFAULT 'en',
+    timezone             ENUM('eat','utc') NOT NULL DEFAULT 'eat',
+    date_format          ENUM('dmy','mdy','ymd') NOT NULL DEFAULT 'dmy',
+    notifications        JSON NULL,
+    security             JSON NULL,
+    updated_at           TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_org_settings_org FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
   ) ENGINE=InnoDB`,
 ];
 
@@ -218,9 +266,9 @@ async function runMigrations() {
 
 /**
  * Two-stage campaign approval requires two DIFFERENT approvers. Older/live
- * copies of the demo org (Msuya Foundation, id 1) may have zero or one
- * REVIEWER seeded, which would leave campaigns permanently stuck in
- * REVIEWED. Top up to two, once, if that org exists.
+ * copies of the DB may have zero or one REVIEWER seeded, which would leave
+ * campaigns permanently stuck in REVIEWED. Top up to two, once. Reviewers are
+ * platform-level (organization_id NULL) — they vet campaigns for every org.
  */
 async function seedReviewers() {
   const REVIEWERS = [
@@ -228,16 +276,13 @@ async function seedReviewers() {
     ["Elias", "Mrema", "reviewer2@msuya-foundation.org.tz", "255713000004"],
   ];
   try {
-    const org = await db.query("SELECT id FROM organizations WHERE id = 1");
-    if (org.length === 0) return;
-
     for (const [firstName, lastName, email, phone] of REVIEWERS) {
       const existing = await db.query("SELECT id FROM users WHERE email = ?", [email]);
       if (existing.length > 0) continue;
 
       await db.execute(
         `INSERT INTO users (organization_id, first_name, last_name, email, phone, password_hash, role, status)
-         VALUES (1, ?, ?, ?, ?,
+         VALUES (NULL, ?, ?, ?, ?,
                  '$2b$12$YBiH.YibjVq/6ydw/Pa97eEG/HbjPVWH.a2Am4NvHTPGkhBW8xVbW', 'REVIEWER', 'ACTIVE')`,
         [firstName, lastName, email, phone]
       );

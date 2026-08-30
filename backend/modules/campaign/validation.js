@@ -37,6 +37,10 @@ const createCampaignSchema = z.object({
     .regex(/^(\+?255|0)?[67][0-9]{8}$/, "Enter a valid Tanzanian phone number")
     .optional(),
   managerIds: z.array(z.union([z.string(), z.number()])).max(50).optional(),
+  // When true the campaign is stored as a DRAFT the creator keeps working on
+  // (edit details/photos, import pools) and later submits via POST /:id/submit.
+  // Omitted / false keeps the old behaviour: created straight as PENDING.
+  asDraft: z.boolean().optional(),
   poolIds: z.array(poolIdSchema).max(50).optional(),
   expectedAmounts: z
     .record(z.string(), z.record(z.string(), amountSchema))
@@ -47,7 +51,7 @@ const updateCampaignSchema = createCampaignSchema.partial();
 
 const listCampaignsQuerySchema = z.object({
   status: z
-    .enum(["DRAFT", "PENDING", "ACTIVE", "PAUSED", "COMPLETED", "CANCELLED"])
+    .enum(["DRAFT", "PENDING", "REVIEWED", "ACTIVE", "PAUSED", "COMPLETED", "CANCELLED"])
     .optional(),
   search: z.string().max(100).optional(),
   page: z.coerce.number().int().min(1).default(1),
@@ -59,7 +63,15 @@ const setManagersSchema = z.object({
 });
 
 const campaignStatusSchema = z.object({
-  status: z.enum(["PAUSED", "COMPLETED", "CANCELLED"]),
+  // ACTIVE = resume a PAUSED campaign (admin, direct).
+  status: z.enum(["ACTIVE", "PAUSED", "COMPLETED", "CANCELLED"]),
+});
+
+// A CAMPAIGN_MANAGER asks to suspend (PAUSE) or resume a campaign; the request
+// clears the two-stage chain (REVIEWER then ORG_ADMIN) before it takes effect.
+const statusChangeRequestSchema = z.object({
+  action: z.enum(["PAUSE", "RESUME"]),
+  reason: z.string().max(2000).optional(),
 });
 
 const targetExpectedSchema = z.object({
@@ -134,6 +146,24 @@ const changeRequestDecisionSchema = reviewDecisionSchema;
 // A reviewer/admin deciding a manager's proposed custom fee %.
 const feeReviewSchema = reviewDecisionSchema;
 
+// Recording an in-kind gift against a campaign.
+const createGiftSchema = z.object({
+  description: z.string().min(1, "A short description is required").max(300),
+  estimatedValue: z
+    .number({ message: "Estimated value must be a number" })
+    .int("Estimated value must be a whole TZS number")
+    .min(0, "Estimated value cannot be negative")
+    .max(1_000_000_000_000)
+    .optional()
+    .default(0),
+  donorId: z.union([z.string(), z.number()]).optional(),
+  receivedAt: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}/, "Use a YYYY-MM-DD date")
+    .optional()
+    .or(z.literal("")),
+});
+
 const publicListQuerySchema = z.object({
   featured: z.enum(["true", "false"]).optional(),
   limit: z.coerce.number().int().min(1).max(5).optional(),
@@ -150,6 +180,7 @@ module.exports = {
   listCampaignsQuerySchema,
   setManagersSchema,
   campaignStatusSchema,
+  statusChangeRequestSchema,
   poolExpectedSchema,
   targetExpectedSchema,
   featuredSchema,
@@ -162,6 +193,7 @@ module.exports = {
   requestChangesSchema,
   changeRequestDecisionSchema,
   feeReviewSchema,
+  createGiftSchema,
   publicListQuerySchema,
   publicDetailQuerySchema,
 };

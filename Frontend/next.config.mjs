@@ -51,6 +51,12 @@ const nextConfig = {
   // Anchor tracing/TS resolution to the pnpm monorepo root so Next.js doesn't
   // guess the workspace root from lockfiles and hit path-mismatch errors.
   outputFileTracingRoot: __dirname,
+  // If/when `next dev --turbopack` is enabled, pin Turbopack's project root to
+  // this package (the pnpm monorepo only symlinks `next` into
+  // Frontend/node_modules, not the workspace root). NOTE: as of Next 15.5.23 on
+  // Node 26, `--turbopack` still panics here with "Next.js package not found" —
+  // stay on the default webpack `next dev` until Node is on an LTS release.
+  turbopack: { root: __dirname },
   images: {
     remotePatterns: [
       {

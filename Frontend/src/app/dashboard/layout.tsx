@@ -9,6 +9,8 @@ import { MobileNav } from "@/components/dashboard/layout/mobile-nav";
 import { TooltipProvider } from "@/components/dashboard/ui/tooltip";
 import { AuthGuard } from "@/components/dashboard/auth-guard";
 import { RoleGuard } from "@/components/dashboard/route-guard";
+import { ActionToaster } from "@/components/dashboard/ui/toaster";
+import { clearOverlayBackdrop } from "@/components/ui/forms/auth-modal-utils";
 
 export default function DashboardLayout({
   children,
@@ -28,6 +30,14 @@ export default function DashboardLayout({
     return () => {
       if (wasDark) root.classList.add("dark");
     };
+  }, []);
+
+  // Signing in from the marketing navbar modal navigates straight here; Preline
+  // appends the modal backdrop to <body> (outside React) and locks body scroll,
+  // so without this the translucent overlay lingers over the dashboard until
+  // the next click. Sweep it up on entry.
+  useEffect(() => {
+    clearOverlayBackdrop();
   }, []);
 
   return (
@@ -57,6 +67,7 @@ export default function DashboardLayout({
           </main>
         </div>
       </div>
+      <ActionToaster />
       </AuthGuard>
     </TooltipProvider>
   );

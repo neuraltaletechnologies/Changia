@@ -16,43 +16,135 @@ import {
 } from "@/components/dashboard/ui/select";
 import { PasswordInput } from "@/components/dashboard/ui/password-input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/dashboard/ui/tabs";
-import {
-  Building2,
-  Bell,
-  Shield,
-  Globe,
-  CreditCard,
-  AlertTriangle,
-  Percent,
-} from "lucide-react";
+import { Building2, Bell, Shield, Globe, Percent } from "lucide-react";
 import { useRole } from "@/hooks/use-role";
 import { ApiClientError, changePasswordRequest } from "@/lib/api-client";
-import { organizationApi } from "@/lib/dashboard/api";
+import {
+  organizationApi,
+  settingsApi,
+  type OrgNotificationPrefs,
+  type OrgSettings,
+  type OrgSettingsUpdate,
+} from "@/lib/dashboard/api";
 
 const allTabs = [
   { value: "organisation", label: "Organisation", icon: Building2, permission: "settings:org" as const },
-  { value: "notifications", label: "Notifications", icon: Bell },
+  { value: "notifications", label: "Notifications", icon: Bell, permission: "settings:org" as const },
+  { value: "localisation", label: "Localisation", icon: Globe, permission: "settings:org" as const },
+  // Password change is per-account, so every role sees the Security tab.
   { value: "security", label: "Security", icon: Shield },
-  { value: "localisation", label: "Localisation", icon: Globe },
+];
+
+const NOTIFICATION_ITEMS: { key: keyof OrgNotificationPrefs; label: string; desc: string }[] = [
+  {
+    key: "notifyOnDonation",
+    label: "New donation received",
+    desc: "Email the organisation every time a donation is confirmed",
+  },
+  {
+    key: "notifyOnCampaignStatus",
+    label: "Campaign status changes",
+    desc: "Notify when a campaign is submitted, approved, paused or completed",
+  },
+  {
+    key: "notifyOnUserInvite",
+    label: "Team member invites",
+    desc: "Notify when a new user is invited to the organisation",
+  },
 ];
 
 export default function SettingsPage() {
-  const [saved, setSaved] = useState(false);
   const { hasPermission } = useRole();
   const canManageOrg = hasPermission("settings:org");
 
   const tabs = allTabs.filter((t) => !t.permission || hasPermission(t.permission));
 
-  const handleSave = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  // ─── Organisation settings (org admin+, backed by /settings/org) ────────────
+  const [loading, setLoading] = useState(canManageOrg);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const [orgName, setOrgName] = useState("");
+  const [registrationNumber, setRegistrationNumber] = useState("");
+  const [primaryEmail, setPrimaryEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [description, setDescription] = useState("");
+  const [defaultChannel, setDefaultChannel] =
+    useState<OrgSettings["defaultChannel"]>("SMS");
+
+  const [notifications, setNotifications] = useState<OrgNotificationPrefs>({
+    notifyOnDonation: true,
+    notifyOnCampaignStatus: true,
+    notifyOnUserInvite: true,
+  });
+
+  const [currency, setCurrency] = useState<OrgSettings["currency"]>("TZS");
+  const [language, setLanguage] = useState<OrgSettings["language"]>("en");
+  const [timezone, setTimezone] = useState<OrgSettings["timezone"]>("eat");
+  const [dateFormat, setDateFormat] = useState<OrgSettings["dateFormat"]>("dmy");
+
+  const [savingSection, setSavingSection] = useState<string | null>(null);
+  const [savedSection, setSavedSection] = useState<string | null>(null);
+  const [sectionError, setSectionError] = useState<{ section: string; message: string } | null>(
+    null
+  );
+
+  const applySettings = (s: OrgSettings) => {
+    setOrgName(s.orgName ?? "");
+    setRegistrationNumber(s.registrationNumber ?? "");
+    setPrimaryEmail(s.primaryEmail ?? "");
+    setPhone(s.phone ?? "");
+    setDescription(s.description ?? "");
+    setDefaultChannel(s.defaultChannel ?? "SMS");
+    setNotifications({
+      notifyOnDonation: s.notifications?.notifyOnDonation ?? true,
+      notifyOnCampaignStatus: s.notifications?.notifyOnCampaignStatus ?? true,
+      notifyOnUserInvite: s.notifications?.notifyOnUserInvite ?? true,
+    });
+    setCurrency(s.currency ?? "TZS");
+    setLanguage(s.language ?? "en");
+    setTimezone(s.timezone ?? "eat");
+    setDateFormat(s.dateFormat ?? "dmy");
   };
 
-  // ─── Campaign service fee (Organisation tab, org admin+) ────────────────
-  // The % added on top of every campaign's goal by default — see
-  // computeFees() in Backend/modules/campaign/service.js. A CAMPAIGN_MANAGER
-  // only ever sees this applied (on the "New Campaign" form); changing the
-  // rate itself is restricted to SUPER_ADMIN/ORG_ADMIN.
+  useEffect(() => {
+    if (!canManageOrg) return;
+    setLoading(true);
+    setLoadError(null);
+    settingsApi
+      .getOrg()
+      .then(applySettings)
+      .catch(() => setLoadError("Failed to load your organisation settings."))
+      .finally(() => setLoading(false));
+  }, [canManageOrg]);
+
+  const saveSection = async (section: string, patch: OrgSettingsUpdate) => {
+    setSectionError(null);
+    setSavedSection(null);
+    setSavingSection(section);
+    try {
+      const updated = await settingsApi.updateOrg(patch);
+      applySettings(updated);
+      setSavedSection(section);
+      setTimeout(
+        () => setSavedSection((current) => (current === section ? null : current)),
+        3000
+      );
+    } catch (err) {
+      setSectionError({
+        section,
+        message: err instanceof ApiClientError ? err.message : "Failed to save changes.",
+      });
+    } finally {
+      setSavingSection(null);
+    }
+  };
+
+  const sectionButtonLabel = (section: string, idle: string) =>
+    savingSection === section ? "Saving…" : savedSection === section ? "Saved!" : idle;
+
+  // ─── Campaign service fee (Organisation tab) ───────────────────────────────
+  // The % added on top of every campaign's goal by default — see computeFees()
+  // in Backend/modules/campaign/service.js. Uses its own endpoint.
   const [feePercent, setFeePercent] = useState("5");
   const [feeLoading, setFeeLoading] = useState(false);
   const [feeSaving, setFeeSaving] = useState(false);
@@ -90,7 +182,7 @@ export default function SettingsPage() {
     }
   };
 
-  // ─── Password change (Security tab) ─────────────────────────────────────
+  // ─── Password change (Security tab) ─────────────────────────────────────────
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -132,19 +224,20 @@ export default function SettingsPage() {
     }
   };
 
+  const errorFor = (section: string) =>
+    sectionError && sectionError.section === section ? sectionError.message : null;
+
   return (
-    <div className="space-y-6 max-w-[800px]">
+    <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-xl font-semibold text-foreground tracking-tight">
-          Settings
-        </h1>
+        <h1 className="text-xl font-semibold text-foreground tracking-tight">Settings</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
           Manage your organisation preferences and account settings
         </p>
       </div>
 
-      <Tabs defaultValue={tabs[0]?.value ?? "notifications"}>
+      <Tabs defaultValue={tabs[0]?.value ?? "security"}>
         <TabsList className="mb-6 flex-wrap h-auto gap-1 bg-muted/50 p-1">
           {tabs.map((t) => {
             const Icon = t.icon;
@@ -161,205 +254,332 @@ export default function SettingsPage() {
           })}
         </TabsList>
 
-        {/* Organisation */}
-        <TabsContent value="organisation" className="space-y-6">
-          <div className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-5">
-            <h2 className="text-sm font-semibold text-foreground">
-              Organisation Profile
-            </h2>
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Organisation Name</Label>
-                <Input
-                  defaultValue="Changia Foundation TZ"
-                  className="h-9 text-sm"
-                />
+        {/* ─── Organisation ─────────────────────────────────────────────── */}
+        {canManageOrg && (
+          <TabsContent value="organisation" className="space-y-6">
+            {loadError ? (
+              <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                {loadError}
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Registration Number</Label>
-                <Input
-                  defaultValue="NGO-TZ-2021-004872"
-                  className="h-9 text-sm"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Primary Email</Label>
-                <Input
-                  defaultValue="hello@changia.tz"
-                  type="email"
-                  className="h-9 text-sm"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Phone</Label>
-                <Input
-                  defaultValue="+255 22 000 0000"
-                  className="h-9 text-sm"
-                />
-              </div>
-              <div className="sm:col-span-2 space-y-1.5">
-                <Label className="text-xs">Website</Label>
-                <Input
-                  defaultValue="https://changia.tz"
-                  className="h-9 text-sm"
-                />
-              </div>
-              <div className="sm:col-span-2 space-y-1.5">
-                <Label className="text-xs">Description</Label>
-                <Textarea
-                  defaultValue="Changia Foundation TZ is a Tanzanian fundraising platform connecting donors with verified NGOs and community projects."
-                  rows={3}
-                  className="text-sm resize-none"
-                />
-              </div>
-            </div>
-            <div className="flex justify-end">
-              <Button size="sm" onClick={handleSave}>
-                {saved ? "Saved!" : "Save Changes"}
-              </Button>
-            </div>
-          </div>
+            ) : loading ? (
+              <div className="h-64 rounded-xl bg-muted/60 animate-pulse" />
+            ) : (
+              <>
+                <div className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-5">
+                  <h2 className="text-sm font-semibold text-foreground">Organisation Profile</h2>
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Organisation Name</Label>
+                      <Input
+                        value={orgName}
+                        onChange={(e) => setOrgName(e.target.value)}
+                        maxLength={150}
+                        className="h-9 text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Registration Number</Label>
+                      <Input
+                        value={registrationNumber}
+                        onChange={(e) => setRegistrationNumber(e.target.value)}
+                        maxLength={100}
+                        placeholder="e.g. NGO-TZ-2021-004872"
+                        className="h-9 text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Primary Email</Label>
+                      <Input
+                        value={primaryEmail}
+                        onChange={(e) => setPrimaryEmail(e.target.value)}
+                        type="email"
+                        className="h-9 text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Phone</Label>
+                      <Input
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        placeholder="+255 7XX XXX XXX"
+                        className="h-9 text-sm"
+                      />
+                    </div>
+                    <div className="sm:col-span-2 space-y-1.5">
+                      <Label className="text-xs">Description</Label>
+                      <Textarea
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                        rows={3}
+                        maxLength={2000}
+                        className="text-sm resize-none"
+                      />
+                    </div>
+                  </div>
+                  {errorFor("org") && (
+                    <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+                      {errorFor("org")}
+                    </div>
+                  )}
+                  <div className="flex justify-end">
+                    <Button
+                      size="sm"
+                      disabled={savingSection === "org"}
+                      onClick={() => {
+                        const patch: OrgSettingsUpdate = {
+                          orgName: orgName.trim(),
+                          registrationNumber: registrationNumber.trim() || null,
+                          description: description.trim(),
+                        };
+                        if (primaryEmail.trim()) patch.primaryEmail = primaryEmail.trim();
+                        if (phone.trim()) patch.phone = phone.trim();
+                        saveSection("org", patch);
+                      }}
+                    >
+                      {sectionButtonLabel("org", "Save Changes")}
+                    </Button>
+                  </div>
+                </div>
 
-          {/* Campaign service fee */}
-          <div className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-4">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-primary/15 flex items-center justify-center">
-                <Percent className="w-4 h-4 text-primary" />
+                {/* Campaign service fee */}
+                <div className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-4">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-primary/15 flex items-center justify-center">
+                      <Percent className="w-4 h-4 text-primary" />
+                    </div>
+                    <div>
+                      <h2 className="text-sm font-semibold text-foreground">Campaign Service Fee</h2>
+                      <p className="text-xs text-muted-foreground">
+                        Added on top of every campaign&apos;s goal amount (goal + fee = public
+                        target). Campaign managers see this rate applied when they set a goal — only
+                        an organisation admin can change it here.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="max-w-[220px] space-y-1.5">
+                    <Label className="text-xs">Service Fee (%)</Label>
+                    <div className="relative">
+                      <Input
+                        type="number"
+                        min={0}
+                        max={100}
+                        step={0.5}
+                        value={feePercent}
+                        onChange={(e) => setFeePercent(e.target.value)}
+                        disabled={feeLoading || feeSaving}
+                        className="h-9 text-sm pr-7"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                        %
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      e.g. a 5,000,000 TZS goal at 5% shows donors a public target of 5,250,000 TZS.
+                    </p>
+                  </div>
+                  {feeError && (
+                    <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+                      {feeError}
+                    </div>
+                  )}
+                  <div className="flex justify-end">
+                    <Button size="sm" onClick={handleSaveFee} disabled={feeLoading || feeSaving}>
+                      {feeSaving ? "Saving…" : feeSaved ? "Saved!" : "Save Fee"}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Donor defaults */}
+                <div className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-4">
+                  <h2 className="text-sm font-semibold text-foreground">Donor Defaults</h2>
+                  <div className="max-w-[280px] space-y-1.5">
+                    <Label className="text-xs">Default Communication Channel</Label>
+                    <Select
+                      value={defaultChannel}
+                      onValueChange={(v) =>
+                        setDefaultChannel((v as OrgSettings["defaultChannel"]) ?? "SMS")
+                      }
+                    >
+                      <SelectTrigger className="h-9 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="SMS">SMS</SelectItem>
+                        <SelectItem value="WHATSAPP">WhatsApp</SelectItem>
+                        <SelectItem value="EMAIL">Email</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[11px] text-muted-foreground">
+                      The channel pre-selected when you send a reminder to a donor pool.
+                    </p>
+                  </div>
+                  {errorFor("channel") && (
+                    <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+                      {errorFor("channel")}
+                    </div>
+                  )}
+                  <div className="flex justify-end">
+                    <Button
+                      size="sm"
+                      disabled={savingSection === "channel"}
+                      onClick={() => saveSection("channel", { defaultChannel })}
+                    >
+                      {sectionButtonLabel("channel", "Save Changes")}
+                    </Button>
+                  </div>
+                </div>
+              </>
+            )}
+          </TabsContent>
+        )}
+
+        {/* ─── Notifications ────────────────────────────────────────────── */}
+        {canManageOrg && (
+          <TabsContent value="notifications" className="space-y-4">
+            {loadError ? (
+              <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                {loadError}
               </div>
-              <div>
-                <h2 className="text-sm font-semibold text-foreground">Campaign Service Fee</h2>
-                <p className="text-xs text-muted-foreground">
-                  Added on top of every campaign&apos;s goal amount (goal + fee = public
-                  target). Campaign managers see this rate applied when they set a goal —
-                  only an organisation admin can change it here.
-                </p>
-              </div>
-            </div>
-            <div className="max-w-[220px] space-y-1.5">
-              <Label className="text-xs">Service Fee (%)</Label>
-              <div className="relative">
-                <Input
-                  type="number"
-                  min={0}
-                  max={100}
-                  step={0.5}
-                  value={feePercent}
-                  onChange={(e) => setFeePercent(e.target.value)}
-                  disabled={feeLoading || feeSaving}
-                  className="h-9 text-sm pr-7"
-                />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                  %
-                </span>
-              </div>
-              <p className="text-[11px] text-muted-foreground">
-                e.g. a 5,000,000 TZS goal at 5% shows donors a public target of 5,250,000 TZS.
-              </p>
-            </div>
-            {feeError && (
-              <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-                {feeError}
+            ) : loading ? (
+              <div className="h-64 rounded-xl bg-muted/60 animate-pulse" />
+            ) : (
+              <div className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-5">
+                <h2 className="text-sm font-semibold text-foreground">Email Notifications</h2>
+                {NOTIFICATION_ITEMS.map((item) => (
+                  <div key={item.key} className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs font-medium text-foreground">{item.label}</p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">{item.desc}</p>
+                    </div>
+                    <Switch
+                      checked={notifications[item.key]}
+                      onCheckedChange={(v) =>
+                        setNotifications((prev) => ({ ...prev, [item.key]: Boolean(v) }))
+                      }
+                    />
+                  </div>
+                ))}
+                {errorFor("notifications") && (
+                  <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+                    {errorFor("notifications")}
+                  </div>
+                )}
+                <div className="flex justify-end">
+                  <Button
+                    size="sm"
+                    disabled={savingSection === "notifications"}
+                    onClick={() => saveSection("notifications", { notifications })}
+                  >
+                    {sectionButtonLabel("notifications", "Save Changes")}
+                  </Button>
+                </div>
               </div>
             )}
-            <div className="flex justify-end">
-              <Button size="sm" onClick={handleSaveFee} disabled={feeLoading || feeSaving}>
-                {feeSaving ? "Saving…" : feeSaved ? "Saved!" : "Save Fee"}
-              </Button>
-            </div>
-          </div>
+          </TabsContent>
+        )}
 
-          {/* Donor defaults */}
-          <div className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-4">
-            <h2 className="text-sm font-semibold text-foreground">
-              Donor Defaults
-            </h2>
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Default Consent Status</Label>
-                <Select defaultValue="pending">
-                  <SelectTrigger className="h-9 text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="consented">Consented</SelectItem>
-                  </SelectContent>
-                </Select>
+        {/* ─── Localisation ─────────────────────────────────────────────── */}
+        {canManageOrg && (
+          <TabsContent value="localisation" className="space-y-4">
+            {loadError ? (
+              <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                {loadError}
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Default Communication Channel</Label>
-                <Select defaultValue="email">
-                  <SelectTrigger className="h-9 text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="email">Email</SelectItem>
-                    <SelectItem value="sms">SMS</SelectItem>
-                    <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="flex justify-end">
-              <Button size="sm" onClick={handleSave}>
-                {saved ? "Saved!" : "Save Changes"}
-              </Button>
-            </div>
-          </div>
-        </TabsContent>
-
-        {/* Notifications */}
-        <TabsContent value="notifications" className="space-y-4">
-          <div className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-5">
-            <h2 className="text-sm font-semibold text-foreground">
-              Email Notifications
-            </h2>
-            {[
-              {
-                label: "New donation received",
-                desc: "Get notified every time a donation is recorded",
-                defaultChecked: true,
-              },
-              {
-                label: "Campaign  milestone reached",
-                desc: "Notify when a Campaign  reaches 25%, 50%, 75% and 100%",
-                defaultChecked: true,
-              },
-              {
-                label: "Donor consent changes",
-                desc: "Alert when a donor's consent status is updated",
-                defaultChecked: true,
-              },
-              {
-                label: "User member activity",
-                desc: "Summaries of user logins and key actions",
-                defaultChecked: false,
-              },
-              {
-                label: "Weekly digest",
-                desc: "A weekly summary of donation activity and Campaign  progress",
-                defaultChecked: true,
-              },
-            ].map((item) => (
-              <div key={item.label} className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-xs font-medium text-foreground">{item.label}</p>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">
-                    {item.desc}
-                  </p>
+            ) : loading ? (
+              <div className="h-64 rounded-xl bg-muted/60 animate-pulse" />
+            ) : (
+              <div className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-4">
+                <h2 className="text-sm font-semibold text-foreground">Localisation &amp; Currency</h2>
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Currency</Label>
+                    <Select
+                      value={currency}
+                      onValueChange={(v) => setCurrency((v as OrgSettings["currency"]) ?? "TZS")}
+                    >
+                      <SelectTrigger className="h-9 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="TZS">TZS – Tanzanian Shilling</SelectItem>
+                        <SelectItem value="USD">USD – US Dollar</SelectItem>
+                        <SelectItem value="EUR">EUR – Euro</SelectItem>
+                        <SelectItem value="GBP">GBP – British Pound</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Language</Label>
+                    <Select
+                      value={language}
+                      onValueChange={(v) => setLanguage((v as OrgSettings["language"]) ?? "en")}
+                    >
+                      <SelectTrigger className="h-9 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="en">English</SelectItem>
+                        <SelectItem value="sw">Kiswahili</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Timezone</Label>
+                    <Select
+                      value={timezone}
+                      onValueChange={(v) => setTimezone((v as OrgSettings["timezone"]) ?? "eat")}
+                    >
+                      <SelectTrigger className="h-9 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="eat">EAT – East Africa Time (UTC+3)</SelectItem>
+                        <SelectItem value="utc">UTC</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Date Format</Label>
+                    <Select
+                      value={dateFormat}
+                      onValueChange={(v) => setDateFormat((v as OrgSettings["dateFormat"]) ?? "dmy")}
+                    >
+                      <SelectTrigger className="h-9 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="dmy">DD/MM/YYYY</SelectItem>
+                        <SelectItem value="mdy">MM/DD/YYYY</SelectItem>
+                        <SelectItem value="ymd">YYYY-MM-DD</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-                <Switch defaultChecked={item.defaultChecked} />
+                {errorFor("localisation") && (
+                  <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+                    {errorFor("localisation")}
+                  </div>
+                )}
+                <div className="flex justify-end">
+                  <Button
+                    size="sm"
+                    disabled={savingSection === "localisation"}
+                    onClick={() =>
+                      saveSection("localisation", { currency, language, timezone, dateFormat })
+                    }
+                  >
+                    {sectionButtonLabel("localisation", "Save Changes")}
+                  </Button>
+                </div>
               </div>
-            ))}
-          </div>
-        </TabsContent>
+            )}
+          </TabsContent>
+        )}
 
-        {/* Security */}
+        {/* ─── Security ─────────────────────────────────────────────────── */}
         <TabsContent value="security" className="space-y-4">
           <div className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-5">
-            <h2 className="text-sm font-semibold text-foreground">
-              Password & Authentication
-            </h2>
+            <h2 className="text-sm font-semibold text-foreground">Change Password</h2>
             <div className="space-y-3">
               <div className="space-y-1.5">
                 <Label className="text-xs">Current Password</Label>
@@ -419,142 +639,9 @@ export default function SettingsPage() {
 
             <Separator />
 
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs font-medium text-foreground">
-                  Two-Factor Authentication
-                </p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Add an extra layer of security with 2FA via authenticator app
-                </p>
-              </div>
-              <Switch defaultChecked={false} />
-            </div>
-
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs font-medium text-foreground">
-                  Session timeout
-                </p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Automatically sign out after inactivity
-                </p>
-              </div>
-              <Select defaultValue="60">
-                <SelectTrigger className="h-8 w-32 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="15">15 minutes</SelectItem>
-                  <SelectItem value="30">30 minutes</SelectItem>
-                  <SelectItem value="60">1 hour</SelectItem>
-                  <SelectItem value="480">8 hours</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
             <div className="flex justify-end">
               <Button size="sm" onClick={handleChangePassword} disabled={passwordLoading}>
                 {passwordLoading ? "Updating…" : "Update Password"}
-              </Button>
-            </div>
-          </div>
-
-          {/* Danger zone — organisation deletion needs settings:org */}
-          {canManageOrg && (
-            <div className="bg-card border border-destructive/30 rounded-xl p-6 shadow-sm">
-              <div className="flex items-start gap-3 mb-4">
-                <AlertTriangle className="w-4 h-4 text-destructive mt-0.5 shrink-0" />
-                <div>
-                  <h2 className="text-sm font-semibold text-foreground">
-                    Danger Zone
-                  </h2>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">
-                    These actions are irreversible. Please be certain.
-                  </p>
-                </div>
-              </div>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between gap-4 p-3 bg-destructive/5 rounded-lg border border-destructive/20">
-                  <div>
-                    <p className="text-xs font-medium text-foreground">
-                      Delete Organisation
-                    </p>
-                    <p className="text-[11px] text-muted-foreground">
-                      Permanently delete this organisation and all its data
-                    </p>
-                  </div>
-                  <Button variant="destructive" size="sm">
-                    Delete
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
-        </TabsContent>
-
-        {/* Localisation */}
-        <TabsContent value="localisation" className="space-y-4">
-          <div className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-4">
-            <h2 className="text-sm font-semibold text-foreground">
-              Localisation & Currency
-            </h2>
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Currency</Label>
-                <Select defaultValue="TZS">
-                  <SelectTrigger className="h-9 text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="TZS">TZS – Tanzanian Shilling</SelectItem>
-                    <SelectItem value="USD">USD – US Dollar</SelectItem>
-                    <SelectItem value="EUR">EUR – Euro</SelectItem>
-                    <SelectItem value="GBP">GBP – British Pound</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Language</Label>
-                <Select defaultValue="en">
-                  <SelectTrigger className="h-9 text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="en">English</SelectItem>
-                    <SelectItem value="sw">Kiswahili</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Timezone</Label>
-                <Select defaultValue="eat">
-                  <SelectTrigger className="h-9 text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="eat">EAT – East Africa Time (UTC+3)</SelectItem>
-                    <SelectItem value="utc">UTC</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Date Format</Label>
-                <Select defaultValue="dmy">
-                  <SelectTrigger className="h-9 text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="dmy">DD/MM/YYYY</SelectItem>
-                    <SelectItem value="mdy">MM/DD/YYYY</SelectItem>
-                    <SelectItem value="ymd">YYYY-MM-DD</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="flex justify-end">
-              <Button size="sm" onClick={handleSave}>
-                {saved ? "Saved!" : "Save Changes"}
               </Button>
             </div>
           </div>

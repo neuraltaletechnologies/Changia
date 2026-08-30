@@ -10,8 +10,9 @@ import type { ApiUser } from "@/lib/api-client";
  *                          approval, manages the donor pool, views reports,
  *                          requests payouts. User & role management is
  *                          SUPER_ADMIN-only.
- *   - REVIEWER           → gives the FIRST (stage-1) approval and reviews
- *                          closure requests, completion reports and fee
+ *   - REVIEWER           → PLATFORM-level (no organization): gives the FIRST
+ *                          (stage-1) approval on campaigns from EVERY org, and
+ *                          reviews closure requests, completion reports and fee
  *                          proposals. Creates nothing.
  *   - CAMPAIGN_MANAGER   → works only on assigned campaigns, adds consented
  *                          donors, sends approved push requests. NO withdrawal
@@ -35,6 +36,15 @@ export const ALL_ROLES: Role[] = [
   ROLE.SUPER_ADMIN,
   ROLE.ORG_ADMIN,
   ROLE.REVIEWER,
+  ROLE.CAMPAIGN_MANAGER,
+];
+
+// A REVIEWER is platform-level (no organization), so the org-scoped working
+// areas — donors, donor pools, reminders — would only ever show them an empty
+// page. Those routes use this list instead of ALL_ROLES.
+export const NON_REVIEWER_ROLES: Role[] = [
+  ROLE.SUPER_ADMIN,
+  ROLE.ORG_ADMIN,
   ROLE.CAMPAIGN_MANAGER,
 ];
 
@@ -69,9 +79,9 @@ export const ROLE_META: Record<Role, RoleMeta> = {
   REVIEWER: {
     label: "Reviewer",
     shortLabel: "Reviewer",
-    tagline: "Give the first review on what your campaign managers submit.",
+    tagline: "Give the first review on campaigns submitted across the platform.",
     scope:
-      "Give campaigns their first approval, and review closure requests, completion reports and custom service-fee proposals. Can't create campaigns, manage users, change platform settings or handle payouts.",
+      "Platform-level: give the first approval on campaigns from every organisation, and review closure requests, completion reports and custom service-fee proposals. Can't create campaigns, manage users, change platform settings or handle payouts.",
   },
   CAMPAIGN_MANAGER: {
     label: "Campaign Manager",
@@ -190,14 +200,14 @@ export const ROUTE_ACCESS: Record<string, Role[]> = {
   "/dashboard/campaigns": ALL_ROLES,
   "/dashboard/campaigns/new": [ROLE.ORG_ADMIN, ROLE.CAMPAIGN_MANAGER],
   "/dashboard/campaigns/approvals": [ROLE.SUPER_ADMIN, ROLE.ORG_ADMIN, ROLE.REVIEWER],
-  "/dashboard/donors": ALL_ROLES,
+  "/dashboard/donors": NON_REVIEWER_ROLES,
   "/dashboard/donors/import": [ROLE.SUPER_ADMIN, ROLE.ORG_ADMIN],
-  "/dashboard/pools": ALL_ROLES,
+  "/dashboard/pools": NON_REVIEWER_ROLES,
   "/dashboard/pools/new": [ROLE.ORG_ADMIN, ROLE.CAMPAIGN_MANAGER],
-  "/dashboard/pools/anomalous": ALL_ROLES,
-  "/dashboard/reminders": ALL_ROLES,
-  "/dashboard/reminders/templates": ALL_ROLES,
-  "/dashboard/reminders/schedules": ALL_ROLES,
+  "/dashboard/pools/anomalous": NON_REVIEWER_ROLES,
+  "/dashboard/reminders": NON_REVIEWER_ROLES,
+  "/dashboard/reminders/templates": NON_REVIEWER_ROLES,
+  "/dashboard/reminders/schedules": NON_REVIEWER_ROLES,
   "/dashboard/notifications": ALL_ROLES,
   "/dashboard/user": [ROLE.SUPER_ADMIN],
   "/dashboard/audit-log": [ROLE.SUPER_ADMIN],

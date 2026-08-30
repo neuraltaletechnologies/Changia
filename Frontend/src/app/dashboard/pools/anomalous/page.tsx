@@ -78,7 +78,7 @@ export default function AnomalousPoolPage() {
   const members = pool?.members || [];
 
   return (
-    <div className="space-y-6 max-w-[1200px]">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <Button
           variant="outline"

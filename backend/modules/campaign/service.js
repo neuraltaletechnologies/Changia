@@ -90,10 +90,17 @@ function slugify(name) {
 
 /**
  * Returns [sqlFragment, ...params] for org-scoping queries.
- * SUPER_ADMIN and ORG_ADMIN see all orgs; CAMPAIGN_MANAGER is scoped.
+ * SUPER_ADMIN, ORG_ADMIN and REVIEWER see all orgs (a REVIEWER is a
+ * platform-level role that vets every org's campaigns before an org admin
+ * gives the final approval); CAMPAIGN_MANAGER is scoped to their own org.
  */
 function orgScope(organizationId, user) {
-  if (user && (user.role === "SUPER_ADMIN" || user.role === "ORG_ADMIN")) return ["", []];
+  if (
+    user &&
+    (user.role === "SUPER_ADMIN" || user.role === "ORG_ADMIN" || user.role === "REVIEWER")
+  ) {
+    return ["", []];
+  }
   if (!organizationId && organizationId !== 0) return ["", []];
   return [" AND organization_id = ?", [organizationId]];
 }
@@ -276,7 +283,14 @@ async function listCampaigns(organizationId, filters, user) {
   const where = [];
   const values = [];
 
-  if (user && user.role !== "SUPER_ADMIN" && user.role !== "ORG_ADMIN") {
+  // SUPER_ADMIN / ORG_ADMIN / REVIEWER are not org-scoped (the REVIEWER vets
+  // every org's campaigns platform-wide). Everyone else sees only their org.
+  if (
+    user &&
+    user.role !== "SUPER_ADMIN" &&
+    user.role !== "ORG_ADMIN" &&
+    user.role !== "REVIEWER"
+  ) {
     where.push("organization_id = ?");
     values.push(organizationId);
   }
@@ -497,11 +511,18 @@ async function createCampaign(organizationId, data, actor) {
   );
   const slug = await uniqueSlug(data.name);
 
-  // No self-approval: EVERY campaign (whoever creates it) goes straight to
-  // PENDING (skipping DRAFT — creating already IS "submitting for review") and
-  // stays unlisted (is_public = 0) until it clears the strict two-stage chain
-  // — stage 1 by a REVIEWER, stage 2 by an ORG_ADMIN, neither being the
-  // creator (see approveCampaign for PENDING -> REVIEWED -> ACTIVE).
+  // Two ways in:
+  //   - asDraft → stored as DRAFT. The creator keeps working on it (details,
+  //     cover photo, donor pools) and later calls POST /:id/submit, which moves
+  //     it to PENDING and notifies the reviewers.
+  //   - otherwise → straight to PENDING, exactly as before (creating already IS
+  //     "submitting for review").
+  // Either way there is NO self-approval and it stays unlisted (is_public = 0)
+  // until it clears the strict two-stage chain — stage 1 by a REVIEWER, stage 2
+  // by an ORG_ADMIN, neither being the creator (see approveCampaign for
+  // PENDING -> REVIEWED -> ACTIVE).
+  const startAsDraft = data.asDraft === true;
+  const initialStatus = startAsDraft ? "DRAFT" : "PENDING";
   const result = await db.execute(
     `INSERT INTO campaigns
        (organization_id, created_by_id, name, slug, story, name_sw, story_sw, category_sw, image_url, category,
@@ -530,7 +551,7 @@ async function createCampaign(organizationId, data, actor) {
       data.startDate ? new Date(data.startDate) : null,
       data.endDate ? new Date(data.endDate) : null,
       data.contactPhone || null,
-      "PENDING",
+      initialStatus,
       0,
       null,
       null,
@@ -569,15 +590,19 @@ async function createCampaign(organizationId, data, actor) {
     [resolvedOrgId, actor.id, actor.email, String(campaignId)]
   );
 
-  await notifySafe(notificationService.orgReviewersAndAdmins(resolvedOrgId), {
-    type: "campaign",
-    title: "New campaign awaiting review",
-    body: `"${data.name}" was submitted and needs a reviewer's first approval.`,
-    link: campaignLink(campaignId),
-    resource: "campaign",
-    resourceId: campaignId,
-    organizationId: resolvedOrgId,
-  });
+  // A draft isn't in the approval queue yet — the reviewers are notified only
+  // once the creator submits it (see submitCampaign).
+  if (!startAsDraft) {
+    await notifySafe(notificationService.orgReviewersAndAdmins(resolvedOrgId), {
+      type: "campaign",
+      title: "New campaign awaiting review",
+      body: `"${data.name}" was submitted and needs a reviewer's first approval.`,
+      link: campaignLink(campaignId),
+      resource: "campaign",
+      resourceId: campaignId,
+      organizationId: resolvedOrgId,
+    });
+  }
 
   return getCampaign(resolvedOrgId, campaignId, actor);
 }
@@ -794,6 +819,9 @@ function mapChangeRequest(r) {
     id: r.id,
     campaignId: r.campaign_id,
     status: r.status,
+    // 'EDIT' (parked field changes) or 'STATUS' (a manager's suspend/resume).
+    kind: r.request_kind || "EDIT",
+    statusAction: r.status_action || null,
     payload: parsePayload(r.payload),
     hasStagedCover: Boolean(r.staged_cover_path),
     stagedCoverUrl: r.staged_cover_path ? toAbsoluteImageUrl(r.staged_cover_path) : null,
@@ -825,12 +853,13 @@ async function loadOpenChangeRequests(campaignIds) {
   return byId;
 }
 
-async function getOpenChangeRequestRow(campaignId) {
+async function getOpenChangeRequestRow(campaignId, kind = "EDIT") {
   const rows = await db.query(
     `SELECT * FROM campaign_change_requests
-     WHERE campaign_id = ? AND status IN ('PENDING','REVIEWED','CHANGES_REQUESTED')
+     WHERE campaign_id = ? AND request_kind = ?
+       AND status IN ('PENDING','REVIEWED','CHANGES_REQUESTED')
      ORDER BY id DESC LIMIT 1`,
-    [campaignId]
+    [campaignId, kind]
   );
   return rows[0] || null;
 }
@@ -998,6 +1027,70 @@ async function listChangeRequests(organizationId, campaignId, user) {
 }
 
 /**
+ * A CAMPAIGN_MANAGER asks to suspend (PAUSE) or resume (RESUME) a campaign.
+ * The ask is parked as a STATUS change request that clears the same two-stage
+ * chain as a parked edit — a REVIEWER first, then an ORG_ADMIN — and only the
+ * final approval actually flips the campaign's status (via decideChangeRequest,
+ * which calls changeCampaignStatus).
+ */
+async function requestCampaignStatusChange(organizationId, campaignId, actor, data) {
+  const action = data.action; // 'PAUSE' | 'RESUME'
+  const reason = (data.reason || "").trim();
+
+  const [orgSql, ...orgParams] = orgScope(organizationId, actor);
+  const rows = await db.query(
+    `SELECT id, name, status, organization_id FROM campaigns WHERE id = ?${orgSql}`,
+    [campaignId, ...orgParams]
+  );
+  const campaign = rows[0];
+  if (!campaign) throw ApiError.notFound("Campaign not found");
+  organizationId = campaign.organization_id ?? organizationId;
+
+  if (action === "PAUSE" && campaign.status !== "ACTIVE") {
+    throw ApiError.badRequest("Only an active campaign can be suspended", "CAMPAIGN_NOT_ACTIVE");
+  }
+  if (action === "RESUME" && campaign.status !== "PAUSED") {
+    throw ApiError.badRequest("Only a suspended campaign can be resumed", "CAMPAIGN_NOT_PAUSED");
+  }
+
+  const open = await getOpenChangeRequestRow(campaignId, "STATUS");
+  if (open) {
+    throw ApiError.conflict(
+      "There's already a suspend/resume request awaiting review for this campaign",
+      "STATUS_REQUEST_OPEN"
+    );
+  }
+
+  await db.execute(
+    `INSERT INTO campaign_change_requests
+       (campaign_id, organization_id, submitted_by_id, request_kind, status_action, payload, status)
+     VALUES (?, ?, ?, 'STATUS', ?, ?, 'PENDING')`,
+    [campaignId, organizationId, actor.id, action, JSON.stringify(reason ? { reason } : {})]
+  );
+
+  const label = action === "PAUSE" ? "suspend" : "resume";
+  await writeAudit(
+    organizationId,
+    actor,
+    `campaign.status_request.submitted`,
+    campaignId,
+    "INFO",
+    { action, reason: reason || undefined }
+  );
+  await notifySafe(notificationService.orgReviewersAndAdmins(organizationId), {
+    type: "campaign",
+    title: `Request to ${label} a campaign`,
+    body: `A manager asked to ${label} "${campaign.name}" — needs a reviewer's first approval.`,
+    link: campaignLink(campaignId),
+    resource: "campaign",
+    resourceId: campaignId,
+    organizationId,
+  });
+
+  return getCampaign(organizationId, campaignId, actor);
+}
+
+/**
  * A REVIEWER/ORG_ADMIN/SUPER_ADMIN decides an open change request.
  *   action: 'approve' | 'request_changes' | 'reject'
  *   - approve @ PENDING  -> REVIEWED   (stage-1, must be a REVIEWER/SUPER_ADMIN, not the creator)
@@ -1014,6 +1107,9 @@ async function decideChangeRequest(organizationId, campaignId, requestId, actor,
   ]);
   const campaign = campaigns[0];
   if (!campaign) throw ApiError.notFound("Campaign not found");
+  // A platform REVIEWER carries no organization_id — fall back to the
+  // campaign's own org for audit rows and org-admin notifications.
+  organizationId = campaign.organization_id ?? organizationId;
 
   const rows = await db.query(
     "SELECT * FROM campaign_change_requests WHERE id = ? AND campaign_id = ?",
@@ -1031,8 +1127,18 @@ async function decideChangeRequest(organizationId, campaignId, requestId, actor,
     throw ApiError.badRequest("A reason of at least 10 characters is required", "REASON_REQUIRED");
   }
 
+  // 'STATUS' rows are a manager's suspend/resume ask; 'EDIT' rows are parked
+  // field changes. The two-stage chain is identical — only what "approve"
+  // finally does, and the wording, differ.
+  const isStatus = request.request_kind === "STATUS";
+  const statusVerb = request.status_action === "PAUSE" ? "suspend" : "resume";
+  const noun = isStatus ? `request to ${statusVerb} "${campaign.name}"` : `edits to "${campaign.name}"`;
+  // Who may not approve their own submission: the campaign creator for a parked
+  // edit, but for a STATUS ask it's whoever actually raised the request.
+  const originatorId = isStatus ? request.submitted_by_id : campaign.created_by_id;
+
   if (action === "approve" && request.status === "PENDING") {
-    assertApprovalStage({ actor, stage: 1, creatorId: campaign.created_by_id });
+    assertApprovalStage({ actor, stage: 1, creatorId: originatorId });
     await db.execute(
       `UPDATE campaign_change_requests
        SET status = 'REVIEWED', first_approved_by = ?, first_approved_at = NOW(), review_notes = NULL
@@ -1042,8 +1148,10 @@ async function decideChangeRequest(organizationId, campaignId, requestId, actor,
     await writeAudit(organizationId, actor, "campaign.change_request.first_approved", campaignId);
     await notifySafe(notificationService.orgAdmins(organizationId), {
       type: "campaign",
-      title: "Campaign changes ready for final approval",
-      body: `Edits to "${campaign.name}" passed first review.`,
+      title: isStatus
+        ? `Campaign ${statusVerb} request ready for final approval`
+        : "Campaign changes ready for final approval",
+      body: `The ${noun} passed first review.`,
       link: campaignLink(campaignId),
       resource: "campaign",
       resourceId: campaignId,
@@ -1051,8 +1159,10 @@ async function decideChangeRequest(organizationId, campaignId, requestId, actor,
     });
     await notifySafe(notificationService.campaignManagerAudience(campaignId), {
       type: "campaign",
-      title: "Your campaign edits passed first review",
-      body: `"${campaign.name}" edits now need a final approval from an admin.`,
+      title: isStatus
+        ? `Your ${statusVerb} request passed first review`
+        : "Your campaign edits passed first review",
+      body: `The ${noun} now needs a final approval from an admin.`,
       link: campaignLink(campaignId),
       resource: "campaign",
       resourceId: campaignId,
@@ -1064,29 +1174,37 @@ async function decideChangeRequest(organizationId, campaignId, requestId, actor,
       actor,
       stage: 2,
       firstApprovedBy: request.first_approved_by,
-      creatorId: campaign.created_by_id,
+      creatorId: originatorId,
     });
-    await applyChangeRequestPayload(campaign, parsePayload(request.payload), request.staged_cover_path);
     await db.execute(
       `UPDATE campaign_change_requests
        SET status = 'APPLIED', approved_by = ?, approved_at = NOW(), decided_at = NOW()
        WHERE id = ?`,
       [actor.id, requestId]
     );
-    await db.execute(
-      "UPDATE campaigns SET has_pending_changes = 0, review_state = 'NONE', review_notes = NULL WHERE id = ?",
-      [campaignId]
-    );
     await writeAudit(organizationId, actor, "campaign.change_request.approved", campaignId);
-    await notifySafe(notificationService.campaignManagerAudience(campaignId), {
-      type: "campaign",
-      title: "Your campaign changes are live",
-      body: `The approved edits to "${campaign.name}" are now public.`,
-      link: campaignLink(campaignId),
-      resource: "campaign",
-      resourceId: campaignId,
-      organizationId,
-    });
+
+    if (isStatus) {
+      // Flip the campaign's status now — changeCampaignStatus writes its own
+      // audit row and notifies the manager audience.
+      const target = request.status_action === "PAUSE" ? "PAUSED" : "ACTIVE";
+      await changeCampaignStatus(organizationId, campaignId, target, actor);
+    } else {
+      await applyChangeRequestPayload(campaign, parsePayload(request.payload), request.staged_cover_path);
+      await db.execute(
+        "UPDATE campaigns SET has_pending_changes = 0, review_state = 'NONE', review_notes = NULL WHERE id = ?",
+        [campaignId]
+      );
+      await notifySafe(notificationService.campaignManagerAudience(campaignId), {
+        type: "campaign",
+        title: "Your campaign changes are live",
+        body: `The approved edits to "${campaign.name}" are now public.`,
+        link: campaignLink(campaignId),
+        resource: "campaign",
+        resourceId: campaignId,
+        organizationId,
+      });
+    }
   } else if (action === "request_changes") {
     await db.execute(
       `UPDATE campaign_change_requests
@@ -1094,14 +1212,19 @@ async function decideChangeRequest(organizationId, campaignId, requestId, actor,
        WHERE id = ?`,
       [notes, requestId]
     );
-    await db.execute(
-      "UPDATE campaigns SET review_state = 'CHANGES_REQUESTED', review_notes = ? WHERE id = ?",
-      [notes, campaignId]
-    );
+    // The campaign's own review_state banner is for parked EDITs only.
+    if (!isStatus) {
+      await db.execute(
+        "UPDATE campaigns SET review_state = 'CHANGES_REQUESTED', review_notes = ? WHERE id = ?",
+        [notes, campaignId]
+      );
+    }
     await writeAudit(organizationId, actor, "campaign.change_request.changes_requested", campaignId, "INFO", { notes });
     await notifySafe(notificationService.campaignManagerAudience(campaignId), {
       type: "campaign",
-      title: "Changes requested on your campaign edit",
+      title: isStatus
+        ? `Changes requested on your ${statusVerb} request`
+        : "Changes requested on your campaign edit",
       body: notes,
       link: campaignLink(campaignId),
       resource: "campaign",
@@ -1118,14 +1241,16 @@ async function decideChangeRequest(organizationId, campaignId, requestId, actor,
        WHERE id = ?`,
       [notes, requestId]
     );
-    await db.execute(
-      "UPDATE campaigns SET has_pending_changes = 0, review_state = 'NONE', review_notes = ? WHERE id = ?",
-      [notes, campaignId]
-    );
+    if (!isStatus) {
+      await db.execute(
+        "UPDATE campaigns SET has_pending_changes = 0, review_state = 'NONE', review_notes = ? WHERE id = ?",
+        [notes, campaignId]
+      );
+    }
     await writeAudit(organizationId, actor, "campaign.change_request.rejected", campaignId, "WARNING", { notes });
     await notifySafe(notificationService.campaignManagerAudience(campaignId), {
       type: "campaign",
-      title: "Campaign edit rejected",
+      title: isStatus ? `Your ${statusVerb} request was rejected` : "Campaign edit rejected",
       body: notes,
       link: campaignLink(campaignId),
       resource: "campaign",
@@ -1170,12 +1295,25 @@ async function setTranslations(organizationId, campaignId, data, actor) {
 async function submitCampaign(organizationId, campaignId, actor) {
   const [orgSql, ...orgParams] = orgScope(organizationId, actor);
   const existing = await db.query(
-    `SELECT status FROM campaigns WHERE id = ?${orgSql}`,
+    `SELECT status, image_url, contact_phone, start_date, end_date FROM campaigns WHERE id = ?${orgSql}`,
     [campaignId, ...orgParams]
   );
   if (existing.length === 0) throw ApiError.notFound("Campaign not found");
-  if (existing[0].status !== "DRAFT") {
+  const draft = existing[0];
+  if (draft.status !== "DRAFT") {
     throw ApiError.badRequest("Only draft campaigns can be submitted for approval");
+  }
+  // The same essentials the one-step (non-draft) create flow always required —
+  // enforced here so a bare draft can't reach a reviewer half-finished.
+  const missing = [];
+  if (!draft.image_url) missing.push("a cover photo");
+  if (!draft.contact_phone) missing.push("a contact phone");
+  if (!draft.start_date || !draft.end_date) missing.push("start and end dates");
+  if (missing.length > 0) {
+    throw ApiError.badRequest(
+      `Add ${missing.join(", ")} before submitting this campaign for approval`,
+      "CAMPAIGN_INCOMPLETE"
+    );
   }
 
   await db.execute(
@@ -1214,11 +1352,16 @@ async function submitCampaign(organizationId, campaignId, actor) {
 async function approveCampaign(organizationId, campaignId, actor) {
   const [orgSql, ...orgParams] = orgScope(organizationId, actor);
   const existing = await db.query(
-    `SELECT id, name, status, first_approved_by, created_by_id FROM campaigns WHERE id = ?${orgSql}`,
+    `SELECT id, name, status, organization_id, first_approved_by, created_by_id
+     FROM campaigns WHERE id = ?${orgSql}`,
     [campaignId, ...orgParams]
   );
   if (existing.length === 0) throw ApiError.notFound("Campaign not found");
   const campaign = existing[0];
+  // A platform REVIEWER carries no organization_id — audit rows and the
+  // "ready for final approval" notification to org admins must use the
+  // campaign's own org, not the actor's.
+  organizationId = campaign.organization_id ?? organizationId;
 
   if (campaign.status === "PENDING") {
     assertApprovalStage({ actor, stage: 1, creatorId: campaign.created_by_id });
@@ -1302,11 +1445,12 @@ async function rejectCampaign(organizationId, campaignId, actor, notes) {
   }
   const [orgSql, ...orgParams] = orgScope(organizationId, actor);
   const existing = await db.query(
-    `SELECT id, name, status FROM campaigns WHERE id = ?${orgSql}`,
+    `SELECT id, name, status, organization_id FROM campaigns WHERE id = ?${orgSql}`,
     [campaignId, ...orgParams]
   );
   if (existing.length === 0) throw ApiError.notFound("Campaign not found");
   const campaign = existing[0];
+  organizationId = campaign.organization_id ?? organizationId;
   if (campaign.status !== "PENDING" && campaign.status !== "REVIEWED") {
     throw ApiError.badRequest(
       "Only campaigns awaiting review or final approval can be rejected",
@@ -1347,11 +1491,12 @@ async function requestCampaignChanges(organizationId, campaignId, actor, notes) 
   }
   const [orgSql, ...orgParams] = orgScope(organizationId, actor);
   const existing = await db.query(
-    `SELECT id, name, status FROM campaigns WHERE id = ?${orgSql}`,
+    `SELECT id, name, status, organization_id FROM campaigns WHERE id = ?${orgSql}`,
     [campaignId, ...orgParams]
   );
   if (existing.length === 0) throw ApiError.notFound("Campaign not found");
   const campaign = existing[0];
+  organizationId = campaign.organization_id ?? organizationId;
   if (campaign.status !== "PENDING" && campaign.status !== "REVIEWED") {
     throw ApiError.badRequest(
       "Only campaigns awaiting review or final approval can be sent back",
@@ -1401,13 +1546,14 @@ async function reviewFeeProposal(organizationId, campaignId, actor, data) {
 
   const [orgSql, ...orgParams] = orgScope(organizationId, actor);
   const existing = await db.query(
-    `SELECT id, name, goal_amount, service_fee_percent, proposed_service_fee_percent,
+    `SELECT id, name, organization_id, goal_amount, service_fee_percent, proposed_service_fee_percent,
             fee_status, raised_amount
      FROM campaigns WHERE id = ?${orgSql}`,
     [campaignId, ...orgParams]
   );
   const campaign = existing[0];
   if (!campaign) throw ApiError.notFound("Campaign not found");
+  organizationId = campaign.organization_id ?? organizationId;
   if (campaign.fee_status !== "PENDING") {
     throw ApiError.badRequest(
       "There is no pending service-fee proposal to review",
@@ -1493,10 +1639,10 @@ async function changeCampaignStatus(organizationId, campaignId, status, actor) {
   );
   if (existing.length === 0) throw ApiError.notFound("Campaign not found");
 
-  // A COMPLETED campaign stays public (it's the platform's track record —
-  // and where the completion-report proof surfaces); only PAUSED/CANCELLED
-  // pull the campaign off the public site.
-  const isPublic = status === "COMPLETED" ? 1 : 0;
+  // ACTIVE (resume) and COMPLETED stay public — COMPLETED is the platform's
+  // track record and where the completion-report proof surfaces; only
+  // PAUSED/CANCELLED pull the campaign off the public site.
+  const isPublic = status === "ACTIVE" || status === "COMPLETED" ? 1 : 0;
   await db.execute(
     "UPDATE campaigns SET status = ?, is_public = ? WHERE id = ?",
     [status, isPublic, campaignId]
@@ -1514,7 +1660,12 @@ async function changeCampaignStatus(organizationId, campaignId, status, actor) {
     ]
   );
 
-  const STATUS_LABEL = { PAUSED: "paused", COMPLETED: "completed", CANCELLED: "cancelled" };
+  const STATUS_LABEL = {
+    ACTIVE: "resumed",
+    PAUSED: "suspended",
+    COMPLETED: "completed",
+    CANCELLED: "cancelled",
+  };
   await notifySafe(notificationService.campaignManagerAudience(campaignId), {
     type: "campaign",
     title: `Campaign ${STATUS_LABEL[status] || status.toLowerCase()}`,
@@ -2136,11 +2287,12 @@ async function reviewCompletionReport(organizationId, campaignId, actor, data) {
   }
 
   const [orgSql, ...orgParams] = orgScope(organizationId, actor);
-  const campaigns = await db.query(`SELECT id, name FROM campaigns WHERE id = ?${orgSql}`, [
-    campaignId,
-    ...orgParams,
-  ]);
+  const campaigns = await db.query(
+    `SELECT id, name, organization_id FROM campaigns WHERE id = ?${orgSql}`,
+    [campaignId, ...orgParams]
+  );
   if (campaigns.length === 0) throw ApiError.notFound("Campaign not found");
+  organizationId = campaigns[0].organization_id ?? organizationId;
 
   const existing = await db.query(
     "SELECT id, status FROM campaign_completion_reports WHERE campaign_id = ?",
@@ -2431,11 +2583,12 @@ async function decideClosureRequest(organizationId, campaignId, requestId, actor
   }
 
   const [orgSql, ...orgParams] = orgScope(organizationId, actor);
-  const campaigns = await db.query(`SELECT id, name FROM campaigns WHERE id = ?${orgSql}`, [
-    campaignId,
-    ...orgParams,
-  ]);
+  const campaigns = await db.query(
+    `SELECT id, name, organization_id FROM campaigns WHERE id = ?${orgSql}`,
+    [campaignId, ...orgParams]
+  );
   if (campaigns.length === 0) throw ApiError.notFound("Campaign not found");
+  organizationId = campaigns[0].organization_id ?? organizationId;
 
   const requests = await db.query(
     "SELECT id, status FROM campaign_closure_requests WHERE id = ? AND campaign_id = ?",
@@ -2491,6 +2644,190 @@ async function decideClosureRequest(organizationId, campaignId, requestId, actor
   });
 
   return listClosureRequests(organizationId, campaignId, actor);
+}
+
+// ─── In-kind gifts + campaign payment breakdown ──────────────────────────────
+
+function mapGift(r) {
+  return {
+    id: r.id,
+    campaignId: r.campaign_id,
+    donorId: r.donor_id,
+    donorName: r.donor_id
+      ? [r.donor_first_name, r.donor_last_name].filter(Boolean).join(" ") || null
+      : null,
+    description: r.description,
+    estimatedValue: num(r.estimated_value),
+    receivedAt: r.received_at,
+    createdAt: r.created_at,
+  };
+}
+
+async function listCampaignGifts(organizationId, campaignId, user) {
+  await assertCampaignAccess(organizationId, user, campaignId);
+  const rows = await db.query(
+    `SELECT g.*, d.first_name AS donor_first_name, d.last_name AS donor_last_name
+     FROM campaign_gifts g
+     LEFT JOIN donors d ON d.id = g.donor_id
+     WHERE g.campaign_id = ?
+     ORDER BY g.created_at DESC, g.id DESC`,
+    [campaignId]
+  );
+  return rows.map(mapGift);
+}
+
+async function addCampaignGift(organizationId, campaignId, actor, data) {
+  await assertCampaignAccess(organizationId, actor, campaignId);
+  const [orgSql, ...orgParams] = orgScope(organizationId, actor);
+  const campaigns = await db.query(
+    `SELECT id, organization_id FROM campaigns WHERE id = ?${orgSql}`,
+    [campaignId, ...orgParams]
+  );
+  const campaign = campaigns[0];
+  if (!campaign) throw ApiError.notFound("Campaign not found");
+
+  if (data.donorId) {
+    const donor = await db.query(
+      "SELECT id FROM donors WHERE id = ? AND organization_id = ?",
+      [data.donorId, campaign.organization_id]
+    );
+    if (donor.length === 0) throw ApiError.badRequest("Donor not found", "DONOR_NOT_FOUND");
+  }
+
+  const result = await db.execute(
+    `INSERT INTO campaign_gifts
+       (campaign_id, organization_id, donor_id, description, estimated_value, received_at, recorded_by_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [
+      campaignId,
+      campaign.organization_id,
+      data.donorId || null,
+      data.description,
+      data.estimatedValue ?? 0,
+      data.receivedAt || null,
+      actor.id,
+    ]
+  );
+
+  await db.execute(
+    `INSERT INTO audit_logs (organization_id, actor_id, actor_email, action, resource, resource_id, details, severity)
+     VALUES (?, ?, ?, 'campaign.gift.recorded', 'campaign', ?, ?, 'INFO')`,
+    [
+      campaign.organization_id,
+      actor.id,
+      actor.email,
+      String(campaignId),
+      JSON.stringify({ giftId: result.insertId, estimatedValue: num(data.estimatedValue) }),
+    ]
+  );
+
+  return listCampaignGifts(organizationId, campaignId, actor);
+}
+
+async function removeCampaignGift(organizationId, campaignId, giftId, actor) {
+  await assertCampaignAccess(organizationId, actor, campaignId);
+  const rows = await db.query(
+    "SELECT id FROM campaign_gifts WHERE id = ? AND campaign_id = ?",
+    [giftId, campaignId]
+  );
+  if (rows.length === 0) throw ApiError.notFound("Gift not found");
+
+  await db.execute("DELETE FROM campaign_gifts WHERE id = ?", [giftId]);
+  await db.execute(
+    `INSERT INTO audit_logs (organization_id, actor_id, actor_email, action, resource, resource_id, severity)
+     VALUES (?, ?, ?, 'campaign.gift.removed', 'campaign', ?, 'INFO')`,
+    [organizationId, actor.id, actor.email, String(campaignId)]
+  );
+
+  return listCampaignGifts(organizationId, campaignId, actor);
+}
+
+/**
+ * Per-campaign payment breakdown for the caller's campaigns, sized in TZS:
+ *   paid           — confirmed money not tied to a pledge
+ *   unpaid         — remaining campaign goal not covered by a pledge
+ *   promisedPaid   — money received against a donor pledge
+ *   promisedUnpaid — pledged but not yet received
+ *   giftValue      — estimated value of in-kind contributions
+ * Each pie therefore sums to (goal + giftValue). Two grouped queries — no N+1.
+ */
+async function getPaymentsBreakdown(organizationId, user) {
+  const where = [];
+  const values = [];
+  if (
+    user &&
+    user.role !== "SUPER_ADMIN" &&
+    user.role !== "ORG_ADMIN" &&
+    user.role !== "REVIEWER"
+  ) {
+    where.push("c.organization_id = ?");
+    values.push(organizationId);
+  }
+  if (user && user.role === "CAMPAIGN_MANAGER") {
+    where.push("c.id IN (SELECT campaign_id FROM campaign_assignments WHERE user_id = ?)");
+    values.push(user.id);
+  }
+  const whereSql = where.length > 0 ? `WHERE ${where.join(" AND ")}` : "";
+
+  const campaigns = await db.query(
+    `SELECT c.id, c.name, c.goal_amount, c.raised_amount
+     FROM campaigns c ${whereSql}
+     ORDER BY c.created_at DESC`,
+    values
+  );
+  if (campaigns.length === 0) return [];
+
+  const ids = campaigns.map((c) => c.id);
+
+  const pledgeRows = await db.query(
+    `SELECT cdt.campaign_id,
+            SUM(COALESCE(cdt.expected_amount, 0)) AS promised_total,
+            SUM(LEAST(
+              COALESCE(cdt.expected_amount, 0),
+              (SELECT COALESCE(SUM(dd.amount), 0) FROM donations dd
+                WHERE dd.donor_id = cdt.donor_id AND dd.campaign_id = cdt.campaign_id
+                  AND dd.status = 'CONFIRMED')
+            )) AS promised_paid
+     FROM campaign_donor_targets cdt
+     WHERE cdt.campaign_id IN (?) AND cdt.expected_amount IS NOT NULL
+     GROUP BY cdt.campaign_id`,
+    [ids]
+  );
+  const giftRows = await db.query(
+    `SELECT campaign_id, SUM(estimated_value) AS gift_value
+     FROM campaign_gifts WHERE campaign_id IN (?) GROUP BY campaign_id`,
+    [ids]
+  );
+
+  const pledgeById = {};
+  for (const r of pledgeRows) pledgeById[r.campaign_id] = r;
+  const giftById = {};
+  for (const r of giftRows) giftById[r.campaign_id] = r;
+
+  return campaigns.map((c) => {
+    const goal = num(c.goal_amount);
+    const raised = num(c.raised_amount);
+    const promisedTotal = num(pledgeById[c.id] && pledgeById[c.id].promised_total);
+    const promisedPaid = Math.min(
+      promisedTotal,
+      num(pledgeById[c.id] && pledgeById[c.id].promised_paid)
+    );
+    const promisedUnpaid = Math.max(0, promisedTotal - promisedPaid);
+    const paid = Math.max(0, raised - promisedPaid);
+    const unpaid = Math.max(0, goal - raised - promisedUnpaid);
+    const giftValue = num(giftById[c.id] && giftById[c.id].gift_value);
+    return {
+      campaignId: c.id,
+      name: c.name,
+      goal,
+      raised,
+      paid,
+      unpaid,
+      promisedPaid,
+      promisedUnpaid,
+      giftValue,
+    };
+  });
 }
 
 // ─── Public (unauthenticated) campaign browsing ──────────────────────────────
@@ -2814,6 +3151,7 @@ module.exports = {
   requestCampaignChanges,
   reviewFeeProposal,
   listChangeRequests,
+  requestCampaignStatusChange,
   decideChangeRequest,
   changeCampaignStatus,
   setCampaignManagers,
@@ -2835,6 +3173,10 @@ module.exports = {
   requestClosure,
   listClosureRequests,
   decideClosureRequest,
+  listCampaignGifts,
+  addCampaignGift,
+  removeCampaignGift,
+  getPaymentsBreakdown,
   listPublicCampaigns,
   getPublicCampaign,
   listPublicCompletedCampaigns,

@@ -75,7 +75,7 @@ export default function DonorProfilePage() {
 
   if (loading) {
     return (
-      <div className="max-w-[900px]">
+      <div>
         <div className="h-40 rounded-xl bg-card border border-border animate-pulse" />
       </div>
     );
@@ -101,7 +101,7 @@ export default function DonorProfilePage() {
   const initials = `${(donor.firstName || "?")[0]}${(donor.lastName || "?")[0]}`;
 
   return (
-    <div className="space-y-6 max-w-[900px]">
+    <div className="space-y-6">
       {error && (
         <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
           {error}

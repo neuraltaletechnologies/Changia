@@ -38,6 +38,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/dashboard/ui/dropdown-menu";
+import { ActionStatusBadge, type ActionState } from "@/components/dashboard/ui/action-status";
 import {
   reminderScheduleApi,
   poolApi,
@@ -65,6 +66,23 @@ export default function SchedulesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<ReminderSchedule | "new" | null>(null);
+  // Transient per-row outcome for toggle / delete actions.
+  const [rowStatus, setRowStatus] = useState<
+    Record<number, { state: ActionState; label: string }>
+  >({});
+  const setRow = (id: number, state: ActionState, label: string) => {
+    setRowStatus((prev) => ({ ...prev, [id]: { state, label } }));
+    if (state === "done" || state === "failed") {
+      setTimeout(
+        () => setRowStatus((prev) => {
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        }),
+        2500
+      );
+    }
+  };
 
   const refresh = useCallback(async () => {
     try {
@@ -90,13 +108,25 @@ export default function SchedulesPage() {
 
   const remove = async (id: number) => {
     if (!window.confirm("Delete this auto-resend schedule?")) return;
-    await reminderScheduleApi.remove(id);
-    refresh();
+    setRow(id, "pending", "Deleting…");
+    try {
+      await reminderScheduleApi.remove(id);
+      setRow(id, "done", "Deleted");
+      setTimeout(refresh, 1200);
+    } catch {
+      setRow(id, "failed", "Not deleted");
+    }
   };
 
   const toggleActive = async (schedule: ReminderSchedule) => {
-    await reminderScheduleApi.update(schedule.id, { isActive: !schedule.isActive });
-    refresh();
+    setRow(schedule.id, "pending", "Saving…");
+    try {
+      await reminderScheduleApi.update(schedule.id, { isActive: !schedule.isActive });
+      setRow(schedule.id, "done", schedule.isActive ? "Paused" : "Activated");
+      refresh();
+    } catch {
+      setRow(schedule.id, "failed", "Not saved");
+    }
   };
 
   const targetName = (s: ReminderSchedule) =>
@@ -105,7 +135,7 @@ export default function SchedulesPage() {
       : campaigns.find((c) => c.id === s.campaignId)?.name || "Deleted campaign";
 
   return (
-    <div className="space-y-6 max-w-[900px]">
+    <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <Button
@@ -173,6 +203,14 @@ export default function SchedulesPage() {
                   Next cycle: {new Date(s.nextRunAt).toLocaleString()}
                 </p>
               </div>
+              {rowStatus[s.id] && (
+                <ActionStatusBadge
+                  state={rowStatus[s.id].state}
+                  pendingLabel={rowStatus[s.id].label}
+                  doneLabel={rowStatus[s.id].label}
+                  failedLabel={rowStatus[s.id].label}
+                />
+              )}
               <Switch
                 checked={s.isActive}
                 onCheckedChange={() => toggleActive(s)}

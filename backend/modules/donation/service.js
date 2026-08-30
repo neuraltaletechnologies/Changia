@@ -229,6 +229,32 @@ async function recordConfirmedDonation(data) {
 
     return donation;
   }).then(async (donation) => {
+    // ─── Auto-upgrade Donor Status ────────────────────────────────────────
+    // If this is the donor's first confirmed donation and they are still
+    // a PROSPECT, promote them to ACTIVE so the dashboard reflects that
+    // they are now an actual donor.
+    if (donation.donorId && !donation.isAnonymous) {
+      const donorRow = await db.query(
+        "SELECT status FROM donors WHERE id = ?",
+        [donation.donorId]
+      );
+      if (donorRow.length > 0 && donorRow[0].status === 'PROSPECT') {
+        const donationCount = await db.query(
+          "SELECT COUNT(*) AS cnt FROM donations WHERE donor_id = ? AND status = 'CONFIRMED'",
+          [donation.donorId]
+        );
+        if (donationCount[0].cnt === 1) {
+          await db.execute(
+            "UPDATE donors SET status = 'ACTIVE' WHERE id = ?",
+            [donation.donorId]
+          );
+          console.log(`[donation] Donor #${donation.donorId} promoted from PROSPECT to ACTIVE after first donation`);
+        }
+      }
+    }
+
+    return donation;
+  }).then(async (donation) => {
     // ─── Send Receipt Email ──────────────────────────────────────────────
     // Fire-and-forget: send a receipt email with transaction ID if email available
     if (donorEmail && !data.isAnonymous) {
@@ -261,19 +287,20 @@ async function recordConfirmedDonation(data) {
  * still needs to confirm with their PIN at the gateway prompt.
  */
 async function createPaymentAttempt(data) {
-  if (data.amount < MIN_PUSH_AMOUNT) {
-    throw ApiError.badRequest(
-      `Minimum donation is TZS ${MIN_PUSH_AMOUNT.toLocaleString()}`,
-      "BELOW_MINIMUM"
-    );
-  }
-
   const campaigns = await db.query(
     "SELECT * FROM campaigns WHERE id = ? AND organization_id = ?",
     [data.campaignId, data.organizationId]
   );
   const campaign = campaigns[0];
   if (!campaign) throw ApiError.notFound("Campaign not found");
+
+  const campaignMinimum = num(campaign.minimum_amount) || MIN_PUSH_AMOUNT;
+  if (data.amount < campaignMinimum) {
+    throw ApiError.badRequest(
+      `Minimum donation is TZS ${campaignMinimum.toLocaleString()}`,
+      "BELOW_MINIMUM"
+    );
+  }
   if (campaign.status !== "ACTIVE") {
     throw ApiError.badRequest("This campaign is not accepting donations", "CAMPAIGN_NOT_ACTIVE");
   }

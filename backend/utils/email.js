@@ -246,4 +246,73 @@ function buildDonationReceiptEmail({ donorName, campaignName, amount, receiptNum
 </html>`;
 }
 
-module.exports = { sendEmail, buildCampaignLinkEmail, buildDonationReceiptEmail, getTransporter };
+/**
+ * Generates the HTML for a password-reset email. `resetUrl` already carries the
+ * one-time token as a query param; the link is valid for `expiresMinutes`.
+ */
+function buildPasswordResetEmail({ firstName, resetUrl, expiresMinutes = 60 }) {
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin:0;padding:0;background-color:#f4f4f4;font-family:Arial,Helvetica,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f4;padding:20px 0;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;">
+          <tr>
+            <td style="background-color:#10b981;padding:24px 32px;text-align:center;">
+              <h1 style="color:#ffffff;margin:0;font-size:24px;">💚 Changia</h1>
+              <p style="color:#d1fae5;margin:8px 0 0;font-size:14px;">Password reset</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:32px;">
+              <h2 style="color:#1f2937;margin:0 0 16px;font-size:20px;">Reset your password</h2>
+              <p style="color:#4b5563;font-size:15px;line-height:1.6;margin:0 0 16px;">
+                ${firstName ? `Hi ${firstName},` : "Hello,"} we received a request to reset the password
+                for your Changia account. Click the button below to choose a new one.
+              </p>
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="padding:8px 0 24px;">
+                    <a href="${resetUrl}"
+                       style="background-color:#10b981;color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:6px;font-size:16px;font-weight:bold;display:inline-block;">
+                      Reset password →
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              <p style="color:#6b7280;font-size:13px;line-height:1.5;margin:0 0 12px;">
+                This link expires in ${expiresMinutes} minutes and can only be used once.
+              </p>
+              <p style="color:#6b7280;font-size:13px;line-height:1.5;margin:0;">
+                If you didn't request this, you can safely ignore this email — your password stays the same.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color:#f9fafb;padding:20px 32px;border-top:1px solid #e5e7eb;">
+              <p style="color:#9ca3af;font-size:12px;margin:0;text-align:center;">
+                This email was sent by <a href="https://changia.org.tz" style="color:#10b981;">Changia</a> — Tanzania's digital fundraising platform.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+module.exports = {
+  sendEmail,
+  buildCampaignLinkEmail,
+  buildDonationReceiptEmail,
+  buildPasswordResetEmail,
+  getTransporter,
+};

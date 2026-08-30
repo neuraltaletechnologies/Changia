@@ -90,6 +90,22 @@ async function orgAdmins(organizationId) {
   return rows.map((r) => r.id);
 }
 
+/** Every ACTIVE platform REVIEWER (not org-scoped — they vet every org). */
+async function platformReviewers() {
+  const rows = await db.query(
+    `SELECT id FROM users WHERE status = 'ACTIVE' AND role = 'REVIEWER'`
+  );
+  return rows.map((r) => r.id);
+}
+
+/** Every ACTIVE platform SUPER_ADMIN. */
+async function superAdmins() {
+  const rows = await db.query(
+    `SELECT id FROM users WHERE status = 'ACTIVE' AND role = 'SUPER_ADMIN'`
+  );
+  return rows.map((r) => r.id);
+}
+
 /** A campaign's assigned managers + its creator, deduped. */
 async function campaignManagerAudience(campaignId) {
   const rows = await db.query(
@@ -163,6 +179,8 @@ module.exports = {
   notify,
   orgReviewersAndAdmins,
   orgAdmins,
+  platformReviewers,
+  superAdmins,
   campaignManagerAudience,
   listNotifications,
   unreadCount,

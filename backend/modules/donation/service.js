@@ -5,6 +5,8 @@ const { normalizePhone } = require("../../utils/phone");
 const poolService = require("../donor-pool/service");
 const clickPesa = require("../../utils/clickPesa");
 
+// Platform floor, only used as a fallback when a campaign has no per-campaign
+// minimum_amount stored. Each campaign's own minimum_amount is the real check.
 const MIN_PUSH_AMOUNT = 1000;
 
 function nextReceiptNumber(year) {
@@ -261,13 +263,6 @@ async function recordConfirmedDonation(data) {
  * still needs to confirm with their PIN at the gateway prompt.
  */
 async function createPaymentAttempt(data) {
-  if (data.amount < MIN_PUSH_AMOUNT) {
-    throw ApiError.badRequest(
-      `Minimum donation is TZS ${MIN_PUSH_AMOUNT.toLocaleString()}`,
-      "BELOW_MINIMUM"
-    );
-  }
-
   const campaigns = await db.query(
     "SELECT * FROM campaigns WHERE id = ? AND organization_id = ?",
     [data.campaignId, data.organizationId]
@@ -276,6 +271,16 @@ async function createPaymentAttempt(data) {
   if (!campaign) throw ApiError.notFound("Campaign not found");
   if (campaign.status !== "ACTIVE") {
     throw ApiError.badRequest("This campaign is not accepting donations", "CAMPAIGN_NOT_ACTIVE");
+  }
+
+  // The per-campaign minimum the organizer set (falls back to the platform
+  // floor if a legacy campaign has no minimum stored).
+  const minAmount = num(campaign.minimum_amount) || MIN_PUSH_AMOUNT;
+  if (data.amount < minAmount) {
+    throw ApiError.badRequest(
+      `Minimum donation is TZS ${minAmount.toLocaleString()}`,
+      "BELOW_MINIMUM"
+    );
   }
 
   const raised = num(campaign.raised_amount);

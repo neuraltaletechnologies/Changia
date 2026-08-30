@@ -29,6 +29,9 @@ export interface ApiUser {
   status: string;
   avatarUrl?: string | null;
   organizationId: string | null;
+  /** True for admin-created accounts on a temporary password — the dashboard
+   *  forces a password change before anything else (see /dashboard/set-password). */
+  mustChangePassword?: boolean;
 }
 
 export interface ApiErrorBody {
@@ -275,6 +278,26 @@ export async function registerRequest(data: {
     auth: false,
   });
   return result.data;
+}
+
+export async function forgotPasswordRequest(email: string) {
+  return api.post<{ success: boolean; message: string }>(
+    '/auth/forgot-password',
+    { email },
+    { auth: false }
+  );
+}
+
+export async function resetPasswordRequest(data: {
+  token: string;
+  password: string;
+  confirmPassword: string;
+}) {
+  return api.post<{ success: boolean; message: string }>(
+    '/auth/reset-password',
+    data,
+    { auth: false }
+  );
 }
 
 export async function meRequest() {

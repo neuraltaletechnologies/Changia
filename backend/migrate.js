@@ -24,6 +24,21 @@ const MIGRATIONS = [
   `ALTER TABLE payouts ADD CONSTRAINT fk_payouts_campaign FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE SET NULL`,
   `ALTER TABLE payouts ADD INDEX idx_payouts_campaign_status (campaign_id, status)`,
 
+  // payouts — two-stage approval chain (mirrors two-stage campaign approval):
+  //   REQUESTED -> REVIEWED (stage 1, a REVIEWER/SUPER_ADMIN, not the requester)
+  //             -> APPROVED (stage 2, an ORG_ADMIN/SUPER_ADMIN, a different person, not the requester)
+  //             -> PAID     (SUPER_ADMIN marks the gateway transfer done)
+  // first_approved_by_id/at track the stage-1 sign-off so the service can require
+  // a *different* person for stage 2; approved_by_id/at stay as the stage-2 columns.
+  `ALTER TABLE payouts MODIFY COLUMN status ENUM('REQUESTED','REVIEWED','APPROVED','PAID','REJECTED') NOT NULL DEFAULT 'REQUESTED'`,
+  `ALTER TABLE payouts ADD COLUMN first_approved_by_id BIGINT UNSIGNED NULL AFTER requested_by_id`,
+  `ALTER TABLE payouts ADD COLUMN first_approved_at DATETIME NULL AFTER first_approved_by_id`,
+  `ALTER TABLE payouts ADD CONSTRAINT fk_payouts_first_approver FOREIGN KEY (first_approved_by_id) REFERENCES users(id) ON DELETE SET NULL`,
+
+  // users — force a password change on first login for admin-created accounts
+  // (createUser / resendInvite set this to 1; changePassword clears it).
+  `ALTER TABLE users ADD COLUMN must_change_password TINYINT(1) NOT NULL DEFAULT 0 AFTER status`,
+
   // organizations — per-org default campaign service fee (%), editable by
   // ORG_ADMIN/SUPER_ADMIN; falls back to DEFAULT_SERVICE_FEE_PERCENT when a
   // campaign doesn't set its own service_fee_percent.
@@ -168,6 +183,21 @@ const MIGRATIONS = [
     CONSTRAINT fk_gift_donor    FOREIGN KEY (donor_id) REFERENCES donors(id) ON DELETE SET NULL,
     CONSTRAINT fk_gift_recorder FOREIGN KEY (recorded_by_id) REFERENCES users(id) ON DELETE SET NULL,
     INDEX idx_gift_campaign (campaign_id)
+  ) ENGINE=InnoDB`,
+
+  // password_reset_tokens — "forgot password" flow. Only the SHA-256 hash of
+  // the token is stored; the raw token is in the emailed link. Single-use
+  // (used_at) and short-lived (expires_at, ~1h).
+  `CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id         BIGINT UNSIGNED NOT NULL,
+    token_hash      CHAR(64) NOT NULL,
+    expires_at      DATETIME NOT NULL,
+    used_at         DATETIME NULL,
+    created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_prt_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_prt_token (token_hash),
+    INDEX idx_prt_user (user_id)
   ) ENGINE=InnoDB`,
 
   // organization_settings — org-wide preferences edited on the dashboard

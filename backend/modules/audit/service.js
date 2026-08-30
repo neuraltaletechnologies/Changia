@@ -59,6 +59,7 @@ async function listAuditLogs(organizationId, filters) {
         : null,
       severity: l.severity,
       details: l.details,
+      ipAddress: l.ip_address,
       createdAt: l.created_at,
     })),
     pagination: {

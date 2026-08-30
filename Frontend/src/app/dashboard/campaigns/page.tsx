@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { type Campaign, type CampaignStatus } from "@/lib/dashboard/types";
 import { CampaignCard } from "@/components/dashboard/widgets/campaign-card";
 import { Button } from "@/components/dashboard/ui/button";
@@ -88,12 +89,20 @@ export default function CampaignsPage() {
     isSuperAdmin,
     isOrgAdmin,
     isCampaignManager,
+    isReviewer,
     canReviewCampaign,
     canFinalApproveCampaign,
     user,
   } = useRole();
+  const router = useRouter();
   const canCreate = hasPermission("campaign:create");
   const isAdmin = isSuperAdmin || isOrgAdmin;
+
+  // A REVIEWER doesn't create or run campaigns — they only review them. Their
+  // campaign entry point is the Approvals queue, so send them straight there.
+  useEffect(() => {
+    if (isReviewer) router.replace("/dashboard/campaigns/approvals");
+  }, [isReviewer, router]);
 
   const [viewMode, setViewMode] = useState<"card" | "list">("list");
   const [search, setSearch] = useState("");
@@ -216,6 +225,10 @@ export default function CampaignsPage() {
     }
   };
 
+  // Reviewers are being redirected to /dashboard/campaigns/approvals — don't
+  // flash the list at them on the way out.
+  if (isReviewer) return null;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -224,7 +237,7 @@ export default function CampaignsPage() {
             Campaigns
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {filtered.length} of {campaigns.length} campaigns &mdash; track goals and donor engagement
+            Track goals, approvals and donor engagement across your campaigns.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -272,49 +285,24 @@ export default function CampaignsPage() {
         </div>
       )}
 
-      {/* Status summary bar */}
-      <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
-        <div className="flex flex-wrap sm:flex-nowrap divide-y divide-border sm:divide-y-0 sm:divide-x">
-          {statusChips.map(({ status, dot }) => {
-            const count = campaigns.filter((c) => c.status === status).length;
-            const active = statusFilter === status;
-            const dimmed = Boolean(statusFilter) && !active;
-            return (
-              <button
-                key={status}
-                type="button"
-                onClick={() => setStatusFilter((prev) => (prev === status ? "" : status))}
-                className={cn(
-                  "relative flex-1 min-w-[33.333%] sm:min-w-0 px-4 py-3 text-left transition-colors hover:bg-muted/40",
-                  active && "bg-muted/50",
-                  dimmed && "opacity-45"
-                )}
-              >
-                <div className="flex items-center gap-2">
-                  <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", dot)} />
-                  <span className="text-base font-semibold text-foreground tabular-nums leading-none">
-                    {count}
-                  </span>
-                </div>
-                <span className="mt-1 block text-[11px] font-medium text-muted-foreground">
-                  {status.charAt(0) + status.slice(1).toLowerCase()}
-                </span>
-                {active && <span className="absolute inset-x-0 bottom-0 h-0.5 bg-primary" />}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* In-review pipeline — new campaigns + parked edits / suspend-resume requests */}
-      {!loading && reviewItems.length > 0 && (
+      {/* In review — a campaign manager's own submissions still working through
+          the approval chain (new campaigns + parked edits / suspend-resume
+          requests). Managers can't open the Approvals queue, so this is their
+          status tracker. Admins and reviewers do this work on the dedicated
+          Approvals page instead, so the list stays approval-free for them. */}
+      {!loading && isCampaignManager && reviewItems.length > 0 && (
         <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
           <div className="px-4 py-3 border-b border-border flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-sky-600" />
-              <h2 className="text-sm font-semibold text-foreground">
-                In review ({reviewItems.length})
-              </h2>
+              <Clock className="w-4 h-4 text-sky-600 shrink-0" />
+              <div>
+                <h2 className="text-sm font-semibold text-foreground">
+                  In review ({reviewItems.length})
+                </h2>
+                <p className="text-[11px] text-muted-foreground">
+                  Waiting on a reviewer, then an admin — changes aren&apos;t public yet.
+                </p>
+              </div>
             </div>
             {canReviewAny && (
               <Button
@@ -349,9 +337,40 @@ export default function CampaignsPage() {
         </div>
       )}
 
-      {/* Filters */}
-      <div className="bg-card border border-border rounded-xl p-4 shadow-sm">
-        <div className="flex flex-col lg:flex-row gap-3">
+      {/* Filters — status chips on top, then search / category / sort, one card */}
+      <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
+        <div className="flex flex-wrap sm:flex-nowrap divide-y divide-border sm:divide-y-0 sm:divide-x">
+          {statusChips.map(({ status, dot }) => {
+            const count = campaigns.filter((c) => c.status === status).length;
+            const active = statusFilter === status;
+            const dimmed = Boolean(statusFilter) && !active;
+            return (
+              <button
+                key={status}
+                type="button"
+                onClick={() => setStatusFilter((prev) => (prev === status ? "" : status))}
+                className={cn(
+                  "relative flex-1 min-w-[33.333%] sm:min-w-0 px-4 py-3 text-left transition-colors hover:bg-muted/40",
+                  active && "bg-muted/50",
+                  dimmed && "opacity-45"
+                )}
+                title={active ? `Show all statuses` : `Show only ${status.toLowerCase()}`}
+              >
+                <div className="flex items-center gap-2">
+                  <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", dot)} />
+                  <span className="text-base font-semibold text-foreground tabular-nums leading-none">
+                    {count}
+                  </span>
+                </div>
+                <span className="mt-1 block text-[11px] font-medium text-muted-foreground">
+                  {status.charAt(0) + status.slice(1).toLowerCase()}
+                </span>
+                {active && <span className="absolute inset-x-0 bottom-0 h-0.5 bg-primary" />}
+              </button>
+            );
+          })}
+        </div>
+        <div className="border-t border-border p-4 flex flex-col lg:flex-row gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
             <Input
@@ -393,6 +412,27 @@ export default function CampaignsPage() {
           </div>
         </div>
       </div>
+
+      {/* Result count + clear */}
+      {!loading && campaigns.length > 0 && (
+        <p className="text-xs text-muted-foreground">
+          Showing {filtered.length} of {campaigns.length} campaign
+          {campaigns.length === 1 ? "" : "s"}
+          {(statusFilter || categoryFilter || search.trim()) && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearch("");
+                setStatusFilter("");
+                setCategoryFilter("");
+              }}
+              className="ml-2 text-primary hover:underline"
+            >
+              Clear filters
+            </button>
+          )}
+        </p>
+      )}
 
       {loading ? (
         <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -445,6 +485,7 @@ export default function CampaignsPage() {
                 <CampaignActionsMenu
                   campaign={c}
                   isAdmin={isAdmin}
+                  isSuperAdmin={isSuperAdmin}
                   isCampaignManager={isCampaignManager}
                   canReviewCampaign={canReviewCampaign}
                   canFinalApproveCampaign={canFinalApproveCampaign}
@@ -502,9 +543,16 @@ export default function CampaignsPage() {
                         ) : (
                           <div className="w-8 h-8 rounded-md bg-muted shrink-0" />
                         )}
-                        <Link href={`/dashboard/campaigns/${c.id}`} className="font-medium text-foreground hover:text-primary transition-colors">
-                          {c.name}
-                        </Link>
+                        <div className="min-w-0">
+                          <Link href={`/dashboard/campaigns/${c.id}`} className="font-medium text-foreground hover:text-primary transition-colors">
+                            {c.name}
+                          </Link>
+                          {c.organizationName && (
+                            <p className="text-[11px] text-muted-foreground truncate">
+                              {c.organizationName}
+                            </p>
+                          )}
+                        </div>
                       </div>
                       {c.status === "COMPLETED" && (
                         <div>
@@ -555,6 +603,7 @@ export default function CampaignsPage() {
                       <CampaignActionsMenu
                         campaign={c}
                         isAdmin={isAdmin}
+                        isSuperAdmin={isSuperAdmin}
                         isCampaignManager={isCampaignManager}
                         canReviewCampaign={canReviewCampaign}
                         canFinalApproveCampaign={canFinalApproveCampaign}
@@ -673,6 +722,7 @@ function toCardCampaign(c: CampaignRecord): Campaign {
     endDate: c.endDate ? new Date(c.endDate).toLocaleDateString() : "—",
     category: c.category ?? undefined,
     description: c.story ?? undefined,
+    organizationName: c.organizationName ?? undefined,
     ownerName: c.assignments?.[0]
       ? `${c.assignments[0].user.firstName} ${c.assignments[0].user.lastName ?? ""}`.trim()
       : undefined,
@@ -687,6 +737,7 @@ type RequestDialog = "suspend" | "resume" | "payout" | "closure";
 function CampaignActionsMenu({
   campaign,
   isAdmin,
+  isSuperAdmin,
   isCampaignManager,
   canReviewCampaign,
   canFinalApproveCampaign,
@@ -699,6 +750,7 @@ function CampaignActionsMenu({
 }: {
   campaign: CampaignRecord;
   isAdmin: boolean;
+  isSuperAdmin: boolean;
   isCampaignManager: boolean;
   /** Can give the FIRST (stage-1) approval — REVIEWER / SUPER_ADMIN. */
   canReviewCampaign: boolean;
@@ -723,12 +775,18 @@ function CampaignActionsMenu({
     uid && campaign.assignments?.some((a) => String(a.user.id) === uid)
   );
   const isCreator = !!(uid && String(campaign.createdBy ?? "") === uid);
-  // "Works this campaign" — an assigned manager, or the manager who created it.
+  // "Works this campaign" — its creator (any role, incl. an org admin who made
+  // it themselves), or an assigned manager.
   const worksHere = isAssigned || isCreator;
+  // Editing content belongs to the people who build the campaign. An ORG_ADMIN
+  // only edits campaigns they created — for anyone else's they use the approval
+  // chain ("Request changes"). A SUPER_ADMIN can still edit any.
   const canEdit =
-    (isAdmin || worksHere) && campaign.status !== "COMPLETED" && campaign.status !== "CANCELLED";
+    (isSuperAdmin || worksHere) &&
+    campaign.status !== "COMPLETED" &&
+    campaign.status !== "CANCELLED";
   const canDelete = isAdmin && campaign.status !== "ACTIVE" && campaign.status !== "COMPLETED";
-  const canSubmitDraft = campaign.status === "DRAFT" && (isAdmin || worksHere);
+  const canSubmitDraft = campaign.status === "DRAFT" && (isSuperAdmin || worksHere);
   // Ordered chain: PENDING → a reviewer's first approval; REVIEWED → a
   // different admin's final approval. Neither may be the creator. The backend
   // enforces all of this — this just picks which quick-action to show.
@@ -935,7 +993,7 @@ function CampaignRequestDialog({
     },
     payout: {
       title: "Request payout",
-      blurb: "An org admin reviews and approves payout requests.",
+      blurb: "This goes to a reviewer, then an org admin, before it can be paid.",
       reasonLabel: "What is this payout for?",
       reasonRequired: true,
     },
@@ -970,7 +1028,7 @@ function CampaignRequestDialog({
         return payoutApi.create({
           amount: Number(amount),
           campaignId: campaign.id,
-          reason: reason.trim() || undefined,
+          reason: reason.trim(),
         });
       });
       onDone();

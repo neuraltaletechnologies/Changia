@@ -18,6 +18,7 @@ import {
   Layers,
   BellRing,
   Bell,
+  FileClock,
   ShieldCheck,
   HandCoins,
 } from "lucide-react";
@@ -52,8 +53,13 @@ const navItems = [
         icon: Layers,
       },
       {
-        label: "Reminders",
+        label: "Pending Resends",
         href: "/dashboard/reminders",
+        icon: FileClock,
+      },
+      {
+        label: "Auto-resend",
+        href: "/dashboard/reminders/schedules",
         icon: BellRing,
       },
       {
@@ -97,7 +103,7 @@ interface SidebarProps {
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
-  const { canAccessRoute, meta } = useRole();
+  const { canAccessRoute, isReviewer, meta } = useRole();
   const pendingReminders = usePendingReminderCount();
   const pendingApprovals = usePendingApprovalCount();
   const { unreadCount } = useNotifications();
@@ -109,16 +115,29 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
     return 0;
   };
 
-  // Only show nav sections/items the current role is allowed to open.
+  // Only show nav sections/items the current role is allowed to open. A REVIEWER
+  // never creates or runs campaigns — they only review them — so the "Campaigns"
+  // list is hidden for them; "Approvals" is their campaign entry point.
   const visibleSections = navItems
     .map((section) => ({
       ...section,
-      items: section.items.filter((item) => canAccessRoute(item.href)),
+      items: section.items.filter((item) => {
+        if (!canAccessRoute(item.href)) return false;
+        if (isReviewer && item.href === "/dashboard/campaigns") return false;
+        return true;
+      }),
     }))
     .filter((section) => section.items.length > 0);
 
   const isActive = (href: string) => {
     if (href === "/dashboard") return pathname === "/dashboard";
+    // Keep "Campaigns" and "Approvals" from both lighting up on the approvals route.
+    if (href === "/dashboard/campaigns") {
+      return (
+        pathname.startsWith("/dashboard/campaigns") &&
+        !pathname.startsWith("/dashboard/campaigns/approvals")
+      );
+    }
     return pathname.startsWith(href);
   };
 

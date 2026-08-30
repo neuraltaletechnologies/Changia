@@ -1,8 +1,16 @@
+const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
 const db = require("../../db");
+const { env } = require("../../config");
 const { ApiError } = require("../../utils/ApiError");
 const { normalizePhone } = require("../../utils/phone");
 const { signAccessToken } = require("../../utils/token");
+const { sendEmail, buildPasswordResetEmail } = require("../../utils/email");
+
+/** How long an emailed password-reset link stays valid. */
+const RESET_TOKEN_TTL_MINUTES = 60;
+
+const hashToken = (token) => crypto.createHash("sha256").update(token).digest("hex");
 
 function slugify(name) {
   const base = name
@@ -24,6 +32,7 @@ function serializeUser(user) {
     status: user.status,
     avatarUrl: user.avatar_url,
     organizationId: user.organization_id,
+    mustChangePassword: Boolean(user.must_change_password),
   };
 }
 
@@ -95,6 +104,7 @@ async function registerOrganization(data) {
       status: "ACTIVE",
       avatarUrl: null,
       organizationId: organization.organizationId,
+      mustChangePassword: false,
     },
     organization: {
       id: organization.organizationId,
@@ -107,7 +117,7 @@ async function registerOrganization(data) {
 async function login(data) {
   const users = await db.query(
     `SELECT id, first_name, last_name, email, phone, role, status, avatar_url,
-            organization_id, password_hash
+            organization_id, must_change_password, password_hash
      FROM users WHERE email = ?`,
     [data.email]
   );
@@ -145,7 +155,7 @@ async function login(data) {
 async function getCurrentUser(userId) {
   const users = await db.query(
     `SELECT u.id, u.first_name, u.last_name, u.email, u.phone, u.role, u.status,
-            u.avatar_url, u.organization_id,
+            u.avatar_url, u.organization_id, u.must_change_password,
             o.name AS org_name, o.slug AS org_slug, o.email AS org_email, o.phone AS org_phone
      FROM users u
      LEFT JOIN organizations o ON o.id = u.organization_id
@@ -183,13 +193,114 @@ async function changePassword(userId, data) {
   }
 
   const passwordHash = await bcrypt.hash(data.newPassword, 12);
-  await db.execute("UPDATE users SET password_hash = ? WHERE id = ?", [passwordHash, userId]);
+  await db.execute(
+    "UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?",
+    [passwordHash, userId]
+  );
 
   await db.execute(
     `INSERT INTO audit_logs (organization_id, actor_id, actor_email, action, resource, resource_id, severity)
      VALUES (?, ?, ?, 'user.password_changed', 'user', ?, 'INFO')`,
     [user.organization_id, userId, user.email, String(userId)]
   );
+}
+
+/**
+ * Starts the "forgot password" flow. Always resolves the same way (no
+ * indication of whether the email exists) — if a matching active user is found,
+ * any earlier unused tokens are dropped, a fresh single-use token is stored
+ * (hashed) and the raw token is emailed inside a reset link.
+ */
+async function requestPasswordReset(data) {
+  const users = await db.query(
+    "SELECT id, first_name, email, status FROM users WHERE email = ?",
+    [data.email]
+  );
+  const user = users[0];
+
+  if (user && user.status === "ACTIVE") {
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MINUTES * 60 * 1000);
+
+    await db.execute(
+      "DELETE FROM password_reset_tokens WHERE user_id = ? AND used_at IS NULL",
+      [user.id]
+    );
+    await db.execute(
+      `INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
+       VALUES (?, ?, ?)`,
+      [user.id, hashToken(rawToken), expiresAt]
+    );
+
+    const resetUrl = `${env.APP_BASE_URL.replace(/\/$/, "")}/reset-password?token=${rawToken}`;
+
+    try {
+      await sendEmail({
+        to: user.email,
+        subject: "Reset your Changia password",
+        html: buildPasswordResetEmail({
+          firstName: user.first_name,
+          resetUrl,
+          expiresMinutes: RESET_TOKEN_TTL_MINUTES,
+        }),
+        text: `Reset your Changia password using this link (valid for ${RESET_TOKEN_TTL_MINUTES} minutes): ${resetUrl}`,
+      });
+    } catch (err) {
+      // Don't leak send failures to the caller — the response is intentionally
+      // identical whether or not an email went out.
+      console.error("📧 Password reset email failed:", err.message);
+    }
+  }
+
+  return { message: "If that email is registered, a reset link is on its way." };
+}
+
+/**
+ * Completes the flow: validates the emailed token, sets the new password and
+ * burns the token. Also clears `must_change_password` so an admin-invited user
+ * who used "forgot password" isn't asked to change it again.
+ */
+async function resetPassword(data) {
+  const rows = await db.query(
+    `SELECT prt.id, prt.user_id, prt.expires_at, prt.used_at, u.email, u.organization_id
+     FROM password_reset_tokens prt
+     JOIN users u ON u.id = prt.user_id
+     WHERE prt.token_hash = ?`,
+    [hashToken(data.token)]
+  );
+  const row = rows[0];
+
+  if (!row || row.used_at || new Date(row.expires_at).getTime() < Date.now()) {
+    throw ApiError.badRequest(
+      "This reset link is invalid or has expired. Please request a new one.",
+      "INVALID_RESET_TOKEN"
+    );
+  }
+
+  const passwordHash = await bcrypt.hash(data.password, 12);
+
+  await db.withTransaction(async (tx) => {
+    await tx.execute(
+      "UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?",
+      [passwordHash, row.user_id]
+    );
+    await tx.execute(
+      "UPDATE password_reset_tokens SET used_at = NOW() WHERE id = ?",
+      [row.id]
+    );
+    // Invalidate any other outstanding tokens for this user.
+    await tx.execute(
+      "DELETE FROM password_reset_tokens WHERE user_id = ? AND used_at IS NULL",
+      [row.user_id]
+    );
+    await tx.execute(
+      `INSERT INTO audit_logs (organization_id, actor_id, actor_email, action, resource, resource_id, severity)
+       VALUES (?, ?, ?, 'user.password_reset', 'user', ?, 'WARNING')`,
+      [row.organization_id, row.user_id, row.email, String(row.user_id)]
+    );
+  });
+
+  return { message: "Your password has been reset. You can now sign in." };
 }
 
 async function recordLogout(user) {
@@ -205,5 +316,7 @@ module.exports = {
   login,
   getCurrentUser,
   changePassword,
+  requestPasswordReset,
+  resetPassword,
   recordLogout,
 };

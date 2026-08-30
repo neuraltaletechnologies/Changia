@@ -160,8 +160,8 @@ async function createUser(caller, data) {
   const passwordHash = await bcrypt.hash(temporaryPassword, 12);
 
   const result = await db.execute(
-    `INSERT INTO users (organization_id, first_name, last_name, email, phone, password_hash, role, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE')`,
+    `INSERT INTO users (organization_id, first_name, last_name, email, phone, password_hash, role, status, must_change_password)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE', 1)`,
     [
       organizationId,
       data.firstName,
@@ -260,9 +260,10 @@ async function resendInvite(caller, userId) {
   if (!target) throw ApiError.notFound("User member not found");
   assertCanManageUser(caller, target);
   const temporaryPassword = generateTemporaryPassword();
-  await db.execute("UPDATE users SET password_hash = ?, status = 'PENDING' WHERE id = ?", [
-    await bcrypt.hash(temporaryPassword, 12), userId,
-  ]);
+  await db.execute(
+    "UPDATE users SET password_hash = ?, status = 'PENDING', must_change_password = 1 WHERE id = ?",
+    [await bcrypt.hash(temporaryPassword, 12), userId]
+  );
   const updated = await db.query(`${USER_SELECT} WHERE u.id = ?`, [userId]);
   return { user: serializeUser(updated[0]), temporaryPassword };
 }

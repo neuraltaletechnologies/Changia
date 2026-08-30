@@ -18,6 +18,15 @@ const getCampaign = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true, data: campaign });
 });
 
+const getCampaignHistory = asyncHandler(async (req, res) => {
+  const history = await campaignService.getCampaignHistory(
+    req.user.organizationId,
+    req.params.id,
+    req.user
+  );
+  res.status(200).json({ success: true, data: history });
+});
+
 const createCampaign = asyncHandler(async (req, res) => {
   const campaign = await campaignService.createCampaign(req.user.organizationId, req.body, {
     id: req.user.id,
@@ -369,6 +378,7 @@ const removeCampaign = asyncHandler(async (req, res) => {
 module.exports = {
   listCampaigns,
   getCampaign,
+  getCampaignHistory,
   createCampaign,
   updateCampaign,
   submitCampaign,

@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from 'react';
 import EmailInput from './input/EmailInput';
 import AuthBtn from '../buttons/AuthBtn';
+import { ApiClientError, forgotPasswordRequest } from '@/lib/api-client';
 
 const config = {
   id: 'hs-toggle-between-modals-recover-modal',
@@ -16,8 +17,9 @@ export default function RecoverModal() {
   const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
 
@@ -26,9 +28,20 @@ export default function RecoverModal() {
       return;
     }
 
-    // All fields validated — proceed to send reset link
-    setEmail('');
-    setSent(true);
+    setLoading(true);
+    try {
+      await forgotPasswordRequest(email.trim());
+      setEmail('');
+      setSent(true);
+    } catch (err) {
+      setError(
+        err instanceof ApiClientError
+          ? err.message
+          : 'Unable to send the reset link. Please try again.'
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -77,7 +90,10 @@ export default function RecoverModal() {
                         If that email exists, a reset link has been sent.
                       </div>
                     ) : (
-                      <AuthBtn title="Reset password" />
+                      <AuthBtn
+                        title={loading ? 'Sending…' : 'Reset password'}
+                        disabled={loading}
+                      />
                     )}
                   </div>
                 </form>

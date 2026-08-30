@@ -51,6 +51,7 @@ import {
   type MessageTemplate,
 } from "@/lib/dashboard/api";
 import { cn } from "@/lib/dashboard/utils";
+import { useRole } from "@/hooks/use-role";
 
 const CHANNELS: ReminderChannel[] = ["SMS", "WHATSAPP", "EMAIL"];
 const CHANNEL_LABEL: Record<ReminderChannel, string> = {
@@ -60,6 +61,7 @@ const CHANNEL_LABEL: Record<ReminderChannel, string> = {
 };
 
 export default function SchedulesPage() {
+  const { isCampaignManager } = useRole();
   const [schedules, setSchedules] = useState<ReminderSchedule[]>([]);
   const [pools, setPools] = useState<DonorPool[]>([]);
   const [campaigns, setCampaigns] = useState<CampaignRecord[]>([]);
@@ -138,25 +140,24 @@ export default function SchedulesPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <Button
-            variant="outline"
-            size="sm"
-            nativeButton={false}
-            render={<Link href="/dashboard/reminders" />}
-          >
-            <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
-            Reminders
-          </Button>
+          {isCampaignManager && (
+            <Button
+              variant="outline"
+              size="sm"
+              nativeButton={false}
+              render={<Link href="/dashboard/reminders" />}
+            >
+              <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
+              Pending Resends
+            </Button>
+          )}
           <h1 className="text-xl font-semibold text-foreground tracking-tight mt-3">
             Auto-Resend Schedules
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Set an interval and every cycle will be queued in{" "}
-            <Link href="/dashboard/reminders" className="text-primary hover:underline">
-              Pending Resends
-            </Link>{" "}
-            for you to confirm — nothing sends on its own. Not available for
-            the anomalous pool.
+            Set an interval and every cycle is queued for a campaign manager to
+            review and confirm in Pending Resends — nothing sends on its own.
+            Not available for the anomalous pool.
           </p>
         </div>
         <Button size="sm" onClick={() => setEditing("new")}>

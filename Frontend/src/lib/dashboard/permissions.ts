@@ -74,7 +74,7 @@ export const ROLE_META: Record<Role, RoleMeta> = {
     shortLabel: "Org Admin",
     tagline: "Campaigns, donors and payouts for your organisation.",
     scope:
-      "Create campaigns, give the final (stage-2) approval, manage donors and donor pools, and request payouts. User and role management is handled by a platform super admin.",
+      "Create campaigns, give the final (stage-2) approval, manage donors and donor pools, and request payouts. User and role management, and the audit log, are handled by a platform super admin.",
   },
   REVIEWER: {
     label: "Reviewer",
@@ -132,7 +132,8 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "audit:view",
     "settings:platform",
     "settings:org",
-    "payout:request",
+    // Deliberately no "payout:request" — a super admin stands in as a payout
+    // reviewer and marks approved payouts paid, but doesn't request them.
     "reports:view",
     "reminder:manage",
   ],
@@ -146,6 +147,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "donor:add",
     "donor:manage",
     // NOTE: no "user:manage" — all user & role management is SUPER_ADMIN-only.
+    // NOTE: no "audit:view" — the audit log is SUPER_ADMIN-only.
     "settings:org",
     "payout:request",
     "reports:view",
@@ -166,6 +168,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "campaign:create",
     "donor:view",
     "donor:add",
+    "payout:request",
     "reminder:manage",
     "donorpool:create",
   ],
@@ -189,6 +192,20 @@ export function canFinalApproveCampaign(role: Role | undefined): boolean {
   return role === "ORG_ADMIN" || role === "SUPER_ADMIN";
 }
 
+// ─── Ordered payout-approval chain ──────────────────────────────────────────
+// Payouts mirror campaigns: request (CAMPAIGN_MANAGER / ORG_ADMIN)
+//   -> REVIEWED  (stage 1 — a REVIEWER or SUPER_ADMIN, not the requester)
+//   -> APPROVED  (stage 2 — an ORG_ADMIN or SUPER_ADMIN, a different person)
+//   -> PAID      (SUPER_ADMIN confirms the gateway transfer)
+
+export function canReviewPayout(role: Role | undefined): boolean {
+  return role === "REVIEWER" || role === "SUPER_ADMIN";
+}
+
+export function canFinalApprovePayout(role: Role | undefined): boolean {
+  return role === "ORG_ADMIN" || role === "SUPER_ADMIN";
+}
+
 // ─── Route access ────────────────────────────────────────────────────────────
 //
 // Kept in one place so the sidebar, mobile nav, route guard and dashboard all
@@ -205,14 +222,16 @@ export const ROUTE_ACCESS: Record<string, Role[]> = {
   "/dashboard/pools": NON_REVIEWER_ROLES,
   "/dashboard/pools/new": [ROLE.ORG_ADMIN, ROLE.CAMPAIGN_MANAGER],
   "/dashboard/pools/anomalous": NON_REVIEWER_ROLES,
-  "/dashboard/reminders": NON_REVIEWER_ROLES,
+  // "Pending Resends" is a campaign-manager approval queue — admins get the
+  // templates + auto-resend schedules pages, but not this one.
+  "/dashboard/reminders": [ROLE.CAMPAIGN_MANAGER],
   "/dashboard/reminders/templates": NON_REVIEWER_ROLES,
   "/dashboard/reminders/schedules": NON_REVIEWER_ROLES,
   "/dashboard/notifications": ALL_ROLES,
   "/dashboard/user": [ROLE.SUPER_ADMIN],
   "/dashboard/audit-log": [ROLE.SUPER_ADMIN],
   "/dashboard/settings": ALL_ROLES,
-  "/dashboard/payouts": [ROLE.SUPER_ADMIN, ROLE.ORG_ADMIN],
+  "/dashboard/payouts": [ROLE.SUPER_ADMIN, ROLE.ORG_ADMIN, ROLE.REVIEWER, ROLE.CAMPAIGN_MANAGER],
 };
 
 /** Whether a role may open the given pathname (longest-prefix match wins). */

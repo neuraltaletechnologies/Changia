@@ -19,6 +19,7 @@ import {
   Layers,
   BellRing,
   Bell,
+  FileClock,
   ShieldCheck,
   HandCoins,
 } from "lucide-react";
@@ -28,7 +29,8 @@ const navItems = [
   { label: "Campaigns", href: "/dashboard/campaigns", icon: Megaphone },
   { label: "Approvals", href: "/dashboard/campaigns/approvals", icon: ShieldCheck },
   { label: "Donor Pools", href: "/dashboard/pools", icon: Layers },
-  { label: "Reminders", href: "/dashboard/reminders", icon: BellRing },
+  { label: "Pending Resends", href: "/dashboard/reminders", icon: FileClock },
+  { label: "Auto-resend", href: "/dashboard/reminders/schedules", icon: BellRing },
   { label: "Notifications", href: "/dashboard/notifications", icon: Bell },
   { label: "User", href: "/dashboard/user", icon: UserCog },
   { label: "Audit Log", href: "/dashboard/audit-log", icon: ClipboardList },
@@ -43,8 +45,13 @@ interface MobileNavProps {
 
 export function MobileNav({ open, onClose }: MobileNavProps) {
   const pathname = usePathname();
-  const { canAccessRoute, meta } = useRole();
-  const visibleItems = navItems.filter((item) => canAccessRoute(item.href));
+  const { canAccessRoute, isReviewer, meta } = useRole();
+  const visibleItems = navItems.filter((item) => {
+    if (!canAccessRoute(item.href)) return false;
+    // Reviewers only review campaigns — the list is hidden, "Approvals" is theirs.
+    if (isReviewer && item.href === "/dashboard/campaigns") return false;
+    return true;
+  });
   const pendingReminders = usePendingReminderCount();
   const pendingApprovals = usePendingApprovalCount();
   const { unreadCount } = useNotifications();
@@ -58,6 +65,12 @@ export function MobileNav({ open, onClose }: MobileNavProps) {
 
   const isActive = (href: string) => {
     if (href === "/dashboard") return pathname === "/dashboard";
+    if (href === "/dashboard/campaigns") {
+      return (
+        pathname.startsWith("/dashboard/campaigns") &&
+        !pathname.startsWith("/dashboard/campaigns/approvals")
+      );
+    }
     return pathname.startsWith(href);
   };
 

@@ -50,7 +50,9 @@ export default function LoginModal() {
       const { accessToken, user } = await loginRequest(email, password);
       setSession(accessToken, user);
       closeAuthModal(LOGIN_MODAL_SELECTOR);
-      router.push(getAuthNextFromLocation());
+      // Admin-created accounts on a temporary password hit a full-screen gate
+      // in the dashboard — send them straight there rather than a deep link.
+      router.push(user.mustChangePassword ? '/dashboard' : getAuthNextFromLocation());
       router.refresh();
     } catch (err) {
       setError(

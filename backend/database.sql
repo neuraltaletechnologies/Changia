@@ -19,6 +19,7 @@ CREATE DATABASE IF NOT EXISTS changia
 USE changia;
 
 SET FOREIGN_KEY_CHECKS = 0;
+DROP TABLE IF EXISTS password_reset_tokens;
 DROP TABLE IF EXISTS notifications;
 DROP TABLE IF EXISTS campaign_gifts;
 DROP TABLE IF EXISTS campaign_change_requests;
@@ -97,6 +98,9 @@ CREATE TABLE users (
   -- final approval. It does NOT manage users, platform settings or payouts.
   role            ENUM('SUPER_ADMIN','ORG_ADMIN','REVIEWER','CAMPAIGN_MANAGER') NOT NULL DEFAULT 'CAMPAIGN_MANAGER',
   status          ENUM('ACTIVE','PENDING','INACTIVE') NOT NULL DEFAULT 'PENDING',
+  -- Set to 1 for admin-created accounts (temporary password). The dashboard
+  -- forces a password change before anything else; changePassword clears it.
+  must_change_password TINYINT(1) NOT NULL DEFAULT 0,
   avatar_url      VARCHAR(500) NULL,
   last_login_at   TIMESTAMP    NULL,
   created_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -623,8 +627,14 @@ CREATE TABLE payouts (
   campaign_id     BIGINT UNSIGNED NULL,
   amount          DECIMAL(14,0) NOT NULL,
   reason          TEXT NULL,
-  status          ENUM('REQUESTED','APPROVED','PAID','REJECTED') NOT NULL DEFAULT 'REQUESTED',
+  -- Two-stage approval chain (mirrors two-stage campaign approval):
+  --   REQUESTED -> REVIEWED (stage 1 — a REVIEWER/SUPER_ADMIN, not the requester)
+  --             -> APPROVED (stage 2 — an ORG_ADMIN/SUPER_ADMIN, a different person, not the requester)
+  --             -> PAID     (SUPER_ADMIN confirms the gateway transfer)
+  status          ENUM('REQUESTED','REVIEWED','APPROVED','PAID','REJECTED') NOT NULL DEFAULT 'REQUESTED',
   requested_by_id BIGINT UNSIGNED NULL,
+  first_approved_by_id BIGINT UNSIGNED NULL,
+  first_approved_at    DATETIME NULL,
   approved_by_id  BIGINT UNSIGNED NULL,
   approved_at     DATETIME NULL,
   paid_at         DATETIME NULL,
@@ -634,6 +644,7 @@ CREATE TABLE payouts (
   updated_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_payouts_org FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
   CONSTRAINT fk_payouts_campaign FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE SET NULL,
+  CONSTRAINT fk_payouts_first_approver FOREIGN KEY (first_approved_by_id) REFERENCES users(id) ON DELETE SET NULL,
   INDEX idx_payouts_campaign_status (campaign_id, status)
 ) ENGINE=InnoDB;
 
@@ -678,6 +689,23 @@ CREATE TABLE notifications (
   CONSTRAINT fk_notif_org  FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
   INDEX idx_notif_user_unread (user_id, read_at, created_at),
   INDEX idx_notif_user_created (user_id, created_at)
+) ENGINE=InnoDB;
+
+-- ─── Password reset tokens ───────────────────────────────────────────────────
+-- One row per "forgot password" request. Only the SHA-256 hash of the token is
+-- stored; the raw token travels in the emailed reset link. A row is single-use
+-- (used_at) and short-lived (expires_at, ~1h). requestPasswordReset clears any
+-- earlier unused rows for the same user before inserting a fresh one.
+CREATE TABLE password_reset_tokens (
+  id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id         BIGINT UNSIGNED NOT NULL,
+  token_hash      CHAR(64) NOT NULL,
+  expires_at      DATETIME NOT NULL,
+  used_at         DATETIME NULL,
+  created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_prt_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX idx_prt_token (token_hash),
+  INDEX idx_prt_user (user_id)
 ) ENGINE=InnoDB;
 
 -- =============================================================================

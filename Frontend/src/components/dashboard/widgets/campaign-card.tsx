@@ -36,7 +36,14 @@ export function CampaignCard({ campaign }: { campaign: Campaign }) {
       )}
       <div className="p-4">
         <div className="flex items-start justify-between gap-2 mb-3">
-          <p className="text-sm font-medium text-foreground leading-snug flex-1">{campaign.name}</p>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-foreground leading-snug">{campaign.name}</p>
+            {campaign.organizationName && (
+              <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+                {campaign.organizationName}
+              </p>
+            )}
+          </div>
           <span
             className={cn(
               "text-[10px] font-medium border rounded-full px-2 py-0.5 shrink-0",

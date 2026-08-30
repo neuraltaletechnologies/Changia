@@ -90,15 +90,13 @@ function slugify(name) {
 
 /**
  * Returns [sqlFragment, ...params] for org-scoping queries.
- * SUPER_ADMIN, ORG_ADMIN and REVIEWER see all orgs (a REVIEWER is a
- * platform-level role that vets every org's campaigns before an org admin
- * gives the final approval); CAMPAIGN_MANAGER is scoped to their own org.
+ * Only the two platform-level roles see every org: SUPER_ADMIN, and REVIEWER
+ * (who vets every org's campaigns before an org admin gives the final
+ * approval). ORG_ADMIN and CAMPAIGN_MANAGER are scoped to their own org —
+ * an org admin approves and manages their own organisation's campaigns only.
  */
 function orgScope(organizationId, user) {
-  if (
-    user &&
-    (user.role === "SUPER_ADMIN" || user.role === "ORG_ADMIN" || user.role === "REVIEWER")
-  ) {
+  if (user && (user.role === "SUPER_ADMIN" || user.role === "REVIEWER")) {
     return ["", []];
   }
   if (!organizationId && organizationId !== 0) return ["", []];
@@ -226,6 +224,10 @@ function mapCampaign(c) {
     hasPendingChanges: Boolean(c.has_pending_changes),
     createdAt: c.created_at,
     updatedAt: c.updated_at,
+    // The owning organisation's name — campaigns are branded with it, and
+    // cross-org viewers (SUPER_ADMIN / REVIEWER) need it to tell campaigns apart.
+    organizationId: c.organization_id ?? null,
+    organizationName: c.organization_name || null,
   };
 }
 
@@ -264,11 +266,21 @@ function mapPublicCampaign(c, locale = "en") {
 }
 
 async function assertCampaignAccess(organizationId, user, campaignId) {
-  // REVIEWER reviews/approves whatever a manager submits org-wide (campaign
-  // approvals, closure requests, completion reports, fee proposals) — they
-  // are never added to campaign_assignments, so they'd otherwise be locked
-  // out of every campaign they're specifically authorized to act on.
-  if (!user || user.role === "SUPER_ADMIN" || user.role === "ORG_ADMIN" || user.role === "REVIEWER") {
+  // SUPER_ADMIN and REVIEWER are platform-level: a REVIEWER reviews/approves
+  // whatever any org submits (campaign approvals, closure requests, completion
+  // reports, fee proposals) and is never added to campaign_assignments, so
+  // they'd otherwise be locked out of every campaign they can act on.
+  if (!user || user.role === "SUPER_ADMIN" || user.role === "REVIEWER") {
+    return;
+  }
+  // An ORG_ADMIN reaches every campaign in their own organisation (no
+  // assignment needed), but nothing outside it.
+  if (user.role === "ORG_ADMIN") {
+    const rows = await db.query(
+      "SELECT id FROM campaigns WHERE id = ? AND organization_id = ?",
+      [campaignId, organizationId]
+    );
+    if (rows.length === 0) throw ApiError.notFound("Campaign not found");
     return;
   }
   const rows = await db.query(
@@ -279,18 +291,35 @@ async function assertCampaignAccess(organizationId, user, campaignId) {
   if (rows.length === 0) throw ApiError.notFound("Campaign not found");
 }
 
+/**
+ * Content edits (name / story / goal / dates / translations / photos) belong to
+ * the people who build the campaign: its creator, an assigned CAMPAIGN_MANAGER
+ * (assignment already enforced by assertCampaignAccess), or a SUPER_ADMIN.
+ *
+ * An ORG_ADMIN runs the approval chain — approve, send back, pause, feature —
+ * but does NOT edit a campaign somebody else created. If it needs work they
+ * send it back with "Request changes" so the manager makes the change and it
+ * re-enters review. This keeps the reviewer/approver separate from the author.
+ */
+function assertOrgAdminMayEdit(campaign, actor) {
+  if (!actor || actor.role !== "ORG_ADMIN") return;
+  const creatorId = campaign.created_by_id ?? null;
+  if (Number(creatorId) !== Number(actor.id)) {
+    throw ApiError.forbidden(
+      'You can only edit campaigns you created. Send this one back to its manager with "Request changes" if it needs work.',
+      "NOT_CAMPAIGN_EDITOR"
+    );
+  }
+}
+
 async function listCampaigns(organizationId, filters, user) {
   const where = [];
   const values = [];
 
-  // SUPER_ADMIN / ORG_ADMIN / REVIEWER are not org-scoped (the REVIEWER vets
-  // every org's campaigns platform-wide). Everyone else sees only their org.
-  if (
-    user &&
-    user.role !== "SUPER_ADMIN" &&
-    user.role !== "ORG_ADMIN" &&
-    user.role !== "REVIEWER"
-  ) {
+  // Only SUPER_ADMIN and REVIEWER are cross-org (the REVIEWER vets every org's
+  // campaigns platform-wide). An ORG_ADMIN — like a CAMPAIGN_MANAGER — sees only
+  // their own organisation's campaigns.
+  if (user && user.role !== "SUPER_ADMIN" && user.role !== "REVIEWER") {
     where.push("organization_id = ?");
     values.push(organizationId);
   }
@@ -316,13 +345,14 @@ async function listCampaigns(organizationId, filters, user) {
   const offset = (page - 1) * limit;
 
   const campaigns = await db.query(
-    `SELECT id, name, slug, story, name_sw, story_sw, category_sw, image_url, category, goal_amount,
+    `SELECT id, organization_id, name, slug, story, name_sw, story_sw, category_sw, image_url, category, goal_amount,
             service_fee_percent, service_fee_amount, public_target,
             proposed_service_fee_percent, fee_status, fee_reviewed_by, fee_reviewed_at, fee_review_notes,
             minimum_amount, start_date, end_date,
             status, is_public, contact_phone, raised_amount, donor_count, is_featured, featured_at,
             first_approved_by, first_approved_at, approved_by, approved_at,
-            created_by_id, review_notes, review_state, has_pending_changes, created_at, updated_at
+            created_by_id, review_notes, review_state, has_pending_changes, created_at, updated_at,
+            (SELECT name FROM organizations WHERE id = campaigns.organization_id) AS organization_name
      FROM campaigns ${whereSql}
      ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`,
     values
@@ -384,13 +414,14 @@ async function getCampaign(organizationId, campaignId, user) {
   await assertCampaignAccess(organizationId, user, campaignId);
   const [orgSql, ...orgParams] = orgScope(organizationId, user);
   const campaigns = await db.query(
-    `SELECT id, name, slug, story, name_sw, story_sw, category_sw, image_url, category, goal_amount,
+    `SELECT id, organization_id, name, slug, story, name_sw, story_sw, category_sw, image_url, category, goal_amount,
             service_fee_percent, service_fee_amount, public_target,
             proposed_service_fee_percent, fee_status, fee_reviewed_by, fee_reviewed_at, fee_review_notes,
             minimum_amount, start_date, end_date,
             status, is_public, contact_phone, raised_amount, donor_count, is_featured, featured_at,
             first_approved_by, first_approved_at, approved_by, approved_at,
-            created_by_id, review_notes, review_state, has_pending_changes, created_at, updated_at
+            created_by_id, review_notes, review_state, has_pending_changes, created_at, updated_at,
+            (SELECT name FROM organizations WHERE id = campaigns.organization_id) AS organization_name
      FROM campaigns WHERE id = ?${orgSql}`,
     [campaignId, ...orgParams]
   );
@@ -620,6 +651,7 @@ async function updateCampaign(organizationId, campaignId, data, actor) {
   );
   const campaign = existing[0];
   if (!campaign) throw ApiError.notFound("Campaign not found");
+  assertOrgAdminMayEdit(campaign, actor);
 
   // Campaigns activate immediately on creation, so "editable" now means any
   // live/ongoing status — only the archival end states (COMPLETED/CANCELLED)
@@ -755,13 +787,25 @@ async function updateCampaign(organizationId, campaignId, data, actor) {
     await db.execute(`UPDATE campaigns SET ${fields.join(", ")} WHERE id = ?`, values);
   }
 
-  await db.execute(
-    `INSERT INTO audit_logs (organization_id, actor_id, actor_email, action, resource, resource_id, severity)
-     VALUES (?, ?, ?, 'campaign.updated', 'campaign', ?, 'INFO')`,
-    [organizationId, actor.id, actor.email, String(campaignId)]
+  // Record which fields the edit touched so the campaign history / review
+  // timeline can show a reviewer exactly what changed since the last round.
+  const editedFields = Object.keys(data).filter(
+    (k) =>
+      data[k] !== undefined &&
+      !["managerIds", "poolIds", "expectedAmounts", "asDraft"].includes(k)
+  );
+  const resubmitted =
+    campaign.status === "REVIEWED" || campaign.review_state === "CHANGES_REQUESTED";
+  await writeAudit(
+    organizationId,
+    actor,
+    resubmitted ? "campaign.resubmitted" : "campaign.updated",
+    campaignId,
+    "INFO",
+    editedFields.length > 0 ? { fields: editedFields } : undefined
   );
 
-  if (campaign.status === "REVIEWED" || campaign.review_state === "CHANGES_REQUESTED") {
+  if (resubmitted) {
     await notifySafe(notificationService.orgReviewersAndAdmins(organizationId), {
       type: "campaign",
       title: "Campaign re-submitted for review",
@@ -1273,10 +1317,11 @@ async function decideChangeRequest(organizationId, campaignId, requestId, actor,
 async function setTranslations(organizationId, campaignId, data, actor) {
   const [orgSql, ...orgParams] = orgScope(organizationId, actor);
   const existing = await db.query(
-    `SELECT id FROM campaigns WHERE id = ?${orgSql}`,
+    `SELECT id, created_by_id FROM campaigns WHERE id = ?${orgSql}`,
     [campaignId, ...orgParams]
   );
   if (existing.length === 0) throw ApiError.notFound("Campaign not found");
+  assertOrgAdminMayEdit(existing[0], actor);
 
   await db.execute(
     "UPDATE campaigns SET name_sw = ?, story_sw = ?, category_sw = ? WHERE id = ?",
@@ -2373,11 +2418,12 @@ async function uploadCampaignImages(organizationId, campaignId, actor, files) {
   await assertCampaignAccess(organizationId, actor, campaignId);
   const [orgSql, ...orgParams] = orgScope(organizationId, actor);
   const existing = await db.query(
-    `SELECT id, organization_id, image_url, status FROM campaigns WHERE id = ?${orgSql}`,
+    `SELECT id, organization_id, image_url, status, created_by_id FROM campaigns WHERE id = ?${orgSql}`,
     [campaignId, ...orgParams]
   );
   const campaign = existing[0];
   if (!campaign) throw ApiError.notFound("Campaign not found");
+  assertOrgAdminMayEdit(campaign, actor);
 
   const coverFile = (files && files.cover && files.cover[0]) || null;
   const galleryFiles = (files && files.gallery) || [];
@@ -2443,11 +2489,12 @@ async function uploadCampaignImages(organizationId, campaignId, actor, files) {
 async function removeCampaignImage(organizationId, campaignId, imageId, actor) {
   await assertCampaignAccess(organizationId, actor, campaignId);
   const [orgSql, ...orgParams] = orgScope(organizationId, actor);
-  const campaigns = await db.query(`SELECT id FROM campaigns WHERE id = ?${orgSql}`, [
+  const campaigns = await db.query(`SELECT id, created_by_id FROM campaigns WHERE id = ?${orgSql}`, [
     campaignId,
     ...orgParams,
   ]);
   if (campaigns.length === 0) throw ApiError.notFound("Campaign not found");
+  assertOrgAdminMayEdit(campaigns[0], actor);
 
   const rows = await db.query(
     "SELECT image_path FROM campaign_images WHERE id = ? AND campaign_id = ? AND is_cover = 0",
@@ -2754,12 +2801,7 @@ async function removeCampaignGift(organizationId, campaignId, giftId, actor) {
 async function getPaymentsBreakdown(organizationId, user) {
   const where = [];
   const values = [];
-  if (
-    user &&
-    user.role !== "SUPER_ADMIN" &&
-    user.role !== "ORG_ADMIN" &&
-    user.role !== "REVIEWER"
-  ) {
+  if (user && user.role !== "SUPER_ADMIN" && user.role !== "REVIEWER") {
     where.push("c.organization_id = ?");
     values.push(organizationId);
   }
@@ -3140,9 +3182,103 @@ async function sendCampaignLinkEmails(organizationId, campaignId) {
   ).catch(() => {}); // Don't fail if audit log insert fails
 }
 
+// ─── Campaign history / review timeline ─────────────────────────────────────
+//
+// Every step a campaign goes through is already written to audit_logs
+// (resource='campaign'). This surfaces the full chronological trail to anyone
+// who can see the campaign — its manager, the reviewer, the org admin — so when
+// a campaign bounces reviewer → admin → back to the manager → back to the
+// reviewer, each person sees who did what, why (the reason note), and which
+// fields the last edit touched.
+
+const CAMPAIGN_HISTORY_LABELS = {
+  "campaign.created": "Campaign created",
+  "campaign.submitted": "Submitted for review",
+  "campaign.updated": "Details edited",
+  "campaign.resubmitted": "Edited & re-submitted for review",
+  "campaign.first_approved": "Passed first review",
+  "campaign.approved": "Final approval given — went live",
+  "campaign.rejected": "Rejected",
+  "campaign.changes_requested": "Sent back for changes",
+  "campaign.change_request.submitted": "Edit to a live campaign submitted",
+  "campaign.change_request.first_approved": "Edit passed first review",
+  "campaign.change_request.approved": "Edit approved & applied",
+  "campaign.change_request.changes_requested": "Edit sent back for changes",
+  "campaign.change_request.rejected": "Edit rejected",
+  "campaign.status_request.submitted": "Suspend / resume requested",
+  "campaign.status_changed": "Status changed",
+  "campaign.fee_proposal.approved": "Custom service fee approved",
+  "campaign.fee_proposal.changes_requested": "Custom service fee sent back",
+  "campaign.fee_proposal.rejected": "Custom service fee rejected",
+  "campaign.completion_report.submitted": "Completion report submitted",
+  "campaign.completion_report.approved": "Completion report approved",
+  "campaign.completion_report.changes_requested": "Completion report sent back",
+  "campaign.completion_report.rejected": "Completion report rejected",
+  "campaign.closure_request.submitted": "Closure requested",
+  "campaign.closure_request.approved": "Closure approved — campaign completed",
+  "campaign.closure_request.rejected": "Closure request rejected",
+  "campaign.pools.imported": "Donor pool imported",
+  "campaign.images.uploaded": "Photos updated",
+  "campaign.translated": "Swahili translation updated",
+  "campaign.featured": "Featured on the homepage",
+  "campaign.unfeatured": "Removed from the homepage",
+  "campaign.emails_sent": "Donor link emails sent",
+  "campaign.deleted": "Campaign deleted",
+};
+
+async function getCampaignHistory(organizationId, campaignId, user) {
+  await assertCampaignAccess(organizationId, user, campaignId);
+  const [orgSql, ...orgParams] = orgScope(organizationId, user);
+  const found = await db.query(`SELECT id FROM campaigns WHERE id = ?${orgSql}`, [
+    campaignId,
+    ...orgParams,
+  ]);
+  if (found.length === 0) throw ApiError.notFound("Campaign not found");
+
+  const rows = await db.query(
+    `SELECT al.id, al.action, al.details, al.severity, al.created_at,
+            al.actor_email, u.id AS actor_id, u.first_name, u.last_name, u.role AS actor_role
+       FROM audit_logs al
+       LEFT JOIN users u ON u.id = al.actor_id
+      WHERE al.resource = 'campaign' AND al.resource_id = ?
+      ORDER BY al.created_at ASC, al.id ASC`,
+    [String(campaignId)]
+  );
+
+  return rows.map((r) => {
+    const details = parsePayload(r.details);
+    // Different flows stored the human reason under different keys.
+    const note = [details.notes, details.reason].find(
+      (v) => typeof v === "string" && v.trim()
+    );
+    return {
+      id: r.id,
+      action: r.action,
+      label:
+        CAMPAIGN_HISTORY_LABELS[r.action] ||
+        r.action.replace(/^campaign\./, "").replace(/[._]/g, " "),
+      severity: r.severity,
+      notes: note || null,
+      fields: Array.isArray(details.fields) ? details.fields : null,
+      actor: r.actor_id
+        ? {
+            id: r.actor_id,
+            name: [r.first_name, r.last_name].filter(Boolean).join(" ") || r.actor_email,
+            email: r.actor_email,
+            role: r.actor_role,
+          }
+        : r.actor_email
+          ? { id: null, name: r.actor_email, email: r.actor_email, role: null }
+          : null,
+      createdAt: r.created_at,
+    };
+  });
+}
+
 module.exports = {
   listCampaigns,
   getCampaign,
+  getCampaignHistory,
   createCampaign,
   updateCampaign,
   submitCampaign,

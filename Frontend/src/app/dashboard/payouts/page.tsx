@@ -9,6 +9,7 @@ import {
   X,
   Wallet,
   RefreshCw,
+  History,
 } from "lucide-react";
 import { Button } from "@/components/dashboard/ui/button";
 import { Input } from "@/components/dashboard/ui/input";
@@ -35,18 +36,27 @@ import {
   formatTZSFull,
   type PayoutRecord,
   type CampaignRecord,
+  type ReviewTrailEntry,
 } from "@/lib/dashboard/api";
 import { useRole } from "@/hooks/use-role";
 import { cn } from "@/lib/dashboard/utils";
+import { ReviewTimeline } from "@/components/dashboard/widgets/review-timeline";
 
 const STATUS_META: Record<PayoutRecord["status"], { label: string; styles: string }> = {
-  REQUESTED: { label: "Requested", styles: "bg-orange-50 text-orange-700 border-orange-200" },
+  REQUESTED: { label: "In first review", styles: "bg-orange-50 text-orange-700 border-orange-200" },
+  REVIEWED: { label: "Awaiting final approval", styles: "bg-violet-50 text-violet-700 border-violet-200" },
   APPROVED: { label: "Approved", styles: "bg-sky-50 text-sky-700 border-sky-200" },
   PAID: { label: "Paid", styles: "bg-emerald-50 text-emerald-700 border-emerald-200" },
   REJECTED: { label: "Rejected", styles: "bg-rose-50 text-rose-700 border-rose-200" },
 };
 
-const STATUS_ORDER: PayoutRecord["status"][] = ["REQUESTED", "APPROVED", "PAID", "REJECTED"];
+const STATUS_ORDER: PayoutRecord["status"][] = [
+  "REQUESTED",
+  "REVIEWED",
+  "APPROVED",
+  "PAID",
+  "REJECTED",
+];
 
 function fmtDate(iso: string | null | undefined): string {
   if (!iso) return "—";
@@ -59,9 +69,8 @@ function fmtDate(iso: string | null | undefined): string {
 type DecisionKind = "approve" | "reject" | "paid";
 
 export default function PayoutsPage() {
-  const { hasPermission, isSuperAdmin, isOrgAdmin } = useRole();
+  const { hasPermission, isSuperAdmin, canReviewPayout, canFinalApprovePayout } = useRole();
   const canRequest = hasPermission("payout:request");
-  const isAdmin = isSuperAdmin || isOrgAdmin;
 
   const [payouts, setPayouts] = useState<PayoutRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -84,6 +93,22 @@ export default function PayoutsPage() {
   const [actionNotes, setActionNotes] = useState("");
   const [gatewayRef, setGatewayRef] = useState("");
   const [acting, setActing] = useState(false);
+
+  // History dialog state
+  const [historyFor, setHistoryFor] = useState<PayoutRecord | null>(null);
+  const [historyEntries, setHistoryEntries] = useState<ReviewTrailEntry[] | null>(null);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+
+  const openHistory = async (payout: PayoutRecord) => {
+    setHistoryFor(payout);
+    setHistoryEntries(null);
+    setHistoryError(null);
+    try {
+      setHistoryEntries(await payoutApi.history(payout.id));
+    } catch (e) {
+      setHistoryError(e instanceof Error ? e.message : "Failed to load the payout history.");
+    }
+  };
 
   const load = useCallback(async () => {
     try {
@@ -134,7 +159,7 @@ export default function PayoutsPage() {
 
   const openCreate = () => {
     setAmount("");
-    setCampaignIdStr("none");
+    setCampaignIdStr("");
     setReason("");
     setNotes("");
     setCreateOpen(true);
@@ -146,14 +171,21 @@ export default function PayoutsPage() {
       setActionError("Enter a valid withdrawal amount.");
       return;
     }
+    if (!campaignIdStr) {
+      setActionError("Select which campaign this payout is for.");
+      return;
+    }
+    if (!reason.trim()) {
+      setActionError("Explain why you're requesting this payout.");
+      return;
+    }
     setSubmitting(true);
     setActionError(null);
     try {
       await payoutApi.create({
         amount: amt,
-        campaignId:
-          campaignIdStr && campaignIdStr !== "none" ? Number(campaignIdStr) : undefined,
-        reason: reason.trim() || undefined,
+        campaignId: Number(campaignIdStr),
+        reason: reason.trim(),
         notes: notes.trim() || undefined,
       });
       setCreateOpen(false);
@@ -197,7 +229,9 @@ export default function PayoutsPage() {
 
   const decisionTitle =
     action?.kind === "approve"
-      ? "Approve payout"
+      ? action.payout.status === "REQUESTED"
+        ? "Approve — first review"
+        : "Approve — final approval"
       : action?.kind === "reject"
         ? "Reject payout"
         : "Mark payout as paid";
@@ -342,7 +376,15 @@ export default function PayoutsPage() {
                       {/* Actions */}
                       <td className="px-5 py-3.5 text-right">
                         <div className="flex items-center justify-end gap-1.5">
-                          {p.status === "REQUESTED" && isAdmin && (
+                          <Button
+                            size="xs"
+                            variant="ghost"
+                            onClick={() => openHistory(p)}
+                            title="View review history"
+                          >
+                            <History className="w-3.5 h-3.5" />
+                          </Button>
+                          {p.status === "REQUESTED" && canReviewPayout && (
                             <>
                               <Button
                                 size="xs"
@@ -350,7 +392,27 @@ export default function PayoutsPage() {
                                 onClick={() => openDecision("approve", p)}
                               >
                                 <Check className="w-3 h-3 mr-1 text-emerald-600" />
-                                Approve
+                                Approve (first review)
+                              </Button>
+                              <Button
+                                size="xs"
+                                variant="outline"
+                                onClick={() => openDecision("reject", p)}
+                              >
+                                <X className="w-3 h-3 mr-1 text-rose-500" />
+                                Reject
+                              </Button>
+                            </>
+                          )}
+                          {p.status === "REVIEWED" && canFinalApprovePayout && (
+                            <>
+                              <Button
+                                size="xs"
+                                variant="outline"
+                                onClick={() => openDecision("approve", p)}
+                              >
+                                <Check className="w-3 h-3 mr-1 text-emerald-600" />
+                                Approve (final)
                               </Button>
                               <Button
                                 size="xs"
@@ -371,9 +433,6 @@ export default function PayoutsPage() {
                               <Wallet className="w-3 h-3 mr-1 text-emerald-600" />
                               Mark Paid
                             </Button>
-                          )}
-                          {p.status !== "REQUESTED" && p.status !== "APPROVED" && (
-                            <span className="text-[11px] text-muted-foreground">—</span>
                           )}
                         </div>
                       </td>
@@ -409,8 +468,8 @@ export default function PayoutsPage() {
               Request Payout
             </DialogTitle>
             <DialogDescription>
-              Withdraw raised funds from your organisation. Optionally link the
-              request to a campaign.
+              Withdraw raised funds for a campaign. The request goes to a
+              reviewer, then an organisation admin, before it can be paid.
             </DialogDescription>
           </DialogHeader>
 
@@ -428,16 +487,15 @@ export default function PayoutsPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label>Campaign (optional)</Label>
+              <Label>Campaign</Label>
               <Select
                 value={campaignIdStr}
                 onValueChange={(v) => setCampaignIdStr(v ?? "")}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="No campaign (org-level withdrawal)" />
+                  <SelectValue placeholder="Select the campaign these funds are for" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">No campaign</SelectItem>
                   {campaigns.map((c) => (
                     <SelectItem key={c.id} value={String(c.id)}>
                       {c.name}
@@ -448,7 +506,7 @@ export default function PayoutsPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="payout-reason">Reason (optional)</Label>
+              <Label htmlFor="payout-reason">Reason</Label>
               <Textarea
                 id="payout-reason"
                 placeholder="Why are you withdrawing these funds?"
@@ -551,6 +609,40 @@ export default function PayoutsPage() {
                   : "Mark Paid"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* History dialog */}
+      <Dialog
+        open={historyFor !== null}
+        onOpenChange={(open) => {
+          if (!open) setHistoryFor(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <History className="w-4 h-4 text-muted-foreground" />
+              Payout history
+            </DialogTitle>
+            <DialogDescription>
+              {historyFor
+                ? `${formatTZSFull(historyFor.amount)} for ${
+                    historyFor.campaignName ?? "organisation"
+                  } — every step, most recent first.`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+
+          {historyError ? (
+            <div className="rounded-lg border border-rose-200 bg-rose-50 text-rose-700 text-sm px-4 py-3">
+              {historyError}
+            </div>
+          ) : historyEntries === null ? (
+            <div className="h-40 rounded-xl bg-muted/40 animate-pulse" />
+          ) : (
+            <ReviewTimeline entries={historyEntries} />
+          )}
         </DialogContent>
       </Dialog>
     </div>

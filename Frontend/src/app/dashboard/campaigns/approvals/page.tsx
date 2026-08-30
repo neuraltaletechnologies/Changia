@@ -187,7 +187,7 @@ export default function CampaignApprovalsPage() {
           variant="outline"
           size="sm"
           nativeButton={false}
-          render={<Link href="/dashboard/campaigns" />}
+          render={<Link href="/dashboard" />}
         >
           <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
           Back
@@ -198,6 +198,7 @@ export default function CampaignApprovalsPage() {
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             {totalPending} item{totalPending !== 1 ? "s" : ""} awaiting your review
+            {" · "}open any campaign to review it in full context.
           </p>
         </div>
       </div>
@@ -292,12 +293,19 @@ export default function CampaignApprovalsPage() {
                 className="bg-card border border-border rounded-xl p-5 shadow-sm space-y-3"
               >
                 <div className="flex items-start justify-between gap-3">
-                  <Link
-                    href={`/dashboard/campaigns/${c.id}`}
-                    className="text-sm font-medium text-foreground hover:text-primary transition-colors"
-                  >
-                    {c.name}
-                  </Link>
+                  <div className="min-w-0">
+                    <Link
+                      href={`/dashboard/campaigns/${c.id}`}
+                      className="text-sm font-medium text-foreground hover:text-primary transition-colors"
+                    >
+                      {c.name}
+                    </Link>
+                    {c.organizationName && (
+                      <p className="text-[11px] text-muted-foreground truncate">
+                        {c.organizationName}
+                      </p>
+                    )}
+                  </div>
                   <span
                     className={`text-[10px] font-medium border rounded-full px-2 py-0.5 shrink-0 ${
                       stage2
@@ -388,6 +396,7 @@ export default function CampaignApprovalsPage() {
                   {c.name}
                 </Link>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 mt-1 text-[11px] text-muted-foreground">
+                  {c.organizationName && <span className="font-medium">{c.organizationName}</span>}
                   <span>
                     Proposed{" "}
                     <span className="font-medium text-amber-600">
@@ -491,6 +500,7 @@ function CampaignCard({
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 mt-1 text-[11px] text-muted-foreground">
+          {c.organizationName && <span className="font-medium">{c.organizationName}</span>}
           {c.category && <span>{c.category}</span>}
           <span>{formatTZSFull(c.publicTarget)} target</span>
         </div>
@@ -511,6 +521,12 @@ function CampaignCard({
             Previously sent back: “{c.reviewNotes}”
           </p>
         )}
+        <Link
+          href={`/dashboard/campaigns/${c.id}`}
+          className="inline-block text-[11px] font-medium text-primary hover:underline mt-2"
+        >
+          Open campaign to review →
+        </Link>
       </div>
       {children}
     </div>

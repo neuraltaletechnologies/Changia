@@ -58,6 +58,7 @@ export interface Campaign {
   submittedAt?: string;
   ownerName?: string;
   ownerEmail?: string;
+  organizationName?: string;
   image?: string;
   evidence?: string[];
   memberIds?: string[];

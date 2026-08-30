@@ -86,10 +86,10 @@ export default function TemplatesPage() {
             variant="outline"
             size="sm"
             nativeButton={false}
-            render={<Link href="/dashboard/reminders" />}
+            render={<Link href="/dashboard/reminders/schedules" />}
           >
             <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
-            Reminders
+            Auto-resend
           </Button>
           <h1 className="text-xl font-semibold text-foreground tracking-tight mt-3">
             Reminder Templates

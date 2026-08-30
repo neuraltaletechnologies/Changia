@@ -15,6 +15,7 @@ import {
   ArrowLeft,
   BellRing,
   Calendar,
+  Building2,
   Check,
   FileWarning,
   Gift,
@@ -73,6 +74,7 @@ import {
   formatTZSCompact,
   PAY_STATUS_META,
   type CampaignRecord,
+  type ReviewTrailEntry,
   type CampaignTargetsResponse,
   type CampaignTarget,
   type CampaignGift,
@@ -89,6 +91,7 @@ import { useRole } from "@/hooks/use-role";
 import { cn } from "@/lib/dashboard/utils";
 import { CampaignPhotosCard } from "@/components/dashboard/campaigns/campaign-photos-card";
 import { ReviewDecisionDialog } from "@/components/dashboard/campaigns/review-decision-dialog";
+import { ReviewTimeline } from "@/components/dashboard/widgets/review-timeline";
 
 const STATUS_BADGE: Record<string, string> = {
   DRAFT: "bg-slate-50 text-slate-600 border-slate-200",
@@ -106,12 +109,19 @@ export default function CampaignDetailPage() {
     isSuperAdmin,
     isOrgAdmin,
     isCampaignManager,
+    isReviewer,
     hasPermission,
     canReviewCampaign,
     canFinalApproveCampaign,
     user,
   } = useRole();
   const isAdmin = isSuperAdmin || isOrgAdmin;
+  // A REVIEWER has no Campaigns list — they arrive here from the Approvals
+  // queue, so that's where "Back" returns them.
+  const backHref = isReviewer
+    ? "/dashboard/campaigns/approvals"
+    : "/dashboard/campaigns";
+  const backLabel = isReviewer ? "Back to Approvals" : "Back to Campaigns";
   // REVIEWER can approve too (two-stage chain) — isAdmin above stays reserved
   // for admin-only actions (delete, feature) further down this page.
   const canApproveRole = hasPermission("campaign:approve");
@@ -202,10 +212,10 @@ export default function CampaignDetailPage() {
           variant="outline"
           size="sm"
           nativeButton={false}
-          render={<Link href="/dashboard/campaigns" />}
+          render={<Link href={backHref} />}
         >
           <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
-          Back to Campaigns
+          {backLabel}
         </Button>
       </div>
     );
@@ -217,6 +227,14 @@ export default function CampaignDetailPage() {
       : 0;
   const summary = board?.summary;
 
+  // Editing a campaign's content is for the people who build it: its creator,
+  // an assigned manager, or a super admin. An ORG_ADMIN only edits campaigns
+  // they created themselves — for anyone else's they use "Request changes".
+  const isCreator = String(campaign.createdBy ?? "") === uid;
+  const isAssignedManager =
+    isCampaignManager && !!campaign.assignments?.some((a) => String(a.user.id) === uid);
+  const canEditContent = isSuperAdmin || isCreator || isAssignedManager;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -224,10 +242,10 @@ export default function CampaignDetailPage() {
           variant="outline"
           size="sm"
           nativeButton={false}
-          render={<Link href="/dashboard/campaigns" />}
+          render={<Link href={backHref} />}
         >
           <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
-          Back to Campaigns
+          {backLabel}
         </Button>
         <div className="flex items-center gap-2">
           {(isAdmin || isCampaignManager) && (
@@ -380,6 +398,12 @@ export default function CampaignDetailPage() {
                 {campaign.name}
               </h1>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-muted-foreground">
+                {campaign.organizationName && (
+                  <span className="inline-flex items-center gap-1">
+                    <Building2 className="w-3.5 h-3.5" />
+                    {campaign.organizationName}
+                  </span>
+                )}
                 {campaign.category && (
                   <span className="inline-flex items-center gap-1">
                     <Megaphone className="w-3.5 h-3.5" />
@@ -429,7 +453,7 @@ export default function CampaignDetailPage() {
                   {campaign.isFeatured ? "Featured" : "Feature on homepage"}
                 </Button>
               )}
-              {campaign.status === "DRAFT" && (isAdmin || isCampaignManager) && (() => {
+              {campaign.status === "DRAFT" && canEditContent && (() => {
                 // The essentials POST /:id/submit enforces server-side — mirror
                 // them here so the button explains what's still missing.
                 const missing = [
@@ -647,6 +671,7 @@ export default function CampaignDetailPage() {
             User ({campaign.assignments?.length ?? 0})
           </TabsTrigger>
           <TabsTrigger value="translation">Swahili</TabsTrigger>
+          <TabsTrigger value="history">History</TabsTrigger>
           {campaign.changeRequest &&
             ["PENDING", "REVIEWED", "CHANGES_REQUESTED"].includes(
               campaign.changeRequest.status
@@ -707,7 +732,7 @@ export default function CampaignDetailPage() {
             <CampaignPhotosCard
               campaignId={id}
               images={campaign.images ?? []}
-              canManage={isAdmin || isCampaignManager}
+              canManage={canEditContent}
               onChanged={refresh}
             />
           </div>
@@ -754,7 +779,16 @@ export default function CampaignDetailPage() {
         </TabsContent>
 
         <TabsContent value="translation" className="pt-2">
-          <TranslationTab campaign={campaign} campaignId={id} onSaved={refresh} />
+          <TranslationTab
+            campaign={campaign}
+            campaignId={id}
+            canEdit={canEditContent}
+            onSaved={refresh}
+          />
+        </TabsContent>
+
+        <TabsContent value="history" className="pt-2">
+          <CampaignHistoryTab campaignId={id} />
         </TabsContent>
 
         {(campaign.status === "ACTIVE" || campaign.status === "PAUSED") && (
@@ -1315,10 +1349,12 @@ function UserTab({
 function TranslationTab({
   campaign,
   campaignId,
+  canEdit,
   onSaved,
 }: {
   campaign: CampaignRecord;
   campaignId: string;
+  canEdit: boolean;
   onSaved: () => void;
 }) {
   const [nameSw, setNameSw] = useState(campaign.nameSw ?? "");
@@ -1353,6 +1389,11 @@ function TranslationTab({
         </p>
       </div>
       <div className="p-5 space-y-4">
+        {!canEdit && (
+          <div className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+            Only the campaign&apos;s creator or assigned manager can edit its content.
+          </div>
+        )}
         <div className="grid gap-1.5">
           <Label htmlFor="name-sw" className="text-xs">Campaign name (Swahili)</Label>
           <Input
@@ -1361,6 +1402,7 @@ function TranslationTab({
             onChange={(e) => setNameSw(e.target.value)}
             placeholder={campaign.name}
             className="h-9"
+            disabled={!canEdit}
           />
         </div>
         <div className="grid gap-1.5">
@@ -1371,6 +1413,7 @@ function TranslationTab({
             onChange={(e) => setCategorySw(e.target.value)}
             placeholder={campaign.category ?? ""}
             className="h-9"
+            disabled={!canEdit}
           />
         </div>
         <div className="grid gap-1.5">
@@ -1381,6 +1424,7 @@ function TranslationTab({
             onChange={(e) => setStorySw(e.target.value)}
             placeholder={campaign.story ?? ""}
             className="min-h-32"
+            disabled={!canEdit}
           />
         </div>
 
@@ -1395,12 +1439,61 @@ function TranslationTab({
           </div>
         )}
 
-        <Button size="sm" onClick={save} disabled={saving}>
+        <Button size="sm" onClick={save} disabled={saving || !canEdit}>
           {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : null}
           Save translation
         </Button>
       </div>
     </div>
+  );
+}
+
+// ─── History / review timeline tab ─────────────────────────────────────────
+
+/**
+ * Full chronological trail of everything a campaign has been through —
+ * submitted, first-reviewed, sent back (with the reason), edited (with which
+ * fields changed), re-submitted, approved. Everyone with campaign access sees
+ * the same timeline, so a reviewer picking a campaign back up can see exactly
+ * why an admin sent it back and what the manager changed since.
+ */
+function CampaignHistoryTab({ campaignId }: { campaignId: string }) {
+  const [entries, setEntries] = useState<ReviewTrailEntry[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    campaignApi
+      .history(campaignId)
+      .then((r) => {
+        if (!cancelled) setEntries(r);
+      })
+      .catch((e) => {
+        if (!cancelled)
+          setError(e instanceof Error ? e.message : "Failed to load the campaign history.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [campaignId]);
+
+  if (error) {
+    return (
+      <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+        {error}
+      </div>
+    );
+  }
+  if (entries === null) {
+    return <div className="h-40 bg-card border border-border rounded-xl animate-pulse" />;
+  }
+
+  return (
+    <ReviewTimeline
+      entries={entries}
+      title="Review history"
+      subtitle="Every step this campaign has gone through, most recent first."
+    />
   );
 }
 

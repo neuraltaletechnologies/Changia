@@ -8,11 +8,15 @@ import { isAuthenticated } from "@/lib/api-client";
  * In-app notification centre state for the header bell + /dashboard/notifications.
  * Polls the unread count every 60s (like use-pending-reminders) and fetches the
  * list on demand. Silently degrades to empty on any error (e.g. logged out).
+ *
+ * The list only ever shows *unread* notifications — marking one read (or opening
+ * it, or "mark all read") drops it from the list so read items never linger.
  */
 export function useNotifications() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [items, setItems] = useState<NotificationRecord[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
@@ -25,15 +29,16 @@ export function useNotifications() {
   }, []);
 
   const load = useCallback(
-    async (opts?: { page?: number; unreadOnly?: boolean; append?: boolean }) => {
+    async (opts?: { page?: number; append?: boolean }) => {
       if (!isAuthenticated()) return;
       const nextPage = opts?.page ?? 1;
       setLoading(true);
+      setError(null);
       try {
         const d = await notificationApi.list({
           page: nextPage,
           limit: 20,
-          unreadOnly: opts?.unreadOnly,
+          unreadOnly: true,
         });
         setUnreadCount(d.unreadCount);
         setPage(nextPage);
@@ -42,8 +47,11 @@ export function useNotifications() {
         setItems((prev) =>
           opts?.append ? [...prev, ...d.notifications] : d.notifications
         );
-      } catch {
+      } catch (e) {
         if (!opts?.append) setItems([]);
+        setError(
+          e instanceof Error ? e.message : "Couldn't load notifications."
+        );
       } finally {
         setLoading(false);
       }
@@ -52,7 +60,8 @@ export function useNotifications() {
   );
 
   const markRead = useCallback(async (id: number) => {
-    setItems((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+    // Read notifications drop straight out of the list.
+    setItems((prev) => prev.filter((n) => n.id !== id));
     setUnreadCount((c) => Math.max(0, c - 1));
     try {
       const d = await notificationApi.markRead(id);
@@ -63,7 +72,7 @@ export function useNotifications() {
   }, [refreshCount]);
 
   const markAllRead = useCallback(async () => {
-    setItems((prev) => prev.map((n) => ({ ...n, read: true })));
+    setItems([]);
     setUnreadCount(0);
     try {
       await notificationApi.markAllRead();
@@ -82,6 +91,7 @@ export function useNotifications() {
     unreadCount,
     items,
     loading,
+    error,
     page,
     totalPages,
     load,

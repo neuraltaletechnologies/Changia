@@ -29,7 +29,7 @@ Every endpoint of the Changia backend: **what you must send** (auth, roles, body
 
 ## Authentication
 
-All endpoints except `/auth/register` and `/auth/login` require a JWT in the header:
+All endpoints except `/auth/register`, `/auth/login`, `/auth/forgot-password` and `/auth/reset-password` require a JWT in the header:
 
 ```
 Authorization: Bearer <accessToken>
@@ -302,6 +302,43 @@ Returns the current user + their organization.
 ```
 
 **Errors:** `401 INVALID_PASSWORD` (wrong current password), `400 VALIDATION_ERROR`.
+
+---
+
+### `POST /auth/forgot-password` — public, rate-limited
+
+Starts the password-reset flow. **Required fields:** `email`.
+
+Always responds `200 OK` with the same body regardless of whether the email is
+registered (no account enumeration). If a matching **ACTIVE** user exists, any
+earlier unused reset tokens are dropped, a fresh single-use token (valid 60 min)
+is stored hashed, and a reset link is emailed:
+`${APP_BASE_URL}/reset-password?token=<raw-token>`. With no SMTP configured the
+link is logged to the server console instead.
+
+```json
+{ "success": true, "message": "If that email is registered, a reset link is on its way." }
+```
+
+---
+
+### `POST /auth/reset-password` — public, rate-limited
+
+Completes the flow. **Required fields:** `token` (from the emailed link),
+`password` (min 8, max 128), `confirmPassword` (must match `password`).
+
+On success the password is updated, the token is burned (and any other
+outstanding tokens for that user are dropped), and `must_change_password` is
+cleared.
+
+**Response — `200 OK`:**
+
+```json
+{ "success": true, "message": "Your password has been reset. You can now sign in." }
+```
+
+**Errors:** `400 INVALID_RESET_TOKEN` (unknown / already-used / expired token),
+`400 VALIDATION_ERROR`.
 
 ---
 
@@ -604,16 +641,65 @@ Detail view: campaign + its assigned managers + the **10 most recent confirmed d
 
 **Response — `201 Created`:** the full campaign object (status will be `DRAFT`, fee already computed — e.g. 10,000,000 goal → 500,000 fee → 10,500,000 public target).
 
-### `PUT /campaigns/:id` — `SUPER_ADMIN`, `ORG_ADMIN` or assigned `CAMPAIGN_MANAGER`
+### `PUT /campaigns/:id` — `SUPER_ADMIN`, the campaign's **creator**, or an assigned `CAMPAIGN_MANAGER`
 
 **All fields optional** — same fields as `POST /campaigns`.
 
+- An `ORG_ADMIN` may only edit a campaign **they created themselves** → `403 NOT_CAMPAIGN_EDITOR` otherwise. Editing a campaign built by a manager is not an admin action — send it back with `POST /campaigns/:id/request-changes` and the manager makes the change. (`SUPER_ADMIN` keeps blanket edit access.) The same rule applies to `PUT /campaigns/:id/translations` and `POST|DELETE /campaigns/:id/images`.
 - `COMPLETED` / `CANCELLED` campaigns can't be edited → `400 CAMPAIGN_LOCKED`.
 - Goal/fee can't change once a campaign has taken a donation → `400 GOAL_LOCKED`.
 - Editing a **material** field (`name`, `story`, `goalAmount`, `serviceFeePercent`, `category`, `startDate`, `endDate`, `minimumAmount`, `contactPhone`) of a **live** (`ACTIVE`/`PAUSED`) campaign does NOT apply immediately — it is parked as a **change request** (`hasPendingChanges: true`, `changeRequest` populated) that must clear the two-stage chain (see below). The live campaign keeps its last-approved values until then. Swahili translations and gallery photos always apply immediately.
 - Editing a not-yet-live campaign applies inline; a `REVIEWED` campaign drops back to `PENDING` (its first approval is cleared) so a review always covers the latest content.
 
 **Response — `200 OK`:** the updated campaign object.
+
+### `GET /campaigns/:id/history` — any member with access to the campaign
+
+The full chronological review trail from the audit log — who submitted / first-reviewed / approved / sent it back, and why. Powers the **History** tab on the campaign detail page so a reviewer picking a campaign back up can see the admin's reason and what the manager changed since.
+
+**Response — `200 OK`:**
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 51,
+      "action": "campaign.first_approved",
+      "label": "Passed first review",
+      "severity": "INFO",
+      "notes": null,
+      "fields": null,
+      "actor": { "id": 6, "name": "Aisha Reviewer", "email": "reviewer@changia.org.tz", "role": "REVIEWER" },
+      "createdAt": "2026-08-20T09:00:00.000Z"
+    },
+    {
+      "id": 52,
+      "action": "campaign.changes_requested",
+      "label": "Sent back for changes",
+      "severity": "INFO",
+      "notes": "The goal looks too high for a two-week campaign — please revise.",
+      "fields": null,
+      "actor": { "id": 2, "name": "Zawadi Kileo", "email": "zawadi@changia.org.tz", "role": "ORG_ADMIN" },
+      "createdAt": "2026-08-20T14:00:00.000Z"
+    },
+    {
+      "id": 53,
+      "action": "campaign.resubmitted",
+      "label": "Edited & re-submitted for review",
+      "severity": "INFO",
+      "notes": null,
+      "fields": ["goalAmount", "story"],
+      "actor": { "id": 4, "name": "Peter John", "email": "peter@changia.org.tz", "role": "CAMPAIGN_MANAGER" },
+      "createdAt": "2026-08-21T08:00:00.000Z"
+    }
+  ]
+}
+```
+
+Entries are chronological (oldest first). `notes` carries the reviewer/admin reason where the step has one; `fields` lists which fields an edit touched. The trail covers **every** campaign request type — the two-stage approval chain, parked edits (`campaign.change_request.*`), suspend/resume asks, custom service-fee proposals (`campaign.fee_proposal.*`), closure requests and completion reports — each with the reason a reviewer/admin gave.
+
+Payouts have the same trail at **`GET /payouts/:id/history`** (same response shape, `fields` always `null`) — requested → first-reviewed → approved → rejected (with reason) → paid (with gateway ref). Visible to anyone who can see the payout.
 
 ### `POST /campaigns/:id/submit` — `SUPER_ADMIN`, `ORG_ADMIN` or assigned `CAMPAIGN_MANAGER`
 
@@ -1289,7 +1375,7 @@ The campaign's `raisedAmount` and `donorCount` are updated in the **same transac
 
 ## Audit logs module
 
-Routes: `/audit-logs` — all authenticated, org-scoped. The trail is **immutable** (write-only) — every meaningful action records an entry.
+Routes: `/audit-logs` — **`SUPER_ADMIN` only** (platform-level). The trail is **immutable** (write-only) — every meaningful action records an entry.
 
 ### `GET /audit-logs`
 
@@ -1335,7 +1421,7 @@ The 10 most recent entries (same log shape, no pagination):
 
 | Endpoint | `SUPER_ADMIN` | `ORG_ADMIN` | `CAMPAIGN_MANAGER` |
 |----------|:---:|:---:|:---:|
-| POST `/auth/register`, `/auth/login` | ✅ public | ✅ public | ✅ public |
+| POST `/auth/register`, `/auth/login`, `/auth/forgot-password`, `/auth/reset-password` | ✅ public | ✅ public | ✅ public |
 | GET `/auth/me`, POST `/auth/change-password` | ✅ | ✅ | ✅ |
 | GET `/organizations`, GET `/organizations/stats` | ✅ | ✅ | ✅ |
 | PUT `/organizations` | ✅ | ✅ | ❌ |
@@ -1356,7 +1442,7 @@ The 10 most recent entries (same log shape, no pagination):
 | GET `/donations`, GET attempts | ✅ | ✅ | ✅ |
 | POST `/donations/campaigns/:id/attempts` | ✅ | ✅ | ✅ |
 | POST `/donations/simulate-callback` | ✅ | ✅ | ❌ |
-| GET `/audit-logs` (+ `/recent`) | ✅ | ✅ | ✅ |
+| GET `/audit-logs` (+ `/recent`, `/export`) | ✅ | ❌ | ❌ |
 
 \* `CAMPAIGN_MANAGER` can update their own assigned campaigns and change status, but not `/managers` or `/featured`. A `CAMPAIGN_MANAGER` is also blocked from **creating** any new campaign (`409 CAMPAIGN_PROOF_REQUIRED`) while a campaign assigned to them is `COMPLETED` without an `APPROVED` completion report.
 

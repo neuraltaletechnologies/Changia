@@ -67,8 +67,9 @@ export default function EditCampaignPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   // Only an admin (org/super) or reviewer can change the service-fee rate.
-  const { hasPermission, isOrgAdmin, isCampaignManager } = useRole();
+  const { hasPermission, isSuperAdmin, isOrgAdmin, isCampaignManager, user } = useRole();
   const canSetFee = hasPermission("campaign:fee_review");
+  const uid = user ? String(user.id) : null;
   // The backend image endpoint is ORG_ADMIN / CAMPAIGN_MANAGER only (same as
   // campaign creation) — SUPER_ADMIN can't upload campaign photos.
   const canManagePhotos = isOrgAdmin || isCampaignManager;
@@ -93,6 +94,16 @@ export default function EditCampaignPage() {
   const dirty = campaign
     ? JSON.stringify(form) !== JSON.stringify(formFromCampaign(campaign))
     : false;
+
+  // Content edits belong to the campaign's creator / assigned manager (or a
+  // super admin). An ORG_ADMIN doesn't edit a campaign someone else built —
+  // they run it through the approval chain. The backend enforces this too.
+  const canEditContent = campaign
+    ? isSuperAdmin ||
+      String(campaign.createdBy ?? "") === uid ||
+      (isCampaignManager &&
+        !!campaign.assignments?.some((a) => String(a.user.id) === uid))
+    : true;
 
   const loadCampaign = useCallback(async () => {
     try {
@@ -185,6 +196,28 @@ export default function EditCampaignPage() {
         <Button variant="outline" size="sm" nativeButton={false} render={<Link href="/dashboard/campaigns" />}>
           <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
           Back to Campaigns
+        </Button>
+      </div>
+    );
+  }
+
+  if (campaign && !canEditContent) {
+    return (
+      <div className="space-y-4">
+        <div className="rounded-xl border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+          Only the campaign&apos;s creator or its assigned manager can edit it. If
+          it needs changes, open it and use{" "}
+          <span className="font-medium">Request changes</span> to send it back to
+          the manager.
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          nativeButton={false}
+          render={<Link href={`/dashboard/campaigns/${id}`} />}
+        >
+          <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
+          Back to campaign
         </Button>
       </div>
     );

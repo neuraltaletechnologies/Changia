@@ -42,7 +42,7 @@ export default function NotificationsPage() {
   }, [filter, load]);
 
   return (
-    <div className="space-y-6 max-w-[860px]">
+    <div className="space-y-6">
       <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-foreground tracking-tight">

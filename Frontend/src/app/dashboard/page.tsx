@@ -20,11 +20,19 @@ import { StatCard } from "@/components/dashboard/widgets/stat-card";
 import { CampaignCard } from "@/components/dashboard/widgets/campaign-card";
 import { RecentDonations } from "@/components/dashboard/widgets/recent-donations";
 import { ActivityFeed } from "@/components/dashboard/widgets/activity-feed";
+import { CampaignMix } from "@/components/dashboard/widgets/campaign-mix";
+import { CampaignPaymentPies } from "@/components/dashboard/widgets/campaign-payments";
+import { ReviewerWork } from "@/components/dashboard/widgets/reviewer-work";
 import { Button } from "@/components/dashboard/ui/button";
 import { Badge } from "@/components/dashboard/ui/badge";
 import { loadDonors } from "@/lib/dashboard/donor-store";
 import { loadUsers} from "@/lib/dashboard/user-store";
-import { campaignApi, type CampaignRecord } from "@/lib/dashboard/api";
+import {
+  campaignApi,
+  poolApi,
+  type CampaignRecord,
+  type CampaignPaymentBreakdown,
+} from "@/lib/dashboard/api";
 import { formatTZS, type Campaign, type CampaignStatus, type Donor, type User } from "@/lib/dashboard/types";
 import { ROLE } from "@/lib/dashboard/permissions";
 import { useRole } from "@/hooks/use-role";
@@ -73,20 +81,37 @@ function QuickActions({ actions }: { actions: QuickAction[] }) {
 }
 
 export default function DashboardPage() {
-  const { role, meta, resolved, hasPermission, canAccessRoute } = useRole();
+  const { role, user: sessionUser, meta, resolved, hasPermission, canAccessRoute } = useRole();
 
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [campaignRecords, setCampaignRecords] = useState<CampaignRecord[]>([]);
   const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
   const [donors, setDonors] = useState<Donor[]>([]);
   const [user, setUser] = useState<User[]>([]);
+  const [poolStats, setPoolStats] = useState({ count: 0, donors: 0 });
+  const [breakdown, setBreakdown] = useState<CampaignPaymentBreakdown[]>([]);
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     setDonors(loadDonors());
     setUser(loadUsers());
     campaignApi
+      .paymentsBreakdown()
+      .then(setBreakdown)
+      .catch(() => setBreakdown([]));
+    poolApi
+      .list({ limit: 100 })
+      .then((r) =>
+        setPoolStats({
+          count: r.pools.length,
+          donors: r.pools.reduce((sum, p) => sum + p.memberCount, 0),
+        })
+      )
+      .catch(() => setPoolStats({ count: 0, donors: 0 }));
+    campaignApi
       .list({ limit: 100 })
       .then((r) => {
+        setCampaignRecords(r.campaigns);
         setPendingApprovalCount(
           r.campaigns.filter(
             (c) =>
@@ -132,7 +157,11 @@ export default function DashboardPage() {
   }
 
   const activeCampaigns = campaigns.filter((c) => c.status === "ACTIVE");
+  const pendingCampaigns = campaigns.filter((c) => c.status === "PENDING");
+  const reviewingCampaigns = campaigns.filter((c) => c.status === "REVIEWED");
+  const draftCampaigns = campaigns.filter((c) => c.status === "DRAFT");
   const totalRaised = campaigns.reduce((sum, c) => sum + c.raised, 0);
+  const totalRequired = campaigns.reduce((sum, c) => sum + c.goal, 0);
   const givingDonors = donors.filter((d) => d.totalGiven > 0);
   const avgGift =
     givingDonors.length > 0
@@ -146,7 +175,7 @@ export default function DashboardPage() {
 
   const canCreateCampaigns = hasPermission("campaign:create");
   const canApproveCampaigns = hasPermission("campaign:approve");
-  const canManageDonors = hasPermission("donor:manage");
+  const canAddDonors = hasPermission("donor:add");
   const canRequestPayout = hasPermission("payout:request");
   const isPlatformRole = role === ROLE.SUPER_ADMIN;
   const isReviewer = role === ROLE.REVIEWER;
@@ -236,10 +265,7 @@ export default function DashboardPage() {
           href: "/dashboard/donors",
         },
         {
-          label:
-            role === ROLE.CAMPAIGN_MANAGER
-              ? "Assigned Campaigns"
-              : "Active Campaigns",
+          label: "Active Campaigns",
           value: activeCampaigns.length.toString(),
           sub: "Live right now",
           icon: Megaphone,
@@ -279,7 +305,7 @@ export default function DashboardPage() {
       accent: "bg-primary/10 text-primary",
     });
   }
-  if (canManageDonors) {
+  if (canAddDonors) {
     quickActions.push({
       label: "Add Donor",
       sub: "Add to donor pool",
@@ -331,62 +357,88 @@ export default function DashboardPage() {
         <p className="text-sm text-muted-foreground mt-0.5">{meta.tagline}</p>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((s) => (
-          <StatCard
-            key={s.label}
-            label={s.label}
-            value={s.value}
-            sub={s.sub}
-            icon={s.icon}
-            iconBg={s.iconBg}
-            iconColor={s.iconColor}
-            href={s.href}
+      {/* Stats — campaign managers get the minimalist visuals below instead */}
+      {role !== ROLE.CAMPAIGN_MANAGER && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {stats.map((s) => (
+            <StatCard
+              key={s.label}
+              label={s.label}
+              value={s.value}
+              sub={s.sub}
+              icon={s.icon}
+              iconBg={s.iconBg}
+              iconColor={s.iconColor}
+              href={s.href}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Minimalist portfolio + payment snapshot (campaign managers) */}
+      {role === ROLE.CAMPAIGN_MANAGER && (
+        <div className="space-y-6">
+          <CampaignMix
+            active={activeCampaigns.length}
+            pending={pendingCampaigns.length}
+            reviewing={reviewingCampaigns.length}
+            draft={draftCampaigns.length}
+            raised={totalRaised}
+            required={totalRequired}
+            poolDonors={poolStats.donors}
+            poolCount={poolStats.count}
           />
-        ))}
-      </div>
+          <CampaignPaymentPies breakdown={breakdown} />
+        </div>
+      )}
+
+      {/* Review workload snapshot (reviewers) */}
+      {isReviewer && (
+        <ReviewerWork
+          campaigns={campaignRecords}
+          reviewerId={sessionUser?.id ?? null}
+        />
+      )}
 
       {/* Quick actions */}
       <QuickActions actions={quickActions} />
 
-      {/* Active Campaigns */}
-      <section>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-foreground">
-            {role === ROLE.CAMPAIGN_MANAGER
-              ? "Your Assigned Campaigns"
-              : "Active Campaigns"}
-          </h2>
-          <Link href="/dashboard/campaigns" className="text-xs text-primary hover:underline">
-            View all campaigns
-          </Link>
-        </div>
-        {activeCampaigns.length === 0 ? (
-          <div className="bg-card border border-border rounded-xl p-8 text-center shadow-sm">
-            <p className="text-sm text-muted-foreground">
-              No active campaigns yet.
-            </p>
-            {canCreateCampaigns && (
-              <Button
-                className="mt-4"
-                size="sm"
-                nativeButton={false}
-                render={<Link href="/dashboard/campaigns/new" />}
-              >
-                <Plus className="w-3.5 h-3.5 mr-1.5" />
-                Start a Campaign
-              </Button>
-            )}
+      {/* Active Campaigns — hidden for campaign managers (the payment pies +
+          portfolio snapshot above already cover their assigned campaigns) */}
+      {role !== ROLE.CAMPAIGN_MANAGER && (
+        <section>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-foreground">Active Campaigns</h2>
+            <Link href="/dashboard/campaigns" className="text-xs text-primary hover:underline">
+              View all campaigns
+            </Link>
           </div>
-        ) : (
-          <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
-            {activeCampaigns.map((c) => (
-              <CampaignCard key={c.id} campaign={c} />
-            ))}
-          </div>
-        )}
-      </section>
+          {activeCampaigns.length === 0 ? (
+            <div className="bg-card border border-border rounded-xl p-8 text-center shadow-sm">
+              <p className="text-sm text-muted-foreground">
+                No active campaigns yet.
+              </p>
+              {canCreateCampaigns && (
+                <Button
+                  className="mt-4"
+                  size="sm"
+                  nativeButton={false}
+                  render={<Link href="/dashboard/campaigns/new" />}
+                >
+                  <Plus className="w-3.5 h-3.5 mr-1.5" />
+                  Start a Campaign
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
+              {activeCampaigns.map((c) => (
+                <CampaignCard key={c.id} campaign={c} />
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Bottom grid */}
       <div className="grid lg:grid-cols-2 gap-6">

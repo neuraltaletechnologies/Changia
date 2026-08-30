@@ -6,6 +6,13 @@
  * and attached as a Bearer header on every request.
  */
 
+import {
+  emitActionError,
+  emitActionStart,
+  emitActionSuccess,
+  nextActionId,
+} from '@/lib/dashboard/action-feed';
+
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:5000/api/v1';
 
@@ -100,11 +107,16 @@ interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
   auth?: boolean;
+  /**
+   * Suppress the bottom-right action toast for this write request. Use for
+   * high-frequency, low-signal calls (e.g. marking notifications read).
+   */
+  silent?: boolean;
 }
 
 async function request<T>(
   path: string,
-  { method = 'GET', body, auth = true }: RequestOptions = {}
+  { method = 'GET', body, auth = true, silent = false }: RequestOptions = {}
 ): Promise<T> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -117,11 +129,25 @@ async function request<T>(
     }
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method,
-    headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
+  // Announce write requests to the dashboard action feed so the toaster can
+  // show "in progress → done / failed" in the bottom-right corner.
+  const tracked = method !== 'GET' && auth && !silent;
+  const actionId = tracked ? nextActionId() : null;
+  if (actionId) emitActionStart(actionId, method, path);
+
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      method,
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  } catch (networkError) {
+    if (actionId) {
+      emitActionError(actionId, method, path, 'Network error — check your connection.');
+    }
+    throw networkError;
+  }
 
   const payload = await response.json().catch(() => null);
 
@@ -138,8 +164,11 @@ async function request<T>(
     const message =
       errorBody?.error?.message ?? 'Something went wrong. Please try again.';
     const code = errorBody?.error?.code ?? 'UNKNOWN_ERROR';
+    if (actionId) emitActionError(actionId, method, path, message);
     throw new ApiClientError(response.status, code, message, errorBody?.error?.details);
   }
+
+  if (actionId) emitActionSuccess(actionId, method, path);
 
   return payload as T;
 }
@@ -152,11 +181,20 @@ async function requestForm<T>(path: string, formData: FormData): Promise<T> {
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method: 'POST',
-    headers,
-    body: formData,
-  });
+  const actionId = nextActionId();
+  emitActionStart(actionId, 'POST', path);
+
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+  } catch (networkError) {
+    emitActionError(actionId, 'POST', path, 'Network error — check your connection.');
+    throw networkError;
+  }
 
   const payload = await response.json().catch(() => null);
 
@@ -168,8 +206,11 @@ async function requestForm<T>(path: string, formData: FormData): Promise<T> {
     const errorBody = payload as ApiErrorBody | null;
     const message = errorBody?.error?.message ?? 'Something went wrong. Please try again.';
     const code = errorBody?.error?.code ?? 'UNKNOWN_ERROR';
+    emitActionError(actionId, 'POST', path, message);
     throw new ApiClientError(response.status, code, message, errorBody?.error?.details);
   }
+
+  emitActionSuccess(actionId, 'POST', path);
 
   return payload as T;
 }

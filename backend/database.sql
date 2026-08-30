@@ -20,6 +20,7 @@ USE changia;
 
 SET FOREIGN_KEY_CHECKS = 0;
 DROP TABLE IF EXISTS notifications;
+DROP TABLE IF EXISTS campaign_gifts;
 DROP TABLE IF EXISTS campaign_change_requests;
 DROP TABLE IF EXISTS campaign_donor_targets;
 DROP TABLE IF EXISTS organization_settings;
@@ -372,6 +373,27 @@ CREATE TABLE campaign_closure_requests (
   INDEX idx_ccreq_campaign_status (campaign_id, status)
 ) ENGINE=InnoDB;
 
+-- In-kind ("gift") contributions to a campaign — not all support is money.
+-- Each row is a non-monetary contribution with an *estimated* TZS value so it
+-- can sit alongside cash figures in the campaign payment breakdown. Optionally
+-- attributed to a known donor.
+CREATE TABLE campaign_gifts (
+  id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  campaign_id     BIGINT UNSIGNED NOT NULL,
+  organization_id BIGINT UNSIGNED NOT NULL,
+  donor_id        BIGINT UNSIGNED NULL,
+  description     VARCHAR(300) NOT NULL,
+  estimated_value DECIMAL(14,0) NOT NULL DEFAULT 0,
+  received_at     DATE NULL,
+  recorded_by_id  BIGINT UNSIGNED NULL,
+  created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_gift_campaign FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE,
+  CONSTRAINT fk_gift_org      FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+  CONSTRAINT fk_gift_donor    FOREIGN KEY (donor_id) REFERENCES donors(id) ON DELETE SET NULL,
+  CONSTRAINT fk_gift_recorder FOREIGN KEY (recorded_by_id) REFERENCES users(id) ON DELETE SET NULL,
+  INDEX idx_gift_campaign (campaign_id)
+) ENGINE=InnoDB;
+
 -- A material edit (name, story, goal, fee, category, dates, minimum amount,
 -- contact phone, cover image) to an already-approved / live campaign is NOT
 -- applied directly — it is parked here as a payload and must clear the same
@@ -384,6 +406,11 @@ CREATE TABLE campaign_change_requests (
   campaign_id       BIGINT UNSIGNED NOT NULL,
   organization_id   BIGINT UNSIGNED NOT NULL,
   submitted_by_id   BIGINT UNSIGNED NULL,
+  -- EDIT: a parked material edit (payload = changed fields). STATUS: a
+  -- manager's PAUSE/RESUME request (status_action set, payload = { reason }).
+  -- Both clear the same two-stage chain (REVIEWER then ORG_ADMIN).
+  request_kind      ENUM('EDIT','STATUS') NOT NULL DEFAULT 'EDIT',
+  status_action     ENUM('PAUSE','RESUME') NULL,
   payload           JSON NOT NULL,
   staged_cover_path VARCHAR(500) NULL,
   status            ENUM('PENDING','REVIEWED','APPLIED','REJECTED','CHANGES_REQUESTED') NOT NULL DEFAULT 'PENDING',
@@ -785,6 +812,26 @@ UPDATE campaigns SET
   story_sw = 'Kata ya Kigamboni inashiriki kisima kimoja kinachofanya kazi kati ya kaya mia sita. Kisima cha pili kingepunguza muda wa kutembea kufuata maji safi kutoka saa mbili hadi dakika ishirini.',
   category_sw = 'Jamii'
 WHERE slug = 'community-borehole-project';
+
+-- Give the demo campaign manager (Baraka Mushi, id 3) a few more assigned
+-- campaigns so the dashboard payment-breakdown pies have more than one to show.
+INSERT INTO campaign_assignments (campaign_id, user_id) VALUES (2, 3), (3, 3);
+
+-- Tracked donors with an expected pledge on campaign 1 (donors 1 & 2 have
+-- confirmed donations above): donor 1 is PARTIAL, donor 2 has PAID_FULL.
+INSERT INTO campaign_donor_targets
+  (campaign_id, donor_id, expected_amount, actual_amount, payment_status, added_by_id)
+VALUES
+  (1, 1, 200000, 125000, 'PARTIAL',   3),
+  (1, 2, 100000, 100000, 'PAID_FULL', 3);
+
+-- In-kind gifts (estimated TZS value) — not every contribution is money.
+INSERT INTO campaign_gifts
+  (campaign_id, organization_id, donor_id, description, estimated_value, received_at, recorded_by_id)
+VALUES
+  (1, 1, 1,    'Two boxes of paediatric medical supplies', 180000, DATE_SUB(NOW(), INTERVAL 6 DAY), 3),
+  (1, 1, NULL, 'Volunteer transport for three hospital trips', 90000, DATE_SUB(NOW(), INTERVAL 3 DAY), 3),
+  (2, 1, 2,    '20 school desks donated by a local carpenter', 600000, DATE_SUB(NOW(), INTERVAL 10 DAY), 3);
 
 -- Initial audit trail
 INSERT INTO audit_logs (organization_id, actor_id, actor_email, action, resource, resource_id, severity) VALUES

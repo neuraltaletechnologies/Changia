@@ -181,7 +181,7 @@ export default function CampaignApprovalsPage() {
   );
 
   return (
-    <div className="space-y-8 max-w-[1200px]">
+    <div className="space-y-8">
       <div className="flex items-center gap-2">
         <Button
           variant="outline"
@@ -280,11 +280,12 @@ export default function CampaignApprovalsPage() {
           <SectionHeading
             icon={PencilRuler}
             title="Campaign changes"
-            sub="Edits to live campaigns — the current version stays public until these clear both approvals."
+            sub="Edits to live campaigns, and manager requests to suspend or resume a campaign — nothing takes effect until both approvals clear."
           />
           {changeRequests.map((c) => {
             const cr = c.changeRequest!;
             const stage2 = cr.status === "REVIEWED";
+            const isStatusReq = cr.kind === "STATUS";
             return (
               <div
                 key={c.id}
@@ -307,20 +308,32 @@ export default function CampaignApprovalsPage() {
                     {stage2 ? "Needs final approval" : "Needs first review"}
                   </span>
                 </div>
-                <dl className="grid sm:grid-cols-2 gap-x-6 gap-y-1 text-[12px]">
-                  {Object.entries(cr.payload).map(([k, v]) => (
-                    <div key={k} className="flex gap-2">
-                      <dt className="text-muted-foreground shrink-0">{FIELD_LABELS[k] ?? k}:</dt>
-                      <dd className="font-medium text-foreground truncate">{String(v)}</dd>
-                    </div>
-                  ))}
-                  {cr.hasStagedCover && (
-                    <div className="flex gap-2">
-                      <dt className="text-muted-foreground">Cover image:</dt>
-                      <dd className="font-medium text-foreground">new image staged</dd>
-                    </div>
-                  )}
-                </dl>
+                {isStatusReq ? (
+                  <div className="text-[12px] space-y-1">
+                    <p className="font-medium text-foreground">
+                      Requested:{" "}
+                      {cr.statusAction === "PAUSE" ? "Suspend campaign" : "Resume campaign"}
+                    </p>
+                    {cr.payload.reason && (
+                      <p className="text-muted-foreground">Reason: {String(cr.payload.reason)}</p>
+                    )}
+                  </div>
+                ) : (
+                  <dl className="grid sm:grid-cols-2 gap-x-6 gap-y-1 text-[12px]">
+                    {Object.entries(cr.payload).map(([k, v]) => (
+                      <div key={k} className="flex gap-2">
+                        <dt className="text-muted-foreground shrink-0">{FIELD_LABELS[k] ?? k}:</dt>
+                        <dd className="font-medium text-foreground truncate">{String(v)}</dd>
+                      </div>
+                    ))}
+                    {cr.hasStagedCover && (
+                      <div className="flex gap-2">
+                        <dt className="text-muted-foreground">Cover image:</dt>
+                        <dd className="font-medium text-foreground">new image staged</dd>
+                      </div>
+                    )}
+                  </dl>
+                )}
                 <div className="flex justify-end">
                   <ActionRow
                     approveLabel={stage2 ? "Give final approval" : "Give first approval"}

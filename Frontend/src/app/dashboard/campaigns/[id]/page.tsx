@@ -17,6 +17,7 @@ import {
   Calendar,
   Check,
   FileWarning,
+  Gift,
   Heart,
   ImageIcon,
   Import,
@@ -74,6 +75,7 @@ import {
   type CampaignRecord,
   type CampaignTargetsResponse,
   type CampaignTarget,
+  type CampaignGift,
   type CompletionReport,
   type ClosureRequest,
   type PayoutRecord,
@@ -186,7 +188,7 @@ export default function CampaignDetailPage() {
 
   if (loading) {
     return (
-      <div className="max-w-[1200px]">
+      <div>
         <div className="h-48 bg-card border border-border rounded-xl animate-pulse" />
       </div>
     );
@@ -216,7 +218,7 @@ export default function CampaignDetailPage() {
   const summary = board?.summary;
 
   return (
-    <div className="space-y-6 max-w-[1200px]">
+    <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Button
           variant="outline"
@@ -228,7 +230,7 @@ export default function CampaignDetailPage() {
           Back to Campaigns
         </Button>
         <div className="flex items-center gap-2">
-          {isAdmin && (
+          {(isAdmin || isCampaignManager) && (
             <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
               <Import className="w-3.5 h-3.5 mr-1.5" />
               Import Pool
@@ -322,15 +324,42 @@ export default function CampaignDetailPage() {
           <div className="flex items-start gap-2.5 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800">
             <ShieldCheck className="w-4 h-4 mt-0.5 shrink-0" />
             <span>
-              This campaign has edits{" "}
-              {campaign.changeRequest.status === "REVIEWED"
-                ? "with first approval done, waiting on an admin"
-                : "awaiting a reviewer's first approval"}
-              . The public page keeps showing the last-approved version until they
-              clear. See the <strong>Changes</strong> tab.
+              {campaign.changeRequest.kind === "STATUS" ? (
+                <>
+                  A request to{" "}
+                  {campaign.changeRequest.statusAction === "PAUSE" ? "suspend" : "resume"} this
+                  campaign is{" "}
+                  {campaign.changeRequest.status === "REVIEWED"
+                    ? "waiting on an admin's final approval"
+                    : "awaiting a reviewer's first approval"}
+                  . Nothing changes until it clears. See the <strong>Changes</strong> tab.
+                </>
+              ) : (
+                <>
+                  This campaign has edits{" "}
+                  {campaign.changeRequest.status === "REVIEWED"
+                    ? "with first approval done, waiting on an admin"
+                    : "awaiting a reviewer's first approval"}
+                  . The public page keeps showing the last-approved version until they
+                  clear. See the <strong>Changes</strong> tab.
+                </>
+              )}
             </span>
           </div>
         )}
+
+      {campaign.status === "DRAFT" && (
+        <div className="flex items-start gap-2.5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+          <FileWarning className="w-4 h-4 mt-0.5 shrink-0" />
+          <span>
+            This campaign is a <strong>draft</strong> — only your team can see it.
+            Add the details, cover photo and any donor pools or donors, then{" "}
+            <strong>Submit for approval</strong>. Adding donors or importing pools
+            doesn&apos;t need review; the campaign does — first a reviewer, then an
+            admin.
+          </span>
+        </div>
+      )}
 
       {/* Header */}
       <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
@@ -400,26 +429,40 @@ export default function CampaignDetailPage() {
                   {campaign.isFeatured ? "Featured" : "Feature on homepage"}
                 </Button>
               )}
-              {campaign.status === "DRAFT" && (
-                <>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    nativeButton={false}
-                    render={<Link href={`/dashboard/campaigns/${id}/edit`} />}
-                  >
-                    Edit
-                  </Button>
-                  <Button
-                    size="sm"
-                    disabled={acting}
-                    onClick={() => act(() => campaignApi.submit(id))}
-                  >
-                    {acting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5 mr-1" />}
-                    Submit for approval
-                  </Button>
-                </>
-              )}
+              {campaign.status === "DRAFT" && (isAdmin || isCampaignManager) && (() => {
+                // The essentials POST /:id/submit enforces server-side — mirror
+                // them here so the button explains what's still missing.
+                const missing = [
+                  !campaign.imageUrl && "a cover photo",
+                  !campaign.contactPhone && "a contact phone",
+                  (!campaign.startDate || !campaign.endDate) && "start and end dates",
+                ].filter(Boolean) as string[];
+                return (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      nativeButton={false}
+                      render={<Link href={`/dashboard/campaigns/${id}/edit`} />}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      size="sm"
+                      disabled={acting || missing.length > 0}
+                      title={
+                        missing.length > 0
+                          ? `Add ${missing.join(", ")} before submitting`
+                          : undefined
+                      }
+                      onClick={() => act(() => campaignApi.submit(id))}
+                    >
+                      {acting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5 mr-1" />}
+                      Submit for approval
+                    </Button>
+                  </>
+                );
+              })()}
               {(campaign.status === "PENDING" || campaign.status === "REVIEWED") &&
                 (() => {
                   const stage = campaign.status === "PENDING" ? 1 : 2;
@@ -670,7 +713,7 @@ export default function CampaignDetailPage() {
           </div>
         </TabsContent>
 
-        <TabsContent value="board" className="pt-2">
+        <TabsContent value="board" className="pt-2 space-y-6">
           <DonorBoardTab
             board={board}
             selected={selected}
@@ -685,6 +728,15 @@ export default function CampaignDetailPage() {
             onRemoveTarget={(donorId) =>
               act(() => campaignApi.removeTarget(id, donorId))
             }
+          />
+          <CampaignGiftsSection
+            campaignId={id}
+            donors={(board?.targets ?? []).map((t) => ({
+              id: t.donor.id,
+              name: donorFullName(t.donor),
+            }))}
+            canManage={isAdmin || isCampaignManager}
+            onChanged={refresh}
           />
         </TabsContent>
 
@@ -1909,6 +1961,238 @@ function DecideClosureForm({
   );
 }
 
+// ─── In-kind gifts (non-monetary contributions) ─────────────────────────────
+
+function CampaignGiftsSection({
+  campaignId,
+  donors,
+  canManage,
+  onChanged,
+}: {
+  campaignId: string;
+  donors: { id: number; name: string }[];
+  canManage: boolean;
+  onChanged: () => void;
+}) {
+  const [gifts, setGifts] = useState<CampaignGift[] | undefined>(undefined);
+  const [error, setError] = useState<string | null>(null);
+  const [removingId, setRemovingId] = useState<number | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      setError(null);
+      setGifts(await campaignApi.listGifts(campaignId));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load gifts.");
+    }
+  }, [campaignId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const remove = async (giftId: number) => {
+    setRemovingId(giftId);
+    try {
+      await campaignApi.removeGift(campaignId, giftId);
+      await load();
+      onChanged();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to remove the gift.");
+    } finally {
+      setRemovingId(null);
+    }
+  };
+
+  if (gifts === undefined) {
+    return <div className="h-40 bg-card border border-border rounded-xl animate-pulse" />;
+  }
+
+  const total = gifts.reduce((s, g) => s + g.estimatedValue, 0);
+
+  return (
+    <div className="space-y-4">
+      {error && (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          {error}
+        </div>
+      )}
+
+      <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-border flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Gift className="w-4 h-4 text-violet-500" />
+            <h2 className="text-sm font-semibold text-foreground">In-kind gifts</h2>
+          </div>
+          <span className="text-[11px] text-muted-foreground">
+            {gifts.length} gift{gifts.length === 1 ? "" : "s"} &middot;{" "}
+            {formatTZSFull(total)} est.
+          </span>
+        </div>
+
+        {gifts.length === 0 ? (
+          <p className="px-5 py-8 text-center text-sm text-muted-foreground">
+            No gifts recorded. Not every contribution is money — log donated
+            goods, services or time here with an estimated value.
+          </p>
+        ) : (
+          <ul className="divide-y divide-border">
+            {gifts.map((g) => (
+              <li key={g.id} className="px-5 py-3 flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm text-foreground">{g.description}</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    {formatTZSFull(g.estimatedValue)} est.
+                    {g.donorName ? ` · ${g.donorName}` : ""}
+                    {g.receivedAt
+                      ? ` · ${new Date(g.receivedAt).toLocaleDateString()}`
+                      : ""}
+                  </p>
+                </div>
+                {canManage && (
+                  <Button
+                    size="xs"
+                    variant="ghost"
+                    onClick={() => remove(g.id)}
+                    disabled={removingId === g.id}
+                  >
+                    {removingId === g.id ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-3.5 h-3.5" />
+                    )}
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {canManage && (
+        <AddGiftForm
+          campaignId={campaignId}
+          donors={donors}
+          onAdded={() => {
+            load();
+            onChanged();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function AddGiftForm({
+  campaignId,
+  donors,
+  onAdded,
+}: {
+  campaignId: string;
+  donors: { id: number; name: string }[];
+  onAdded: () => void;
+}) {
+  const [description, setDescription] = useState("");
+  const [value, setValue] = useState("");
+  const [donorId, setDonorId] = useState("none");
+  const [receivedAt, setReceivedAt] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async () => {
+    setError(null);
+    if (description.trim().length < 1) {
+      setError("Describe the gift.");
+      return;
+    }
+    const estimatedValue = Math.max(0, Math.round(Number(value) || 0));
+    setSubmitting(true);
+    try {
+      await campaignApi.addGift(campaignId, {
+        description: description.trim(),
+        estimatedValue,
+        donorId: donorId === "none" ? undefined : Number(donorId),
+        receivedAt: receivedAt || undefined,
+      });
+      setDescription("");
+      setValue("");
+      setDonorId("none");
+      setReceivedAt("");
+      onAdded();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to record the gift.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
+      <div className="px-5 py-4 border-b border-border">
+        <p className="text-sm font-medium text-foreground">Record an in-kind gift</p>
+        <p className="text-xs text-muted-foreground">
+          Its estimated value is added to the campaign&apos;s payment breakdown.
+        </p>
+      </div>
+      <div className="p-5 space-y-4">
+        <div className="space-y-1.5">
+          <Label className="text-xs">Description</Label>
+          <Input
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="e.g. 20 school desks donated by a local carpenter"
+          />
+        </div>
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Estimated value (TZS)</Label>
+            <Input
+              type="number"
+              min={0}
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              placeholder="0"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Received on (optional)</Label>
+            <Input
+              type="date"
+              value={receivedAt}
+              onChange={(e) => setReceivedAt(e.target.value)}
+            />
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">Donor (optional)</Label>
+          <Select value={donorId} onValueChange={(v) => setDonorId(v ?? "none")}>
+            <SelectTrigger className="h-9 text-sm">
+              <SelectValue placeholder="No specific donor" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">No specific donor</SelectItem>
+              {donors.map((d) => (
+                <SelectItem key={d.id} value={String(d.id)}>
+                  {d.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        {error && (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+            {error}
+          </div>
+        )}
+        <Button size="sm" onClick={submit} disabled={submitting}>
+          {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : null}
+          Record gift
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Campaign changes tab (parked material edits awaiting re-approval) ───────
 
 const CR_FIELD_LABELS: Record<string, string> = {
@@ -1944,6 +2228,7 @@ function ChangeRequestTab({
   onRequestChanges: () => void;
 }) {
   const cr = campaign.changeRequest!;
+  const isStatusReq = cr.kind === "STATUS";
   const stage = cr.status === "PENDING" ? 1 : cr.status === "REVIEWED" ? 2 : 0;
   const canActThisStage = stage === 1 ? canReview : stage === 2 ? canFinalApprove : false;
   const isOwnFirst = stage === 2 && String(cr.firstApprovedBy ?? "") === currentUserId;
@@ -1962,13 +2247,21 @@ function ChangeRequestTab({
   return (
     <div className="bg-card border border-border rounded-xl p-5 shadow-sm space-y-4">
       <div>
-        <p className="text-sm font-semibold text-foreground">Proposed changes</p>
+        <p className="text-sm font-semibold text-foreground">
+          {isStatusReq
+            ? cr.statusAction === "PAUSE"
+              ? "Request to suspend this campaign"
+              : "Request to resume this campaign"
+            : "Proposed changes"}
+        </p>
         <p className="text-xs text-muted-foreground mt-0.5">
           {cr.status === "CHANGES_REQUESTED"
             ? "A reviewer asked for changes — the manager needs to edit and resubmit."
             : cr.status === "REVIEWED"
               ? "First approval done — an admin gives the final approval."
-              : "Awaiting a reviewer's first approval. The public campaign is unchanged until this clears."}
+              : isStatusReq
+                ? "Awaiting a reviewer's first approval. The campaign's status is unchanged until this clears."
+                : "Awaiting a reviewer's first approval. The public campaign is unchanged until this clears."}
         </p>
       </div>
 
@@ -1978,6 +2271,13 @@ function ChangeRequestTab({
         </p>
       )}
 
+      {isStatusReq && cr.payload.reason && (
+        <p className="text-xs text-muted-foreground">
+          Reason given: “{String(cr.payload.reason)}”
+        </p>
+      )}
+
+      {!isStatusReq && (
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
           <thead>
@@ -2007,6 +2307,7 @@ function ChangeRequestTab({
           </tbody>
         </table>
       </div>
+      )}
 
       {stage > 0 && canActThisStage && !isOwnFirst && (
         <div className="flex flex-wrap gap-2 pt-1">

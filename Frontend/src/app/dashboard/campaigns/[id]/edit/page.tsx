@@ -45,6 +45,24 @@ interface FormState {
   contactPhone: string;
 }
 
+/** The form's baseline for a campaign — used both to seed and to detect edits. */
+function formFromCampaign(c: CampaignRecord): FormState {
+  return {
+    name: c.name,
+    category: c.category ?? "",
+    description: c.story ?? "",
+    goal: String(c.goalAmount),
+    serviceFee: String(
+      c.feeStatus === "PENDING" && c.proposedServiceFeePercent != null
+        ? c.proposedServiceFeePercent
+        : c.serviceFeePercent
+    ),
+    startDate: c.startDate ? new Date(c.startDate).toISOString().split("T")[0] : "",
+    endDate: c.endDate ? new Date(c.endDate).toISOString().split("T")[0] : "",
+    contactPhone: c.contactPhone ?? "",
+  };
+}
+
 export default function EditCampaignPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -70,6 +88,12 @@ export default function EditCampaignPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
+  // Don't let an unchanged form be saved — for a live campaign that would push
+  // an empty edit into the review queue.
+  const dirty = campaign
+    ? JSON.stringify(form) !== JSON.stringify(formFromCampaign(campaign))
+    : false;
+
   const loadCampaign = useCallback(async () => {
     try {
       const c = await campaignApi.get(id);
@@ -78,21 +102,7 @@ export default function EditCampaignPage() {
         return;
       }
       setCampaign(c);
-      setForm({
-        name: c.name,
-        category: c.category ?? "",
-        description: c.story ?? "",
-        goal: String(c.goalAmount),
-        // Show a pending proposed rate if there is one, otherwise the active rate.
-        serviceFee: String(
-          c.feeStatus === "PENDING" && c.proposedServiceFeePercent != null
-            ? c.proposedServiceFeePercent
-            : c.serviceFeePercent
-        ),
-        startDate: c.startDate ? new Date(c.startDate).toISOString().split("T")[0] : "",
-        endDate: c.endDate ? new Date(c.endDate).toISOString().split("T")[0] : "",
-        contactPhone: c.contactPhone ?? "",
-      });
+      setForm(formFromCampaign(c));
     } catch (e) {
       setSubmitError(e instanceof Error ? e.message : "Failed to load campaign.");
     } finally {
@@ -160,7 +170,7 @@ export default function EditCampaignPage() {
 
   if (loading) {
     return (
-      <div className="max-w-[720px]">
+      <div>
         <div className="h-96 bg-card border border-border rounded-xl animate-pulse" />
       </div>
     );
@@ -168,7 +178,7 @@ export default function EditCampaignPage() {
 
   if (submitError && !campaign) {
     return (
-      <div className="max-w-[720px] space-y-4">
+      <div className="space-y-4">
         <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
           {submitError}
         </div>
@@ -181,7 +191,7 @@ export default function EditCampaignPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-[720px]">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-foreground tracking-tight">
@@ -416,12 +426,16 @@ export default function EditCampaignPage() {
           <Button type="button" variant="ghost" onClick={() => router.push(`/dashboard/campaigns/${id}`)}>
             Cancel
           </Button>
-          <Button type="submit" disabled={submitting}>
+          <Button type="submit" disabled={submitting || !dirty}>
             {submitting ? (
               <>
                 <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
                 Saving…
               </>
+            ) : !dirty ? (
+              "No changes"
+            ) : campaign?.status === "ACTIVE" || campaign?.status === "PAUSED" ? (
+              "Send for review"
             ) : (
               "Save Changes"
             )}

@@ -890,6 +890,17 @@ Every `Campaign` returned by `GET /campaigns` / `GET /campaigns/:id` additionall
 
 **Frontend note:** because the endpoint takes `FormData`, `src/lib/api-client.ts`'s `request()` must skip `JSON.stringify`/`Content-Type: application/json` when `body instanceof FormData` and let the browser set the multipart boundary.
 
+### In-kind gifts & the campaign payment breakdown
+
+Not every contribution is money. A campaign can also receive **in-kind gifts** (donated goods, services or time) recorded with an *estimated* TZS value.
+
+- **`GET /campaigns/payments/breakdown`** — any authenticated member (a `CAMPAIGN_MANAGER` gets only their assigned campaigns). Array of `{ campaignId, name, goal, raised, paid, unpaid, promisedPaid, promisedUnpaid, giftValue }` — the split (TZS) behind the dashboard payment pie per campaign. `paid` = confirmed money with no pledge, `unpaid` = goal not covered by a pledge, `promisedPaid` / `promisedUnpaid` = received / still-owed against donor pledges, `giftValue` = summed in-kind estimates. A row sums to `goal + giftValue`.
+- **`GET /campaigns/:id/gifts`** — any member with campaign access. `Gift[]`: `{ id, campaignId, donorId, donorName, description, estimatedValue, receivedAt, createdAt }`.
+- **`POST /campaigns/:id/gifts`** — `SUPER_ADMIN` / `ORG_ADMIN` / assigned `CAMPAIGN_MANAGER`. JSON `{ description (1–300, required), estimatedValue? (int TZS ≥ 0, default 0), donorId?, receivedAt? "YYYY-MM-DD" }`. Returns the updated `Gift[]`.
+- **`DELETE /campaigns/:id/gifts/:giftId`** — same roles. Returns the updated `Gift[]`.
+
+Recorded on the campaign detail page's **Board** tab (alongside the donor pledge board).
+
 ### Public — completed-campaign blog posts (`/public/campaigns/completed`, unauthenticated)
 
 This is what actually **posts a campaign to the public blog**: a campaign shows up here once it's `completed` **and** its completion report is `APPROVED`. Used by the marketing `/blog` page and a new `/blog/campaign/:slug` detail route (merge these into the existing Markdown blog feed, sorted by `publishedAt`).

@@ -255,7 +255,7 @@ export default function ImportDonorsPage() {
   };
 
   return (
-    <div className="space-y-6 max-w-[700px]">
+    <div className="space-y-6">
       {/* Back */}
       <Link
         href="/dashboard/donors"

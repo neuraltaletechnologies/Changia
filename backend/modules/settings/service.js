@@ -18,7 +18,7 @@ function parseJson(value, fallback) {
 
 async function getOrgSettings(organizationId) {
   const orgs = await db.query(
-    `SELECT o.name, o.email, o.phone, o.logo_url, o.currency, os.registration_number,
+    `SELECT o.name, o.email, o.phone, o.description, o.logo_url, o.currency, os.registration_number,
             os.default_channel, os.language, os.timezone, os.date_format, os.notifications, os.security
      FROM organizations o LEFT JOIN organization_settings os ON os.organization_id = o.id
      WHERE o.id = ?`,
@@ -33,6 +33,7 @@ async function getOrgSettings(organizationId) {
     registrationNumber: row.registration_number || DEFAULTS.registrationNumber,
     primaryEmail: row.email,
     phone: row.phone,
+    description: row.description,
     defaultChannel: row.default_channel || DEFAULTS.defaultChannel,
     currency: row.currency || "TZS",
     language: row.language || DEFAULTS.language,
@@ -46,7 +47,7 @@ async function getOrgSettings(organizationId) {
 async function updateOrgSettings(organizationId, data) {
   const orgFields = [];
   const orgValues = [];
-  const aliases = { orgName: "name", primaryEmail: "email", phone: "phone", logoUrl: "logo_url", currency: "currency" };
+  const aliases = { orgName: "name", primaryEmail: "email", phone: "phone", description: "description", logoUrl: "logo_url", currency: "currency" };
   for (const [input, column] of Object.entries(aliases)) {
     if (data[input] !== undefined) { orgFields.push(`${column} = ?`); orgValues.push(data[input] || null); }
   }

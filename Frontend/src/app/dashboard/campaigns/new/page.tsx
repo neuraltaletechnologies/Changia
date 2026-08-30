@@ -79,8 +79,9 @@ export default function NewCampaignPage() {
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [galleryFiles, setGalleryFiles] = useState<File[]>([]);
   const [coverError, setCoverError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [pendingAction, setPendingAction] = useState<"draft" | "submit" | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const submitting = pendingAction !== null;
   const [created, setCreated] = useState<CampaignRecord | null>(null);
   const [imageWarning, setImageWarning] = useState<string | null>(null);
 
@@ -135,7 +136,10 @@ export default function NewCampaignPage() {
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
 
-  const validate = (): boolean => {
+  // A draft only needs the essentials the backend enforces (name + a real
+  // goal); everything else — cover photo, dates, contact phone — can be filled
+  // in later before it's submitted for review.
+  const validate = (mode: "draft" | "submit"): boolean => {
     const next: Partial<Record<keyof FormState, string>> = {};
     if (!form.name.trim()) next.name = "Campaign name is required.";
     const goal = Number(form.goal);
@@ -146,21 +150,24 @@ export default function NewCampaignPage() {
       if (Number.isNaN(min) || min <= 0) next.minimumAmount = "Minimum amount must be greater than 0.";
       else if (goal > 0 && min > goal) next.minimumAmount = "Minimum amount can't exceed the goal.";
     }
-    if (!form.startDate) next.startDate = "Select a start date.";
-    if (!form.endDate) next.endDate = "Select an end date.";
     if (form.startDate && form.endDate && form.endDate < form.startDate)
       next.endDate = "End date must be after the start date.";
-    if (!form.contactPhone.trim()) next.contactPhone = "Contact phone is required.";
     if (
       form.contactPhone.trim() &&
       !/^(\+?255|0)?[67][0-9]{8}$/.test(form.contactPhone.replace(/[\s-]/g, ""))
     )
       next.contactPhone = "Enter a valid Tanzanian phone number.";
+
+    if (mode === "submit") {
+      if (!form.startDate) next.startDate = "Select a start date.";
+      if (!form.endDate) next.endDate = "Select an end date.";
+      if (!form.contactPhone.trim()) next.contactPhone = "Contact phone is required.";
+    }
     setErrors(next);
 
     let coverOk = true;
-    if (!coverFile) {
-      setCoverError("A cover photo is required.");
+    if (mode === "submit" && !coverFile) {
+      setCoverError("A cover photo is required to submit for review.");
       coverOk = false;
     } else {
       setCoverError(null);
@@ -169,11 +176,10 @@ export default function NewCampaignPage() {
     return Object.keys(next).length === 0 && coverOk;
   };
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!validate()) return;
+  const save = async (mode: "draft" | "submit") => {
+    if (!validate(mode)) return;
 
-    setSubmitting(true);
+    setPendingAction(mode);
     setSubmitError(null);
     try {
       const campaign = await campaignApi.create({
@@ -186,6 +192,7 @@ export default function NewCampaignPage() {
         endDate: form.endDate ? new Date(form.endDate).toISOString() : undefined,
         contactPhone: form.contactPhone.trim() || undefined,
         poolIds: poolIds.length > 0 ? poolIds : undefined,
+        asDraft: mode === "draft" ? true : undefined,
         // Only an admin/reviewer can set this, and only send it when it differs
         // from the org default (managers never send it).
         serviceFeePercent:
@@ -193,31 +200,45 @@ export default function NewCampaignPage() {
       });
 
       // Images are a separate call — the campaign already exists once this
-      // point is reached, so a failure here shouldn't block the flow, just
-      // surface as a non-fatal warning on the success screen.
-      try {
-        const formData = new FormData();
-        if (coverFile) formData.append("cover", coverFile);
-        galleryFiles.forEach((f) => formData.append("gallery", f));
-        const withImages = await campaignApi.uploadImages(campaign.id, formData);
-        setCreated(withImages);
-      } catch (imgErr) {
-        setCreated(campaign);
-        setImageWarning(
-          imgErr instanceof Error
-            ? `Campaign created, but the photos failed to upload: ${imgErr.message}. Add them from the campaign page.`
-            : "Campaign created, but the photos failed to upload. Add them from the campaign page."
-        );
+      // point is reached, so a failure here shouldn't block the flow.
+      let imgError: string | null = null;
+      if (coverFile || galleryFiles.length > 0) {
+        try {
+          const formData = new FormData();
+          if (coverFile) formData.append("cover", coverFile);
+          galleryFiles.forEach((f) => formData.append("gallery", f));
+          await campaignApi.uploadImages(campaign.id, formData);
+        } catch (imgErr) {
+          imgError =
+            imgErr instanceof Error
+              ? `The campaign was saved, but the photos failed to upload: ${imgErr.message}. Add them from the campaign page.`
+              : "The campaign was saved, but the photos failed to upload. Add them from the campaign page.";
+        }
       }
+
+      if (mode === "draft") {
+        // Straight to the campaign page to keep working on it (photos, pools,
+        // donors) and submit for review when ready.
+        router.push(`/dashboard/campaigns/${campaign.id}`);
+        return;
+      }
+
+      setImageWarning(imgError);
+      setCreated(campaign);
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : "Failed to create the campaign.");
-      setSubmitting(false);
+      setSubmitError(err instanceof Error ? err.message : "Failed to save the campaign.");
+      setPendingAction(null);
     }
+  };
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    void save("submit");
   };
 
   if (created) {
     return (
-      <div className="space-y-6 max-w-[720px]">
+      <div className="space-y-6">
         <div className="bg-card border border-border rounded-xl p-8 text-center shadow-sm">
           <div className="mx-auto w-12 h-12 rounded-full flex items-center justify-center bg-orange-50">
             <Clock className="w-6 h-6 text-orange-600" />
@@ -273,15 +294,17 @@ export default function NewCampaignPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-[720px]">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-foreground tracking-tight">
             Start a New Campaign
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Fill in the details below. Every campaign is reviewed before it goes
-            live — first by a reviewer, then by an admin.
+            Fill in the details below. Save it as a draft to keep working on it
+            (photos, donor pools, donors), or submit it for review now. Every
+            campaign is reviewed before it goes live — first by a reviewer, then
+            by an admin.
           </p>
         </div>
         <Button
@@ -504,7 +527,7 @@ export default function NewCampaignPage() {
               <div>
                 <p className="text-sm font-medium text-foreground">Photos</p>
                 <p className="text-xs text-muted-foreground">
-                  A cover photo is required; add supporting photos to help donors trust the campaign.
+                  A cover photo is required before the campaign can be submitted for review; add supporting photos to help donors trust the campaign.
                 </p>
               </div>
             </div>
@@ -599,18 +622,33 @@ export default function NewCampaignPage() {
           </div>
         )}
 
-        <div className="flex items-center justify-end gap-3 pt-2 border-t border-border">
+        <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-3 pt-2 border-t border-border">
           <Button type="button" variant="ghost" onClick={() => router.push("/dashboard/campaigns")}>
             Cancel
           </Button>
-          <Button type="submit" disabled={submitting}>
-            {submitting ? (
+          <Button
+            type="button"
+            variant="outline"
+            disabled={submitting}
+            onClick={() => void save("draft")}
+          >
+            {pendingAction === "draft" ? (
               <>
                 <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                Creating…
+                Saving…
               </>
             ) : (
-              "Create Campaign"
+              "Save as draft"
+            )}
+          </Button>
+          <Button type="submit" disabled={submitting}>
+            {pendingAction === "submit" ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                Submitting…
+              </>
+            ) : (
+              "Submit for review"
             )}
           </Button>
         </div>

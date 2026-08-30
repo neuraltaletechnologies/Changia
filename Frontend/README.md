@@ -37,8 +37,8 @@ the Backend API at `NEXT_PUBLIC_API_URL` (defaults to
 `http://localhost:5000/api/v1` — set it in `.env.local` if the API runs
 elsewhere). Donor pool / reminder pages:
 
-- `/dashboard/pools` — donor pools by category (Family/School/Student/Office), donor CRUD, sort/filter
-- `/dashboard/pools/[id]` — pool members, payment status, manual reminders, duplicate resolution
+- `/dashboard/pools` — donor pools by category (Family/School/Student/Office). Each pool card has a ⋯ menu (Edit details → right-side sheet / Delete pool). Donor section below shows **all donors** by default; picking a pool card narrows it to that pool and adds Add-Members / Resolve-Duplicates. Each donor row's ⋯ menu → View full profile (always) / Edit details (right-side sheet) / Remove from pool / Delete donor — Edit + Delete need the `donor:manage` permission (SUPER_ADMIN / ORG_ADMIN). Payment-status tracking, expected amounts and reminders live on the campaign page instead.
+- `/dashboard/pools/[id]` — legacy redirect to `/dashboard/pools?pool=<id>`
 - `/dashboard/pools/anomalous` — unmatched-payment donors, re-attach to a known donor
 - `/dashboard/reminders` — **Pending Resends**: auto-resend cycles waiting for your confirmation before anything sends
 - `/dashboard/reminders/templates` — reusable SMS/WhatsApp/Email reminder templates

@@ -50,7 +50,7 @@ export default function AuditLogPage() {
   const resources = Array.from(new Set(logs.map((l) => l.resource)));
 
   return (
-    <div className="space-y-5 max-w-[1200px]">
+    <div className="space-y-5">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>

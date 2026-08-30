@@ -12,6 +12,10 @@ export const REGISTER_MODAL_SELECTOR = '#hs-toggle-between-modals-register-modal
 
 type HSOverlayLike = {
   close?: (target: string) => void;
+  getInstance?: (
+    target: string,
+    isInstance?: boolean
+  ) => { element?: { close?: (forceClose?: boolean) => unknown } } | undefined;
 };
 
 /** Resolve a safe internal path to send the user to after they authenticate. */
@@ -34,13 +38,40 @@ export function getAuthNextFromLocation(): string {
   );
 }
 
-/** Close an open Preline auth overlay (and its backdrop) by selector. */
+/**
+ * Remove any leftover Preline overlay chrome: the backdrop element (Preline
+ * appends it to <body>, outside React) and the scroll-lock it puts on <body>.
+ * Safe to call anywhere, any time — it only touches Preline's own artefacts.
+ */
+export function clearOverlayBackdrop() {
+  if (typeof document === 'undefined') return;
+  document
+    .querySelectorAll(
+      '.hs-overlay-backdrop, [data-hs-overlay-backdrop-template]'
+    )
+    .forEach((el) => el.remove());
+  document.body.classList.remove('hs-overlay-body-open');
+  document.body.style.removeProperty('overflow');
+  document.body.style.removeProperty('padding-right');
+}
+
+/**
+ * Close an open Preline auth overlay by selector and clear its backdrop.
+ * We navigate away right after this (into the dashboard, which has no Preline),
+ * so force the close — an animated close would leave the backdrop behind.
+ */
 export function closeAuthModal(selector: string) {
   if (typeof window === 'undefined') return;
   const HSOverlay = (window as Window & { HSOverlay?: HSOverlayLike }).HSOverlay;
   try {
-    HSOverlay?.close?.(selector);
+    const instance = HSOverlay?.getInstance?.(selector, true);
+    if (instance?.element?.close) {
+      instance.element.close(true);
+    } else {
+      HSOverlay?.close?.(selector);
+    }
   } catch {
-    // Preline not ready / element gone — navigation below unmounts it anyway.
+    // Preline not ready / element gone — the sweep below still cleans up.
   }
+  clearOverlayBackdrop();
 }

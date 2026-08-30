@@ -45,7 +45,7 @@ export default function NewPoolPage() {
         category,
         createdBy: createdBy ? Number(createdBy) : undefined,
       });
-      router.push(`/dashboard/pools/${created.id}`);
+      router.push(`/dashboard/pools?pool=${created.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create the pool.");
       setLoading(false);
@@ -53,7 +53,7 @@ export default function NewPoolPage() {
   };
 
   return (
-    <div className="space-y-6 max-w-[720px]">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-foreground tracking-tight">

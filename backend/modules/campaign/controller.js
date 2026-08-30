@@ -86,6 +86,17 @@ const listChangeRequests = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true, data: requests });
 });
 
+const requestStatusChange = asyncHandler(async (req, res) => {
+  await campaignService.assertCampaignAccess(req.user.organizationId, req.user, req.params.id);
+  const campaign = await campaignService.requestCampaignStatusChange(
+    req.user.organizationId,
+    req.params.id,
+    { id: req.user.id, email: req.user.email, role: req.user.role },
+    req.body
+  );
+  res.status(201).json({ success: true, data: campaign });
+});
+
 const decideChangeRequest = asyncHandler(async (req, res) => {
   const campaign = await campaignService.decideChangeRequest(
     req.user.organizationId,
@@ -309,6 +320,43 @@ const decideClosureRequest = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true, data: requests });
 });
 
+const getPaymentsBreakdown = asyncHandler(async (req, res) => {
+  const result = await campaignService.getPaymentsBreakdown(
+    req.user.organizationId,
+    req.user
+  );
+  res.status(200).json({ success: true, data: result });
+});
+
+const listGifts = asyncHandler(async (req, res) => {
+  const gifts = await campaignService.listCampaignGifts(
+    req.user.organizationId,
+    req.params.id,
+    req.user
+  );
+  res.status(200).json({ success: true, data: gifts });
+});
+
+const addGift = asyncHandler(async (req, res) => {
+  const gifts = await campaignService.addCampaignGift(
+    req.user.organizationId,
+    req.params.id,
+    { id: req.user.id, email: req.user.email, role: req.user.role },
+    req.body
+  );
+  res.status(201).json({ success: true, data: gifts });
+});
+
+const removeGift = asyncHandler(async (req, res) => {
+  const gifts = await campaignService.removeCampaignGift(
+    req.user.organizationId,
+    req.params.id,
+    req.params.giftId,
+    { id: req.user.id, email: req.user.email, role: req.user.role }
+  );
+  res.status(200).json({ success: true, data: gifts });
+});
+
 const removeCampaign = asyncHandler(async (req, res) => {
   const result = await campaignService.removeCampaign(
     req.user.organizationId,
@@ -328,6 +376,7 @@ module.exports = {
   rejectCampaign,
   requestCampaignChanges,
   listChangeRequests,
+  requestStatusChange,
   decideChangeRequest,
   reviewFeeProposal,
   changeStatus,
@@ -347,5 +396,9 @@ module.exports = {
   requestClosure,
   listClosureRequests,
   decideClosureRequest,
+  getPaymentsBreakdown,
+  listGifts,
+  addGift,
+  removeGift,
   removeCampaign,
 };

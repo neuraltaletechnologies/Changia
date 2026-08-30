@@ -149,6 +149,10 @@ export interface CampaignRecord {
   changeRequest?: {
     id: number;
     status: "PENDING" | "REVIEWED" | "APPLIED" | "REJECTED" | "CHANGES_REQUESTED";
+    /** 'EDIT' = parked field changes; 'STATUS' = a manager's suspend/resume ask. */
+    kind?: "EDIT" | "STATUS";
+    /** Set when kind === 'STATUS'. */
+    statusAction?: "PAUSE" | "RESUME" | null;
     payload: Partial<
       Record<
         | "name"
@@ -159,7 +163,8 @@ export interface CampaignRecord {
         | "startDate"
         | "endDate"
         | "minimumAmount"
-        | "contactPhone",
+        | "contactPhone"
+        | "reason",
         string | number | null
       >
     >;
@@ -235,6 +240,8 @@ export interface ChangeRequestRecord {
   id: number;
   campaignId: number;
   status: "PENDING" | "REVIEWED" | "APPLIED" | "REJECTED" | "CHANGES_REQUESTED";
+  kind?: "EDIT" | "STATUS";
+  statusAction?: "PAUSE" | "RESUME" | null;
   payload: Record<string, string | number | null>;
   hasStagedCover: boolean;
   stagedCoverUrl: string | null;
@@ -287,6 +294,34 @@ export interface CampaignTargetsResponse {
     expectedTotal: number;
     paidTotal: number;
   }[];
+}
+
+export interface CampaignGift {
+  id: number;
+  campaignId: number;
+  donorId: number | null;
+  donorName: string | null;
+  description: string;
+  estimatedValue: number;
+  receivedAt: string | null;
+  createdAt: string;
+}
+
+export interface CampaignPaymentBreakdown {
+  campaignId: number;
+  name: string;
+  goal: number;
+  raised: number;
+  /** Confirmed money not tied to a pledge. */
+  paid: number;
+  /** Remaining campaign goal not covered by a pledge. */
+  unpaid: number;
+  /** Money received against a donor pledge. */
+  promisedPaid: number;
+  /** Pledged but not yet received. */
+  promisedUnpaid: number;
+  /** Estimated TZS value of in-kind contributions. */
+  giftValue: number;
 }
 
 export interface PoolImportPreview {
@@ -619,6 +654,22 @@ export const campaignApi = {
     api
       .post<{ success: boolean; data: CampaignRecord }>(`/campaigns/${id}/fee/review`, body)
       .then(unwrap),
+  /**
+   * A CAMPAIGN_MANAGER asks to suspend (PAUSE) or resume (RESUME) a campaign.
+   * Parked as a STATUS change request that clears the two-stage review chain
+   * (reviewer then org admin) before the status actually changes.
+   */
+  requestStatusChange: (
+    id: string | number,
+    action: "PAUSE" | "RESUME",
+    reason?: string
+  ) =>
+    api
+      .post<{ success: boolean; data: CampaignRecord }>(`/campaigns/${id}/status-requests`, {
+        action,
+        reason,
+      })
+      .then(unwrap),
   /** History of change requests (parked material edits) for a campaign. */
   listChangeRequests: (id: string | number) =>
     api
@@ -743,6 +794,35 @@ export const campaignApi = {
         body
       )
       .then(unwrap),
+  /** Per-campaign payment breakdown (TZS) for the caller's campaigns. */
+  paymentsBreakdown: () =>
+    api
+      .get<{ success: boolean; data: CampaignPaymentBreakdown[] }>(
+        `/campaigns/payments/breakdown`
+      )
+      .then(unwrap),
+  listGifts: (id: string | number) =>
+    api
+      .get<{ success: boolean; data: CampaignGift[] }>(`/campaigns/${id}/gifts`)
+      .then(unwrap),
+  addGift: (
+    id: string | number,
+    body: {
+      description: string;
+      estimatedValue?: number;
+      donorId?: string | number;
+      receivedAt?: string;
+    }
+  ) =>
+    api
+      .post<{ success: boolean; data: CampaignGift[] }>(`/campaigns/${id}/gifts`, body)
+      .then(unwrap),
+  removeGift: (id: string | number, giftId: string | number) =>
+    api
+      .delete<{ success: boolean; data: CampaignGift[] }>(
+        `/campaigns/${id}/gifts/${giftId}`
+      )
+      .then(unwrap),
 };
 
 // ─── Notifications (in-app staff notification centre) ────────────────────────
@@ -774,11 +854,19 @@ export const notificationApi = {
       .then(unwrap),
   markRead: (id: string | number) =>
     api
-      .post<{ success: boolean; data: { unreadCount: number } }>(`/notifications/${id}/read`)
+      .post<{ success: boolean; data: { unreadCount: number } }>(
+        `/notifications/${id}/read`,
+        undefined,
+        { silent: true }
+      )
       .then(unwrap),
   markAllRead: () =>
     api
-      .post<{ success: boolean; data: { unreadCount: number } }>(`/notifications/read-all`)
+      .post<{ success: boolean; data: { unreadCount: number } }>(
+        `/notifications/read-all`,
+        undefined,
+        { silent: true }
+      )
       .then(unwrap),
 };
 
@@ -923,6 +1011,57 @@ export const organizationApi = {
     api
       .put<{ success: boolean; data: OrganizationRecord }>("/organizations", body)
       .then(unwrap),
+};
+
+// ─── Organisation settings (dashboard Settings page) ────────────────────────
+//
+// Backed by GET/PUT /settings/org (ORG_ADMIN / SUPER_ADMIN only). The service
+// fee rate on the same page uses `organizationApi` above — it has its own
+// endpoint and its own review flow.
+
+export interface OrgNotificationPrefs {
+  notifyOnDonation: boolean;
+  notifyOnCampaignStatus: boolean;
+  notifyOnUserInvite: boolean;
+}
+
+export interface OrgSettings {
+  orgName: string;
+  brandName: string;
+  logoUrl: string | null;
+  registrationNumber: string | null;
+  primaryEmail: string | null;
+  phone: string | null;
+  description: string | null;
+  defaultChannel: ReminderChannel;
+  currency: "TZS" | "USD" | "EUR" | "GBP";
+  language: "en" | "sw";
+  timezone: "eat" | "utc";
+  dateFormat: "dmy" | "mdy" | "ymd";
+  notifications: OrgNotificationPrefs;
+  /** Present in the payload but not surfaced in the UI yet. */
+  security?: Record<string, boolean>;
+}
+
+export type OrgSettingsUpdate = Partial<{
+  orgName: string;
+  registrationNumber: string | null;
+  primaryEmail: string;
+  phone: string;
+  description: string;
+  defaultChannel: ReminderChannel;
+  currency: OrgSettings["currency"];
+  language: OrgSettings["language"];
+  timezone: OrgSettings["timezone"];
+  dateFormat: OrgSettings["dateFormat"];
+  notifications: Partial<OrgNotificationPrefs>;
+}>;
+
+export const settingsApi = {
+  getOrg: () =>
+    api.get<{ success: boolean; data: OrgSettings }>("/settings/org").then(unwrap),
+  updateOrg: (body: OrgSettingsUpdate) =>
+    api.put<{ success: boolean; data: OrgSettings }>("/settings/org", body).then(unwrap),
 };
 
 // ─── Status labels ───────────────────────────────────────────────────────────

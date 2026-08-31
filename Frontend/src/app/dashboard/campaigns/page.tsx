@@ -649,6 +649,11 @@ const CHIP_VIOLET = "bg-violet-50 text-violet-700 border-violet-200";
 function stageChip(kind: string, status: string, styles: string): ReviewChip {
   if (status === "CHANGES_REQUESTED")
     return { label: `${kind} · Changes requested`, styles: CHIP_AMBER };
+  // Payout-only states past the two approvals.
+  if (status === "AWAITING_CHECKOUT")
+    return { label: `${kind} · Add payout details`, styles: CHIP_AMBER };
+  if (status === "APPROVED")
+    return { label: `${kind} · Ready to pay`, styles };
   return { label: `${kind} · Stage ${status === "REVIEWED" ? 2 : 1} of 2`, styles };
 }
 
@@ -714,7 +719,9 @@ function reviewChipsForCampaign(c: CampaignRecord): ReviewChip[] {
   // (rejected / changes requested) is pulled to the front. The Review column
   // only surfaces the first chip, so this ordering decides what shows.
   const needsAction = (chip: ReviewChip) =>
-    chip.rejected || chip.label.includes("Changes requested");
+    chip.rejected ||
+    chip.label.includes("Changes requested") ||
+    chip.label.includes("Add payout details");
   return chips
     .map((chip, i) => ({ chip, i }))
     .sort((a, b) => Number(needsAction(b.chip)) - Number(needsAction(a.chip)) || a.i - b.i)

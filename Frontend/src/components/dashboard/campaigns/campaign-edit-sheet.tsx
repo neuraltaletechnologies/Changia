@@ -40,7 +40,10 @@ interface FormState {
   name: string;
   category: string;
   description: string;
+  scope: string;
+  acceptance: string;
   goal: string;
+  minimumAmount: string;
   serviceFee: string;
   startDate: string;
   endDate: string;
@@ -51,7 +54,10 @@ const EMPTY: FormState = {
   name: "",
   category: "",
   description: "",
+  scope: "",
+  acceptance: "",
   goal: "",
+  minimumAmount: "",
   serviceFee: "",
   startDate: "",
   endDate: "",
@@ -63,7 +69,10 @@ function fromCampaign(c: CampaignRecord): FormState {
     name: c.name,
     category: c.category ?? "",
     description: c.story ?? "",
+    scope: c.scope ?? "",
+    acceptance: c.acceptance ?? "",
     goal: String(c.goalAmount),
+    minimumAmount: c.minimumAmount ? String(c.minimumAmount) : "",
     serviceFee: String(
       c.feeStatus === "PENDING" && c.proposedServiceFeePercent != null
         ? c.proposedServiceFeePercent
@@ -137,6 +146,13 @@ export function CampaignEditSheet({
     const goal = Number(form.goal);
     if (!form.goal.trim() || Number.isNaN(goal) || goal <= 0)
       next.goal = "Enter a goal amount greater than 0.";
+    if (form.minimumAmount.trim()) {
+      const min = Number(form.minimumAmount);
+      if (Number.isNaN(min) || min <= 0)
+        next.minimumAmount = "Minimum amount must be greater than 0.";
+      else if (goal > 0 && min > goal)
+        next.minimumAmount = "Minimum amount can't exceed the goal.";
+    }
     if (form.startDate && form.endDate && form.endDate < form.startDate)
       next.endDate = "End date must be after the start date.";
     if (
@@ -163,7 +179,10 @@ export function CampaignEditSheet({
         name: form.name.trim(),
         category: form.category || undefined,
         story: form.description.trim() || undefined,
+        scope: form.scope.trim() || undefined,
+        acceptance: form.acceptance.trim() || undefined,
         goalAmount: Number(form.goal),
+        minimumAmount: form.minimumAmount.trim() ? Number(form.minimumAmount) : undefined,
         serviceFeePercent: feeChanged ? Number(form.serviceFee) : undefined,
         startDate: form.startDate ? new Date(form.startDate).toISOString() : undefined,
         endDate: form.endDate ? new Date(form.endDate).toISOString() : undefined,
@@ -318,6 +337,33 @@ export function CampaignEditSheet({
                   onChange={(e) => setField("description", e.target.value)}
                   className="min-h-24"
                 />
+                <p className="text-xs text-muted-foreground">
+                  Swahili is auto-translated on save.
+                </p>
+              </div>
+
+              <div className="grid gap-1.5">
+                <Label htmlFor="cs-scope">Scope</Label>
+                <Textarea
+                  id="cs-scope"
+                  placeholder="What exactly will the funds deliver?"
+                  value={form.scope}
+                  onChange={(e) => setField("scope", e.target.value)}
+                  className="min-h-20"
+                />
+                <p className="text-xs text-muted-foreground">Public &ldquo;Scope&rdquo; tab.</p>
+              </div>
+
+              <div className="grid gap-1.5">
+                <Label htmlFor="cs-acceptance">Acceptance</Label>
+                <Textarea
+                  id="cs-acceptance"
+                  placeholder="How will supporters know a contribution landed and the campaign delivered?"
+                  value={form.acceptance}
+                  onChange={(e) => setField("acceptance", e.target.value)}
+                  className="min-h-20"
+                />
+                <p className="text-xs text-muted-foreground">Public &ldquo;Acceptance&rdquo; tab.</p>
               </div>
 
               <div className="grid gap-1.5">
@@ -335,6 +381,27 @@ export function CampaignEditSheet({
                 {errors.goal && <p className="text-xs text-destructive">{errors.goal}</p>}
                 {form.goal && Number(form.goal) > 0 && (
                   <p className="text-xs text-muted-foreground">{formatTZS(Number(form.goal))}</p>
+                )}
+              </div>
+
+              <div className="grid gap-1.5">
+                <Label htmlFor="cs-min">Minimum contribution (TZS, optional)</Label>
+                <Input
+                  id="cs-min"
+                  type="number"
+                  min={1}
+                  placeholder="e.g. 1000"
+                  value={form.minimumAmount}
+                  onChange={(e) => setField("minimumAmount", e.target.value)}
+                  aria-invalid={!!errors.minimumAmount}
+                  className="h-9"
+                />
+                {errors.minimumAmount ? (
+                  <p className="text-xs text-destructive">{errors.minimumAmount}</p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    The smallest amount a donor can give. Defaults to TZS 1,000.
+                  </p>
                 )}
               </div>
 
@@ -421,7 +488,7 @@ export function CampaignEditSheet({
                 className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
-                Open the full editor for cover photo, gallery &amp; Swahili
+                Open the full editor for cover photo &amp; gallery
               </Link>
 
               {submitError && (

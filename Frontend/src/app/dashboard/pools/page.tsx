@@ -61,6 +61,7 @@ import {
   formatTZSFull,
   formatTZSCompact,
   POOL_CATEGORY_META,
+  POOL_CATEGORIES,
   type DonorPool,
   type PoolMemberDonor,
   type PoolCategory,
@@ -71,12 +72,22 @@ import {
 import { useRole } from "@/hooks/use-role";
 import { cn } from "@/lib/dashboard/utils";
 
-const CATEGORY_LABEL: Record<PoolCategory, string> = {
-  FAMILY: "Family",
-  SCHOOL: "School",
-  STUDENT: "Student",
-  OFFICE: "Office",
-};
+const CATEGORY_LABEL = Object.fromEntries(
+  POOL_CATEGORIES.map((c) => [c, POOL_CATEGORY_META[c].label])
+) as Record<PoolCategory, string>;
+
+/** <SelectItem>s for every pool category — shared by the filter, create & edit UIs. */
+function CategoryOptions() {
+  return (
+    <>
+      {POOL_CATEGORIES.map((c) => (
+        <SelectItem key={c} value={c}>
+          {POOL_CATEGORY_META[c].label}
+        </SelectItem>
+      ))}
+    </>
+  );
+}
 
 /** Labeled horizontal rule that names the area beneath it. */
 function SectionDivider({
@@ -257,6 +268,7 @@ export default function PoolsPage() {
 
   const [selectedId, setSelectedId] = useState<string>(searchParams.get("pool") || "");
   const [editingPool, setEditingPool] = useState<DonorPool | null>(null);
+  const [creatingPool, setCreatingPool] = useState(searchParams.get("new") === "1");
   const [poolMutations, setPoolMutations] = useState(0);
 
   const refresh = useCallback(async () => {
@@ -285,6 +297,18 @@ export default function PoolsPage() {
       userApi.list({ role: "CAMPAIGN_MANAGER", limit: 100 }).then((r) => setManagers(r.users));
     }
   }, [isAdmin]);
+
+  const closeCreate = useCallback(() => {
+    setCreatingPool(false);
+    if (searchParams.get("new")) {
+      const params = new URLSearchParams(Array.from(searchParams.entries()));
+      params.delete("new");
+      router.replace(
+        `/dashboard/pools${params.toString() ? `?${params}` : ""}`,
+        { scroll: false }
+      );
+    }
+  }, [searchParams, router]);
 
   const selectPool = useCallback(
     (id: string) => {
@@ -337,7 +361,7 @@ export default function PoolsPage() {
             Anomalous
           </Button>
           {canCreate && (
-            <Button size="sm" nativeButton={false} render={<Link href="/dashboard/pools/new" />}>
+            <Button size="sm" onClick={() => setCreatingPool(true)}>
               <Plus className="w-3.5 h-3.5 mr-1.5" />
               New Pool
             </Button>
@@ -366,10 +390,7 @@ export default function PoolsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Categories</SelectItem>
-                <SelectItem value="FAMILY">Family</SelectItem>
-                <SelectItem value="SCHOOL">School</SelectItem>
-                <SelectItem value="STUDENT">Student</SelectItem>
-                <SelectItem value="OFFICE">Office</SelectItem>
+                <CategoryOptions />
               </SelectContent>
             </Select>
             <Select value={sortBy} onValueChange={(v) => setSortBy(v ?? "created")}>
@@ -432,12 +453,7 @@ export default function PoolsPage() {
               : "A campaign manager or org admin can create one."}
           </p>
           {canCreate && (
-            <Button
-              className="mt-4"
-              size="sm"
-              nativeButton={false}
-              render={<Link href="/dashboard/pools/new" />}
-            >
+            <Button className="mt-4" size="sm" onClick={() => setCreatingPool(true)}>
               <Plus className="w-3.5 h-3.5 mr-1.5" />
               Create a Pool
             </Button>
@@ -494,6 +510,24 @@ export default function PoolsPage() {
           }}
         />
       )}
+
+      {creatingPool && (
+        <CreatePoolSheet
+          open
+          managers={isAdmin ? managers : []}
+          onOpenChange={(o) => !o && closeCreate()}
+          onCreated={(id) => {
+            closeCreate();
+            setPoolMutations((n) => n + 1);
+            refresh();
+            setSelectedId(String(id));
+            const params = new URLSearchParams(Array.from(searchParams.entries()));
+            params.delete("new");
+            params.set("pool", String(id));
+            router.replace(`/dashboard/pools?${params}`, { scroll: false });
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -502,7 +536,16 @@ export default function PoolsPage() {
 
 type RowDonor = Pick<
   PoolMemberDonor,
-  "id" | "firstName" | "lastName" | "email" | "phone" | "gender" | "position"
+  | "id"
+  | "firstName"
+  | "lastName"
+  | "email"
+  | "phone"
+  | "gender"
+  | "position"
+  | "status"
+  | "consentStatus"
+  | "preferredChannel"
 >;
 
 const PANEL_PAGE_SIZE = 10;
@@ -970,10 +1013,7 @@ function EditPoolSheet({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="FAMILY">Family</SelectItem>
-                <SelectItem value="SCHOOL">School</SelectItem>
-                <SelectItem value="STUDENT">Student</SelectItem>
-                <SelectItem value="OFFICE">Office</SelectItem>
+                <CategoryOptions />
               </SelectContent>
             </Select>
           </div>
@@ -1011,7 +1051,152 @@ function EditPoolSheet({
   );
 }
 
+/* ─── Create pool sheet (right-side drawer) ─────────────────────────────────── */
+
+function CreatePoolSheet({
+  open,
+  onOpenChange,
+  onCreated,
+  managers,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  onCreated: (id: number) => void;
+  managers: UserRecord[];
+}) {
+  const [form, setForm] = useState({
+    name: "",
+    description: "",
+    category: "FAMILY" as PoolCategory,
+  });
+  const [createdBy, setCreatedBy] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async () => {
+    if (form.name.trim().length < 2) {
+      setError("Pool name must be at least 2 characters.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const created = await poolApi.create({
+        name: form.name.trim(),
+        description: form.description.trim() || undefined,
+        category: form.category,
+        createdBy: createdBy ? Number(createdBy) : undefined,
+      });
+      onCreated(created.id);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to create the pool.");
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right">
+        <SheetHeader>
+          <SheetTitle>Create a donor pool</SheetTitle>
+        </SheetHeader>
+        <div className="flex-1 overflow-y-auto px-4 space-y-4">
+          <p className="text-xs text-muted-foreground">
+            Group donors (family, school or student) so you can import them into
+            campaigns and track who has paid. Pools you create are only visible to
+            you and admins.
+          </p>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Pool name</Label>
+            <Input
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              placeholder="e.g. Msuya Family Members"
+              className="h-9 text-sm"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Category</Label>
+            <Select
+              value={form.category}
+              onValueChange={(v) =>
+                setForm({ ...form, category: (v ?? "FAMILY") as PoolCategory })
+              }
+            >
+              <SelectTrigger className="h-9 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <CategoryOptions />
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Description</Label>
+            <Textarea
+              rows={4}
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              className="resize-none text-sm"
+              placeholder="Who is in this pool and why…"
+            />
+          </div>
+          {managers.length > 0 && (
+            <div className="space-y-1.5">
+              <Label className="text-xs">
+                Owner &mdash; optional, create on behalf of a manager
+              </Label>
+              <Select
+                value={createdBy || "self"}
+                onValueChange={(v) => setCreatedBy(v === "self" ? "" : (v ?? ""))}
+              >
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="self">Own it yourself</SelectItem>
+                  {managers.map((m) => (
+                    <SelectItem key={m.id} value={String(m.id)}>
+                      {donorFullName(m)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          {error && (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+              {error}
+            </div>
+          )}
+        </div>
+        <SheetFooter className="flex-row justify-end">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={saving}
+          >
+            Cancel
+          </Button>
+          <Button size="sm" onClick={submit} disabled={saving}>
+            {saving ? "Creating…" : "Create pool"}
+          </Button>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
 /* ─── Quick-edit donor sheet (right-side drawer) ────────────────────────────── */
+
+const DONOR_CHANNELS = ["SMS", "WHATSAPP", "EMAIL", "PHONE"] as const;
+const DONOR_CHANNEL_LABEL: Record<(typeof DONOR_CHANNELS)[number], string> = {
+  SMS: "SMS",
+  WHATSAPP: "WhatsApp",
+  EMAIL: "Email",
+  PHONE: "Phone Call",
+};
 
 function QuickEditDonorSheet({
   donor,
@@ -1029,6 +1214,10 @@ function QuickEditDonorSheet({
     phone: donor.phone ?? "",
     email: donor.email ?? "",
     position: donor.position ?? "",
+    gender: (donor.gender ?? "UNSPECIFIED") as Gender,
+    status: (donor.status || "PROSPECT") as string,
+    consentStatus: (donor.consentStatus || "PENDING") as string,
+    preferredChannel: (donor.preferredChannel || "SMS") as string,
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1038,6 +1227,30 @@ function QuickEditDonorSheet({
       setError("First name is required.");
       return;
     }
+    // Same rule as the add-donor sheet: a phone is always required, and an
+    // email donor also needs an email address.
+    if (!form.phone.trim()) {
+      setError("A phone number is required.");
+      return;
+    }
+    if (
+      form.phone.trim() &&
+      !/^(\+?255|0)?[67][0-9]{8}$/.test(form.phone.replace(/[\s-]/g, ""))
+    ) {
+      setError("Enter a valid Tanzanian phone number.");
+      return;
+    }
+    if (form.preferredChannel === "EMAIL" && !form.email.trim()) {
+      setError("An email address is required when the preferred channel is Email.");
+      return;
+    }
+    if (
+      form.email.trim() &&
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())
+    ) {
+      setError("Enter a valid email address.");
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -1045,9 +1258,13 @@ function QuickEditDonorSheet({
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim() || undefined,
         position: form.position.trim() || undefined,
+        gender: form.gender ?? "UNSPECIFIED",
+        status: form.status,
+        consentStatus: form.consentStatus,
+        preferredChannel: form.preferredChannel,
+        phone: form.phone.trim(),
+        email: form.email.trim() || undefined,
       };
-      if (form.phone.trim()) payload.phone = form.phone.trim();
-      if (form.email.trim()) payload.email = form.email.trim();
       await donorApi.update(donor.id, payload);
       onSaved();
     } catch (e) {
@@ -1082,7 +1299,9 @@ function QuickEditDonorSheet({
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs">Phone</Label>
+            <Label className="text-xs">
+              Phone <span className="text-destructive">*</span>
+            </Label>
             <Input
               value={form.phone}
               onChange={(e) => setForm({ ...form, phone: e.target.value })}
@@ -1091,21 +1310,96 @@ function QuickEditDonorSheet({
             />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs">Email</Label>
+            <Label className="text-xs">
+              Email
+              {form.preferredChannel === "EMAIL" && (
+                <span className="text-destructive"> *</span>
+              )}
+            </Label>
             <Input
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
               className="h-9 text-sm"
             />
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Gender</Label>
+              <Select
+                value={form.gender ?? "UNSPECIFIED"}
+                onValueChange={(v) => setForm({ ...form, gender: (v ?? "UNSPECIFIED") as Gender })}
+              >
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="UNSPECIFIED">Unspecified</SelectItem>
+                  <SelectItem value="MALE">Male</SelectItem>
+                  <SelectItem value="FEMALE">Female</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Position</Label>
+              <Input
+                value={form.position}
+                onChange={(e) => setForm({ ...form, position: e.target.value })}
+                placeholder="e.g. Head Teacher"
+                className="h-9 text-sm"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Status</Label>
+              <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v ?? "PROSPECT" })}>
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="PROSPECT">Prospect</SelectItem>
+                  <SelectItem value="ACTIVE">Active</SelectItem>
+                  <SelectItem value="LAPSED">Lapsed</SelectItem>
+                  <SelectItem value="INACTIVE">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Consent</Label>
+              <Select
+                value={form.consentStatus}
+                onValueChange={(v) => setForm({ ...form, consentStatus: v ?? "PENDING" })}
+              >
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="CONSENTED">Consented</SelectItem>
+                  <SelectItem value="PENDING">Pending</SelectItem>
+                  <SelectItem value="WITHDRAWN">Withdrawn</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
           <div className="space-y-1.5">
-            <Label className="text-xs">Position</Label>
-            <Input
-              value={form.position}
-              onChange={(e) => setForm({ ...form, position: e.target.value })}
-              placeholder="e.g. Head Teacher"
-              className="h-9 text-sm"
-            />
+            <Label className="text-xs">
+              Preferred channel <span className="text-destructive">*</span>
+            </Label>
+            <Select
+              value={form.preferredChannel}
+              onValueChange={(v) => setForm({ ...form, preferredChannel: v ?? "SMS" })}
+            >
+              <SelectTrigger className="h-9 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {DONOR_CHANNELS.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {DONOR_CHANNEL_LABEL[c]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           {error && (
             <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
@@ -1220,12 +1514,13 @@ function AddMemberDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="text-base font-semibold">Add Members</DialogTitle>
-        </DialogHeader>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="sm:max-w-md">
+        <SheetHeader>
+          <SheetTitle>Add Members</SheetTitle>
+        </SheetHeader>
 
+        <div className="flex-1 overflow-y-auto px-4 space-y-3">
         <div className="flex gap-2">
           <Button
             size="sm"
@@ -1304,7 +1599,7 @@ function AddMemberDialog({
                 })}
               </div>
             )}
-            <DialogFooter>
+            <div className="flex justify-end pt-1">
               <Button
                 size="sm"
                 disabled={pickedIds.length === 0}
@@ -1313,7 +1608,7 @@ function AddMemberDialog({
                 <Plus className="w-3.5 h-3.5 mr-1.5" />
                 Add {pickedIds.length} donor{pickedIds.length === 1 ? "" : "s"}
               </Button>
-            </DialogFooter>
+            </div>
           </div>
         ) : (
           <div className="space-y-4">
@@ -1381,16 +1676,17 @@ function AddMemberDialog({
                 />
               </div>
             </div>
-            <DialogFooter>
+            <div className="flex justify-end pt-1">
               <Button size="sm" type="button" onClick={addNew}>
                 <Plus className="w-3.5 h-3.5 mr-1.5" />
                 Create &amp; add
               </Button>
-            </DialogFooter>
+            </div>
           </div>
         )}
-      </DialogContent>
-    </Dialog>
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 }
 

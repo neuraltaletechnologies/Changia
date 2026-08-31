@@ -1,18 +1,35 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { notificationApi, type NotificationRecord } from "@/lib/dashboard/api";
 import { isAuthenticated } from "@/lib/api-client";
 
+export interface NotificationsApi {
+  unreadCount: number;
+  items: NotificationRecord[];
+  loading: boolean;
+  error: string | null;
+  page: number;
+  totalPages: number;
+  load: (opts?: { page?: number; append?: boolean }) => Promise<void>;
+  loadMore: () => Promise<void>;
+  markRead: (id: number) => Promise<void>;
+  markAllRead: () => Promise<void>;
+  refreshCount: () => void;
+}
+
 /**
- * In-app notification centre state for the header bell + /dashboard/notifications.
- * Polls the unread count every 60s (like use-pending-reminders) and fetches the
- * list on demand. Silently degrades to empty on any error (e.g. logged out).
+ * Shared across the whole dashboard via {@link NotificationsContext} /
+ * `NotificationsProvider` so the header bell, the sidebar / mobile-nav badge and
+ * the /dashboard/notifications page all read the *same* state. Marking one (or
+ * all) read anywhere immediately clears the badge everywhere — without the
+ * provider each caller kept its own copy and a stale "1" lingered on the badge
+ * long after the list was emptied.
  *
- * The list only ever shows *unread* notifications — marking one read (or opening
- * it, or "mark all read") drops it from the list so read items never linger.
+ * Polls the unread count every 60s; the list is fetched on demand and only ever
+ * holds *unread* notifications. Silently degrades to empty on any error.
  */
-export function useNotifications() {
+export function useNotificationsState(): NotificationsApi {
   const [unreadCount, setUnreadCount] = useState(0);
   const [items, setItems] = useState<NotificationRecord[]>([]);
   const [loading, setLoading] = useState(false);
@@ -100,4 +117,30 @@ export function useNotifications() {
     markAllRead,
     refreshCount,
   };
+}
+
+export const NotificationsContext = createContext<NotificationsApi | null>(null);
+
+const NOOP_NOTIFICATIONS: NotificationsApi = {
+  unreadCount: 0,
+  items: [],
+  loading: false,
+  error: null,
+  page: 1,
+  totalPages: 1,
+  load: async () => undefined,
+  loadMore: async () => undefined,
+  markRead: async () => undefined,
+  markAllRead: async () => undefined,
+  refreshCount: () => undefined,
+};
+
+/**
+ * Dashboard-wide notification state, read from {@link NotificationsContext}. A
+ * single `NotificationsProvider` (in the dashboard layout) owns the one poller
+ * and the one copy of the list, so every bell / badge / page stays in sync.
+ * Outside the provider it degrades to an inert stub rather than crashing.
+ */
+export function useNotifications(): NotificationsApi {
+  return useContext(NotificationsContext) ?? NOOP_NOTIFICATIONS;
 }

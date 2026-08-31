@@ -19,6 +19,11 @@ const poolExpectedSchema = z.object({
 const createCampaignSchema = z.object({
   name: z.string().min(3, "Campaign name is required").max(150),
   story: z.string().max(20000).optional(),
+  // "Scope" — what the funds will deliver; "Acceptance" — how a supporter
+  // knows a contribution landed / the campaign delivered. Shown on the public
+  // campaign tabs; Swahili is auto-translated on save.
+  scope: z.string().max(10000).optional().or(z.literal("")),
+  acceptance: z.string().max(10000).optional().or(z.literal("")),
   nameSw: z.string().min(3).max(150).optional().or(z.literal("")),
   storySw: z.string().max(20000).optional().or(z.literal("")),
   categorySw: z.string().max(100).optional().or(z.literal("")),

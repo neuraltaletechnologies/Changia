@@ -6,9 +6,11 @@ import { useEffect, useState } from "react";
 import { Sidebar } from "@/components/dashboard/layout/sidebar";
 import { Header } from "@/components/dashboard/layout/header";
 import { MobileNav } from "@/components/dashboard/layout/mobile-nav";
+import { NotificationStrip } from "@/components/dashboard/layout/notification-strip";
 import { TooltipProvider } from "@/components/dashboard/ui/tooltip";
 import { AuthGuard } from "@/components/dashboard/auth-guard";
 import { RoleGuard } from "@/components/dashboard/route-guard";
+import { NotificationsProvider } from "@/components/dashboard/notifications-provider";
 import { ActionToaster } from "@/components/dashboard/ui/toaster";
 import { clearOverlayBackdrop } from "@/components/ui/forms/auth-modal-utils";
 
@@ -43,6 +45,7 @@ export default function DashboardLayout({
   return (
     <TooltipProvider delay={200}>
       <AuthGuard>
+      <NotificationsProvider>
       <div className="flex h-screen overflow-hidden bg-background">
         {/* Desktop Sidebar */}
         <Sidebar
@@ -62,12 +65,14 @@ export default function DashboardLayout({
             onMobileMenuToggle={() => setMobileMenuOpen((v) => !v)}
             mobileMenuOpen={mobileMenuOpen}
           />
+          <NotificationStrip />
           <main className="flex-1 overflow-y-auto p-4 md:p-6">
             <RoleGuard>{children}</RoleGuard>
           </main>
         </div>
       </div>
       <ActionToaster />
+      </NotificationsProvider>
       </AuthGuard>
     </TooltipProvider>
   );

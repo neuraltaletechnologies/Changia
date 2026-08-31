@@ -18,9 +18,7 @@ import {
   Layers,
   BellRing,
   Bell,
-  FileClock,
   ShieldCheck,
-  HandCoins,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/dashboard/ui/tooltip";
 import { useRole } from "@/hooks/use-role";
@@ -53,13 +51,8 @@ const navItems = [
         icon: Layers,
       },
       {
-        label: "Pending Resends",
+        label: "Reminders",
         href: "/dashboard/reminders",
-        icon: FileClock,
-      },
-      {
-        label: "Auto-resend",
-        href: "/dashboard/reminders/schedules",
         icon: BellRing,
       },
       {
@@ -81,11 +74,6 @@ const navItems = [
         label: "Audit Log",
         href: "/dashboard/audit-log",
         icon: ClipboardList,
-      },
-      {
-        label: "Payouts",
-        href: "/dashboard/payouts",
-        icon: HandCoins,
       },
       {
         label: "Settings",

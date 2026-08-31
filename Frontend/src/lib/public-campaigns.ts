@@ -14,6 +14,10 @@ export interface PublicCampaign {
   name: string;
   slug: string;
   story: string | null;
+  /** What the funds will deliver (locale-resolved). May be null. */
+  scope: string | null;
+  /** How a contribution is accepted / the campaign delivered (locale-resolved). */
+  acceptance: string | null;
   imageUrl: string | null;
   category: string | null;
   goalAmount: number;

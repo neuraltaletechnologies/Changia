@@ -12,6 +12,18 @@ const MIGRATIONS = [
   `ALTER TABLE campaigns ADD COLUMN story_sw     TEXT NULL AFTER name_sw`,
   `ALTER TABLE campaigns ADD COLUMN category_sw  VARCHAR(100) NULL AFTER story_sw`,
 
+  // campaigns — "Scope" (what the funds will deliver) and "Acceptance"
+  // (how supporters know a contribution was accepted / the campaign delivered)
+  // shown on the public campaign tabs. Swahili variants are auto-filled on save
+  // alongside name/story/category.
+  `ALTER TABLE campaigns ADD COLUMN scope           TEXT NULL AFTER category_sw`,
+  `ALTER TABLE campaigns ADD COLUMN acceptance      TEXT NULL AFTER scope`,
+  `ALTER TABLE campaigns ADD COLUMN scope_sw        TEXT NULL AFTER acceptance`,
+  `ALTER TABLE campaigns ADD COLUMN acceptance_sw   TEXT NULL AFTER scope_sw`,
+
+  // donor_pools — extra segment categories beyond the original four.
+  `ALTER TABLE donor_pools MODIFY COLUMN category ENUM('FAMILY','SCHOOL','STUDENT','OFFICE','ALUMNI','COMMUNITY','CHURCH','BUSINESS','FRIENDS','OTHER') NOT NULL DEFAULT 'FAMILY'`,
+
   // campaigns — featured columns
   `ALTER TABLE campaigns ADD COLUMN is_featured  TINYINT(1) NOT NULL DEFAULT 0 AFTER donor_count`,
   `ALTER TABLE campaigns ADD COLUMN featured_at  DATETIME NULL AFTER is_featured`,
@@ -52,6 +64,11 @@ const MIGRATIONS = [
   // Bounded by IS NOT NULL, so a no-op after the first run.
   `UPDATE users SET organization_id = NULL WHERE role = 'REVIEWER' AND organization_id IS NOT NULL`,
 
+  // ORG_ADMIN is now also platform-level: it gives the final (stage-2) approval
+  // on campaigns and payouts across EVERY organisation, not one. Detach any
+  // org-admin an earlier build scoped to a single org. Idempotent.
+  `UPDATE users SET organization_id = NULL WHERE role = 'ORG_ADMIN' AND organization_id IS NOT NULL`,
+
   // campaigns — custom service-fee proposal/approval flow. A manager's proposed
   // rate is parked in proposed_service_fee_percent (fee_status='PENDING') until
   // a reviewer/admin approves it; only then does it move into service_fee_percent.
@@ -70,6 +87,11 @@ const MIGRATIONS = [
   `ALTER TABLE campaigns ADD COLUMN first_approved_by BIGINT UNSIGNED NULL AFTER featured_at`,
   `ALTER TABLE campaigns ADD COLUMN first_approved_at DATETIME NULL AFTER first_approved_by`,
   `ALTER TABLE campaigns ADD CONSTRAINT fk_campaigns_first_approved_by FOREIGN KEY (first_approved_by) REFERENCES users(id) ON DELETE SET NULL`,
+
+  // campaigns — a hard "reject" is now recoverable: the campaign moves to
+  // REJECTED (not the terminal CANCELLED) and the manager can fix + resubmit it
+  // straight back to PENDING (see submitCampaign / rejectCampaign).
+  `ALTER TABLE campaigns MODIFY COLUMN status ENUM('DRAFT','PENDING','REVIEWED','ACTIVE','PAUSED','COMPLETED','CANCELLED','REJECTED') NOT NULL DEFAULT 'DRAFT'`,
 
   // payment_attempts — donor_email/provider/campaign_donor_target_id are in
   // database.sql but were missing here, so any DB older than that addition

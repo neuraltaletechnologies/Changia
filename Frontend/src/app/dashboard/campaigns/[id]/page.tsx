@@ -92,6 +92,8 @@ import { cn } from "@/lib/dashboard/utils";
 import { CampaignPhotosCard } from "@/components/dashboard/campaigns/campaign-photos-card";
 import { ReviewDecisionDialog } from "@/components/dashboard/campaigns/review-decision-dialog";
 import { ReviewTimeline } from "@/components/dashboard/widgets/review-timeline";
+import { PendingResendsPanel } from "@/components/dashboard/reminders/pending-resends-panel";
+import { SchedulesPanel } from "@/components/dashboard/reminders/schedules-panel";
 
 const STATUS_BADGE: Record<string, string> = {
   DRAFT: "bg-slate-50 text-slate-600 border-slate-200",
@@ -101,6 +103,7 @@ const STATUS_BADGE: Record<string, string> = {
   PAUSED: "bg-amber-50 text-amber-700 border-amber-200",
   COMPLETED: "bg-sky-50 text-sky-700 border-sky-200",
   CANCELLED: "bg-rose-50 text-rose-700 border-rose-200",
+  REJECTED: "bg-rose-50 text-rose-700 border-rose-200",
 };
 
 export default function CampaignDetailPage() {
@@ -366,6 +369,26 @@ export default function CampaignDetailPage() {
           </div>
         )}
 
+      {campaign.status === "REJECTED" && (
+        <div className="flex items-start gap-2.5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          <XCircle className="w-4 h-4 mt-0.5 shrink-0" />
+          <span>
+            <strong>This campaign was rejected by a reviewer.</strong>
+            {campaign.reviewNotes ? <> Reason: {campaign.reviewNotes}</> : null}
+            {canEditContent && (
+              <>
+                {" "}
+                <Link href={`/dashboard/campaigns/${id}/edit`} className="underline">
+                  Edit the campaign
+                </Link>{" "}
+                to address it, then re-submit for approval — it goes back to a
+                reviewer for a fresh first approval.
+              </>
+            )}
+          </span>
+        </div>
+      )}
+
       {campaign.status === "DRAFT" && (
         <div className="flex items-start gap-2.5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
           <FileWarning className="w-4 h-4 mt-0.5 shrink-0" />
@@ -453,43 +476,55 @@ export default function CampaignDetailPage() {
                   {campaign.isFeatured ? "Featured" : "Feature on homepage"}
                 </Button>
               )}
-              {campaign.status === "DRAFT" && canEditContent && (() => {
-                // The essentials POST /:id/submit enforces server-side — mirror
-                // them here so the button explains what's still missing.
-                const missing = [
-                  !campaign.imageUrl && "a cover photo",
-                  !campaign.contactPhone && "a contact phone",
-                  (!campaign.startDate || !campaign.endDate) && "start and end dates",
-                ].filter(Boolean) as string[];
-                return (
-                  <>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      nativeButton={false}
-                      render={<Link href={`/dashboard/campaigns/${id}/edit`} />}
-                    >
-                      Edit
-                    </Button>
-                    <Button
-                      size="sm"
-                      disabled={acting || missing.length > 0}
-                      title={
-                        missing.length > 0
-                          ? `Add ${missing.join(", ")} before submitting`
-                          : undefined
-                      }
-                      onClick={() => act(() => campaignApi.submit(id))}
-                    >
-                      {acting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5 mr-1" />}
-                      Submit for approval
-                    </Button>
-                  </>
-                );
-              })()}
+              {(campaign.status === "DRAFT" || campaign.status === "REJECTED") &&
+                canEditContent &&
+                (() => {
+                  const isResubmit = campaign.status === "REJECTED";
+                  // The essentials POST /:id/submit enforces server-side — mirror
+                  // them here so the button explains what's still missing.
+                  const missing = [
+                    !campaign.imageUrl && "a cover photo",
+                    !campaign.contactPhone && "a contact phone",
+                    (!campaign.startDate || !campaign.endDate) && "start and end dates",
+                  ].filter(Boolean) as string[];
+                  return (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        nativeButton={false}
+                        render={<Link href={`/dashboard/campaigns/${id}/edit`} />}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        size="sm"
+                        disabled={acting || missing.length > 0}
+                        title={
+                          missing.length > 0
+                            ? `Add ${missing.join(", ")} before submitting`
+                            : undefined
+                        }
+                        onClick={() => act(() => campaignApi.submit(id))}
+                      >
+                        {acting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5 mr-1" />}
+                        {isResubmit ? "Re-submit for approval" : "Submit for approval"}
+                      </Button>
+                    </>
+                  );
+                })()}
               {(campaign.status === "PENDING" || campaign.status === "REVIEWED") &&
                 (() => {
                   const stage = campaign.status === "PENDING" ? 1 : 2;
+                  // Sent back for changes — parked with the manager to re-edit
+                  // and resubmit; no reviewer action until it comes back.
+                  if (stage === 1 && campaign.reviewState === "CHANGES_REQUESTED") {
+                    return canApproveRole ? (
+                      <span className="text-[11px] text-muted-foreground italic">
+                        Sent back for changes — waiting for the manager to resubmit
+                      </span>
+                    ) : null;
+                  }
                   const canActThisStage =
                     stage === 1 ? canReviewCampaign : canFinalApproveCampaign;
                   const isCreator = String(campaign.createdBy ?? "") === uid;
@@ -609,7 +644,8 @@ export default function CampaignDetailPage() {
               {isAdmin &&
                 (campaign.status === "DRAFT" ||
                   campaign.status === "PENDING" ||
-                  campaign.status === "REVIEWED") && (
+                  campaign.status === "REVIEWED" ||
+                  campaign.status === "REJECTED") && (
                 <Button
                   size="sm"
                   variant="outline"
@@ -670,7 +706,7 @@ export default function CampaignDetailPage() {
           <TabsTrigger value="user">
             User ({campaign.assignments?.length ?? 0})
           </TabsTrigger>
-          <TabsTrigger value="translation">Swahili</TabsTrigger>
+          <TabsTrigger value="reminders">Reminders</TabsTrigger>
           <TabsTrigger value="history">History</TabsTrigger>
           {campaign.changeRequest &&
             ["PENDING", "REVIEWED", "CHANGES_REQUESTED"].includes(
@@ -778,12 +814,12 @@ export default function CampaignDetailPage() {
           />
         </TabsContent>
 
-        <TabsContent value="translation" className="pt-2">
-          <TranslationTab
-            campaign={campaign}
+        <TabsContent value="reminders" className="pt-2">
+          <CampaignRemindersTab
             campaignId={id}
-            canEdit={canEditContent}
-            onSaved={refresh}
+            hasTrackedDonors={Boolean(summary && summary.totalTargets > 0)}
+            canManage={isAdmin || isCampaignManager}
+            onSendNow={() => setReminderOpen(true)}
           />
         </TabsContent>
 
@@ -1344,106 +1380,51 @@ function UserTab({
   );
 }
 
-// ─── Swahili translation tab ───────────────────────────────────────────────
+// ─── Reminders tab (per-campaign) ──────────────────────────────────────────
+//
+// Everything the /dashboard/reminders page offers, scoped to this one campaign:
+// a one-off send, the pending auto-resend cycles waiting for confirmation, and
+// the auto-resend schedules that target this campaign.
 
-function TranslationTab({
-  campaign,
+function CampaignRemindersTab({
   campaignId,
-  canEdit,
-  onSaved,
+  hasTrackedDonors,
+  canManage,
+  onSendNow,
 }: {
-  campaign: CampaignRecord;
   campaignId: string;
-  canEdit: boolean;
-  onSaved: () => void;
+  hasTrackedDonors: boolean;
+  canManage: boolean;
+  onSendNow: () => void;
 }) {
-  const [nameSw, setNameSw] = useState(campaign.nameSw ?? "");
-  const [categorySw, setCategorySw] = useState(campaign.categorySw ?? "");
-  const [storySw, setStorySw] = useState(campaign.storySw ?? "");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
-
-  const save = async () => {
-    setSaving(true);
-    setError(null);
-    setSaved(false);
-    try {
-      await campaignApi.setTranslations(campaignId, { nameSw, storySw, categorySw });
-      setSaved(true);
-      onSaved();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to save the translation.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
   return (
-    <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
-      <div className="px-5 py-4 border-b border-border">
-        <h2 className="text-sm font-semibold text-foreground">Swahili translation</h2>
-        <p className="text-[11px] text-muted-foreground mt-0.5">
-          Optional — shown on the /sw public pages. Leave blank to fall back to the English
-          content above. Unlike the main details, this can be edited at any campaign status.
+    <div className="space-y-8">
+      <div className="bg-card border border-border rounded-xl p-5 shadow-sm flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold text-foreground">Send a reminder now</h2>
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            A one-off nudge to this campaign&apos;s unpaid / partial donors — you
+            pick the recipients, channel and message.
+          </p>
+        </div>
+        {canManage && (
+          <Button size="sm" disabled={!hasTrackedDonors} onClick={onSendNow}>
+            <BellRing className="w-3.5 h-3.5 mr-1.5" />
+            Send reminder
+          </Button>
+        )}
+      </div>
+      {!hasTrackedDonors && (
+        <p className="text-[11px] text-muted-foreground -mt-4">
+          Import a donor pool on the Donor Board tab first — reminders go to tracked donors.
         </p>
-      </div>
-      <div className="p-5 space-y-4">
-        {!canEdit && (
-          <div className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-            Only the campaign&apos;s creator or assigned manager can edit its content.
-          </div>
-        )}
-        <div className="grid gap-1.5">
-          <Label htmlFor="name-sw" className="text-xs">Campaign name (Swahili)</Label>
-          <Input
-            id="name-sw"
-            value={nameSw}
-            onChange={(e) => setNameSw(e.target.value)}
-            placeholder={campaign.name}
-            className="h-9"
-            disabled={!canEdit}
-          />
-        </div>
-        <div className="grid gap-1.5">
-          <Label htmlFor="category-sw" className="text-xs">Category (Swahili)</Label>
-          <Input
-            id="category-sw"
-            value={categorySw}
-            onChange={(e) => setCategorySw(e.target.value)}
-            placeholder={campaign.category ?? ""}
-            className="h-9"
-            disabled={!canEdit}
-          />
-        </div>
-        <div className="grid gap-1.5">
-          <Label htmlFor="story-sw" className="text-xs">Story (Swahili)</Label>
-          <Textarea
-            id="story-sw"
-            value={storySw}
-            onChange={(e) => setStorySw(e.target.value)}
-            placeholder={campaign.story ?? ""}
-            className="min-h-32"
-            disabled={!canEdit}
-          />
-        </div>
+      )}
 
-        {error && (
-          <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-            {error}
-          </div>
-        )}
-        {saved && !error && (
-          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
-            Translation saved.
-          </div>
-        )}
+      <PendingResendsPanel campaignId={Number(campaignId)} />
 
-        <Button size="sm" onClick={save} disabled={saving || !canEdit}>
-          {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : null}
-          Save translation
-        </Button>
-      </div>
+      <div className="border-t border-border" />
+
+      <SchedulesPanel campaignId={Number(campaignId)} canManage={canManage} />
     </div>
   );
 }
@@ -2291,6 +2272,8 @@ function AddGiftForm({
 const CR_FIELD_LABELS: Record<string, string> = {
   name: "Name",
   story: "Story",
+  scope: "Scope",
+  acceptance: "Acceptance",
   goalAmount: "Goal amount",
   serviceFeePercent: "Service fee %",
   category: "Category",
@@ -2328,6 +2311,8 @@ function ChangeRequestTab({
   const current: Record<string, unknown> = {
     name: campaign.name,
     story: campaign.story,
+    scope: campaign.scope,
+    acceptance: campaign.acceptance,
     goalAmount: campaign.goalAmount,
     serviceFeePercent: campaign.serviceFeePercent,
     category: campaign.category,
@@ -2461,7 +2446,9 @@ function PayoutRequestTab({
     return <div className="h-40 bg-card border border-border rounded-xl animate-pulse" />;
   }
 
-  const hasPending = payouts.some((p) => p.status === "REQUESTED");
+  // A payout still in the approval chain (first review OR final approval) blocks
+  // a new request — matches createPayout's "status IN ('REQUESTED','REVIEWED')".
+  const hasPending = payouts.some((p) => p.status === "REQUESTED" || p.status === "REVIEWED");
 
   return (
     <div className="space-y-4">

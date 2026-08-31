@@ -575,8 +575,16 @@ async function resolvePaymentAttempt(attemptId, result) {
 }
 
 async function listDonations(organizationId, filters, user) {
-  const where = ["d.organization_id = ?"];
-  const values = [organizationId];
+  const where = [];
+  const values = [];
+
+  // Platform-level roles (SUPER_ADMIN, REVIEWER, ORG_ADMIN) see donations across
+  // every org; a CAMPAIGN_MANAGER is scoped to their org and assigned campaigns.
+  const PLATFORM_ROLES = ["SUPER_ADMIN", "REVIEWER", "ORG_ADMIN"];
+  if (!user || !PLATFORM_ROLES.includes(user.role)) {
+    where.push("d.organization_id = ?");
+    values.push(organizationId);
+  }
 
   if (user && user.role === "CAMPAIGN_MANAGER") {
     where.push("d.campaign_id IN (SELECT campaign_id FROM campaign_assignments WHERE user_id = ?)");
@@ -596,7 +604,7 @@ async function listDonations(organizationId, filters, user) {
     values.push(filters.status);
   }
 
-  const whereSql = where.join(" AND ");
+  const whereSql = where.length > 0 ? `WHERE ${where.join(" AND ")}` : "";
   const page = filters.page || 1;
   const limit = filters.limit || 25;
   const offset = (page - 1) * limit;
@@ -605,13 +613,13 @@ async function listDonations(organizationId, filters, user) {
     `SELECT d.*, c.name AS campaign_name, c.slug AS campaign_slug
      FROM donations d
      JOIN campaigns c ON c.id = d.campaign_id
-     WHERE ${whereSql}
+     ${whereSql}
      ORDER BY d.created_at DESC LIMIT ? OFFSET ?`,
     [...values, limit, offset]
   );
 
   const [[countRow]] = await db
-    .query(`SELECT COUNT(*) AS total FROM donations d WHERE ${whereSql}`, values)
+    .query(`SELECT COUNT(*) AS total FROM donations d ${whereSql}`, values)
     .then((rows) => [rows]);
 
   return {

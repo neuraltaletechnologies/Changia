@@ -145,7 +145,7 @@ CREATE TABLE donor_pools (
   created_by_id   BIGINT UNSIGNED NULL,
   name            VARCHAR(150) NOT NULL,
   description     TEXT NULL,
-  category        ENUM('FAMILY','SCHOOL','STUDENT','OFFICE') NOT NULL DEFAULT 'FAMILY',
+  category        ENUM('FAMILY','SCHOOL','STUDENT','OFFICE','ALUMNI','COMMUNITY','CHURCH','BUSINESS','FRIENDS','OTHER') NOT NULL DEFAULT 'FAMILY',
   is_system       TINYINT(1) NOT NULL DEFAULT 0,
   status          ENUM('ACTIVE','ARCHIVED') NOT NULL DEFAULT 'ACTIVE',
   created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -212,6 +212,13 @@ CREATE TABLE campaigns (
   name_sw             VARCHAR(150) NULL,
   story_sw            TEXT NULL,
   category_sw         VARCHAR(100) NULL,
+  -- "Scope" = what the funds will deliver; "Acceptance" = how a supporter knows
+  -- their contribution landed / the campaign delivered. Shown on the public
+  -- campaign tabs. Swahili variants are auto-filled on save.
+  scope               TEXT NULL,
+  acceptance          TEXT NULL,
+  scope_sw            TEXT NULL,
+  acceptance_sw       TEXT NULL,
   image_url           VARCHAR(500) NULL,
   category            VARCHAR(100) NULL,
   goal_amount         DECIMAL(14,0) NOT NULL,
@@ -236,8 +243,10 @@ CREATE TABLE campaigns (
   -- PENDING -> REVIEWED on stage-1 sign-off by a REVIEWER (or SUPER_ADMIN),
   -- REVIEWED -> ACTIVE on stage-2 sign-off by an ORG_ADMIN (or SUPER_ADMIN)
   -- who is neither the creator nor the stage-1 approver. Enforced in the
-  -- service layer via created_by_id + first_approved_by.
-  status              ENUM('DRAFT','PENDING','REVIEWED','ACTIVE','PAUSED','COMPLETED','CANCELLED') NOT NULL DEFAULT 'DRAFT',
+  -- service layer via created_by_id + first_approved_by. A reviewer's hard
+  -- "reject" parks the campaign at REJECTED (not the terminal CANCELLED) so
+  -- the manager can fix and re-submit it straight back to PENDING.
+  status              ENUM('DRAFT','PENDING','REVIEWED','ACTIVE','PAUSED','COMPLETED','CANCELLED','REJECTED') NOT NULL DEFAULT 'DRAFT',
   is_public           TINYINT(1) NOT NULL DEFAULT 0,
   contact_phone       VARCHAR(32) NULL,
   raised_amount       DECIMAL(14,0) NOT NULL DEFAULT 0,
@@ -615,8 +624,7 @@ CREATE TABLE receipts (
 
 -- ─── Fees, payouts and settlements ───────────────────────────────────────────
 
--- A payout can be requested at the organization level (SUPER_ADMIN/ORG_ADMIN,
--- campaign_id NULL) or by a CAMPAIGN_MANAGER for one of their assigned
+-- A payout is requested by a CAMPAIGN_MANAGER for one of their assigned
 -- campaigns (campaign_id set, reason required). `reason` is the requester's
 -- own justification; `notes` stays the admin's decision note (unchanged
 -- COALESCE-on-decide behavior) — shown back to the requester as why a
@@ -721,7 +729,10 @@ INSERT INTO organizations (name, slug, email, phone, description) VALUES
 INSERT INTO users (organization_id, first_name, last_name, email, phone, password_hash, role, status) VALUES
   (NULL, 'Changia', 'Super Admin', 'admin@changia.org.tz', '255712000099',
    '$2b$12$YBiH.YibjVq/6ydw/Pa97eEG/HbjPVWH.a2Am4NvHTPGkhBW8xVbW', 'SUPER_ADMIN', 'ACTIVE'),
-  (1, 'Amina', 'Msuya', 'admin@msuya-foundation.org.tz', '255712000001',
+  -- ORG_ADMIN is PLATFORM-level (organization_id NULL, like SUPER_ADMIN /
+  -- REVIEWER) — it gives the final (stage-2) approval on campaigns AND payouts
+  -- across every organisation, not one.
+  (NULL, 'Amina', 'Msuya', 'admin@msuya-foundation.org.tz', '255712000001',
    '$2b$12$YBiH.YibjVq/6ydw/Pa97eEG/HbjPVWH.a2Am4NvHTPGkhBW8xVbW', 'ORG_ADMIN', 'ACTIVE'),
   (1, 'Baraka', 'Mushi', 'manager@msuya-foundation.org.tz', '255713000002',
    '$2b$12$YBiH.YibjVq/6ydw/Pa97eEG/HbjPVWH.a2Am4NvHTPGkhBW8xVbW', 'CAMPAIGN_MANAGER', 'ACTIVE'),

@@ -4,23 +4,26 @@ import type { ApiUser } from "@/lib/api-client";
  * Role-Based Access Control (RBAC) for the Changia dashboard.
  *
  * Roles come straight from the backend user object (ApiUser.role):
- *   - SUPER_ADMIN        → platform config, fee/gateway settings, org setup,
- *                          support + audit access
- *   - ORG_ADMIN          → creates campaigns, gives the FINAL (stage-2)
- *                          approval, manages the donor pool, views reports,
- *                          requests payouts. User & role management is
- *                          SUPER_ADMIN-only.
+ *   - SUPER_ADMIN        → PLATFORM-level: platform config, fee/gateway
+ *                          settings, org setup, user & role management, audit.
+ *   - ORG_ADMIN          → PLATFORM-level (no organization): gives the FINAL
+ *                          (stage-2) approval on campaigns AND payouts from
+ *                          EVERY organisation, and views reports platform-wide.
+ *                          Does NOT do donors, donor pools, reminders, user
+ *                          management or platform settings.
  *   - REVIEWER           → PLATFORM-level (no organization): gives the FIRST
  *                          (stage-1) approval on campaigns from EVERY org, and
  *                          reviews closure requests, completion reports and fee
  *                          proposals. Creates nothing.
- *   - CAMPAIGN_MANAGER   → works only on assigned campaigns, adds consented
- *                          donors, sends approved push requests. NO withdrawal
- *                          / payout access.
+ *   - CAMPAIGN_MANAGER   → the only org-scoped role — placed under the
+ *                          organisation created at registration. Runs assigned
+ *                          campaigns, adds consented donors, manages donor
+ *                          pools, and requests payouts / closures for their org.
  *
  * Campaign approval is a strict ordered chain: REVIEWER (stage 1) → ORG_ADMIN
  * (stage 2) → live, two different people, neither the creator. SUPER_ADMIN can
- * stand in for either stage. See `canReviewCampaign` / `canFinalApproveCampaign`.
+ * stand in for either stage. Payouts follow the same chain. See
+ * `canReviewCampaign` / `canFinalApproveCampaign` / `canFinalApprovePayout`.
  */
 
 export type Role = ApiUser["role"];
@@ -39,12 +42,12 @@ export const ALL_ROLES: Role[] = [
   ROLE.CAMPAIGN_MANAGER,
 ];
 
-// A REVIEWER is platform-level (no organization), so the org-scoped working
-// areas — donors, donor pools, reminders — would only ever show them an empty
-// page. Those routes use this list instead of ALL_ROLES.
-export const NON_REVIEWER_ROLES: Role[] = [
+// The org-scoped working areas — donors, donor pools, reminders — only make
+// sense for a role that belongs to (or oversees) a single organisation's
+// day-to-day work. REVIEWER and ORG_ADMIN are both platform-level approvers
+// with no organisation, so these routes use this list instead of ALL_ROLES.
+export const ORG_WORKSPACE_ROLES: Role[] = [
   ROLE.SUPER_ADMIN,
-  ROLE.ORG_ADMIN,
   ROLE.CAMPAIGN_MANAGER,
 ];
 
@@ -72,9 +75,9 @@ export const ROLE_META: Record<Role, RoleMeta> = {
   ORG_ADMIN: {
     label: "Org Admin",
     shortLabel: "Org Admin",
-    tagline: "Campaigns, donors and payouts for your organisation.",
+    tagline: "Final approval on campaigns and payouts, platform-wide.",
     scope:
-      "Create campaigns, give the final (stage-2) approval, manage donors and donor pools, and request payouts. User and role management, and the audit log, are handled by a platform super admin.",
+      "Platform-level: give the final (stage-2) approval on campaigns and payouts from every organisation, and view reports across the platform. Donors, donor pools, reminders, user management and platform settings are handled elsewhere.",
   },
   REVIEWER: {
     label: "Reviewer",
@@ -143,16 +146,11 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "campaign:create",
     "campaign:approve",
     "campaign:fee_review",
-    "donor:view",
-    "donor:add",
-    "donor:manage",
-    // NOTE: no "user:manage" — all user & role management is SUPER_ADMIN-only.
-    // NOTE: no "audit:view" — the audit log is SUPER_ADMIN-only.
+    // NOTE: platform-level approver. No "user:manage" / "audit:view"
+    // (SUPER_ADMIN-only), and no donor / donor-pool / reminder / payout:request
+    // access — that is org-scoped CAMPAIGN_MANAGER (and SUPER_ADMIN) work.
     "settings:org",
-    "payout:request",
     "reports:view",
-    "reminder:manage",
-    "donorpool:create",
   ],
   REVIEWER: [
     "dashboard:view",
@@ -217,21 +215,24 @@ export const ROUTE_ACCESS: Record<string, Role[]> = {
   "/dashboard/campaigns": ALL_ROLES,
   "/dashboard/campaigns/new": [ROLE.ORG_ADMIN, ROLE.CAMPAIGN_MANAGER],
   "/dashboard/campaigns/approvals": [ROLE.SUPER_ADMIN, ROLE.ORG_ADMIN, ROLE.REVIEWER],
-  "/dashboard/donors": NON_REVIEWER_ROLES,
-  "/dashboard/donors/import": [ROLE.SUPER_ADMIN, ROLE.ORG_ADMIN],
-  "/dashboard/pools": NON_REVIEWER_ROLES,
-  "/dashboard/pools/new": [ROLE.ORG_ADMIN, ROLE.CAMPAIGN_MANAGER],
-  "/dashboard/pools/anomalous": NON_REVIEWER_ROLES,
-  // "Pending Resends" is a campaign-manager approval queue — admins get the
-  // templates + auto-resend schedules pages, but not this one.
-  "/dashboard/reminders": [ROLE.CAMPAIGN_MANAGER],
-  "/dashboard/reminders/templates": NON_REVIEWER_ROLES,
-  "/dashboard/reminders/schedules": NON_REVIEWER_ROLES,
+  "/dashboard/donors": ORG_WORKSPACE_ROLES,
+  "/dashboard/donors/import": [ROLE.SUPER_ADMIN],
+  "/dashboard/pools": ORG_WORKSPACE_ROLES,
+  "/dashboard/pools/new": [ROLE.CAMPAIGN_MANAGER],
+  "/dashboard/pools/anomalous": ORG_WORKSPACE_ROLES,
+  // Reminders is one page: the Pending Resends review queue (campaign managers
+  // action it) plus the auto-resend schedules.
+  "/dashboard/reminders": ORG_WORKSPACE_ROLES,
+  "/dashboard/reminders/templates": ORG_WORKSPACE_ROLES,
   "/dashboard/notifications": ALL_ROLES,
   "/dashboard/user": [ROLE.SUPER_ADMIN],
   "/dashboard/audit-log": [ROLE.SUPER_ADMIN],
   "/dashboard/settings": ALL_ROLES,
-  "/dashboard/payouts": [ROLE.SUPER_ADMIN, ROLE.ORG_ADMIN, ROLE.REVIEWER, ROLE.CAMPAIGN_MANAGER],
+  // Payout requesting happens from a campaign's Payout tab, and the two approval
+  // stages live on the Approvals page. This slim page is just where SUPER_ADMIN
+  // marks an approved payout as paid and reviews the full disbursement history —
+  // it is not in the sidebar; the Approvals page links here.
+  "/dashboard/payouts": [ROLE.SUPER_ADMIN],
 };
 
 /** Whether a role may open the given pathname (longest-prefix match wins). */

@@ -164,14 +164,41 @@ function ToastCard({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => vo
         {pending ? (
           <div className="toaster-bar-indeterminate h-full bg-primary" />
         ) : (
-          <div
-            key={toast.dismissMs}
-            className={cn("toaster-bar-countdown h-full", error ? "bg-destructive" : "bg-emerald-500")}
-            style={{ animationDuration: `${toast.dismissMs}ms` }}
+          <CountdownBar
+            key={`${toast.phase}-${toast.dismissMs}`}
+            durationMs={toast.dismissMs}
+            error={error}
           />
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * The green / red line that shrinks from full to empty over `durationMs`,
+ * showing how long the toast has left before it auto-dismisses. Driven by a
+ * width transition toggled on mount (rather than a CSS keyframe) so it always
+ * runs even when the node is reused across the pending → resolved transition.
+ */
+function CountdownBar({ durationMs, error }: { durationMs: number; error: boolean }) {
+  const [width, setWidth] = useState(100);
+  useEffect(() => {
+    // Two frames: let the browser paint the full-width bar first, then transition.
+    let r2 = 0;
+    const r1 = requestAnimationFrame(() => {
+      r2 = requestAnimationFrame(() => setWidth(0));
+    });
+    return () => {
+      cancelAnimationFrame(r1);
+      cancelAnimationFrame(r2);
+    };
+  }, []);
+  return (
+    <div
+      className={cn("h-full", error ? "bg-destructive" : "bg-emerald-500")}
+      style={{ width: `${width}%`, transition: `width ${durationMs}ms linear` }}
+    />
   );
 }
 
@@ -185,18 +212,7 @@ const TOASTER_CSS = `
   width: 40%;
   animation: toaster-indeterminate 1.15s ease-in-out infinite;
 }
-@keyframes toaster-countdown {
-  from { width: 100%; }
-  to   { width: 0%; }
-}
-.toaster-bar-countdown {
-  width: 100%;
-  animation-name: toaster-countdown;
-  animation-timing-function: linear;
-  animation-fill-mode: forwards;
-}
 @media (prefers-reduced-motion: reduce) {
   .toaster-bar-indeterminate { animation-duration: 2s; }
-  .toaster-bar-countdown { animation: none; width: 100%; }
 }
 `;

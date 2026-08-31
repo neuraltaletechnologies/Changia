@@ -48,6 +48,8 @@ interface FormState {
   name: string;
   category: string;
   description: string;
+  scope: string;
+  acceptance: string;
   goal: string;
   minimumAmount: string;
   startDate: string;
@@ -59,6 +61,8 @@ const initialForm: FormState = {
   name: "",
   category: CATEGORIES[0],
   description: "",
+  scope: "",
+  acceptance: "",
   goal: "",
   minimumAmount: "",
   startDate: "",
@@ -186,11 +190,17 @@ export default function NewCampaignPage() {
         name: form.name.trim(),
         category: form.category,
         story: form.description.trim() || undefined,
+        scope: form.scope.trim() || undefined,
+        acceptance: form.acceptance.trim() || undefined,
         goalAmount: Number(form.goal),
         minimumAmount: form.minimumAmount.trim() ? Number(form.minimumAmount) : undefined,
         startDate: form.startDate ? new Date(form.startDate).toISOString() : undefined,
         endDate: form.endDate ? new Date(form.endDate).toISOString() : undefined,
-        contactPhone: form.contactPhone.trim() || undefined,
+        // Strip spaces/dashes — the backend expects a compact TZS number
+        // (e.g. "+255700000000"), not the spaced placeholder format.
+        contactPhone: form.contactPhone.trim()
+          ? form.contactPhone.replace(/[\s-]/g, "")
+          : undefined,
         poolIds: poolIds.length > 0 ? poolIds : undefined,
         asDraft: mode === "draft" ? true : undefined,
         // Only an admin/reviewer can set this, and only send it when it differs
@@ -378,6 +388,38 @@ export default function NewCampaignPage() {
               onChange={(e) => setField("description", e.target.value)}
               className="min-h-24"
             />
+            <p className="text-xs text-muted-foreground">
+              Swahili translation is generated automatically for the public /sw pages.
+            </p>
+          </div>
+
+          <div className="grid gap-1.5">
+            <Label htmlFor="campaign-scope">Scope</Label>
+            <Textarea
+              id="campaign-scope"
+              placeholder="What exactly will the funds deliver? e.g. 200 desks, one borehole pump, a term of school fees for 12 pupils…"
+              value={form.scope}
+              onChange={(e) => setField("scope", e.target.value)}
+              className="min-h-20"
+            />
+            <p className="text-xs text-muted-foreground">
+              Shown on the campaign&apos;s public &ldquo;Scope&rdquo; tab. Optional.
+            </p>
+          </div>
+
+          <div className="grid gap-1.5">
+            <Label htmlFor="campaign-acceptance">Acceptance</Label>
+            <Textarea
+              id="campaign-acceptance"
+              placeholder="How will supporters know a contribution landed and the campaign delivered? e.g. receipts issued, a completion report with photos, funds released only against invoices…"
+              value={form.acceptance}
+              onChange={(e) => setField("acceptance", e.target.value)}
+              className="min-h-20"
+            />
+            <p className="text-xs text-muted-foreground">
+              Shown on the campaign&apos;s public &ldquo;Acceptance&rdquo; tab, above Changia&apos;s
+              standard payment-safety notes. Optional.
+            </p>
           </div>
 
           <div className="grid sm:grid-cols-2 gap-4">

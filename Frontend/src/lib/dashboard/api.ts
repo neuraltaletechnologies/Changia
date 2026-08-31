@@ -59,7 +59,30 @@ export interface DonorRecord {
   }[];
 }
 
-export type PoolCategory = "FAMILY" | "SCHOOL" | "STUDENT" | "OFFICE";
+export type PoolCategory =
+  | "FAMILY"
+  | "SCHOOL"
+  | "STUDENT"
+  | "OFFICE"
+  | "ALUMNI"
+  | "COMMUNITY"
+  | "CHURCH"
+  | "BUSINESS"
+  | "FRIENDS"
+  | "OTHER";
+
+export const POOL_CATEGORIES: PoolCategory[] = [
+  "FAMILY",
+  "SCHOOL",
+  "STUDENT",
+  "OFFICE",
+  "ALUMNI",
+  "COMMUNITY",
+  "CHURCH",
+  "BUSINESS",
+  "FRIENDS",
+  "OTHER",
+];
 
 export interface PoolMemberDonor {
   id: number;
@@ -103,6 +126,37 @@ export interface DonorPool {
   members?: PoolMember[];
 }
 
+export interface CampaignChangeRequest {
+  id: number;
+  status: "PENDING" | "REVIEWED" | "APPLIED" | "REJECTED" | "CHANGES_REQUESTED";
+  /** 'EDIT' = parked field changes; 'STATUS' = a manager's suspend/resume ask. */
+  kind?: "EDIT" | "STATUS";
+  /** Set when kind === 'STATUS'. */
+  statusAction?: "PAUSE" | "RESUME" | null;
+  payload: Partial<
+    Record<
+      | "name"
+      | "story"
+      | "goalAmount"
+      | "serviceFeePercent"
+      | "category"
+      | "startDate"
+      | "endDate"
+      | "minimumAmount"
+      | "contactPhone"
+      | "reason",
+      string | number | null
+    >
+  >;
+  hasStagedCover: boolean;
+  stagedCoverUrl: string | null;
+  submittedBy: number | null;
+  firstApprovedBy: number | null;
+  firstApprovedAt: string | null;
+  reviewNotes: string | null;
+  createdAt: string;
+}
+
 export interface CampaignRecord {
   id: number;
   name: string;
@@ -111,6 +165,12 @@ export interface CampaignRecord {
   nameSw: string | null;
   storySw: string | null;
   categorySw: string | null;
+  /** What the funds will deliver — shown on the public "Scope" tab. */
+  scope: string | null;
+  /** How a supporter knows a contribution landed — public "Acceptance" tab. */
+  acceptance: string | null;
+  scopeSw: string | null;
+  acceptanceSw: string | null;
   imageUrl: string | null;
   category: string | null;
   goalAmount: number;
@@ -127,7 +187,15 @@ export interface CampaignRecord {
   minimumAmount: number;
   startDate: string | null;
   endDate: string | null;
-  status: "DRAFT" | "PENDING" | "REVIEWED" | "ACTIVE" | "PAUSED" | "COMPLETED" | "CANCELLED";
+  status:
+    | "DRAFT"
+    | "PENDING"
+    | "REVIEWED"
+    | "ACTIVE"
+    | "PAUSED"
+    | "COMPLETED"
+    | "CANCELLED"
+    | "REJECTED";
   isPublic: boolean;
   contactPhone: string | null;
   raisedAmount: number;
@@ -148,36 +216,22 @@ export interface CampaignRecord {
   reviewState?: "NONE" | "CHANGES_REQUESTED";
   /** A material edit is parked awaiting re-approval (see `changeRequest`). */
   hasPendingChanges?: boolean;
-  /** The open change request for a live campaign, if any. */
-  changeRequest?: {
+  /**
+   * The newest open change request for a live campaign, any kind (legacy).
+   * A campaign can have an open EDIT *and* an open STATUS request at once, so
+   * prefer `editRequest` / `statusRequest` when you care which.
+   */
+  changeRequest?: CampaignChangeRequest | null;
+  /** Newest open EDIT (parked field changes) request, if any. */
+  editRequest?: CampaignChangeRequest | null;
+  /** Newest open STATUS (manager suspend/resume ask) request, if any. */
+  statusRequest?: CampaignChangeRequest | null;
+  /** A payout for this campaign is already in the approval chain (REQUESTED/REVIEWED). */
+  openPayoutRequest?: {
     id: number;
-    status: "PENDING" | "REVIEWED" | "APPLIED" | "REJECTED" | "CHANGES_REQUESTED";
-    /** 'EDIT' = parked field changes; 'STATUS' = a manager's suspend/resume ask. */
-    kind?: "EDIT" | "STATUS";
-    /** Set when kind === 'STATUS'. */
-    statusAction?: "PAUSE" | "RESUME" | null;
-    payload: Partial<
-      Record<
-        | "name"
-        | "story"
-        | "goalAmount"
-        | "serviceFeePercent"
-        | "category"
-        | "startDate"
-        | "endDate"
-        | "minimumAmount"
-        | "contactPhone"
-        | "reason",
-        string | number | null
-      >
-    >;
-    hasStagedCover: boolean;
-    stagedCoverUrl: string | null;
-    submittedBy: number | null;
-    firstApprovedBy: number | null;
-    firstApprovedAt: string | null;
-    reviewNotes: string | null;
-    createdAt: string;
+    status: "REQUESTED" | "REVIEWED";
+    amount: number;
+    requestedBy: number | null;
   } | null;
   createdAt: string;
   updatedAt: string;
@@ -1184,10 +1238,16 @@ export const PAY_STATUS_META: Record<
 };
 
 export const POOL_CATEGORY_META: Record<PoolCategory, { label: string; emoji: string }> = {
-  FAMILY: { label: "Family", emoji: "b" },
-  SCHOOL: { label: "School", emoji: "s" },
-  STUDENT: { label: "Student", emoji: "p" },
-  OFFICE: { label: "Office", emoji: "o" },
+  FAMILY: { label: "Family", emoji: "👪" },
+  SCHOOL: { label: "School", emoji: "🏫" },
+  STUDENT: { label: "Student", emoji: "🎓" },
+  OFFICE: { label: "Office", emoji: "🏢" },
+  ALUMNI: { label: "Alumni", emoji: "🎓" },
+  COMMUNITY: { label: "Community", emoji: "🏘️" },
+  CHURCH: { label: "Church / Faith group", emoji: "⛪" },
+  BUSINESS: { label: "Business / Corporate", emoji: "💼" },
+  FRIENDS: { label: "Friends", emoji: "🤝" },
+  OTHER: { label: "Other", emoji: "📁" },
 };
 
 export function donorFullName(d: {

@@ -5,20 +5,22 @@ const controller = require("./controller");
 const { listSchema, createSchema, decisionSchema, paidSchema, previewSchema } = require("./validation");
 
 // Payouts follow the same two-person chain as campaigns:
-//   request (CAMPAIGN_MANAGER / ORG_ADMIN, campaignId + reason required)
+//   request (CAMPAIGN_MANAGER — the role placed under an organisation; a
+//            campaignId + reason are required)
 //     -> REVIEWED  (stage 1 — a REVIEWER or SUPER_ADMIN, not the requester)
 //     -> APPROVED  (stage 2 — an ORG_ADMIN or SUPER_ADMIN, a different person)
 //     -> PAID      (SUPER_ADMIN confirms the gateway transfer)
 // approve/reject accept all three approver roles; the service picks the stage
 // from the payout's current status and enforces the "different people" rule.
 // List/get are scoped per-role in the service (a manager sees only their own
-// requests; a platform reviewer sees every org's in-chain requests).
+// requests; platform roles — reviewer / org admin / super admin — see every
+// org's in-chain requests).
 const router = Router();
 router.use(authenticate);
 router.get("/", validate({ query: listSchema }), controller.list);
 router.post(
   "/",
-  authorize("ORG_ADMIN", "CAMPAIGN_MANAGER"),
+  authorize("CAMPAIGN_MANAGER"),
   validate({ body: createSchema }),
   controller.create
 );

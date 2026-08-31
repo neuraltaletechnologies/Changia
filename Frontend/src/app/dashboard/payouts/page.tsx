@@ -1,27 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
   HandCoins,
-  Plus,
   Loader2,
-  Check,
-  X,
   Wallet,
   RefreshCw,
   History,
+  ArrowLeft,
 } from "lucide-react";
 import { Button } from "@/components/dashboard/ui/button";
 import { Input } from "@/components/dashboard/ui/input";
 import { Textarea } from "@/components/dashboard/ui/textarea";
 import { Label } from "@/components/dashboard/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/dashboard/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -32,10 +24,8 @@ import {
 } from "@/components/dashboard/ui/dialog";
 import {
   payoutApi,
-  campaignApi,
   formatTZSFull,
   type PayoutRecord,
-  type CampaignRecord,
   type ReviewTrailEntry,
 } from "@/lib/dashboard/api";
 import { useRole } from "@/hooks/use-role";
@@ -66,11 +56,8 @@ function fmtDate(iso: string | null | undefined): string {
   });
 }
 
-type DecisionKind = "approve" | "reject" | "paid";
-
 export default function PayoutsPage() {
-  const { hasPermission, isSuperAdmin, canReviewPayout, canFinalApprovePayout } = useRole();
-  const canRequest = hasPermission("payout:request");
+  const { isSuperAdmin } = useRole();
 
   const [payouts, setPayouts] = useState<PayoutRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,20 +65,10 @@ export default function PayoutsPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<"ALL" | PayoutRecord["status"]>("ALL");
 
-  const [campaigns, setCampaigns] = useState<CampaignRecord[]>([]);
-
-  // Create dialog state
-  const [createOpen, setCreateOpen] = useState(false);
-  const [amount, setAmount] = useState("");
-  const [campaignIdStr, setCampaignIdStr] = useState("none");
-  const [reason, setReason] = useState("");
-  const [notes, setNotes] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-
-  // Decision dialog state (approve / reject / mark paid)
-  const [action, setAction] = useState<{ kind: DecisionKind; payout: PayoutRecord } | null>(null);
-  const [actionNotes, setActionNotes] = useState("");
+  // Mark-paid dialog state
+  const [payingFor, setPayingFor] = useState<PayoutRecord | null>(null);
   const [gatewayRef, setGatewayRef] = useState("");
+  const [payNotes, setPayNotes] = useState("");
   const [acting, setActing] = useState(false);
 
   // History dialog state
@@ -122,19 +99,9 @@ export default function PayoutsPage() {
     }
   }, []);
 
-  const loadCampaigns = useCallback(async () => {
-    try {
-      const result = await campaignApi.list({ limit: 100 });
-      setCampaigns(result.campaigns);
-    } catch {
-      setCampaigns([]);
-    }
-  }, []);
-
   useEffect(() => {
     load();
-    loadCampaigns();
-  }, [load, loadCampaigns]);
+  }, [load]);
 
   const filtered = useMemo(
     () => (statusFilter === "ALL" ? payouts : payouts.filter((p) => p.status === statusFilter)),
@@ -147,78 +114,22 @@ export default function PayoutsPage() {
     return c;
   }, [payouts]);
 
-  const run = async (fn: () => Promise<unknown>) => {
-    setActionError(null);
-    try {
-      await fn();
-      await load();
-    } catch (e) {
-      setActionError(e instanceof Error ? e.message : "Action failed.");
-    }
-  };
-
-  const openCreate = () => {
-    setAmount("");
-    setCampaignIdStr("");
-    setReason("");
-    setNotes("");
-    setCreateOpen(true);
-  };
-
-  const submitCreate = async () => {
-    const amt = Number(amount);
-    if (!amount || !Number.isFinite(amt) || amt <= 0) {
-      setActionError("Enter a valid withdrawal amount.");
-      return;
-    }
-    if (!campaignIdStr) {
-      setActionError("Select which campaign this payout is for.");
-      return;
-    }
-    if (!reason.trim()) {
-      setActionError("Explain why you're requesting this payout.");
-      return;
-    }
-    setSubmitting(true);
-    setActionError(null);
-    try {
-      await payoutApi.create({
-        amount: amt,
-        campaignId: Number(campaignIdStr),
-        reason: reason.trim(),
-        notes: notes.trim() || undefined,
-      });
-      setCreateOpen(false);
-      await load();
-    } catch (e) {
-      setActionError(e instanceof Error ? e.message : "Failed to request payout.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const openDecision = (kind: DecisionKind, payout: PayoutRecord) => {
-    setActionNotes("");
+  const openPay = (payout: PayoutRecord) => {
     setGatewayRef("");
-    setAction({ kind, payout });
+    setPayNotes("");
+    setPayingFor(payout);
   };
 
-  const submitDecision = async () => {
-    if (!action) return;
+  const submitPay = async () => {
+    if (!payingFor) return;
     setActing(true);
     setActionError(null);
     try {
-      if (action.kind === "approve") {
-        await payoutApi.approve(action.payout.id, actionNotes.trim() || undefined);
-      } else if (action.kind === "reject") {
-        await payoutApi.reject(action.payout.id, actionNotes.trim() || undefined);
-      } else {
-        await payoutApi.markPaid(action.payout.id, {
-          gatewayRef: gatewayRef.trim() || undefined,
-          notes: actionNotes.trim() || undefined,
-        });
-      }
-      setAction(null);
+      await payoutApi.markPaid(payingFor.id, {
+        gatewayRef: gatewayRef.trim() || undefined,
+        notes: payNotes.trim() || undefined,
+      });
+      setPayingFor(null);
       await load();
     } catch (e) {
       setActionError(e instanceof Error ? e.message : "Action failed.");
@@ -227,33 +138,26 @@ export default function PayoutsPage() {
     }
   };
 
-  const decisionTitle =
-    action?.kind === "approve"
-      ? action.payout.status === "REQUESTED"
-        ? "Approve — first review"
-        : "Approve — final approval"
-      : action?.kind === "reject"
-        ? "Reject payout"
-        : "Mark payout as paid";
-
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          nativeButton={false}
+          render={<Link href="/dashboard/campaigns/approvals" />}
+        >
+          <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
+          Approvals
+        </Button>
         <div>
-          <h1 className="text-xl font-semibold text-foreground tracking-tight">
-            Payouts
-          </h1>
+          <h1 className="text-xl font-semibold text-foreground tracking-tight">Payouts</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Withdraw raised funds &mdash; request, approve and track disbursements
+            Record gateway transfers for approved payouts and review the full disbursement history.
+            Requests are made from a campaign&rsquo;s Payout tab; approvals happen on the Approvals page.
           </p>
         </div>
-        {canRequest && (
-          <Button size="sm" onClick={openCreate}>
-            <Plus className="w-3.5 h-3.5 mr-1.5" />
-            Request Payout
-          </Button>
-        )}
       </div>
 
       {/* Summary chips */}
@@ -324,7 +228,7 @@ export default function PayoutsPage() {
               {!loading && filtered.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-5 py-12 text-center text-sm text-muted-foreground">
-                    No payouts yet. Use the &ldquo;Request Payout&rdquo; button to withdraw raised funds.
+                    No payouts to show.
                   </td>
                 </tr>
               )}
@@ -384,51 +288,11 @@ export default function PayoutsPage() {
                           >
                             <History className="w-3.5 h-3.5" />
                           </Button>
-                          {p.status === "REQUESTED" && canReviewPayout && (
-                            <>
-                              <Button
-                                size="xs"
-                                variant="outline"
-                                onClick={() => openDecision("approve", p)}
-                              >
-                                <Check className="w-3 h-3 mr-1 text-emerald-600" />
-                                Approve (first review)
-                              </Button>
-                              <Button
-                                size="xs"
-                                variant="outline"
-                                onClick={() => openDecision("reject", p)}
-                              >
-                                <X className="w-3 h-3 mr-1 text-rose-500" />
-                                Reject
-                              </Button>
-                            </>
-                          )}
-                          {p.status === "REVIEWED" && canFinalApprovePayout && (
-                            <>
-                              <Button
-                                size="xs"
-                                variant="outline"
-                                onClick={() => openDecision("approve", p)}
-                              >
-                                <Check className="w-3 h-3 mr-1 text-emerald-600" />
-                                Approve (final)
-                              </Button>
-                              <Button
-                                size="xs"
-                                variant="outline"
-                                onClick={() => openDecision("reject", p)}
-                              >
-                                <X className="w-3 h-3 mr-1 text-rose-500" />
-                                Reject
-                              </Button>
-                            </>
-                          )}
                           {p.status === "APPROVED" && isSuperAdmin && (
                             <Button
                               size="xs"
                               variant="outline"
-                              onClick={() => openDecision("paid", p)}
+                              onClick={() => openPay(p)}
                             >
                               <Wallet className="w-3 h-3 mr-1 text-emerald-600" />
                               Mark Paid
@@ -447,166 +311,62 @@ export default function PayoutsPage() {
           <p className="text-xs text-muted-foreground">
             {filtered.length} of {payouts.length} requests
           </p>
-          <Button
-            size="xs"
-            variant="ghost"
-            onClick={() => run(() => load())}
-            disabled={loading}
-          >
+          <Button size="xs" variant="ghost" onClick={() => load()} disabled={loading}>
             <RefreshCw className={cn("w-3.5 h-3.5 mr-1.5", loading && "animate-spin")} />
             Refresh
           </Button>
         </div>
       </div>
 
-      {/* Create dialog */}
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <HandCoins className="w-4 h-4 text-amber-600" />
-              Request Payout
-            </DialogTitle>
-            <DialogDescription>
-              Withdraw raised funds for a campaign. The request goes to a
-              reviewer, then an organisation admin, before it can be paid.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="payout-amount">Amount (TZS)</Label>
-              <Input
-                id="payout-amount"
-                type="number"
-                min={1}
-                placeholder="e.g. 500000"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>Campaign</Label>
-              <Select
-                value={campaignIdStr}
-                onValueChange={(v) => setCampaignIdStr(v ?? "")}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select the campaign these funds are for" />
-                </SelectTrigger>
-                <SelectContent>
-                  {campaigns.map((c) => (
-                    <SelectItem key={c.id} value={String(c.id)}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="payout-reason">Reason</Label>
-              <Textarea
-                id="payout-reason"
-                placeholder="Why are you withdrawing these funds?"
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="payout-notes">Notes (optional)</Label>
-              <Textarea
-                id="payout-notes"
-                placeholder="Any internal notes"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={submitCreate} disabled={submitting}>
-              {submitting ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
-              ) : (
-                <Plus className="w-3.5 h-3.5 mr-1.5" />
-              )}
-              Request Payout
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Decision dialog */}
+      {/* Mark-paid dialog */}
       <Dialog
-        open={action !== null}
+        open={payingFor !== null}
         onOpenChange={(open) => {
-          if (!open) setAction(null);
+          if (!open) setPayingFor(null);
         }}
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{decisionTitle}</DialogTitle>
+            <DialogTitle>Mark payout as paid</DialogTitle>
             <DialogDescription>
-              {action
-                ? `${formatTZSFull(action.payout.amount)} for ${
-                    action.payout.campaignName ?? "organisation"
+              {payingFor
+                ? `${formatTZSFull(payingFor.amount)} for ${
+                    payingFor.campaignName ?? "organisation"
                   }`
                 : ""}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
-            {action?.kind === "paid" && (
-              <div className="space-y-1.5">
-                <Label htmlFor="payout-gateway-ref">Gateway reference (optional)</Label>
-                <Input
-                  id="payout-gateway-ref"
-                  placeholder="e.g. Mobile money / bank reference"
-                  value={gatewayRef}
-                  onChange={(e) => setGatewayRef(e.target.value)}
-                />
-              </div>
-            )}
             <div className="space-y-1.5">
-              <Label htmlFor="payout-decision-notes">
-                {action?.kind === "reject" ? "Reason for rejection" : "Notes (optional)"}
-              </Label>
+              <Label htmlFor="payout-gateway-ref">Gateway reference (optional)</Label>
+              <Input
+                id="payout-gateway-ref"
+                placeholder="e.g. Mobile money / bank reference"
+                value={gatewayRef}
+                onChange={(e) => setGatewayRef(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="payout-paid-notes">Notes (optional)</Label>
               <Textarea
-                id="payout-decision-notes"
-                placeholder={
-                  action?.kind === "reject"
-                    ? "Explain why this request was rejected"
-                    : "Any notes to record against this request"
-                }
-                value={actionNotes}
-                onChange={(e) => setActionNotes(e.target.value)}
+                id="payout-paid-notes"
+                placeholder="Any notes to record against this transfer"
+                value={payNotes}
+                onChange={(e) => setPayNotes(e.target.value)}
               />
             </div>
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAction(null)}>
+            <Button variant="outline" onClick={() => setPayingFor(null)}>
               Cancel
             </Button>
-            <Button
-              variant={action?.kind === "reject" ? "destructive" : "default"}
-              onClick={submitDecision}
-              disabled={acting}
-            >
-              {acting ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
-              ) : null}
-              {action?.kind === "approve"
-                ? "Approve"
-                : action?.kind === "reject"
-                  ? "Reject"
-                  : "Mark Paid"}
+            <Button onClick={submitPay} disabled={acting}>
+              {acting ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : (
+                <HandCoins className="w-3.5 h-3.5 mr-1.5" />
+              )}
+              Mark Paid
             </Button>
           </DialogFooter>
         </DialogContent>

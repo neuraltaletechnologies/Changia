@@ -20,17 +20,17 @@ import { CampaignCard } from "@/components/dashboard/widgets/campaign-card";
 import { RecentDonations } from "@/components/dashboard/widgets/recent-donations";
 import { ActivityFeed } from "@/components/dashboard/widgets/activity-feed";
 import { CampaignMix } from "@/components/dashboard/widgets/campaign-mix";
-import { CampaignPaymentPies } from "@/components/dashboard/widgets/campaign-payments";
 import { ReviewerWork } from "@/components/dashboard/widgets/reviewer-work";
 import { Button } from "@/components/dashboard/ui/button";
 import { Badge } from "@/components/dashboard/ui/badge";
 import {
   campaignApi,
   donorApi,
+  payoutApi,
   poolApi,
   userApi,
   type CampaignRecord,
-  type CampaignPaymentBreakdown,
+  type PayoutRecord,
 } from "@/lib/dashboard/api";
 import { formatTZS, type Campaign, type CampaignStatus } from "@/lib/dashboard/types";
 import { ROLE } from "@/lib/dashboard/permissions";
@@ -80,7 +80,16 @@ function QuickActions({ actions }: { actions: QuickAction[] }) {
 }
 
 export default function DashboardPage() {
-  const { role, user: sessionUser, meta, resolved, hasPermission, canAccessRoute } = useRole();
+  const {
+    role,
+    user: sessionUser,
+    meta,
+    resolved,
+    hasPermission,
+    canAccessRoute,
+    canReviewPayout,
+    canFinalApprovePayout,
+  } = useRole();
 
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [campaignRecords, setCampaignRecords] = useState<CampaignRecord[]>([]);
@@ -88,15 +97,11 @@ export default function DashboardPage() {
   const [donorCount, setDonorCount] = useState(0);
   const [consentedCount, setConsentedCount] = useState(0);
   const [userCount, setUserCount] = useState(0);
+  const [payouts, setPayouts] = useState<PayoutRecord[]>([]);
   const [poolStats, setPoolStats] = useState({ count: 0, donors: 0 });
-  const [breakdown, setBreakdown] = useState<CampaignPaymentBreakdown[]>([]);
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    campaignApi
-      .paymentsBreakdown()
-      .then(setBreakdown)
-      .catch(() => setBreakdown([]));
     poolApi
       .list({ limit: 100 })
       .then((r) =>
@@ -113,7 +118,7 @@ export default function DashboardPage() {
         setPendingApprovalCount(
           r.campaigns.filter(
             (c) =>
-              c.status === "PENDING" ||
+              (c.status === "PENDING" && c.reviewState !== "CHANGES_REQUESTED") ||
               c.status === "REVIEWED" ||
               c.hasPendingChanges === true
           ).length
@@ -147,7 +152,7 @@ export default function DashboardPage() {
     if (!role) return;
     const totalOf = (p: unknown, fallback: number) =>
       (p as { total?: number } | null)?.total ?? fallback;
-    if (role === ROLE.SUPER_ADMIN || role === ROLE.ORG_ADMIN || role === ROLE.CAMPAIGN_MANAGER) {
+    if (role === ROLE.SUPER_ADMIN || role === ROLE.CAMPAIGN_MANAGER) {
       donorApi
         .list({ limit: 1 })
         .then((r) => setDonorCount(totalOf(r.pagination, r.donors.length)))
@@ -162,6 +167,19 @@ export default function DashboardPage() {
         .list({ limit: 1 })
         .then((r) => setUserCount(totalOf(r.pagination, r.users.length)))
         .catch(() => undefined);
+    }
+    // Payouts are review work too — a reviewer clears their first review, an org
+    // admin gives the final approval. Feed them into the "Review workload"
+    // widget alongside campaigns.
+    if (
+      role === ROLE.SUPER_ADMIN ||
+      role === ROLE.ORG_ADMIN ||
+      role === ROLE.REVIEWER
+    ) {
+      payoutApi
+        .list({ limit: 100 })
+        .then((r) => setPayouts(r.payouts))
+        .catch(() => setPayouts([]));
     }
   }, [role]);
 
@@ -188,6 +206,28 @@ export default function DashboardPage() {
 
   const canCreateCampaigns = hasPermission("campaign:create");
   const canApproveCampaigns = hasPermission("campaign:approve");
+
+  // Payout requests waiting on THIS user's stage of the two-stage chain —
+  // stage 1 for a reviewer, stage 2 for an org admin, plus the final "mark as
+  // paid" step for a super admin. Mirrors the Approvals page / sidebar badge.
+  const payoutUid = sessionUser ? String(sessionUser.id) : null;
+  const pendingPayoutCount = payouts.filter((p) => {
+    if (
+      canReviewPayout &&
+      p.status === "REQUESTED" &&
+      String(p.requestedBy ?? "") !== payoutUid
+    )
+      return true;
+    if (
+      canFinalApprovePayout &&
+      p.status === "REVIEWED" &&
+      String(p.firstApprovedBy ?? "") !== payoutUid &&
+      String(p.requestedBy ?? "") !== payoutUid
+    )
+      return true;
+    if (role === ROLE.SUPER_ADMIN && p.status === "APPROVED") return true;
+    return false;
+  }).length;
   const canAddDonors = hasPermission("donor:add");
   const canRequestPayout = hasPermission("payout:request");
   const isReviewer = role === ROLE.REVIEWER;
@@ -265,11 +305,20 @@ export default function DashboardPage() {
       accent: "bg-emerald-50 text-emerald-600",
     });
   }
+  if ((canReviewPayout || canFinalApprovePayout) && pendingPayoutCount > 0) {
+    quickActions.push({
+      label: "Review Payouts",
+      sub: `${pendingPayoutCount} awaiting your approval`,
+      href: "/dashboard/campaigns/approvals#payouts",
+      icon: HandCoins,
+      accent: "bg-teal-50 text-teal-600",
+    });
+  }
   if (canRequestPayout) {
     quickActions.push({
       label: "Request Payout",
-      sub: "Withdraw raised funds",
-      href: "/dashboard/payouts",
+      sub: "From a campaign's Payout tab",
+      href: "/dashboard/campaigns",
       icon: HandCoins,
       accent: "bg-amber-50 text-amber-600",
     });
@@ -319,21 +368,18 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Minimalist portfolio + payment snapshot (campaign managers) */}
+      {/* Minimalist portfolio snapshot (campaign managers) */}
       {role === ROLE.CAMPAIGN_MANAGER && (
-        <div className="space-y-6">
-          <CampaignMix
-            active={activeCampaigns.length}
-            pending={pendingCampaigns.length}
-            reviewing={reviewingCampaigns.length}
-            draft={draftCampaigns.length}
-            raised={totalRaised}
-            required={totalRequired}
-            poolDonors={poolStats.donors}
-            poolCount={poolStats.count}
-          />
-          <CampaignPaymentPies breakdown={breakdown} />
-        </div>
+        <CampaignMix
+          active={activeCampaigns.length}
+          pending={pendingCampaigns.length}
+          reviewing={reviewingCampaigns.length}
+          draft={draftCampaigns.length}
+          raised={totalRaised}
+          required={totalRequired}
+          poolDonors={poolStats.donors}
+          poolCount={poolStats.count}
+        />
       )}
 
       {/* Review workload snapshot — reviewers see their first-review queue,
@@ -342,6 +388,7 @@ export default function DashboardPage() {
       {(isReviewer || isOrgAdmin) && (
         <ReviewerWork
           campaigns={campaignRecords}
+          payouts={payouts}
           reviewerId={sessionUser?.id ?? null}
           stage={isOrgAdmin ? 2 : 1}
         />
@@ -408,7 +455,7 @@ export default function DashboardPage() {
                 </p>
               </div>
               <ul className="text-xs text-muted-foreground space-y-1.5">
-                {!isReviewer && (
+                {!isReviewer && !isOrgAdmin && (
                   <li className="flex items-center gap-2">
                     <BadgeCheck className="w-3.5 h-3.5 text-emerald-600" />
                     {consentedCount} consented donors ready to engage

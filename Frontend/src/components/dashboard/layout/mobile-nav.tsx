@@ -19,9 +19,7 @@ import {
   Layers,
   BellRing,
   Bell,
-  FileClock,
   ShieldCheck,
-  HandCoins,
 } from "lucide-react";
 
 const navItems = [
@@ -29,12 +27,10 @@ const navItems = [
   { label: "Campaigns", href: "/dashboard/campaigns", icon: Megaphone },
   { label: "Approvals", href: "/dashboard/campaigns/approvals", icon: ShieldCheck },
   { label: "Donor Pools", href: "/dashboard/pools", icon: Layers },
-  { label: "Pending Resends", href: "/dashboard/reminders", icon: FileClock },
-  { label: "Auto-resend", href: "/dashboard/reminders/schedules", icon: BellRing },
+  { label: "Reminders", href: "/dashboard/reminders", icon: BellRing },
   { label: "Notifications", href: "/dashboard/notifications", icon: Bell },
   { label: "User", href: "/dashboard/user", icon: UserCog },
   { label: "Audit Log", href: "/dashboard/audit-log", icon: ClipboardList },
-  { label: "Payouts", href: "/dashboard/payouts", icon: HandCoins },
   { label: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
 

@@ -1,5 +1,18 @@
 const { z } = require("zod");
 
+const POOL_CATEGORIES = [
+  "FAMILY",
+  "SCHOOL",
+  "STUDENT",
+  "OFFICE",
+  "ALUMNI",
+  "COMMUNITY",
+  "CHURCH",
+  "BUSINESS",
+  "FRIENDS",
+  "OTHER",
+];
+
 const poolIdSchema = z.union([z.string(), z.number()]);
 const amountSchema = z
   .number({ message: "Amount must be a number" })
@@ -9,14 +22,14 @@ const amountSchema = z
 const createPoolSchema = z.object({
   name: z.string().min(2, "Pool name is required").max(150),
   description: z.string().max(2000).optional().or(z.literal("")),
-  category: z.enum(["FAMILY", "SCHOOL", "STUDENT", "OFFICE"]).optional(),
+  category: z.enum(POOL_CATEGORIES).optional(),
   createdBy: poolIdSchema.optional(),
 });
 
 const updatePoolSchema = createPoolSchema.partial();
 
 const listPoolsQuerySchema = z.object({
-  category: z.enum(["FAMILY", "SCHOOL", "STUDENT", "OFFICE"]).optional(),
+  category: z.enum(POOL_CATEGORIES).optional(),
   search: z.string().max(100).optional(),
   status: z.enum(["ACTIVE", "ARCHIVED"]).optional(),
   createdBy: poolIdSchema.optional(),
@@ -93,6 +106,7 @@ const reminderSchema = z.object({
 });
 
 module.exports = {
+  POOL_CATEGORIES,
   createPoolSchema,
   updatePoolSchema,
   listPoolsQuerySchema,

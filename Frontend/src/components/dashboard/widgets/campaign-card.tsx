@@ -12,6 +12,7 @@ export const campaignStatusMap: Record<Campaign["status"], { label: string; clas
   PENDING: { label: "Pending Approval", className: "bg-orange-50 text-orange-700 border-orange-200" },
   REVIEWED: { label: "Awaiting 2nd Approval", className: "bg-blue-50 text-blue-700 border-blue-200" },
   CANCELLED: { label: "Cancelled", className: "bg-rose-50 text-rose-700 border-rose-200" },
+  REJECTED: { label: "Rejected", className: "bg-rose-50 text-rose-700 border-rose-200" },
 };
 
 export function CampaignCard({ campaign }: { campaign: Campaign }) {

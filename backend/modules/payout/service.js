@@ -70,14 +70,15 @@ const SELECT = `
 
 /**
  * Visibility:
- *   - SUPER_ADMIN / ORG_ADMIN  → everything in their org.
+ *   - SUPER_ADMIN / ORG_ADMIN  → every org's payouts (platform-level: the
+ *     org admin gives the final approval across the whole platform).
  *   - REVIEWER (platform-level, no org) → every org's payouts that are in the
  *     approval chain (REQUESTED / REVIEWED) plus any they've acted on.
  *   - CAMPAIGN_MANAGER          → only their own requests.
  */
 async function listPayouts(organizationId, filters, user) {
   const isReviewer = user && user.role === "REVIEWER";
-  const isSuperAdmin = user && user.role === "SUPER_ADMIN";
+  const isPlatformAdmin = user && (user.role === "SUPER_ADMIN" || user.role === "ORG_ADMIN");
   const where = [];
   const values = [];
 
@@ -85,8 +86,8 @@ async function listPayouts(organizationId, filters, user) {
     // Reviewers are platform-level — every org's payouts in the approval chain.
     where.push("(p.status IN ('REQUESTED','REVIEWED') OR p.first_approved_by_id = ?)");
     values.push(user.id);
-  } else if (isSuperAdmin) {
-    // Super admins vet + pay across every org — no org filter.
+  } else if (isPlatformAdmin) {
+    // Super admins + org admins vet / approve / pay across every org — no filter.
     where.push("1 = 1");
   } else {
     where.push("p.organization_id = ?");
@@ -130,7 +131,8 @@ async function getPayoutRow(organizationId, id) {
 }
 
 async function getPayout(organizationId, id, user) {
-  const platformWide = user && (user.role === "REVIEWER" || user.role === "SUPER_ADMIN");
+  const platformWide =
+    user && (user.role === "REVIEWER" || user.role === "SUPER_ADMIN" || user.role === "ORG_ADMIN");
   const payout = await getPayoutRow(platformWide ? null : organizationId, id);
   if (user && user.role === "CAMPAIGN_MANAGER" && Number(payout.requested_by_id) !== Number(user.id)) {
     throw ApiError.notFound("Payout not found");
@@ -158,10 +160,21 @@ async function createPayout(organizationId, user, data) {
   }
   await assertCampaignAccess(organizationId, user, campaignId);
   const owned = await db.query(
-    "SELECT id FROM campaigns WHERE id = ? AND organization_id = ?",
+    "SELECT id, status FROM campaigns WHERE id = ? AND organization_id = ?",
     [campaignId, organizationId]
   );
   if (owned.length === 0) throw ApiError.notFound("Campaign not found");
+
+  // Funds can only be withdrawn once a campaign is actually raising (or has
+  // finished) — a DRAFT/PENDING/REVIEWED/CANCELLED campaign has nothing to pay
+  // out. Mirrors the campaigns-list "Request payout" gate.
+  const PAYABLE_STATUSES = ["ACTIVE", "PAUSED", "COMPLETED"];
+  if (!PAYABLE_STATUSES.includes(owned[0].status)) {
+    throw ApiError.badRequest(
+      "Payouts can only be requested for an active, paused or completed campaign",
+      "CAMPAIGN_NOT_PAYABLE"
+    );
+  }
 
   const open = await db.query(
     "SELECT id FROM payouts WHERE campaign_id = ? AND requested_by_id = ? AND status IN ('REQUESTED','REVIEWED')",
@@ -202,7 +215,9 @@ async function createPayout(organizationId, user, data) {
  */
 async function decidePayout(organizationId, user, id, approved, data = {}) {
   const scopeOrg =
-    user.role === "REVIEWER" || user.role === "SUPER_ADMIN" ? null : organizationId;
+    user.role === "REVIEWER" || user.role === "SUPER_ADMIN" || user.role === "ORG_ADMIN"
+      ? null
+      : organizationId;
   const payout = await getPayoutRow(scopeOrg, id);
   const orgId = payout.organization_id;
 

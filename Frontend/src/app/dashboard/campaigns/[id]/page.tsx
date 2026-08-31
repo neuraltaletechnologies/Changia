@@ -831,6 +831,8 @@ export default function CampaignDetailPage() {
             onToggleAll={toggleAll}
             onUpdated={refresh}
             canManage={isAdmin}
+            canRemind={isAdmin || isCampaignManager}
+            onSendReminder={() => setReminderOpen(true)}
             canImport={isAdmin || isCampaignManager}
             onImport={() => setImportOpen(true)}
             onSetExpected={(donorId, amount) =>
@@ -1038,6 +1040,8 @@ function DonorBoardTab({
   onToggleAll,
   onUpdated,
   canManage,
+  canRemind,
+  onSendReminder,
   canImport,
   onImport,
   onSetExpected,
@@ -1050,6 +1054,8 @@ function DonorBoardTab({
   onToggleAll: () => void;
   onUpdated: () => void;
   canManage: boolean;
+  canRemind: boolean;
+  onSendReminder: () => void;
   canImport: boolean;
   onImport: () => void;
   onSetExpected: (donorId: number, amount: number | null) => void;
@@ -1105,6 +1111,13 @@ function DonorBoardTab({
               {selected.size === selectableCount && selected.size > 0
                 ? "Clear selection"
                 : "Select all unpaid"}
+            </Button>
+          )}
+          {canRemind && selectableCount > 0 && (
+            <Button size="xs" onClick={onSendReminder}>
+              <BellRing className="w-3.5 h-3.5 mr-1.5" />
+              Send reminder
+              {selected.size > 0 ? ` (${selected.size})` : ` (all ${selectableCount})`}
             </Button>
           )}
           {canImport && (

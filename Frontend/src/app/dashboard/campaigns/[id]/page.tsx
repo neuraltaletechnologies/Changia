@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -13,12 +13,14 @@ import {
 import {
   AlertTriangle,
   ArrowLeft,
+  Banknote,
   BellRing,
   Calendar,
   Building2,
   Check,
   ChevronDown,
   FileWarning,
+  Flag,
   Gift,
   Heart,
   ImageIcon,
@@ -268,23 +270,6 @@ export default function CampaignDetailPage() {
           <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
           {backLabel}
         </Button>
-        <div className="flex items-center gap-2">
-          {(isAdmin || isCampaignManager) && (
-            <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
-              <Import className="w-3.5 h-3.5 mr-1.5" />
-              Import Pool
-            </Button>
-          )}
-          {summary && summary.totalTargets > 0 && (
-            <Button size="sm" onClick={() => setReminderOpen(true)}>
-              <BellRing className="w-3.5 h-3.5 mr-1.5" />
-              Send Reminder
-              {selected.size > 0
-                ? ` (${selected.size})`
-                : ` (all ${selectableTargets.length} unpaid)`}
-            </Button>
-          )}
-        </div>
       </div>
 
       {error && (
@@ -329,7 +314,7 @@ export default function CampaignDetailPage() {
         <div className="flex items-start gap-2.5 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800">
           <ShieldCheck className="w-4 h-4 mt-0.5 shrink-0" />
           <span>
-            A request to close this campaign is waiting for review in the <strong>Closure</strong> tab.
+            A request to close this campaign is waiting for review in the <strong>Payout</strong> tab.
           </span>
         </div>
       )}
@@ -337,7 +322,7 @@ export default function CampaignDetailPage() {
         <div className="flex items-start gap-2.5 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
           <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
           <span>
-            The last closure request was rejected — see the <strong>Closure</strong> tab for the reason and to request again.
+            The last closure request was rejected — see the <strong>Payout</strong> tab for the reason and to request again.
           </span>
         </div>
       )}
@@ -782,16 +767,12 @@ export default function CampaignDetailPage() {
                   " (review needed)"}
               </TabsTrigger>
             )}
-          {(campaign.status === "ACTIVE" || campaign.status === "PAUSED") && (
-            <TabsTrigger value="closure">
-              Closure
-              {campaign.latestClosureRequest?.status === "PENDING" && " (review needed)"}
-            </TabsTrigger>
-          )}
           {(campaign.status === "ACTIVE" || campaign.status === "PAUSED" || campaign.status === "COMPLETED") && (
             <TabsTrigger value="payout">
               Payout
-              {campaign.openPayoutRequest?.status === "AWAITING_CHECKOUT" && " (action needed)"}
+              {campaign.openPayoutRequest?.status === "AWAITING_CHECKOUT"
+                ? " (action needed)"
+                : campaign.latestClosureRequest?.status === "PENDING" && " (review needed)"}
             </TabsTrigger>
           )}
           {campaign.status === "COMPLETED" && (
@@ -850,6 +831,8 @@ export default function CampaignDetailPage() {
             onToggleAll={toggleAll}
             onUpdated={refresh}
             canManage={isAdmin}
+            canImport={isAdmin || isCampaignManager}
+            onImport={() => setImportOpen(true)}
             onSetExpected={(donorId, amount) =>
               act(() => campaignApi.setTargetExpected(id, donorId, amount))
             }
@@ -889,6 +872,7 @@ export default function CampaignDetailPage() {
           <CampaignRemindersTab
             campaignId={id}
             hasTrackedDonors={Boolean(summary && summary.totalTargets > 0)}
+            hasUnpaidDonors={selectableTargets.length > 0}
             canManage={isAdmin || isCampaignManager}
             onSendNow={() => setReminderOpen(true)}
           />
@@ -898,24 +882,20 @@ export default function CampaignDetailPage() {
           <CampaignHistoryTab campaignId={id} />
         </TabsContent>
 
-        {(campaign.status === "ACTIVE" || campaign.status === "PAUSED") && (
-          <TabsContent value="closure" className="pt-2">
-            <ClosureRequestTab
-              campaignId={id}
-              canReview={canApproveRole}
-              canRequest={isCampaignManager}
-              onDecided={refresh}
-            />
-          </TabsContent>
-        )}
-
         {(campaign.status === "ACTIVE" || campaign.status === "PAUSED" || campaign.status === "COMPLETED") && (
           <TabsContent value="payout" className="pt-2">
             <PayoutRequestTab
               campaignId={id}
+              campaignStatus={campaign.status}
+              campaignRaised={campaign.raisedAmount}
               isAdmin={isAdmin}
-              canRequest={isCampaignManager}
+              canRequestPayout={isCampaignManager}
               canCheckout={isCampaignManager || isOrgAdmin}
+              canReviewClosure={canApproveRole}
+              canRequestClosure={
+                isCampaignManager &&
+                (campaign.status === "ACTIVE" || campaign.status === "PAUSED")
+              }
               onChanged={refresh}
             />
           </TabsContent>
@@ -1058,6 +1038,8 @@ function DonorBoardTab({
   onToggleAll,
   onUpdated,
   canManage,
+  canImport,
+  onImport,
   onSetExpected,
   onRemoveTarget,
 }: {
@@ -1068,6 +1050,8 @@ function DonorBoardTab({
   onToggleAll: () => void;
   onUpdated: () => void;
   canManage: boolean;
+  canImport: boolean;
+  onImport: () => void;
   onSetExpected: (donorId: number, amount: number | null) => void;
   onRemoveTarget: (donorId: number) => void;
 }) {
@@ -1089,9 +1073,17 @@ function DonorBoardTab({
         <p className="text-sm text-muted-foreground">
           No tracked donors yet. Import a donor pool to start tracking who pays.
         </p>
-        <Button size="sm" className="mt-4" variant="outline" onClick={onUpdated}>
-          Refresh
-        </Button>
+        <div className="mt-4 flex items-center justify-center gap-2">
+          {canImport && (
+            <Button size="sm" onClick={onImport}>
+              <Import className="w-3.5 h-3.5 mr-1.5" />
+              Import Pool
+            </Button>
+          )}
+          <Button size="sm" variant="outline" onClick={onUpdated}>
+            Refresh
+          </Button>
+        </div>
       </div>
     );
   }
@@ -1107,13 +1099,21 @@ function DonorBoardTab({
             </p>
           )}
         </div>
-        {selectableCount > 0 && (
-          <Button size="xs" variant="outline" onClick={onToggleAll}>
-            {selected.size === selectableCount && selected.size > 0
-              ? "Clear selection"
-              : "Select all unpaid"}
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {selectableCount > 0 && (
+            <Button size="xs" variant="outline" onClick={onToggleAll}>
+              {selected.size === selectableCount && selected.size > 0
+                ? "Clear selection"
+                : "Select all unpaid"}
+            </Button>
+          )}
+          {canImport && (
+            <Button size="xs" variant="outline" onClick={onImport}>
+              <Import className="w-3.5 h-3.5 mr-1.5" />
+              Import Pool
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="overflow-x-auto">
@@ -1532,11 +1532,13 @@ function UserTab({
 function CampaignRemindersTab({
   campaignId,
   hasTrackedDonors,
+  hasUnpaidDonors,
   canManage,
   onSendNow,
 }: {
   campaignId: string;
   hasTrackedDonors: boolean;
+  hasUnpaidDonors: boolean;
   canManage: boolean;
   onSendNow: () => void;
 }) {
@@ -1551,16 +1553,22 @@ function CampaignRemindersTab({
           </p>
         </div>
         {canManage && (
-          <Button size="sm" disabled={!hasTrackedDonors} onClick={onSendNow}>
+          <Button size="sm" disabled={!hasUnpaidDonors} onClick={onSendNow}>
             <BellRing className="w-3.5 h-3.5 mr-1.5" />
             Send reminder
           </Button>
         )}
       </div>
-      {!hasTrackedDonors && (
+      {!hasTrackedDonors ? (
         <p className="text-[11px] text-muted-foreground -mt-4">
           Import a donor pool on the Donor Board tab first — reminders go to tracked donors.
         </p>
+      ) : (
+        !hasUnpaidDonors && (
+          <p className="text-[11px] text-muted-foreground -mt-4">
+            Every tracked donor has paid in full — there&apos;s no one to remind right now.
+          </p>
+        )
       )}
 
       <PendingResendsPanel campaignId={Number(campaignId)} />
@@ -1931,7 +1939,7 @@ function ReviewReportForm({ campaignId, onDone }: { campaignId: string; onDone: 
   );
 }
 
-// ─── Closure requests tab ────────────────────────────────────────────────────
+// ─── Closure request helpers (rendered inside the Payout tab) ────────────────
 
 const REQUEST_STATUS_BADGE: Record<string, string> = {
   PENDING: "bg-sky-50 text-sky-700 border-sky-200",
@@ -1963,119 +1971,15 @@ const MOBILE_MONEY_PROVIDERS = [
   "T-Pesa",
 ] as const;
 
-function ClosureRequestTab({
-  campaignId,
-  canReview,
-  canRequest,
-  onDecided,
-}: {
-  campaignId: string;
-  /** REVIEWER / ORG_ADMIN / SUPER_ADMIN — may approve/reject the request. */
-  canReview: boolean;
-  canRequest: boolean;
-  onDecided: () => void;
-}) {
-  const [history, setHistory] = useState<ClosureRequest[] | undefined>(undefined);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    try {
-      setError(null);
-      const r = await campaignApi.listClosureRequests(campaignId);
-      setHistory(r);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load closure requests.");
-    }
-  }, [campaignId]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  if (history === undefined) {
-    return <div className="h-40 bg-card border border-border rounded-xl animate-pulse" />;
-  }
-
-  const latest = history[0];
-  const hasPending = latest?.status === "PENDING";
-
-  return (
-    <div className="space-y-4">
-      {error && (
-        <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-          {error}
-        </div>
-      )}
-
-      {history.length > 0 && (
-        <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-border">
-            <h2 className="text-sm font-semibold text-foreground">Closure requests</h2>
-          </div>
-          <div className="divide-y divide-border">
-            {history.map((r) => (
-              <div key={r.id} className="p-5 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span
-                    className={cn(
-                      "text-[10px] font-medium border rounded-full px-2.5 py-1",
-                      REQUEST_STATUS_BADGE[r.status]
-                    )}
-                  >
-                    {r.status}
-                  </span>
-                  <span className="text-[11px] text-muted-foreground">
-                    {new Date(r.requestedAt).toLocaleDateString()}
-                  </span>
-                </div>
-                <p className="text-sm text-muted-foreground leading-relaxed">{r.reason}</p>
-                {r.decisionNotes && (
-                  <p className="text-[11px] text-muted-foreground">
-                    Admin note: &quot;{r.decisionNotes}&quot;
-                  </p>
-                )}
-                {canReview && r.status === "PENDING" && (
-                  <DecideClosureForm
-                    campaignId={campaignId}
-                    requestId={r.id}
-                    onDone={() => {
-                      load();
-                      onDecided();
-                    }}
-                  />
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {canRequest && !hasPending && (
-        <RequestClosureForm
-          campaignId={campaignId}
-          rejected={latest?.status === "REJECTED"}
-          onSubmitted={() => {
-            load();
-            onDecided();
-          }}
-        />
-      )}
-      {!canRequest && !hasPending && history.length === 0 && (
-        <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-          Waiting for the assigned campaign manager to request closure.
-        </div>
-      )}
-    </div>
-  );
-}
-
-function RequestClosureForm({
+function RequestClosureDialog({
   campaignId,
   rejected,
+  onClose,
   onSubmitted,
 }: {
   campaignId: string;
   rejected: boolean;
+  onClose: () => void;
   onSubmitted: () => void;
 }) {
   const [reason, setReason] = useState("");
@@ -2091,7 +1995,6 @@ function RequestClosureForm({
     setSubmitting(true);
     try {
       await campaignApi.requestClosure(campaignId, { reason: reason.trim() });
-      setReason("");
       onSubmitted();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to submit the closure request.");
@@ -2101,33 +2004,44 @@ function RequestClosureForm({
   };
 
   return (
-    <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
-      <div className="px-5 py-4 border-b border-border">
-        <p className="text-sm font-medium text-foreground">
-          {rejected ? "Request closure again" : "Request to close this campaign"}
-        </p>
-        <p className="text-xs text-muted-foreground">
-          An admin will review your reason and approve or deny the request.
-        </p>
-      </div>
-      <div className="p-5 space-y-4">
-        <Textarea
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-          placeholder="Why should this campaign close now?"
-          className="min-h-24"
-        />
-        {error && (
-          <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-            {error}
-          </div>
-        )}
-        <Button size="sm" onClick={submit} disabled={submitting}>
-          {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : null}
-          {rejected ? "Request again" : "Request closure"}
-        </Button>
-      </div>
-    </div>
+    <Dialog open onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-base font-semibold">
+            {rejected ? "Request closure again" : "Request to close this campaign"}
+          </DialogTitle>
+          <DialogDescription className="text-xs">
+            Closing settles the campaign — a reviewer then an admin approve it, and
+            once complete you can request the remaining balance as a payout.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <Textarea
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Why should this campaign close now?"
+            className="min-h-24"
+            autoFocus
+          />
+          {error && (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+              {error}
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button onClick={submit} disabled={submitting}>
+            {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : null}
+            {rejected ? "Request again" : "Request closure"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -2669,30 +2583,50 @@ function ChangeRequestTab({
 
 function PayoutRequestTab({
   campaignId,
+  campaignStatus,
+  campaignRaised,
   isAdmin,
-  canRequest,
+  canRequestPayout,
   canCheckout,
+  canReviewClosure,
+  canRequestClosure,
   onChanged,
 }: {
   campaignId: string;
+  campaignStatus: string;
+  /** Total raised — used to suggest the remaining balance once closure is granted. */
+  campaignRaised: number;
   isAdmin: boolean;
-  canRequest: boolean;
+  /** CAMPAIGN_MANAGER — may request a payout. */
+  canRequestPayout: boolean;
   /** May submit the payout destination on an approved request (requester or ORG_ADMIN). */
   canCheckout: boolean;
+  /** REVIEWER / ORG_ADMIN / SUPER_ADMIN — may approve/reject a closure request. */
+  canReviewClosure: boolean;
+  /** CAMPAIGN_MANAGER on an ACTIVE/PAUSED campaign — may request closure. */
+  canRequestClosure: boolean;
   /** Bubble up so the parent campaign banner / tab badge refresh too. */
   onChanged: () => void;
 }) {
   const [payouts, setPayouts] = useState<PayoutRecord[] | undefined>(undefined);
+  const [closures, setClosures] = useState<ClosureRequest[] | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [checkoutFor, setCheckoutFor] = useState<PayoutRecord | null>(null);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [payoutDialog, setPayoutDialog] = useState(false);
+  const [closureDialog, setClosureDialog] = useState(false);
 
   const load = useCallback(async () => {
     try {
       setError(null);
-      const r = await payoutApi.list({ campaignId });
-      setPayouts(r.payouts);
+      const [p, c] = await Promise.all([
+        payoutApi.list({ campaignId }),
+        campaignApi.listClosureRequests(campaignId).catch(() => [] as ClosureRequest[]),
+      ]);
+      setPayouts(p.payouts);
+      setClosures(c);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load payout requests.");
+      setError(e instanceof Error ? e.message : "Failed to load payout activity.");
     }
   }, [campaignId]);
 
@@ -2705,15 +2639,27 @@ function PayoutRequestTab({
     onChanged();
   }, [load, onChanged]);
 
-  if (payouts === undefined) {
+  if (payouts === undefined || closures === undefined) {
     return <div className="h-40 bg-card border border-border rounded-xl animate-pulse" />;
   }
 
-  // Any request that isn't finished (PAID) or dead (REJECTED) blocks a new one —
+  // One payout at a time: anything not PAID / REJECTED blocks a new request —
   // matches createPayout's open-request guard.
-  const hasInFlight = payouts.some((p) =>
+  const payoutInFlight = payouts.some((p) =>
     ["REQUESTED", "REVIEWED", "AWAITING_CHECKOUT", "APPROVED"].includes(p.status)
   );
+  // Once closure is granted the manager typically withdraws everything that's
+  // left — suggest raised minus whatever has already been paid out.
+  const paidOut = payouts
+    .filter((p) => p.status === "PAID")
+    .reduce((sum, p) => sum + p.amount, 0);
+  const remainingBalance = Math.max(0, campaignRaised - paidOut);
+  const suggestedAmount =
+    campaignStatus === "COMPLETED" && remainingBalance > 0 ? remainingBalance : undefined;
+  const latestClosure = closures[0];
+  const closurePending = latestClosure?.status === "PENDING";
+  const closableStatus = campaignStatus === "ACTIVE" || campaignStatus === "PAUSED";
+  const showClosureButton = canRequestClosure && closableStatus;
 
   return (
     <div className="space-y-4">
@@ -2723,33 +2669,62 @@ function PayoutRequestTab({
         </div>
       )}
 
-      {payouts.length > 0 && (
-        <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-border">
-            <h2 className="text-sm font-semibold text-foreground">Payout activity</h2>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              Every payout for this campaign — requested, reviewed, approved or
-              rejected, and where the money was sent.
-            </p>
-          </div>
-          <div className="divide-y divide-border">
-            {payouts.map((p) => (
-              <PayoutActivityCard
-                key={p.id}
-                payout={p}
-                isAdmin={isAdmin}
-                canRequest={canRequest}
-                canCheckout={canCheckout}
-                onChanged={reload}
-                onCheckout={() => setCheckoutFor(p)}
-              />
+      {(showClosureButton || canRequestPayout) && (
+        <div className="flex flex-wrap gap-2">
+          {showClosureButton &&
+            (closurePending ? (
+              <Button size="sm" variant="outline" disabled>
+                <Flag className="w-3.5 h-3.5 mr-1.5" />
+                Closure requested — in review
+              </Button>
+            ) : (
+              <Button size="sm" variant="outline" onClick={() => setClosureDialog(true)}>
+                <Flag className="w-3.5 h-3.5 mr-1.5" />
+                {latestClosure?.status === "REJECTED" ? "Request closure again" : "Request closure"}
+              </Button>
             ))}
-          </div>
+          {canRequestPayout &&
+            (payoutInFlight ? (
+              <Button size="sm" disabled>
+                <Banknote className="w-3.5 h-3.5 mr-1.5" />
+                Payout in progress
+              </Button>
+            ) : (
+              <Button size="sm" onClick={() => setPayoutDialog(true)}>
+                <Banknote className="w-3.5 h-3.5 mr-1.5" />
+                Request payout
+              </Button>
+            ))}
         </div>
       )}
+      {canRequestPayout && !payoutInFlight && campaignStatus === "COMPLETED" && (
+        <p className="text-[11px] text-muted-foreground -mt-2">
+          Closure is approved — request the remaining balance
+          {suggestedAmount ? ` (${formatTZSFull(suggestedAmount)})` : ""} as a payout.
+        </p>
+      )}
 
-      {canRequest && !hasInFlight && <RequestPayoutForm campaignId={campaignId} onSubmitted={reload} />}
-      {!canRequest && payouts.length === 0 && (
+      {closures.length > 0 && (
+        <ClosureHistoryCard
+          closures={closures}
+          campaignId={campaignId}
+          canReview={canReviewClosure}
+          onChanged={reload}
+        />
+      )}
+
+      {payouts.length > 0 ? (
+        <PayoutTable
+          payouts={payouts}
+          isAdmin={isAdmin}
+          canRequestPayout={canRequestPayout}
+          canCheckout={canCheckout}
+          expandedId={expandedId}
+          onToggleExpand={(pid) => setExpandedId((cur) => (cur === pid ? null : pid))}
+          onChanged={reload}
+          onCheckout={setCheckoutFor}
+        />
+      ) : (
         <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
           No payout requests yet.
         </div>
@@ -2765,13 +2740,147 @@ function PayoutRequestTab({
           }}
         />
       )}
+      {payoutDialog && (
+        <RequestPayoutDialog
+          campaignId={campaignId}
+          suggestedAmount={suggestedAmount}
+          onClose={() => setPayoutDialog(false)}
+          onSubmitted={() => {
+            setPayoutDialog(false);
+            reload();
+          }}
+        />
+      )}
+      {closureDialog && (
+        <RequestClosureDialog
+          campaignId={campaignId}
+          rejected={latestClosure?.status === "REJECTED"}
+          onClose={() => setClosureDialog(false)}
+          onSubmitted={() => {
+            setClosureDialog(false);
+            reload();
+          }}
+        />
+      )}
     </div>
   );
 }
 
-/** One payout request: status, amount, reason, proof, the approval timeline, and
- *  — once it clears both approvals — the checkout step / submitted destination. */
-function PayoutActivityCard({
+// ─── Payout table ────────────────────────────────────────────────────────────
+
+function PayoutTable({
+  payouts,
+  isAdmin,
+  canRequestPayout,
+  canCheckout,
+  expandedId,
+  onToggleExpand,
+  onChanged,
+  onCheckout,
+}: {
+  payouts: PayoutRecord[];
+  isAdmin: boolean;
+  canRequestPayout: boolean;
+  canCheckout: boolean;
+  expandedId: number | null;
+  onToggleExpand: (payoutId: number) => void;
+  onChanged: () => void;
+  onCheckout: (p: PayoutRecord) => void;
+}) {
+  return (
+    <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
+      <div className="px-5 py-4 border-b border-border">
+        <h2 className="text-sm font-semibold text-foreground">Payout activity</h2>
+        <p className="text-[11px] text-muted-foreground mt-0.5">
+          Every payout for this campaign — requested, reviewed, approved or
+          rejected, and where the money was sent. One payout runs at a time.
+        </p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[560px]">
+          <thead>
+            <tr className="border-b border-border bg-muted/40 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+              <th className="text-left px-4 py-3">Requested</th>
+              <th className="text-right px-3 py-3">Amount</th>
+              <th className="text-left px-3 py-3 hidden sm:table-cell">Reason</th>
+              <th className="text-left px-3 py-3">Status</th>
+              <th className="w-10 px-3 py-3" />
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {payouts.map((p) => {
+              const expanded = expandedId === p.id;
+              return (
+                <Fragment key={p.id}>
+                  <tr
+                    className="hover:bg-muted/30 transition-colors cursor-pointer"
+                    onClick={() => onToggleExpand(p.id)}
+                  >
+                    <td className="px-4 py-3 whitespace-nowrap text-xs text-muted-foreground">
+                      {new Date(p.createdAt).toLocaleDateString()}
+                    </td>
+                    <td className="px-3 py-3 text-right font-semibold text-foreground tabular-nums whitespace-nowrap">
+                      {formatTZSFull(p.amount)}
+                    </td>
+                    <td className="px-3 py-3 hidden sm:table-cell max-w-[240px]">
+                      <p
+                        className="truncate text-xs text-muted-foreground"
+                        title={p.reason ?? undefined}
+                      >
+                        {p.reason || "—"}
+                      </p>
+                    </td>
+                    <td className="px-3 py-3">
+                      <span
+                        className={cn(
+                          "inline-flex text-[10px] font-medium border rounded-full px-2 py-0.5 whitespace-nowrap",
+                          REQUEST_STATUS_BADGE[p.status]
+                        )}
+                      >
+                        {PAYOUT_STATUS_LABEL[p.status] ?? p.status}
+                      </span>
+                      {p.status === "AWAITING_CHECKOUT" && canCheckout && (
+                        <span className="ml-1.5 text-[10px] font-medium text-amber-700">
+                          • action needed
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-3 py-3 text-right">
+                      <ChevronDown
+                        className={cn(
+                          "w-4 h-4 text-muted-foreground transition-transform inline-block",
+                          expanded && "rotate-180"
+                        )}
+                      />
+                    </td>
+                  </tr>
+                  {expanded && (
+                    <tr className="bg-muted/20">
+                      <td colSpan={5} className="px-4 py-4">
+                        <PayoutRowDetail
+                          payout={p}
+                          isAdmin={isAdmin}
+                          canRequest={canRequestPayout}
+                          canCheckout={canCheckout}
+                          onChanged={onChanged}
+                          onCheckout={() => onCheckout(p)}
+                        />
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/** Expanded detail for one payout row — proof, checkout, destination, decision,
+ *  and the full approval timeline. */
+function PayoutRowDetail({
   payout: p,
   isAdmin,
   canRequest,
@@ -2786,36 +2895,27 @@ function PayoutActivityCard({
   onChanged: () => void;
   onCheckout: () => void;
 }) {
-  const [showTimeline, setShowTimeline] = useState(false);
   const [timeline, setTimeline] = useState<ReviewTrailEntry[] | null>(null);
   const [timelineError, setTimelineError] = useState<string | null>(null);
 
-  const toggleTimeline = async () => {
-    const next = !showTimeline;
-    setShowTimeline(next);
-    if (next && timeline === null && !timelineError) {
-      try {
-        setTimeline(await payoutApi.history(p.id));
-      } catch (e) {
-        setTimelineError(e instanceof Error ? e.message : "Failed to load the activity.");
-      }
-    }
-  };
+  useEffect(() => {
+    let cancelled = false;
+    payoutApi
+      .history(p.id)
+      .then((r) => {
+        if (!cancelled) setTimeline(r);
+      })
+      .catch((e) => {
+        if (!cancelled)
+          setTimelineError(e instanceof Error ? e.message : "Failed to load the activity.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [p.id]);
 
   return (
-    <div className="p-5 space-y-3">
-      <div className="flex items-center justify-between gap-3">
-        <span
-          className={cn(
-            "text-[10px] font-medium border rounded-full px-2.5 py-1",
-            REQUEST_STATUS_BADGE[p.status]
-          )}
-        >
-          {PAYOUT_STATUS_LABEL[p.status] ?? p.status}
-        </span>
-        <span className="text-sm font-semibold text-foreground">{formatTZSFull(p.amount)}</span>
-      </div>
-
+    <div className="space-y-3">
       {p.reason && <p className="text-sm text-muted-foreground leading-relaxed">{p.reason}</p>}
       {p.notes && (
         <p className="text-[11px] text-muted-foreground">Reviewer / admin note: &quot;{p.notes}&quot;</p>
@@ -2828,11 +2928,6 @@ function PayoutActivityCard({
         onChanged={onChanged}
       />
 
-      <p className="text-[11px] text-muted-foreground">
-        Requested {new Date(p.createdAt).toLocaleDateString()}
-      </p>
-
-      {/* Checkout: prompt + button while awaiting details */}
       {p.status === "AWAITING_CHECKOUT" && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 space-y-2">
           <p className="text-xs text-amber-800">
@@ -2852,7 +2947,6 @@ function PayoutActivityCard({
         </div>
       )}
 
-      {/* Submitted destination (approved / paid) */}
       {p.disbursement && <PayoutDestinationSummary disbursement={p.disbursement} />}
 
       {p.status === "PAID" && (
@@ -2864,28 +2958,66 @@ function PayoutActivityCard({
 
       {isAdmin && p.status === "REQUESTED" && <DecidePayoutForm payoutId={p.id} onDone={onChanged} />}
 
-      {/* Activity timeline */}
       <div>
-        <button
-          onClick={toggleTimeline}
-          className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ChevronDown
-            className={cn("w-3.5 h-3.5 transition-transform", showTimeline && "rotate-180")}
-          />
-          {showTimeline ? "Hide activity" : "View activity"}
-        </button>
-        {showTimeline && (
-          <div className="pt-3">
-            {timelineError ? (
-              <p className="text-[11px] text-destructive">{timelineError}</p>
-            ) : timeline === null ? (
-              <div className="h-24 bg-muted/40 rounded-lg animate-pulse" />
-            ) : (
-              <ReviewTimeline entries={timeline} />
+        <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+          Activity
+        </p>
+        {timelineError ? (
+          <p className="text-[11px] text-destructive">{timelineError}</p>
+        ) : timeline === null ? (
+          <div className="h-24 bg-muted/40 rounded-lg animate-pulse" />
+        ) : (
+          <ReviewTimeline entries={timeline} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Closure request history + review actions, shown inside the Payout tab. */
+function ClosureHistoryCard({
+  closures,
+  campaignId,
+  canReview,
+  onChanged,
+}: {
+  closures: ClosureRequest[];
+  campaignId: string;
+  canReview: boolean;
+  onChanged: () => void;
+}) {
+  return (
+    <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
+      <div className="px-5 py-4 border-b border-border">
+        <h2 className="text-sm font-semibold text-foreground">Closure requests</h2>
+      </div>
+      <div className="divide-y divide-border">
+        {closures.map((r) => (
+          <div key={r.id} className="p-5 space-y-2">
+            <div className="flex items-center justify-between">
+              <span
+                className={cn(
+                  "text-[10px] font-medium border rounded-full px-2.5 py-1",
+                  REQUEST_STATUS_BADGE[r.status]
+                )}
+              >
+                {r.status}
+              </span>
+              <span className="text-[11px] text-muted-foreground">
+                {new Date(r.requestedAt).toLocaleDateString()}
+              </span>
+            </div>
+            <p className="text-sm text-muted-foreground leading-relaxed">{r.reason}</p>
+            {r.decisionNotes && (
+              <p className="text-[11px] text-muted-foreground">
+                Admin note: &quot;{r.decisionNotes}&quot;
+              </p>
+            )}
+            {canReview && r.status === "PENDING" && (
+              <DecideClosureForm campaignId={campaignId} requestId={r.id} onDone={onChanged} />
             )}
           </div>
-        )}
+        ))}
       </div>
     </div>
   );
@@ -3128,15 +3260,21 @@ function PayoutCheckoutDialog({
 const MAX_PROOF_IMAGES = 5;
 const PROOF_ACCEPT = "image/jpeg,image/png,image/webp";
 
-function RequestPayoutForm({
+function RequestPayoutDialog({
   campaignId,
+  suggestedAmount,
+  onClose,
   onSubmitted,
 }: {
   campaignId: string;
+  suggestedAmount?: number;
+  onClose: () => void;
   onSubmitted: () => void;
 }) {
-  const [amount, setAmount] = useState("");
-  const [reason, setReason] = useState("");
+  const [amount, setAmount] = useState(suggestedAmount ? String(suggestedAmount) : "");
+  const [reason, setReason] = useState(
+    suggestedAmount ? "Final payout — remaining balance after campaign closure." : ""
+  );
   const [files, setFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -3170,13 +3308,10 @@ function RequestPayoutForm({
         } catch (e) {
           setError(
             (e instanceof Error ? e.message : "The request was submitted, but the proof photos failed to upload.") +
-              " You can add them from the request below."
+              " You can add them from the payout row."
           );
         }
       }
-      setAmount("");
-      setReason("");
-      setFiles([]);
       onSubmitted();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to submit the payout request.");
@@ -3186,91 +3321,110 @@ function RequestPayoutForm({
   };
 
   return (
-    <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
-      <div className="px-5 py-4 border-b border-border">
-        <p className="text-sm font-medium text-foreground">Request a payout</p>
-        <p className="text-xs text-muted-foreground">
-          An admin will review your reason and approve or deny it.
-        </p>
-      </div>
-      <div className="p-5 space-y-4">
-        <div className="grid gap-1.5">
-          <Label className="text-xs">Amount (TZS)</Label>
-          <Input
-            type="number"
-            min={1}
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            placeholder="e.g. 1500000"
-            className="h-9"
-          />
-        </div>
-        <div className="grid gap-1.5">
-          <Label className="text-xs">Reason</Label>
-          <Textarea
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            placeholder="What is this payout for?"
-            className="min-h-20"
-          />
-        </div>
-        <div className="grid gap-1.5">
-          <Label className="text-xs">
-            Proof of use <span className="font-normal text-muted-foreground">(optional)</span>
-          </Label>
-          <p className="text-[11px] text-muted-foreground">
-            Attach invoices, receipts or photos that show why this payout is needed — up to{" "}
-            {MAX_PROOF_IMAGES} images. The reviewer and admin will see them.
-          </p>
-          {files.length > 0 && (
-            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 pt-1">
-              {previews.map((url, idx) => (
-                <div
-                  key={url}
-                  className="relative group aspect-square rounded-lg overflow-hidden border border-border"
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={url} alt="Proof preview" className="w-full h-full object-cover" />
-                  <button
-                    type="button"
-                    onClick={() => removeFile(idx)}
-                    className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                    aria-label="Remove image"
+    <Dialog open onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-base font-semibold">Request a payout</DialogTitle>
+          <DialogDescription className="text-xs">
+            A reviewer then an admin approve your reason. You then add the payout
+            destination before a super admin sends the money.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="grid gap-1.5">
+            <Label className="text-xs">Amount (TZS)</Label>
+            <Input
+              type="number"
+              min={1}
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="e.g. 1500000"
+              className="h-9"
+            />
+            {suggestedAmount != null && (
+              <button
+                type="button"
+                onClick={() => setAmount(String(suggestedAmount))}
+                className="text-[11px] text-primary hover:underline w-fit"
+              >
+                Use remaining balance — {formatTZSFull(suggestedAmount)}
+              </button>
+            )}
+          </div>
+          <div className="grid gap-1.5">
+            <Label className="text-xs">Reason</Label>
+            <Textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="What is this payout for?"
+              className="min-h-20"
+            />
+          </div>
+          <div className="grid gap-1.5">
+            <Label className="text-xs">
+              Proof of use <span className="font-normal text-muted-foreground">(optional)</span>
+            </Label>
+            <p className="text-[11px] text-muted-foreground">
+              Attach invoices, receipts or photos that show why this payout is needed — up to{" "}
+              {MAX_PROOF_IMAGES} images. The reviewer and admin will see them.
+            </p>
+            {files.length > 0 && (
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 pt-1">
+                {previews.map((url, idx) => (
+                  <div
+                    key={url}
+                    className="relative group aspect-square rounded-lg overflow-hidden border border-border"
                   >
-                    <XCircle className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              ))}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={url} alt="Proof preview" className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => removeFile(idx)}
+                      className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      aria-label="Remove image"
+                    >
+                      <XCircle className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {files.length < MAX_PROOF_IMAGES && (
+              <label className="inline-flex w-fit items-center gap-1.5 text-xs text-primary cursor-pointer hover:underline">
+                <ImageIcon className="w-3.5 h-3.5" />
+                {files.length > 0 ? "Add another image" : "Add images"}
+                <input
+                  type="file"
+                  accept={PROOF_ACCEPT}
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    addFiles(e.target.files);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            )}
+          </div>
+          {error && (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+              {error}
             </div>
           )}
-          {files.length < MAX_PROOF_IMAGES && (
-            <label className="inline-flex w-fit items-center gap-1.5 text-xs text-primary cursor-pointer hover:underline">
-              <ImageIcon className="w-3.5 h-3.5" />
-              {files.length > 0 ? "Add another image" : "Add images"}
-              <input
-                type="file"
-                accept={PROOF_ACCEPT}
-                multiple
-                className="hidden"
-                onChange={(e) => {
-                  addFiles(e.target.files);
-                  e.target.value = "";
-                }}
-              />
-            </label>
-          )}
         </div>
-        {error && (
-          <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-            {error}
-          </div>
-        )}
-        <Button size="sm" onClick={submit} disabled={submitting}>
-          {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : null}
-          Request payout
-        </Button>
-      </div>
-    </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button onClick={submit} disabled={submitting}>
+            {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : null}
+            Request payout
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

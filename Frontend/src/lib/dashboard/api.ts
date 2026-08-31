@@ -229,7 +229,7 @@ export interface CampaignRecord {
   /** A payout for this campaign is already in progress (not yet PAID or REJECTED). */
   openPayoutRequest?: {
     id: number;
-    status: "REQUESTED" | "REVIEWED" | "AWAITING_CHECKOUT" | "APPROVED";
+    status: "REQUESTED" | "REVIEWED" | "APPROVED";
     amount: number;
     requestedBy: number | null;
   } | null;
@@ -1034,21 +1034,23 @@ export interface PayoutRecord {
   amount: number;
   reason: string | null;
   /**
-   * REQUESTED -> REVIEWED (reviewer) -> AWAITING_CHECKOUT (org admin) ->
-   * APPROVED (requester submits payout destination) -> PAID (super admin).
+   * REQUESTED -> REVIEWED (reviewer) -> APPROVED (org admin; funds on hold) ->
+   * PAID (the requesting manager confirms, which fires the gateway transfer).
    */
-  status: "REQUESTED" | "REVIEWED" | "AWAITING_CHECKOUT" | "APPROVED" | "PAID" | "REJECTED";
+  status: "REQUESTED" | "REVIEWED" | "APPROVED" | "PAID" | "REJECTED";
   notes: string | null;
   requestedBy: number | null;
   firstApprovedBy: number | null;
   firstApprovedAt: string | null;
   approvedBy: number | null;
   approvedAt: string | null;
+  confirmedBy: number | null;
+  confirmedAt: string | null;
   paidAt: string | null;
   gatewayRef: string | null;
   /** Optional "proof of use" photos the manager attached to the request. */
   proofImages: { id: number; url: string }[];
-  /** Payout destination submitted at "checkout" — null until the requester fills it in. */
+  /** Mobile-money payout destination, captured with the request. */
   disbursement: PayoutDisbursement | null;
   createdAt: string;
   updatedAt: string;
@@ -1071,15 +1073,15 @@ export interface PayoutDisbursement {
   submittedBy: number | null;
 }
 
-/** Payload for payoutApi.submitCheckout. */
-export interface PayoutCheckoutInput {
-  method: PayoutMethod;
+/** Payload for payoutApi.create — amount + reason + mobile-money destination. */
+export interface PayoutCreateInput {
+  amount: number;
+  campaignId: string | number;
+  reason: string;
+  notes?: string;
+  provider: string;
+  phone: string;
   accountName: string;
-  provider?: string;
-  phone?: string;
-  bankName?: string;
-  accountNumber?: string;
-  branch?: string;
 }
 
 export const payoutApi = {
@@ -1091,13 +1093,16 @@ export const payoutApi = {
       .then(unwrap),
   get: (id: string | number) =>
     api.get<{ success: boolean; data: PayoutRecord }>(`/payouts/${id}`).then(unwrap),
-  /** Full chronological trail — requested / reviewed / approved / rejected / paid, with reasons. */
+  /** Full chronological trail — requested / reviewed / approved / released, with reasons. */
   history: (id: string | number) =>
     api
       .get<{ success: boolean; data: ReviewTrailEntry[] }>(`/payouts/${id}/history`)
       .then(unwrap),
-  /** Every payout is tied to a campaign, with a reason. */
-  create: (body: { amount: number; campaignId: string | number; reason: string; notes?: string }) =>
+  /**
+   * Request a payout — tied to a campaign, with a reason and the mobile-money
+   * destination. Attach "proof of use" photos afterwards with attachProof().
+   */
+  create: (body: PayoutCreateInput) =>
     api.post<{ success: boolean; data: PayoutRecord }>(`/payouts`, body).then(unwrap),
   /** Attach up to 5 "proof of use" photos to your own request (while it's still in review). */
   attachProof: (id: string | number, files: File[]) => {
@@ -1115,13 +1120,12 @@ export const payoutApi = {
     api.post<{ success: boolean; data: PayoutRecord }>(`/payouts/${id}/approve`, { notes }).then(unwrap),
   reject: (id: string | number, notes?: string) =>
     api.post<{ success: boolean; data: PayoutRecord }>(`/payouts/${id}/reject`, { notes }).then(unwrap),
-  /** Submit the payout destination once approved (AWAITING_CHECKOUT -> APPROVED). */
-  submitCheckout: (id: string | number, body: PayoutCheckoutInput) =>
-    api.post<{ success: boolean; data: PayoutRecord }>(`/payouts/${id}/checkout`, body).then(unwrap),
-  markPaid: (
-    id: string | number,
-    body: { gatewayRef?: string; notes?: string; phoneNumber?: string }
-  ) => api.post<{ success: boolean; data: PayoutRecord }>(`/payouts/${id}/paid`, body).then(unwrap),
+  /**
+   * The requesting campaign manager confirms an APPROVED payout — this fires the
+   * ClickPesa transfer and moves it to PAID. APPROVED -> PAID.
+   */
+  confirm: (id: string | number, notes?: string) =>
+    api.post<{ success: boolean; data: PayoutRecord }>(`/payouts/${id}/confirm`, { notes }).then(unwrap),
 };
 
 // ─── Approvals workspace ─────────────────────────────────────────────────────

@@ -1201,11 +1201,16 @@ column contracts.
 
 ---
 
-## 12. Payouts `[TO BUILD]`
+## 12. Payouts `[IMPLEMENTED — see API_REFERENCE.md]`
 
-> **Backed by frontend pages:** `/dashboard/payouts` (available to `SUPER_ADMIN` / `ORG_ADMIN` only).
-
-Org admins request withdrawals; the system/super-admin approves and reconciles them. Managers **never** access payouts.
+> This section is historical/aspirational and no longer matches the shipped
+> payout module. The current contract is in **`API_REFERENCE.md` → "Payout
+> lifecycle, destination & release"**: a `CAMPAIGN_MANAGER` requests a payout for
+> one campaign (amount + reason + optional proof photos + mobile-money
+> provider/phone/accountName), it clears `REVIEWER` then `ORG_ADMIN` approval,
+> and the requesting manager then confirms the release — which atomically runs
+> the ClickPesa mobile-money transfer (`REQUESTED → REVIEWED → APPROVED → PAID`).
+> One in-flight payout per campaign. The rest of this section is outdated.
 
 ### `GET /payouts` — list payout requests
 

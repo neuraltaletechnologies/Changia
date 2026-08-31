@@ -993,10 +993,9 @@ async function loadOpenChangeRequests(campaignIds) {
 
 /**
  * { [campaignId]: { id, status, amount, requestedBy } } — the newest payout
- * still in progress (REQUESTED/REVIEWED/AWAITING_CHECKOUT/APPROVED — i.e. not
- * yet PAID or REJECTED) per campaign. Lets the campaigns list flag "a payout is
- * already in progress" instead of offering the action and having createPayout
- * reject it.
+ * still in progress (REQUESTED/REVIEWED/APPROVED — i.e. not yet PAID or
+ * REJECTED) per campaign. Lets the campaigns list flag "a payout is already in
+ * progress" instead of offering the action and having createPayout reject it.
  */
 async function loadOpenPayoutRequests(campaignIds) {
   if (!campaignIds || campaignIds.length === 0) return {};
@@ -1004,7 +1003,7 @@ async function loadOpenPayoutRequests(campaignIds) {
     `SELECT campaign_id, id, status, amount, requested_by_id
        FROM payouts
       WHERE campaign_id IN (?)
-        AND status IN ('REQUESTED','REVIEWED','AWAITING_CHECKOUT','APPROVED')
+        AND status IN ('REQUESTED','REVIEWED','APPROVED')
       ORDER BY id DESC`,
     [campaignIds]
   );

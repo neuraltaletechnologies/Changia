@@ -21,14 +21,22 @@ USE changia;
 SET FOREIGN_KEY_CHECKS = 0;
 DROP TABLE IF EXISTS password_reset_tokens;
 DROP TABLE IF EXISTS notifications;
+DROP TABLE IF EXISTS reminder_pending_batches;
+DROP TABLE IF EXISTS reminder_schedules;
+DROP TABLE IF EXISTS message_templates;
 DROP TABLE IF EXISTS campaign_gifts;
 DROP TABLE IF EXISTS campaign_change_requests;
+DROP TABLE IF EXISTS campaign_closure_requests;
+DROP TABLE IF EXISTS campaign_completion_report_images;
+DROP TABLE IF EXISTS campaign_completion_reports;
+DROP TABLE IF EXISTS campaign_images;
 DROP TABLE IF EXISTS campaign_donor_targets;
 DROP TABLE IF EXISTS organization_settings;
 DROP TABLE IF EXISTS donor_pool_members;
 DROP TABLE IF EXISTS donor_pools;
 DROP TABLE IF EXISTS donor_payment_methods;
 DROP TABLE IF EXISTS audit_logs;
+DROP TABLE IF EXISTS payout_images;
 DROP TABLE IF EXISTS payouts;
 DROP TABLE IF EXISTS receipts;
 DROP TABLE IF EXISTS donations;
@@ -652,23 +660,25 @@ CREATE TABLE payouts (
   campaign_id     BIGINT UNSIGNED NULL,
   amount          DECIMAL(14,0) NOT NULL,
   reason          TEXT NULL,
-  -- Approval + disbursement chain (mirrors two-stage campaign approval):
-  --   REQUESTED -> REVIEWED          (stage 1 — a REVIEWER/SUPER_ADMIN, not the requester)
-  --             -> AWAITING_CHECKOUT (stage 2 — an ORG_ADMIN/SUPER_ADMIN, a different person, not the requester)
-  --             -> APPROVED          (the requester or an ORG_ADMIN submits the payout destination — "checkout")
-  --             -> PAID              (SUPER_ADMIN confirms the gateway transfer)
-  status          ENUM('REQUESTED','REVIEWED','AWAITING_CHECKOUT','APPROVED','PAID','REJECTED') NOT NULL DEFAULT 'REQUESTED',
+  -- Approval + release chain (mirrors two-stage campaign approval):
+  --   REQUESTED -> REVIEWED  (stage 1 — a REVIEWER/SUPER_ADMIN, not the requester)
+  --             -> APPROVED  (stage 2 — an ORG_ADMIN/SUPER_ADMIN, a different person;
+  --                           funds now sit on hold)
+  --             -> PAID      (the requesting CAMPAIGN_MANAGER confirms the release,
+  --                           which atomically fires the ClickPesa mobile-money transfer)
+  status          ENUM('REQUESTED','REVIEWED','APPROVED','PAID','REJECTED') NOT NULL DEFAULT 'REQUESTED',
   requested_by_id BIGINT UNSIGNED NULL,
   first_approved_by_id BIGINT UNSIGNED NULL,
   first_approved_at    DATETIME NULL,
   approved_by_id  BIGINT UNSIGNED NULL,
   approved_at     DATETIME NULL,
+  confirmed_by_id BIGINT UNSIGNED NULL,
+  confirmed_at    DATETIME NULL,
   paid_at         DATETIME NULL,
   gateway_ref     VARCHAR(255) NULL,
   notes           TEXT NULL,
-  -- Payout destination ("checkout") the requester / an ORG_ADMIN fills in once the
-  -- request clears both approvals. Mobile money uses provider + phone; bank uses
-  -- bank_name + account_number (+ optional branch). account_name applies to both.
+  -- Mobile-money payout destination, captured with the request. (Bank columns
+  -- are kept for history / a future bank option but are not populated today.)
   disbursement_method          ENUM('MOBILE_MONEY','BANK') NULL,
   disbursement_provider        VARCHAR(40) NULL,
   disbursement_account_name    VARCHAR(120) NULL,
@@ -684,6 +694,7 @@ CREATE TABLE payouts (
   CONSTRAINT fk_payouts_campaign FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE SET NULL,
   CONSTRAINT fk_payouts_first_approver FOREIGN KEY (first_approved_by_id) REFERENCES users(id) ON DELETE SET NULL,
   CONSTRAINT fk_payouts_checkout_by FOREIGN KEY (disbursement_submitted_by_id) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_payouts_confirmed_by FOREIGN KEY (confirmed_by_id) REFERENCES users(id) ON DELETE SET NULL,
   INDEX idx_payouts_campaign_status (campaign_id, status)
 ) ENGINE=InnoDB;
 
@@ -764,9 +775,14 @@ CREATE TABLE password_reset_tokens (
 -- =============================================================================
 -- DEMO DATA
 -- All demo accounts use the password: Changia@2026
+--
+-- Only the login accounts are seeded — no demo campaigns, donors, pools,
+-- donations, payouts, messages or audit history. A fresh import starts empty
+-- and everything is created through the app.
 -- =============================================================================
 
--- Super admin (platform owner)
+-- The demo campaign manager's organization (CAMPAIGN_MANAGER is the only
+-- org-scoped role — see the users table comment).
 INSERT INTO organizations (name, slug, email, phone, description) VALUES
   ('Dr. Msuya Foundation', 'dr-msuya-foundation', 'info@msuya-foundation.org.tz', '255712000000',
    'Children surgery fund — demo organization for Changia.');
@@ -781,153 +797,7 @@ INSERT INTO users (organization_id, first_name, last_name, email, phone, passwor
    '$2b$12$YBiH.YibjVq/6ydw/Pa97eEG/HbjPVWH.a2Am4NvHTPGkhBW8xVbW', 'ORG_ADMIN', 'ACTIVE'),
   (1, 'Baraka', 'Mushi', 'manager@msuya-foundation.org.tz', '255713000002',
    '$2b$12$YBiH.YibjVq/6ydw/Pa97eEG/HbjPVWH.a2Am4NvHTPGkhBW8xVbW', 'CAMPAIGN_MANAGER', 'ACTIVE'),
-  -- Platform reviewers (organization_id NULL) — they vet campaigns for every
-  -- org, then an ORG_ADMIN gives the final approval. Two are seeded so the
-  -- "two different approvers" rule is testable end to end.
+  -- Platform reviewer (organization_id NULL) — vets campaigns for every org,
+  -- then an ORG_ADMIN gives the final approval.
   (NULL, 'Zainab', 'Kileo', 'reviewer@msuya-foundation.org.tz', '255713000003',
-   '$2b$12$YBiH.YibjVq/6ydw/Pa97eEG/HbjPVWH.a2Am4NvHTPGkhBW8xVbW', 'REVIEWER', 'ACTIVE'),
-  (NULL, 'Elias', 'Mrema', 'reviewer2@msuya-foundation.org.tz', '255713000004',
    '$2b$12$YBiH.YibjVq/6ydw/Pa97eEG/HbjPVWH.a2Am4NvHTPGkhBW8xVbW', 'REVIEWER', 'ACTIVE');
-
--- Active campaign with 5% service fee (goal 10,000,000 → target 10,500,000)
-INSERT INTO campaigns
-  (organization_id, name, slug, story, goal_amount, service_fee_percent, service_fee_amount, public_target,
-   minimum_amount, status, is_public, start_date, end_date, approved_by, approved_at)
-VALUES
-  (1, 'Children Surgery Fund', 'children-surgery-fund',
-   'Help us raise funds for life-changing surgery for children in need at the Msuya Foundation.',
-   10000000, 5.00, 500000, 10500000, 1000, 'ACTIVE', 1, NOW(), DATE_ADD(NOW(), INTERVAL 90 DAY), 2, NOW());
-
-INSERT INTO campaign_assignments (campaign_id, user_id) VALUES (1, 3);
-
--- Donors
-INSERT INTO donors (organization_id, first_name, last_name, phone, gender, position, status, consent_status, preferred_channel, tags) VALUES
-  (1, 'Neema', 'Lema', '255744000001', 'FEMALE', 'Teacher', 'ACTIVE', 'CONSENTED', 'SMS', JSON_ARRAY('first-time')),
-  (1, 'James', 'Mdoe', '255755000002', 'MALE', 'Engineer', 'ACTIVE', 'CONSENTED', 'SMS', JSON_ARRAY('first-time')),
-  (1, 'Grace', 'Komba', '255767000003', 'FEMALE', 'Nurse', 'PROSPECT', 'PENDING', 'SMS', JSON_ARRAY('first-time')),
-  (1, 'Emmanuel', 'Swai', '255784000004', 'MALE', 'Farmer', 'ACTIVE', 'WITHDRAWN', 'SMS', JSON_ARRAY('first-time'));
-
--- Anomalous pool: holds donors who paid without a registered profile so they
--- can be re-attached to a known donor later.
-INSERT INTO donor_pools (organization_id, created_by_id, name, category, is_system, status) VALUES
-  (1, NULL, 'Anomalous / Unmatched', 'FAMILY', 1, 'ACTIVE');
-
-INSERT INTO donor_pool_members (pool_id, donor_id, expected_amount, added_by_id) VALUES
-  (1, 1, 100000, 3),
-  (1, 2, 100000, 3);
-
-INSERT INTO consents (donor_id, channel, status, source, granted_at) VALUES
-  (1, 'SMS', 'CONSENTED', 'manual', NOW()),
-  (2, 'SMS', 'CONSENTED', 'manual', NOW());
-
--- Confirmed donations (receipts)
-INSERT INTO donations
-  (organization_id, campaign_id, donor_id, amount, method, status, donor_name, receipt_number, confirmed_at, created_at)
-VALUES
-  (1, 1, 1, 50000, 'LINK', 'CONFIRMED', 'Neema Lema', 'CHG-2026-001001', DATE_SUB(NOW(), INTERVAL 12 DAY), DATE_SUB(NOW(), INTERVAL 12 DAY)),
-  (1, 1, 2, 100000, 'LINK', 'CONFIRMED', 'James Mdoe', 'CHG-2026-001002', DATE_SUB(NOW(), INTERVAL 9 DAY), DATE_SUB(NOW(), INTERVAL 9 DAY)),
-  (1, 1, NULL, 20000, 'LINK', 'CONFIRMED', NULL, 'CHG-2026-001003', DATE_SUB(NOW(), INTERVAL 4 DAY), DATE_SUB(NOW(), INTERVAL 4 DAY)),
-  (1, 1, 1, 75000, 'PUSH', 'CONFIRMED', 'Neema Lema', 'CHG-2026-001004', DATE_SUB(NOW(), INTERVAL 2 DAY), DATE_SUB(NOW(), INTERVAL 2 DAY));
-
--- Recompute campaign totals from confirmed donations
-UPDATE campaigns SET
-  raised_amount = (SELECT COALESCE(SUM(amount),0) FROM donations WHERE campaign_id = 1 AND status = 'CONFIRMED'),
-  donor_count   = (SELECT COUNT(*) FROM donations WHERE campaign_id = 1 AND status = 'CONFIRMED')
-WHERE id = 1;
-
--- More public, active demo campaigns so the marketing site (featured homepage
--- picks + the public /campaigns listing) has real data to show out of the box.
--- raised_amount / donor_count are seeded directly here for demo purposes only
--- — in normal operation they're only ever updated by a confirmed donation.
-INSERT INTO campaigns
-  (organization_id, name, slug, story, category, goal_amount, service_fee_percent, service_fee_amount, public_target,
-   minimum_amount, status, is_public, contact_phone, raised_amount, donor_count, start_date, end_date, approved_by, approved_at)
-VALUES
-  (1, 'School Fees for Twins', 'school-fees-for-twins',
-   'Grace and Faith are twin sisters who both passed their Form One exams but their family cannot cover this year''s school fees and uniforms. Help keep them in class.',
-   'Education', 1500000, 5.00, 75000, 1575000, 1000, 'ACTIVE', 1, '255715000010', 640000, 18,
-   DATE_SUB(NOW(), INTERVAL 20 DAY), DATE_ADD(NOW(), INTERVAL 40 DAY), 2, DATE_SUB(NOW(), INTERVAL 20 DAY)),
-  (1, 'Community Borehole Project', 'community-borehole-project',
-   'Kigamboni ward shares one working well between six hundred households. A second borehole would cut the walk for clean water from two hours to twenty minutes.',
-   'Community', 8000000, 5.00, 400000, 8400000, 2000, 'ACTIVE', 1, '255715000011', 3120000, 54,
-   DATE_SUB(NOW(), INTERVAL 35 DAY), DATE_ADD(NOW(), INTERVAL 55 DAY), 2, DATE_SUB(NOW(), INTERVAL 35 DAY)),
-  (1, 'Widows Relief Fund', 'widows-relief-fund',
-   'A standing fund that delivers monthly food and medical support to twelve widows in the Msuya Foundation''s care network.',
-   'Welfare', 4000000, 5.00, 200000, 4200000, 1000, 'ACTIVE', 1, '255715000012', 980000, 26,
-   DATE_SUB(NOW(), INTERVAL 60 DAY), DATE_ADD(NOW(), INTERVAL 120 DAY), 2, DATE_SUB(NOW(), INTERVAL 60 DAY)),
-  (1, 'Youth Football Academy Kits', 'youth-football-academy-kits',
-   'Thirty players from the Temeke youth league need boots, jerseys and a proper ball set to compete in this season''s regional tournament.',
-   'Sports', 2200000, 5.00, 110000, 2310000, 1000, 'ACTIVE', 1, '255715000013', 705000, 21,
-   DATE_SUB(NOW(), INTERVAL 15 DAY), DATE_ADD(NOW(), INTERVAL 30 DAY), 2, DATE_SUB(NOW(), INTERVAL 15 DAY)),
-  (1, 'Flood Relief - Kilombero', 'flood-relief-kilombero',
-   'Seasonal flooding displaced forty families along the Kilombero river. Funds go directly to emergency shelter, clean water and food.',
-   'Emergency', 6000000, 5.00, 300000, 6300000, 1000, 'ACTIVE', 1, '255715000014', 4450000, 89,
-   DATE_SUB(NOW(), INTERVAL 8 DAY), DATE_ADD(NOW(), INTERVAL 22 DAY), 2, DATE_SUB(NOW(), INTERVAL 8 DAY)),
-  (1, 'Maternal Health Outreach', 'maternal-health-outreach',
-   'Mobile prenatal check-ups and safe-delivery kits for expectant mothers in villages without a nearby clinic.',
-   'Health', 5000000, 5.00, 250000, 5250000, 1000, 'ACTIVE', 1, '255715000015', 1875000, 37,
-   DATE_SUB(NOW(), INTERVAL 25 DAY), DATE_ADD(NOW(), INTERVAL 65 DAY), 2, DATE_SUB(NOW(), INTERVAL 25 DAY)),
-  (1, 'Elder Care Home Renovation', 'elder-care-home-renovation',
-   'The Msuya Foundation''s elder care home needs a new roof and accessible bathrooms before the next rainy season.',
-   'Community', 7500000, 5.00, 375000, 7875000, 2000, 'ACTIVE', 1, '255715000016', 2025000, 31,
-   DATE_SUB(NOW(), INTERVAL 45 DAY), DATE_ADD(NOW(), INTERVAL 45 DAY), 2, DATE_SUB(NOW(), INTERVAL 45 DAY));
-
--- Feature 3 public, active campaigns on the marketing homepage (the platform-
--- wide cap of 3 is enforced by the service layer on every future toggle).
-UPDATE campaigns SET is_featured = 1, featured_at = DATE_SUB(NOW(), INTERVAL 12 DAY) WHERE id = 1;
-UPDATE campaigns SET is_featured = 1, featured_at = DATE_SUB(NOW(), INTERVAL 8 DAY)  WHERE slug = 'school-fees-for-twins';
-UPDATE campaigns SET is_featured = 1, featured_at = DATE_SUB(NOW(), INTERVAL 3 DAY)  WHERE slug = 'community-borehole-project';
-
--- Swahili translations for the 3 featured campaigns, so a fresh import shows
--- the /sw public pages fully localized out of the box. Every other campaign
--- is left untranslated on purpose to demonstrate the English fallback.
-UPDATE campaigns SET
-  name_sw = 'Mfuko wa Upasuaji wa Watoto',
-  story_sw = 'Tusaidie kukusanya fedha kwa upasuaji wa watoto wanaohitaji katika Msuya Foundation.',
-  category_sw = 'Afya'
-WHERE id = 1;
-UPDATE campaigns SET
-  name_sw = 'Ada za Shule kwa Mapacha',
-  story_sw = 'Grace na Faith ni mapacha waliofaulu mtihani wa kidato cha kwanza lakini familia yao haiwezi kulipa ada za mwaka huu na sare za shule. Tusaidie kuwaweka darasani.',
-  category_sw = 'Elimu'
-WHERE slug = 'school-fees-for-twins';
-UPDATE campaigns SET
-  name_sw = 'Mradi wa Kisima cha Jamii',
-  story_sw = 'Kata ya Kigamboni inashiriki kisima kimoja kinachofanya kazi kati ya kaya mia sita. Kisima cha pili kingepunguza muda wa kutembea kufuata maji safi kutoka saa mbili hadi dakika ishirini.',
-  category_sw = 'Jamii'
-WHERE slug = 'community-borehole-project';
-
--- Give the demo campaign manager (Baraka Mushi, id 3) a few more assigned
--- campaigns so the dashboard payment-breakdown pies have more than one to show.
-INSERT INTO campaign_assignments (campaign_id, user_id) VALUES (2, 3), (3, 3);
-
--- Tracked donors with an expected pledge on campaign 1 (donors 1 & 2 have
--- confirmed donations above): donor 1 is PARTIAL, donor 2 has PAID_FULL.
-INSERT INTO campaign_donor_targets
-  (campaign_id, donor_id, expected_amount, actual_amount, payment_status, added_by_id)
-VALUES
-  (1, 1, 200000, 125000, 'PARTIAL',   3),
-  (1, 2, 100000, 100000, 'PAID_FULL', 3);
-
--- In-kind gifts (estimated TZS value) — not every contribution is money.
-INSERT INTO campaign_gifts
-  (campaign_id, organization_id, donor_id, description, estimated_value, received_at, recorded_by_id)
-VALUES
-  (1, 1, 1,    'Two boxes of paediatric medical supplies', 180000, DATE_SUB(NOW(), INTERVAL 6 DAY), 3),
-  (1, 1, NULL, 'Volunteer transport for three hospital trips', 90000, DATE_SUB(NOW(), INTERVAL 3 DAY), 3),
-  (2, 1, 2,    '20 school desks donated by a local carpenter', 600000, DATE_SUB(NOW(), INTERVAL 10 DAY), 3);
-
--- A gift pledged from the public campaign page (donor asked the team to collect
--- it) — awaiting the campaign manager to schedule a pickup.
-INSERT INTO campaign_gifts
-  (campaign_id, organization_id, description, estimated_value, source, status,
-   delivery_method, donor_name, donor_phone, pickup_address, preferred_date, note)
-VALUES
-  (1, 1, 'Five cartons of bottled water and rehydration salts', 150000, 'PUBLIC', 'PLEDGED',
-   'PICKUP', 'Neema Kimaro', '255754112233', 'Plot 44, Mikocheni B, Dar es Salaam',
-   DATE_ADD(CURDATE(), INTERVAL 5 DAY), 'Available on weekday afternoons after 2pm.');
-
--- Initial audit trail
-INSERT INTO audit_logs (organization_id, actor_id, actor_email, action, resource, resource_id, severity) VALUES
-  (1, 2, 'admin@changia.org.tz', 'organization.registered', 'organization', '1', 'INFO'),
-  (1, 2, 'admin@changia.org.tz', 'campaign.approved', 'campaign', '1', 'INFO');

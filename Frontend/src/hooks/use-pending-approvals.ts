@@ -94,8 +94,6 @@ export function usePendingApprovalCount(): number {
               String(p.requestedBy ?? "") !== uid
             )
               return true;
-            // SUPER_ADMIN still owes the final "mark as paid" step.
-            if (isSuperAdmin && p.status === "APPROVED") return true;
             return false;
           }).length;
 

@@ -208,8 +208,8 @@ export default function DashboardPage() {
   const canApproveCampaigns = hasPermission("campaign:approve");
 
   // Payout requests waiting on THIS user's stage of the two-stage chain —
-  // stage 1 for a reviewer, stage 2 for an org admin, plus the final "mark as
-  // paid" step for a super admin. Mirrors the Approvals page / sidebar badge.
+  // stage 1 for a reviewer, stage 2 for an org admin. (The release itself is the
+  // requesting manager's to confirm.) Mirrors the Approvals page / sidebar badge.
   const payoutUid = sessionUser ? String(sessionUser.id) : null;
   const pendingPayoutCount = payouts.filter((p) => {
     if (
@@ -225,7 +225,6 @@ export default function DashboardPage() {
       String(p.requestedBy ?? "") !== payoutUid
     )
       return true;
-    if (role === ROLE.SUPER_ADMIN && p.status === "APPROVED") return true;
     return false;
   }).length;
   const canAddDonors = hasPermission("donor:add");

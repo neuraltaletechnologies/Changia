@@ -3,22 +3,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  HandCoins,
-  Loader2,
-  Wallet,
   RefreshCw,
   History,
   ArrowLeft,
 } from "lucide-react";
 import { Button } from "@/components/dashboard/ui/button";
-import { Input } from "@/components/dashboard/ui/input";
-import { Textarea } from "@/components/dashboard/ui/textarea";
-import { Label } from "@/components/dashboard/ui/label";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/dashboard/ui/dialog";
@@ -28,7 +21,6 @@ import {
   type PayoutRecord,
   type ReviewTrailEntry,
 } from "@/lib/dashboard/api";
-import { useRole } from "@/hooks/use-role";
 import { cn } from "@/lib/dashboard/utils";
 import { ReviewTimeline } from "@/components/dashboard/widgets/review-timeline";
 import { ExportMenu } from "@/components/dashboard/export-menu";
@@ -41,16 +33,14 @@ import {
 const STATUS_META: Record<PayoutRecord["status"], { label: string; styles: string }> = {
   REQUESTED: { label: "In first review", styles: "bg-orange-50 text-orange-700 border-orange-200" },
   REVIEWED: { label: "Awaiting final approval", styles: "bg-violet-50 text-violet-700 border-violet-200" },
-  AWAITING_CHECKOUT: { label: "Awaiting payout details", styles: "bg-amber-50 text-amber-700 border-amber-200" },
-  APPROVED: { label: "Ready to be paid", styles: "bg-sky-50 text-sky-700 border-sky-200" },
-  PAID: { label: "Paid", styles: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  APPROVED: { label: "On hold — awaiting manager confirmation", styles: "bg-amber-50 text-amber-700 border-amber-200" },
+  PAID: { label: "Released", styles: "bg-emerald-50 text-emerald-700 border-emerald-200" },
   REJECTED: { label: "Rejected", styles: "bg-rose-50 text-rose-700 border-rose-200" },
 };
 
 const STATUS_ORDER: PayoutRecord["status"][] = [
   "REQUESTED",
   "REVIEWED",
-  "AWAITING_CHECKOUT",
   "APPROVED",
   "PAID",
   "REJECTED",
@@ -78,19 +68,10 @@ function fmtDate(iso: string | null | undefined): string {
 }
 
 export default function PayoutsPage() {
-  const { isSuperAdmin } = useRole();
-
   const [payouts, setPayouts] = useState<PayoutRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<"ALL" | PayoutRecord["status"]>("ALL");
-
-  // Mark-paid dialog state
-  const [payingFor, setPayingFor] = useState<PayoutRecord | null>(null);
-  const [gatewayRef, setGatewayRef] = useState("");
-  const [payNotes, setPayNotes] = useState("");
-  const [acting, setActing] = useState(false);
 
   // History dialog state
   const [historyFor, setHistoryFor] = useState<PayoutRecord | null>(null);
@@ -141,34 +122,6 @@ export default function PayoutsPage() {
     return c;
   }, [payouts]);
 
-  const openPay = (payout: PayoutRecord) => {
-    setGatewayRef("");
-    setPayNotes("");
-    setPayingFor(payout);
-  };
-
-  const submitPay = async () => {
-    if (!payingFor) return;
-    setActing(true);
-    setActionError(null);
-    try {
-      await payoutApi.markPaid(payingFor.id, {
-        gatewayRef: gatewayRef.trim() || undefined,
-        notes: payNotes.trim() || undefined,
-        phoneNumber:
-          payingFor.disbursement?.method === "MOBILE_MONEY"
-            ? payingFor.disbursement.phone ?? undefined
-            : undefined,
-      });
-      setPayingFor(null);
-      await load();
-    } catch (e) {
-      setActionError(e instanceof Error ? e.message : "Action failed.");
-    } finally {
-      setActing(false);
-    }
-  };
-
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -185,8 +138,9 @@ export default function PayoutsPage() {
         <div className="flex-1">
           <h1 className="text-xl font-semibold text-foreground tracking-tight">Payouts</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Record gateway transfers for approved payouts and review the full disbursement history.
-            Requests are made from a campaign&rsquo;s Payout tab; approvals happen on the Approvals page.
+            Every payout across the platform and its full disbursement history. Requests
+            are made from a campaign&rsquo;s Payout tab, approvals happen on the Approvals
+            page, and the requesting manager confirms the release once it&rsquo;s approved.
           </p>
         </div>
         <ExportMenu
@@ -230,11 +184,6 @@ export default function PayoutsPage() {
       {error && (
         <div className="rounded-lg border border-rose-200 bg-rose-50 text-rose-700 text-sm px-4 py-3">
           {error}
-        </div>
-      )}
-      {actionError && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 text-amber-700 text-sm px-4 py-3">
-          {actionError}
         </div>
       )}
 
@@ -350,16 +299,6 @@ export default function PayoutsPage() {
                           >
                             <History className="w-3.5 h-3.5" />
                           </Button>
-                          {p.status === "APPROVED" && isSuperAdmin && (
-                            <Button
-                              size="xs"
-                              variant="outline"
-                              onClick={() => openPay(p)}
-                            >
-                              <Wallet className="w-3 h-3 mr-1 text-emerald-600" />
-                              Mark Paid
-                            </Button>
-                          )}
                         </div>
                       </td>
                     </tr>
@@ -379,92 +318,6 @@ export default function PayoutsPage() {
           </Button>
         </div>
       </div>
-
-      {/* Mark-paid dialog */}
-      <Dialog
-        open={payingFor !== null}
-        onOpenChange={(open) => {
-          if (!open) setPayingFor(null);
-        }}
-      >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Mark payout as paid</DialogTitle>
-            <DialogDescription>
-              {payingFor
-                ? `${formatTZSFull(payingFor.amount)} for ${
-                    payingFor.campaignName ?? "organisation"
-                  }`
-                : ""}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            {payingFor?.disbursement && (
-              <div className="rounded-lg border border-border bg-muted/30 px-4 py-3 space-y-1.5">
-                <p className="text-[11px] font-semibold text-foreground uppercase tracking-wide">
-                  Send to —{" "}
-                  {payingFor.disbursement.method === "MOBILE_MONEY"
-                    ? "Mobile money"
-                    : "Bank transfer"}
-                </p>
-                <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[11px]">
-                  {(payingFor.disbursement.method === "MOBILE_MONEY"
-                    ? ([
-                        ["Provider", payingFor.disbursement.provider],
-                        ["Phone", payingFor.disbursement.phone],
-                        ["Account name", payingFor.disbursement.accountName],
-                      ] as const)
-                    : ([
-                        ["Bank", payingFor.disbursement.bankName],
-                        ["Account number", payingFor.disbursement.accountNumber],
-                        ["Account name", payingFor.disbursement.accountName],
-                        ["Branch", payingFor.disbursement.branch],
-                      ] as const)
-                  )
-                    .filter(([, v]) => v)
-                    .map(([label, value]) => (
-                      <div key={label} className="contents">
-                        <dt className="text-muted-foreground">{label}</dt>
-                        <dd className="text-foreground font-medium">{value}</dd>
-                      </div>
-                    ))}
-                </dl>
-              </div>
-            )}
-            <div className="space-y-1.5">
-              <Label htmlFor="payout-gateway-ref">Gateway reference (optional)</Label>
-              <Input
-                id="payout-gateway-ref"
-                placeholder="e.g. Mobile money / bank reference"
-                value={gatewayRef}
-                onChange={(e) => setGatewayRef(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="payout-paid-notes">Notes (optional)</Label>
-              <Textarea
-                id="payout-paid-notes"
-                placeholder="Any notes to record against this transfer"
-                value={payNotes}
-                onChange={(e) => setPayNotes(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPayingFor(null)}>
-              Cancel
-            </Button>
-            <Button onClick={submitPay} disabled={acting}>
-              {acting ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : (
-                <HandCoins className="w-3.5 h-3.5 mr-1.5" />
-              )}
-              Mark Paid
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* History dialog */}
       <Dialog

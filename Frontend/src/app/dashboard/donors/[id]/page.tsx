@@ -44,6 +44,7 @@ import {
 } from "@/lib/dashboard/api";
 import { useRole } from "@/hooks/use-role";
 import { cn } from "@/lib/dashboard/utils";
+import { ExportMenu } from "@/components/dashboard/export-menu";
 
 const METHOD_LABEL: Record<PaymentMethodType, string> = {
   MOMO: "M-Pesa",
@@ -315,10 +316,11 @@ export default function DonorProfilePage() {
         {/* Donation history */}
         <div className="lg:col-span-2">
           <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
-            <div className="px-5 py-4 border-b border-border">
+            <div className="px-5 py-4 border-b border-border flex items-center justify-between gap-3">
               <h2 className="text-sm font-semibold text-foreground">
                 Donation History
               </h2>
+              <ExportMenu dataset="donations" params={{ donorId: id }} label="Export" />
             </div>
             {!donor.donations || donor.donations.length === 0 ? (
               <div className="py-12 text-center text-sm text-muted-foreground">

@@ -47,6 +47,23 @@ const MIGRATIONS = [
   `ALTER TABLE payouts ADD COLUMN first_approved_at DATETIME NULL AFTER first_approved_by_id`,
   `ALTER TABLE payouts ADD CONSTRAINT fk_payouts_first_approver FOREIGN KEY (first_approved_by_id) REFERENCES users(id) ON DELETE SET NULL`,
 
+  // payouts — "checkout" step. After both approvals the request now parks in
+  // AWAITING_CHECKOUT until the requester (or an ORG_ADMIN) submits where the
+  // money goes — mobile money (provider + phone) or bank (bank_name + account_
+  // number + optional branch); account_name applies to both. Only then does it
+  // move to APPROVED and a SUPER_ADMIN can mark it PAID.
+  `ALTER TABLE payouts MODIFY COLUMN status ENUM('REQUESTED','REVIEWED','AWAITING_CHECKOUT','APPROVED','PAID','REJECTED') NOT NULL DEFAULT 'REQUESTED'`,
+  `ALTER TABLE payouts ADD COLUMN disbursement_method ENUM('MOBILE_MONEY','BANK') NULL AFTER notes`,
+  `ALTER TABLE payouts ADD COLUMN disbursement_provider VARCHAR(40) NULL AFTER disbursement_method`,
+  `ALTER TABLE payouts ADD COLUMN disbursement_account_name VARCHAR(120) NULL AFTER disbursement_provider`,
+  `ALTER TABLE payouts ADD COLUMN disbursement_account_number VARCHAR(40) NULL AFTER disbursement_account_name`,
+  `ALTER TABLE payouts ADD COLUMN disbursement_phone VARCHAR(20) NULL AFTER disbursement_account_number`,
+  `ALTER TABLE payouts ADD COLUMN disbursement_bank_name VARCHAR(120) NULL AFTER disbursement_phone`,
+  `ALTER TABLE payouts ADD COLUMN disbursement_branch VARCHAR(120) NULL AFTER disbursement_bank_name`,
+  `ALTER TABLE payouts ADD COLUMN disbursement_submitted_at DATETIME NULL AFTER disbursement_branch`,
+  `ALTER TABLE payouts ADD COLUMN disbursement_submitted_by_id BIGINT UNSIGNED NULL AFTER disbursement_submitted_at`,
+  `ALTER TABLE payouts ADD CONSTRAINT fk_payouts_checkout_by FOREIGN KEY (disbursement_submitted_by_id) REFERENCES users(id) ON DELETE SET NULL`,
+
   // payout_images — optional "proof of use" photos a CAMPAIGN_MANAGER attaches
   // to a payout request (invoices, receipts, site photos) so the reviewer and
   // org admin can see why the money is needed. Up to 5 per request.
@@ -212,6 +229,15 @@ const MIGRATIONS = [
     estimated_value DECIMAL(14,0) NOT NULL DEFAULT 0,
     received_at     DATE NULL,
     recorded_by_id  BIGINT UNSIGNED NULL,
+    source          ENUM('STAFF','PUBLIC') NOT NULL DEFAULT 'STAFF',
+    status          ENUM('PLEDGED','SCHEDULED','RECEIVED','CANCELLED') NOT NULL DEFAULT 'RECEIVED',
+    delivery_method ENUM('PICKUP','DROP_OFF') NULL,
+    donor_name      VARCHAR(150) NULL,
+    donor_phone     VARCHAR(32) NULL,
+    donor_email     VARCHAR(255) NULL,
+    pickup_address  VARCHAR(400) NULL,
+    preferred_date  DATE NULL,
+    note            VARCHAR(600) NULL,
     created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_gift_campaign FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE,
     CONSTRAINT fk_gift_org      FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
@@ -219,6 +245,21 @@ const MIGRATIONS = [
     CONSTRAINT fk_gift_recorder FOREIGN KEY (recorded_by_id) REFERENCES users(id) ON DELETE SET NULL,
     INDEX idx_gift_campaign (campaign_id)
   ) ENGINE=InnoDB`,
+
+  // campaign_gifts — public gift pledges. A visitor on the campaign page can now
+  // pledge an in-kind item (source = 'PUBLIC', status = 'PLEDGED') and say how it
+  // changes hands — the team picks it up (delivery_method 'PICKUP' + address) or
+  // the donor delivers it ('DROP_OFF'). Staff-recorded rows keep the column
+  // defaults (source 'STAFF', status 'RECEIVED') so their behaviour is unchanged.
+  `ALTER TABLE campaign_gifts ADD COLUMN source          ENUM('STAFF','PUBLIC') NOT NULL DEFAULT 'STAFF' AFTER recorded_by_id`,
+  `ALTER TABLE campaign_gifts ADD COLUMN status          ENUM('PLEDGED','SCHEDULED','RECEIVED','CANCELLED') NOT NULL DEFAULT 'RECEIVED' AFTER source`,
+  `ALTER TABLE campaign_gifts ADD COLUMN delivery_method ENUM('PICKUP','DROP_OFF') NULL AFTER status`,
+  `ALTER TABLE campaign_gifts ADD COLUMN donor_name      VARCHAR(150) NULL AFTER delivery_method`,
+  `ALTER TABLE campaign_gifts ADD COLUMN donor_phone     VARCHAR(32)  NULL AFTER donor_name`,
+  `ALTER TABLE campaign_gifts ADD COLUMN donor_email     VARCHAR(255) NULL AFTER donor_phone`,
+  `ALTER TABLE campaign_gifts ADD COLUMN pickup_address  VARCHAR(400) NULL AFTER donor_email`,
+  `ALTER TABLE campaign_gifts ADD COLUMN preferred_date  DATE NULL AFTER pickup_address`,
+  `ALTER TABLE campaign_gifts ADD COLUMN note            VARCHAR(600) NULL AFTER preferred_date`,
 
   // password_reset_tokens — "forgot password" flow. Only the SHA-256 hash of
   // the token is stored; the raw token is in the emailed link. Single-use

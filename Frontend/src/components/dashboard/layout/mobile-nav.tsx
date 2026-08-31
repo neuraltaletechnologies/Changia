@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/dashboard/utils";
 import { useRole } from "@/hooks/use-role";
-import { usePendingReminderCount } from "@/hooks/use-pending-reminders";
 import { usePendingApprovalCount } from "@/hooks/use-pending-approvals";
 import { useNotifications } from "@/hooks/use-notifications";
 import {
@@ -12,12 +11,12 @@ import {
   Megaphone,
   Settings,
   ClipboardList,
+  Receipt,
   UserCog,
   HeartHandshake,
   Building2,
   X,
   Layers,
-  BellRing,
   Bell,
   ShieldCheck,
 } from "lucide-react";
@@ -27,7 +26,7 @@ const navItems = [
   { label: "Campaigns", href: "/dashboard/campaigns", icon: Megaphone },
   { label: "Approvals", href: "/dashboard/approvals", icon: ShieldCheck },
   { label: "Donor Pools", href: "/dashboard/pools", icon: Layers },
-  { label: "Reminders", href: "/dashboard/reminders", icon: BellRing },
+  { label: "Transactions", href: "/dashboard/transactions", icon: Receipt },
   { label: "Notifications", href: "/dashboard/notifications", icon: Bell },
   { label: "User", href: "/dashboard/user", icon: UserCog },
   { label: "Audit Log", href: "/dashboard/audit-log", icon: ClipboardList },
@@ -48,12 +47,10 @@ export function MobileNav({ open, onClose }: MobileNavProps) {
     if (isReviewer && item.href === "/dashboard/campaigns") return false;
     return true;
   });
-  const pendingReminders = usePendingReminderCount();
   const pendingApprovals = usePendingApprovalCount();
   const { unreadCount } = useNotifications();
 
   const badgeFor = (href: string): number => {
-    if (href === "/dashboard/reminders") return pendingReminders;
     if (href === "/dashboard/approvals") return pendingApprovals;
     if (href === "/dashboard/notifications") return unreadCount;
     return 0;

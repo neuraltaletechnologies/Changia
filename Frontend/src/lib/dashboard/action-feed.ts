@@ -136,6 +136,10 @@ const RULES: Rule[] = [
   { method: "PUT", pattern: /^\/users\/:id$/, labels: L("Updating team member…", "Team member updated", "Couldn't update the team member") },
   { method: "DELETE", pattern: /^\/users\/:id$/, labels: L("Removing team member…", "Team member removed", "Couldn't remove the team member") },
 
+  // Bulk data export / import
+  { method: "GET", pattern: /^\/data\/[\w-]+\/export$/, labels: L("Preparing export…", "Export downloaded", "Couldn't export the data") },
+  { method: "POST", pattern: /^\/data\/[\w-]+\/import$/, labels: L("Importing…", "Import complete", "Couldn't import the file") },
+
   // Organisation / account
   { method: "PUT", pattern: /^\/organizations?(\/mine)?$/, labels: L("Saving settings…", "Settings saved", "Couldn't save the settings") },
   { method: "PATCH", pattern: /^\/organizations?(\/mine)?$/, labels: L("Saving settings…", "Settings saved", "Couldn't save the settings") },

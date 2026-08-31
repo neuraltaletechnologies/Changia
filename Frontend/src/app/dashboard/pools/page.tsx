@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
   Plus,
+  Upload,
   Users,
   Wallet,
   Search,
@@ -76,6 +77,8 @@ import {
   useTableSort,
   type SortAccessors,
 } from "@/components/dashboard/ui/sortable-table";
+import { ExportMenu } from "@/components/dashboard/export-menu";
+import { ImportWizard } from "@/components/dashboard/import-wizard";
 
 const CATEGORY_LABEL = Object.fromEntries(
   POOL_CATEGORIES.map((c) => [c, POOL_CATEGORY_META[c].label])
@@ -365,6 +368,8 @@ export default function PoolsPage() {
             <AlertTriangle className="w-3.5 h-3.5 mr-1.5" />
             Anomalous
           </Button>
+          <ExportMenu dataset="donor-pools" label="Export pools" />
+          <ExportMenu dataset="donors" label="Export donors" />
           {canCreate && (
             <Button size="sm" onClick={() => setCreatingPool(true)}>
               <Plus className="w-3.5 h-3.5 mr-1.5" />
@@ -589,6 +594,7 @@ function DonorPanel({
   const [error, setError] = useState<string | null>(null);
 
   const [addOpen, setAddOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [dupOpen, setDupOpen] = useState(false);
   const [quickEdit, setQuickEdit] = useState<RowDonor | null>(null);
 
@@ -712,19 +718,51 @@ function DonorPanel({
           </div>
         )}
 
-        {poolId && pool && !pool.isSystem && canManagePool && (
-          <div className="flex items-center gap-2 shrink-0">
-            <Button size="sm" onClick={() => setAddOpen(true)}>
-              <CopyPlus className="w-3.5 h-3.5 mr-1.5" />
-              Add Members
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setDupOpen(true)}>
-              <Users className="w-3.5 h-3.5 mr-1.5" />
-              Resolve Duplicates
-            </Button>
+        {poolId && pool && !pool.isSystem && (
+          <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+            <ExportMenu dataset="pool-members" params={{ poolId }} label="Export" />
+            {canManagePool && (
+              <>
+                <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+                  <Upload className="w-3.5 h-3.5 mr-1.5" />
+                  Import
+                </Button>
+                <Button size="sm" onClick={() => setAddOpen(true)}>
+                  <CopyPlus className="w-3.5 h-3.5 mr-1.5" />
+                  Add Members
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setDupOpen(true)}>
+                  <Users className="w-3.5 h-3.5 mr-1.5" />
+                  Resolve Duplicates
+                </Button>
+              </>
+            )}
           </div>
         )}
       </div>
+
+      <Sheet open={importOpen} onOpenChange={setImportOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-xl overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Import members into {pool?.name}</SheetTitle>
+          </SheetHeader>
+          <div className="px-4 pb-6">
+            <ImportWizard
+              dataset="pool-members"
+              params={{ poolId }}
+              columns={[
+                { field: "donor_phone", required: true, help: "Phone of an existing donor" },
+                { field: "expected_amount", help: "Optional TZS amount expected" },
+              ]}
+              description="Each row adds an existing donor to this pool."
+              onImported={() => {
+                load();
+                onChanged();
+              }}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {error && (
         <div className="px-5 py-2.5 text-xs text-destructive bg-destructive/5 border-b border-destructive/20">

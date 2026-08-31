@@ -11,18 +11,17 @@ import {
   ChevronLeft,
   ChevronRight,
   ClipboardList,
+  Receipt,
   UserCog,
   Building2,
   HeartHandshake,
   ExternalLink,
   Layers,
-  BellRing,
   Bell,
   ShieldCheck,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/dashboard/ui/tooltip";
 import { useRole } from "@/hooks/use-role";
-import { usePendingReminderCount } from "@/hooks/use-pending-reminders";
 import { usePendingApprovalCount } from "@/hooks/use-pending-approvals";
 import { useNotifications } from "@/hooks/use-notifications";
 
@@ -51,9 +50,9 @@ const navItems = [
         icon: Layers,
       },
       {
-        label: "Reminders",
-        href: "/dashboard/reminders",
-        icon: BellRing,
+        label: "Transactions",
+        href: "/dashboard/transactions",
+        icon: Receipt,
       },
       {
         label: "Notifications",
@@ -92,12 +91,10 @@ interface SidebarProps {
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
   const { canAccessRoute, isReviewer, meta } = useRole();
-  const pendingReminders = usePendingReminderCount();
   const pendingApprovals = usePendingApprovalCount();
   const { unreadCount } = useNotifications();
 
   const badgeFor = (href: string): number => {
-    if (href === "/dashboard/reminders") return pendingReminders;
     if (href === "/dashboard/approvals") return pendingApprovals;
     if (href === "/dashboard/notifications") return unreadCount;
     return 0;

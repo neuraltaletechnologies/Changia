@@ -18,6 +18,21 @@ const getPublicCampaign = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true, data: campaign });
 });
 
+/** A public visitor pledges an in-kind gift on the campaign page. */
+const createGiftPledge = asyncHandler(async (req, res) => {
+  const pledge = await campaignService.createPublicGiftPledge(req.params.id, req.body);
+  res.status(201).json({
+    success: true,
+    data: {
+      ...pledge,
+      message:
+        pledge.deliveryMethod === "PICKUP"
+          ? "Thank you! The campaign team will contact you to arrange a pickup."
+          : "Thank you! The campaign team will contact you to confirm your drop-off.",
+    },
+  });
+});
+
 /** Completed campaigns with an APPROVED completion report — the public
  *  "impact stories" blog listing. */
 const listCompletedCampaigns = asyncHandler(async (req, res) => {
@@ -38,6 +53,7 @@ const getCompletedCampaign = asyncHandler(async (req, res) => {
 module.exports = {
   listPublicCampaigns,
   getPublicCampaign,
+  createGiftPledge,
   listCompletedCampaigns,
   getCompletedCampaign,
 };

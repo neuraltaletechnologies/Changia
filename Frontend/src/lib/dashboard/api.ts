@@ -226,10 +226,10 @@ export interface CampaignRecord {
   editRequest?: CampaignChangeRequest | null;
   /** Newest open STATUS (manager suspend/resume ask) request, if any. */
   statusRequest?: CampaignChangeRequest | null;
-  /** A payout for this campaign is already in the approval chain (REQUESTED/REVIEWED). */
+  /** A payout for this campaign is already in progress (not yet PAID or REJECTED). */
   openPayoutRequest?: {
     id: number;
-    status: "REQUESTED" | "REVIEWED";
+    status: "REQUESTED" | "REVIEWED" | "AWAITING_CHECKOUT" | "APPROVED";
     amount: number;
     requestedBy: number | null;
   } | null;
@@ -380,6 +380,10 @@ export interface CampaignTargetsResponse {
   }[];
 }
 
+export type GiftStatus = 'PLEDGED' | 'SCHEDULED' | 'RECEIVED' | 'CANCELLED';
+export type GiftSource = 'STAFF' | 'PUBLIC';
+export type GiftDeliveryMethod = 'PICKUP' | 'DROP_OFF';
+
 export interface CampaignGift {
   id: number;
   campaignId: number;
@@ -389,6 +393,16 @@ export interface CampaignGift {
   estimatedValue: number;
   receivedAt: string | null;
   createdAt: string;
+  /** 'PUBLIC' = pledged by a visitor on the campaign page; 'STAFF' = recorded internally. */
+  source: GiftSource;
+  status: GiftStatus;
+  /** Set only for public pledges: does the team collect it, or does the donor deliver it? */
+  deliveryMethod: GiftDeliveryMethod | null;
+  donorPhone: string | null;
+  donorEmail: string | null;
+  pickupAddress: string | null;
+  preferredDate: string | null;
+  note: string | null;
 }
 
 export interface CampaignPaymentBreakdown {
@@ -912,6 +926,57 @@ export const campaignApi = {
         `/campaigns/${id}/gifts/${giftId}`
       )
       .then(unwrap),
+  /** Advance a gift pledge: PLEDGED → SCHEDULED → RECEIVED, or CANCELLED. */
+  updateGiftStatus: (
+    id: string | number,
+    giftId: string | number,
+    status: GiftStatus
+  ) =>
+    api
+      .patch<{ success: boolean; data: CampaignGift[] }>(
+        `/campaigns/${id}/gifts/${giftId}/status`,
+        { status }
+      )
+      .then(unwrap),
+};
+
+// ─── Donations / transactions ───────────────────────────────────────────────
+
+export interface DonationRecord {
+  id: number;
+  receipt_number: string | null;
+  amount: number;
+  method: string;
+  status: "PENDING" | "CONFIRMED" | "FAILED" | "REFUNDED";
+  donor_id: number | null;
+  donor_name: string | null;
+  donor_phone: string | null;
+  isAnonymous: boolean;
+  gateway_ref: string | null;
+  created_at: string;
+  confirmed_at: string | null;
+  campaign: { id: number; name: string; slug: string };
+}
+
+export interface DonationListParams {
+  campaignId?: string | number;
+  donorId?: string | number;
+  status?: "PENDING" | "CONFIRMED" | "FAILED" | "REFUNDED";
+  page?: number;
+  limit?: number;
+}
+
+export const donationApi = {
+  list: (params?: DonationListParams) =>
+    api
+      .get<{
+        success: boolean;
+        data: {
+          donations: DonationRecord[];
+          pagination: { total: number; page: number; totalPages: number };
+        };
+      }>(`/donations${qs(params || {})}`)
+      .then(unwrap),
 };
 
 // ─── Notifications (in-app staff notification centre) ────────────────────────
@@ -968,8 +1033,11 @@ export interface PayoutRecord {
   campaignName: string | null;
   amount: number;
   reason: string | null;
-  /** Two-stage chain: REQUESTED -> REVIEWED (reviewer) -> APPROVED (org admin) -> PAID (super admin). */
-  status: "REQUESTED" | "REVIEWED" | "APPROVED" | "PAID" | "REJECTED";
+  /**
+   * REQUESTED -> REVIEWED (reviewer) -> AWAITING_CHECKOUT (org admin) ->
+   * APPROVED (requester submits payout destination) -> PAID (super admin).
+   */
+  status: "REQUESTED" | "REVIEWED" | "AWAITING_CHECKOUT" | "APPROVED" | "PAID" | "REJECTED";
   notes: string | null;
   requestedBy: number | null;
   firstApprovedBy: number | null;
@@ -980,8 +1048,38 @@ export interface PayoutRecord {
   gatewayRef: string | null;
   /** Optional "proof of use" photos the manager attached to the request. */
   proofImages: { id: number; url: string }[];
+  /** Payout destination submitted at "checkout" — null until the requester fills it in. */
+  disbursement: PayoutDisbursement | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export type PayoutMethod = "MOBILE_MONEY" | "BANK";
+
+export interface PayoutDisbursement {
+  method: PayoutMethod;
+  /** Mobile money provider (e.g. "M-Pesa", "Airtel Money") — null for bank. */
+  provider: string | null;
+  accountName: string | null;
+  /** Bank account number — null for mobile money. */
+  accountNumber: string | null;
+  /** Mobile money number — null for bank. */
+  phone: string | null;
+  bankName: string | null;
+  branch: string | null;
+  submittedAt: string | null;
+  submittedBy: number | null;
+}
+
+/** Payload for payoutApi.submitCheckout. */
+export interface PayoutCheckoutInput {
+  method: PayoutMethod;
+  accountName: string;
+  provider?: string;
+  phone?: string;
+  bankName?: string;
+  accountNumber?: string;
+  branch?: string;
 }
 
 export const payoutApi = {
@@ -1017,8 +1115,13 @@ export const payoutApi = {
     api.post<{ success: boolean; data: PayoutRecord }>(`/payouts/${id}/approve`, { notes }).then(unwrap),
   reject: (id: string | number, notes?: string) =>
     api.post<{ success: boolean; data: PayoutRecord }>(`/payouts/${id}/reject`, { notes }).then(unwrap),
-  markPaid: (id: string | number, body: { gatewayRef?: string; notes?: string }) =>
-    api.post<{ success: boolean; data: PayoutRecord }>(`/payouts/${id}/paid`, body).then(unwrap),
+  /** Submit the payout destination once approved (AWAITING_CHECKOUT -> APPROVED). */
+  submitCheckout: (id: string | number, body: PayoutCheckoutInput) =>
+    api.post<{ success: boolean; data: PayoutRecord }>(`/payouts/${id}/checkout`, body).then(unwrap),
+  markPaid: (
+    id: string | number,
+    body: { gatewayRef?: string; notes?: string; phoneNumber?: string }
+  ) => api.post<{ success: boolean; data: PayoutRecord }>(`/payouts/${id}/paid`, body).then(unwrap),
 };
 
 // ─── Approvals workspace ─────────────────────────────────────────────────────

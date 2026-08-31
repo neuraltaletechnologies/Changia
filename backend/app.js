@@ -22,6 +22,7 @@ const payoutRoutes = require("./modules/payout/routes");
 const approvalRoutes = require("./modules/approval/routes");
 const settingsRoutes = require("./modules/settings/routes");
 const notificationRoutes = require("./modules/notification/routes");
+const dataTransferRoutes = require("./modules/data-transfer/routes");
 const webhookRoutes = require("./routes/webhooks");
 
 function createApp() {
@@ -93,6 +94,8 @@ function createApp() {
   app.use("/api/v1/approvals", approvalRoutes);
   app.use("/api/v1/settings", settingsRoutes);
   app.use("/api/v1/notifications", notificationRoutes);
+  // Bulk CSV / XLSX export + import (see modules/data-transfer/datasets.js).
+  app.use("/api/v1/data", dataTransferRoutes);
 
   // ─── Webhooks (unauthenticated — verified by checksum) ────────────────────
   app.use("/webhooks", webhookRoutes);

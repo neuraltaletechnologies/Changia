@@ -3,7 +3,14 @@ const { authenticate, authorize } = require("../../middlewares/auth");
 const { validate } = require("../../middlewares/validate");
 const { uploadPayoutProof } = require("../../middlewares/upload");
 const controller = require("./controller");
-const { listSchema, createSchema, decisionSchema, paidSchema, previewSchema } = require("./validation");
+const {
+  listSchema,
+  createSchema,
+  decisionSchema,
+  paidSchema,
+  previewSchema,
+  checkoutSchema,
+} = require("./validation");
 
 // Payouts follow the same two-person chain as campaigns:
 //   request (CAMPAIGN_MANAGER — the role placed under an organisation; a
@@ -51,6 +58,14 @@ router.post(
   authorize("SUPER_ADMIN", "ORG_ADMIN", "REVIEWER"),
   validate({ body: decisionSchema }),
   controller.reject
+);
+// Checkout — the requester (or an ORG_ADMIN acting for them) submits where the
+// approved payout should be sent. AWAITING_CHECKOUT -> APPROVED.
+router.post(
+  "/:id/checkout",
+  authorize("CAMPAIGN_MANAGER", "ORG_ADMIN", "SUPER_ADMIN"),
+  validate({ body: checkoutSchema }),
+  controller.submitCheckout
 );
 // Preview ClickPesa payout — shows fee breakdown before confirmation
 router.post(

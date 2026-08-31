@@ -85,6 +85,23 @@ const reject = asyncHandler(async (req, res) => {
 });
 
 /**
+ * Submit the payout destination ("checkout") — moves AWAITING_CHECKOUT -> APPROVED.
+ * POST /payouts/:id/checkout
+ */
+const submitCheckout = asyncHandler(async (req, res) => {
+  const payout = await service.submitCheckout(
+    req.user.organizationId,
+    req.user,
+    req.params.id,
+    req.body
+  );
+  await audit(req, "payout.checkout_submitted", payout, "INFO", {
+    method: payout.disbursement?.method,
+  });
+  res.json({ success: true, data: payout });
+});
+
+/**
  * Preview the ClickPesa payout — shows fee breakdown before confirmation.
  * POST /payouts/:id/preview
  */
@@ -111,4 +128,4 @@ const markPaid = asyncHandler(async (req, res) => {
   res.json({ success: true, data: payout });
 });
 
-module.exports = { list, get, getHistory, create, attachProof, removeProof, approve, reject, preview, markPaid };
+module.exports = { list, get, getHistory, create, attachProof, removeProof, approve, reject, submitCheckout, preview, markPaid };

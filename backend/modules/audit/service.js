@@ -72,7 +72,11 @@ async function listAuditLogs(organizationId, filters) {
 }
 
 async function exportAuditLogs(organizationId, filters) {
-  const result = await listAuditLogs(organizationId, { ...filters, page: 1, limit: 100 });
+  const result = await listAuditLogs(organizationId, {
+    ...filters,
+    page: 1,
+    limit: filters.limit || 100,
+  });
   return result.logs;
 }
 

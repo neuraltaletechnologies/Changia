@@ -22,6 +22,7 @@ const {
   requestChangesSchema,
   changeRequestDecisionSchema,
   createGiftSchema,
+  updateGiftStatusSchema,
 } = require("./validation");
 
 const router = Router();
@@ -55,6 +56,14 @@ router.delete(
   "/:id/gifts/:giftId",
   authorize("SUPER_ADMIN", "ORG_ADMIN", "CAMPAIGN_MANAGER"),
   controller.removeGift
+);
+// Advance a gift pledge along its handover lifecycle
+// (PLEDGED → SCHEDULED → RECEIVED, or CANCELLED).
+router.patch(
+  "/:id/gifts/:giftId/status",
+  authorize("SUPER_ADMIN", "ORG_ADMIN", "CAMPAIGN_MANAGER"),
+  validate({ body: updateGiftStatusSchema }),
+  controller.updateGiftStatus
 );
 
 // Donor pool import into a campaign (start of campaign or mid-campaign)

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Search, Download, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { Input } from "@/components/dashboard/ui/input";
 import {
   Select,
@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/dashboard/ui/button";
 import { auditApi, type AuditLogEntry, type AuditSeverity } from "@/lib/dashboard/api";
 import { cn } from "@/lib/dashboard/utils";
+import { ExportMenu } from "@/components/dashboard/export-menu";
 import {
   SortableTh,
   useTableSort,
@@ -86,7 +87,6 @@ export default function AuditLogPage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [exporting, setExporting] = useState(false);
 
   const [search, setSearch] = useState("");
   const [severityFilter, setSeverityFilter] = useState<"all" | AuditSeverity>("all");
@@ -146,25 +146,6 @@ export default function AuditLogPage() {
     toggle: toggleColSort,
   } = useTableSort(logs, auditColumnAccessors);
 
-  const exportCsv = async () => {
-    setExporting(true);
-    try {
-      const blob = await auditApi.exportCsv(params);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "audit-logs.csv";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to export the audit log.");
-    } finally {
-      setExporting(false);
-    }
-  };
-
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -177,14 +158,14 @@ export default function AuditLogPage() {
             A complete record of all actions performed within your organisation
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={exportCsv} disabled={exporting}>
-          {exporting ? (
-            <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-          ) : (
-            <Download className="w-3.5 h-3.5 mr-1.5" />
-          )}
-          Export CSV
-        </Button>
+        <ExportMenu
+          dataset="audit-logs"
+          params={{
+            search: debouncedSearch || undefined,
+            severity: severityFilter === "all" ? undefined : severityFilter,
+            resource: resourceFilter === "all" ? undefined : resourceFilter,
+          }}
+        />
       </div>
 
       {/* Severity chips */}

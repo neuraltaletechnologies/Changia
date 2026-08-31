@@ -892,12 +892,14 @@ Every `Campaign` returned by `GET /campaigns` / `GET /campaigns/:id` additionall
 
 ### In-kind gifts & the campaign payment breakdown
 
-Not every contribution is money. A campaign can also receive **in-kind gifts** (donated goods, services or time) recorded with an *estimated* TZS value.
+Not every contribution is money. A campaign can also receive **in-kind gifts** (donated goods, services or time) recorded with an *estimated* TZS value. These come from two places: staff record one after the fact (`source:"STAFF"`, `status:"RECEIVED"`), or a visitor **pledges** one from the public campaign page (`source:"PUBLIC"`, `status:"PLEDGED"`) and picks a handover method — the team collects it (`deliveryMethod:"PICKUP"` + `pickupAddress`) or the donor delivers it (`"DROP_OFF"`).
 
-- **`GET /campaigns/payments/breakdown`** — any authenticated member (a `CAMPAIGN_MANAGER` gets only their assigned campaigns). Array of `{ campaignId, name, goal, raised, paid, unpaid, promisedPaid, promisedUnpaid, giftValue }` — the split (TZS) behind the dashboard payment pie per campaign. `paid` = confirmed money with no pledge, `unpaid` = goal not covered by a pledge, `promisedPaid` / `promisedUnpaid` = received / still-owed against donor pledges, `giftValue` = summed in-kind estimates. A row sums to `goal + giftValue`.
-- **`GET /campaigns/:id/gifts`** — any member with campaign access. `Gift[]`: `{ id, campaignId, donorId, donorName, description, estimatedValue, receivedAt, createdAt }`.
+- **`GET /campaigns/payments/breakdown`** — any authenticated member (a `CAMPAIGN_MANAGER` gets only their assigned campaigns). Array of `{ campaignId, name, goal, raised, paid, unpaid, promisedPaid, promisedUnpaid, giftValue }` — the split (TZS) behind the dashboard payment pie per campaign. `paid` = confirmed money with no pledge, `unpaid` = goal not covered by a pledge, `promisedPaid` / `promisedUnpaid` = received / still-owed against donor pledges, `giftValue` = summed in-kind estimates (excluding `CANCELLED` pledges). A row sums to `goal + giftValue`.
+- **`GET /campaigns/:id/gifts`** — any member with campaign access. `Gift[]` (open pledges first): `{ id, campaignId, donorId, donorName, description, estimatedValue, receivedAt, createdAt, source, status, deliveryMethod, donorPhone, donorEmail, pickupAddress, preferredDate, note }`.
 - **`POST /campaigns/:id/gifts`** — `SUPER_ADMIN` / `ORG_ADMIN` / assigned `CAMPAIGN_MANAGER`. JSON `{ description (1–300, required), estimatedValue? (int TZS ≥ 0, default 0), donorId?, receivedAt? "YYYY-MM-DD" }`. Returns the updated `Gift[]`.
+- **`PATCH /campaigns/:id/gifts/:giftId/status`** — same roles. JSON `{ status: "PLEDGED"|"SCHEDULED"|"RECEIVED"|"CANCELLED" }`. The manager advances a public pledge as they arrange the pickup / take delivery. Returns the updated `Gift[]`.
 - **`DELETE /campaigns/:id/gifts/:giftId`** — same roles. Returns the updated `Gift[]`.
+- **`POST /public/campaigns/:id/gift-pledges`** — **unauthenticated**, from the public campaign detail page. JSON `{ description (1–300, required), estimatedValue?, deliveryMethod ("PICKUP"|"DROP_OFF", required), donorName (required), donorPhone (TZ, required), donorEmail?, pickupAddress? (required for PICKUP), preferredDate? "YYYY-MM-DD", note? }`. Returns `{ id, status:"PLEDGED", deliveryMethod, message }`; `409 RATE_LIMITED` on a repeat within 5 min from the same phone.
 
 Recorded on the campaign detail page's **Board** tab (alongside the donor pledge board).
 
@@ -1171,6 +1173,31 @@ Authenticated (`SUPER_ADMIN`). The latest ~10 entries for the activity feed. Sam
 **Response — `200 OK`:** `{ "success": true, "data": [ { "...": "AuditLog" } ] }`
 
 **Action values used by the UI feed:** `donation.confirmed`, `donor_added`, `donor_updated`, `campaign_created`, `import`, `note_added`, `campaign.approved`.
+
+---
+
+## 11b. Data transfer — bulk CSV / XLSX export & import
+
+> **Backed by frontend:** the `<ExportMenu>` button on every list page
+> (`/dashboard/campaigns`, `/dashboard/transactions`, `/dashboard/pools`,
+> `/dashboard/payouts`, `/dashboard/audit-log`, `/dashboard/approvals`, plus the
+> campaign / donor detail pages) and the `<ImportWizard>` on the donor, campaign,
+> pool-members and contribution import flows. Client wrapper:
+> `Frontend/src/lib/dashboard/data-transfer.ts`.
+
+Single dispatcher at `/data/:dataset/...` (authenticated). `:dataset` ∈
+`donors | donor-pools | pool-members | donations | payouts | campaigns |
+audit-logs | approvals`.
+
+| Endpoint | Notes |
+|----------|-------|
+| `GET /data/:dataset/export?format=csv\|xlsx&<filters>` | File download of the current filtered view. `<filters>` = the same query params the matching list endpoint accepts. Needs the `Authorization` header, so it must be `fetch` + blob, not a plain link. |
+| `GET /data/:dataset/import-template?format=csv\|xlsx` | Header-only starter file (import datasets only). |
+| `POST /data/:dataset/import` — multipart, field `file` | `{ imported, duplicates, skipped, errors: [{ row, message }] }`. Import datasets: `donors` (SUPER_ADMIN), `pool-members` (needs `?poolId=`), `campaigns` (→ DRAFT), `donations` (→ confirmed offline contribution; updates campaign totals). |
+
+Every export is RBAC-scoped identically to the underlying list endpoint. See
+`API_REFERENCE.md` → *Data transfer module* for the per-dataset role table and
+column contracts.
 
 ---
 

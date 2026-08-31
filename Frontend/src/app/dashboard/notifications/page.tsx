@@ -93,7 +93,7 @@ export default function NotificationsPage() {
         </div>
       )}
 
-      <div className="bg-card border border-border rounded-xl divide-y divide-border overflow-hidden">
+      <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
         {loading && items.length === 0 ? (
           <div className="py-16 text-center">
             <Loader2 className="w-5 h-5 animate-spin text-muted-foreground mx-auto" />
@@ -108,45 +108,70 @@ export default function NotificationsPage() {
             </p>
           </div>
         ) : (
-          items.map((n) => (
-            <div
-              key={n.id}
-              className="flex items-start gap-3 px-4 py-3.5 bg-primary/[0.03]"
-            >
-              <NotificationIcon
-                type={(NOTIF_TYPES.has(n.type) ? n.type : "system") as NotifType}
-              />
-              <div className="min-w-0 flex-1">
-                <button
-                  onClick={() => {
-                    markRead(n.id);
-                    if (n.link) router.push(n.link);
-                  }}
-                  className="text-left"
-                >
-                  <p
-                    className={`text-sm leading-snug font-medium text-foreground ${
-                      n.link ? "hover:text-primary transition-colors" : ""
-                    }`}
-                  >
-                    {n.title}
-                  </p>
-                  {n.body && (
-                    <p className="text-xs text-muted-foreground mt-0.5">{n.body}</p>
-                  )}
-                </button>
-                <p className="text-[11px] text-muted-foreground/70 mt-1">
-                  {relativeTime(n.createdAt)}
-                </p>
-              </div>
-              <button
-                onClick={() => markRead(n.id)}
-                className="text-[11px] text-primary hover:underline shrink-0 mt-0.5"
-              >
-                Mark read
-              </button>
-            </div>
-          ))
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[640px]">
+              <thead>
+                <tr className="border-b border-border bg-muted/40">
+                  <th className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3">
+                    Notification
+                  </th>
+                  <th className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-3 hidden sm:table-cell">
+                    Type
+                  </th>
+                  <th className="text-right text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-3">
+                    When
+                  </th>
+                  <th className="text-right px-4 py-3" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {items.map((n) => {
+                  const type = (NOTIF_TYPES.has(n.type) ? n.type : "system") as NotifType;
+                  return (
+                    <tr key={n.id} className="align-top hover:bg-muted/30 transition-colors">
+                      <td className="px-4 py-3">
+                        <div className="flex items-start gap-3">
+                          <NotificationIcon type={type} />
+                          <button
+                            onClick={() => {
+                              markRead(n.id);
+                              if (n.link) router.push(n.link);
+                            }}
+                            className="text-left min-w-0"
+                          >
+                            <p
+                              className={`text-sm leading-snug font-medium text-foreground ${
+                                n.link ? "hover:text-primary transition-colors" : ""
+                              }`}
+                            >
+                              {n.title}
+                            </p>
+                            {n.body && (
+                              <p className="text-xs text-muted-foreground mt-0.5">{n.body}</p>
+                            )}
+                          </button>
+                        </div>
+                      </td>
+                      <td className="px-3 py-3 hidden sm:table-cell text-xs text-muted-foreground capitalize">
+                        {type}
+                      </td>
+                      <td className="px-3 py-3 text-right text-[11px] text-muted-foreground/70 whitespace-nowrap">
+                        {relativeTime(n.createdAt)}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          onClick={() => markRead(n.id)}
+                          className="text-[11px] text-primary hover:underline whitespace-nowrap"
+                        >
+                          Mark read
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 

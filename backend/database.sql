@@ -390,6 +390,14 @@ CREATE TABLE campaign_closure_requests (
 -- Each row is a non-monetary contribution with an *estimated* TZS value so it
 -- can sit alongside cash figures in the campaign payment breakdown. Optionally
 -- attributed to a known donor.
+--
+-- A row is either recorded by staff after the fact (source = 'STAFF',
+-- status = 'RECEIVED') or pledged by a visitor on the public campaign page
+-- (source = 'PUBLIC', status = 'PLEDGED'). A public pledge carries the donor's
+-- own contact details plus how the item changes hands — either the team picks
+-- it up (delivery_method = 'PICKUP', pickup_address set) or the donor delivers
+-- it themselves (delivery_method = 'DROP_OFF'). The assigned campaign manager
+-- then advances it PLEDGED -> SCHEDULED -> RECEIVED (or CANCELLED).
 CREATE TABLE campaign_gifts (
   id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   campaign_id     BIGINT UNSIGNED NOT NULL,
@@ -399,6 +407,15 @@ CREATE TABLE campaign_gifts (
   estimated_value DECIMAL(14,0) NOT NULL DEFAULT 0,
   received_at     DATE NULL,
   recorded_by_id  BIGINT UNSIGNED NULL,
+  source          ENUM('STAFF','PUBLIC') NOT NULL DEFAULT 'STAFF',
+  status          ENUM('PLEDGED','SCHEDULED','RECEIVED','CANCELLED') NOT NULL DEFAULT 'RECEIVED',
+  delivery_method ENUM('PICKUP','DROP_OFF') NULL,
+  donor_name      VARCHAR(150) NULL,
+  donor_phone     VARCHAR(32) NULL,
+  donor_email     VARCHAR(255) NULL,
+  pickup_address  VARCHAR(400) NULL,
+  preferred_date  DATE NULL,
+  note            VARCHAR(600) NULL,
   created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_gift_campaign FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE,
   CONSTRAINT fk_gift_org      FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
@@ -635,11 +652,12 @@ CREATE TABLE payouts (
   campaign_id     BIGINT UNSIGNED NULL,
   amount          DECIMAL(14,0) NOT NULL,
   reason          TEXT NULL,
-  -- Two-stage approval chain (mirrors two-stage campaign approval):
-  --   REQUESTED -> REVIEWED (stage 1 — a REVIEWER/SUPER_ADMIN, not the requester)
-  --             -> APPROVED (stage 2 — an ORG_ADMIN/SUPER_ADMIN, a different person, not the requester)
-  --             -> PAID     (SUPER_ADMIN confirms the gateway transfer)
-  status          ENUM('REQUESTED','REVIEWED','APPROVED','PAID','REJECTED') NOT NULL DEFAULT 'REQUESTED',
+  -- Approval + disbursement chain (mirrors two-stage campaign approval):
+  --   REQUESTED -> REVIEWED          (stage 1 — a REVIEWER/SUPER_ADMIN, not the requester)
+  --             -> AWAITING_CHECKOUT (stage 2 — an ORG_ADMIN/SUPER_ADMIN, a different person, not the requester)
+  --             -> APPROVED          (the requester or an ORG_ADMIN submits the payout destination — "checkout")
+  --             -> PAID              (SUPER_ADMIN confirms the gateway transfer)
+  status          ENUM('REQUESTED','REVIEWED','AWAITING_CHECKOUT','APPROVED','PAID','REJECTED') NOT NULL DEFAULT 'REQUESTED',
   requested_by_id BIGINT UNSIGNED NULL,
   first_approved_by_id BIGINT UNSIGNED NULL,
   first_approved_at    DATETIME NULL,
@@ -648,11 +666,24 @@ CREATE TABLE payouts (
   paid_at         DATETIME NULL,
   gateway_ref     VARCHAR(255) NULL,
   notes           TEXT NULL,
+  -- Payout destination ("checkout") the requester / an ORG_ADMIN fills in once the
+  -- request clears both approvals. Mobile money uses provider + phone; bank uses
+  -- bank_name + account_number (+ optional branch). account_name applies to both.
+  disbursement_method          ENUM('MOBILE_MONEY','BANK') NULL,
+  disbursement_provider        VARCHAR(40) NULL,
+  disbursement_account_name    VARCHAR(120) NULL,
+  disbursement_account_number  VARCHAR(40) NULL,
+  disbursement_phone           VARCHAR(20) NULL,
+  disbursement_bank_name       VARCHAR(120) NULL,
+  disbursement_branch          VARCHAR(120) NULL,
+  disbursement_submitted_at    DATETIME NULL,
+  disbursement_submitted_by_id BIGINT UNSIGNED NULL,
   created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_payouts_org FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
   CONSTRAINT fk_payouts_campaign FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE SET NULL,
   CONSTRAINT fk_payouts_first_approver FOREIGN KEY (first_approved_by_id) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_payouts_checkout_by FOREIGN KEY (disbursement_submitted_by_id) REFERENCES users(id) ON DELETE SET NULL,
   INDEX idx_payouts_campaign_status (campaign_id, status)
 ) ENGINE=InnoDB;
 
@@ -885,6 +916,16 @@ VALUES
   (1, 1, 1,    'Two boxes of paediatric medical supplies', 180000, DATE_SUB(NOW(), INTERVAL 6 DAY), 3),
   (1, 1, NULL, 'Volunteer transport for three hospital trips', 90000, DATE_SUB(NOW(), INTERVAL 3 DAY), 3),
   (2, 1, 2,    '20 school desks donated by a local carpenter', 600000, DATE_SUB(NOW(), INTERVAL 10 DAY), 3);
+
+-- A gift pledged from the public campaign page (donor asked the team to collect
+-- it) — awaiting the campaign manager to schedule a pickup.
+INSERT INTO campaign_gifts
+  (campaign_id, organization_id, description, estimated_value, source, status,
+   delivery_method, donor_name, donor_phone, pickup_address, preferred_date, note)
+VALUES
+  (1, 1, 'Five cartons of bottled water and rehydration salts', 150000, 'PUBLIC', 'PLEDGED',
+   'PICKUP', 'Neema Kimaro', '255754112233', 'Plot 44, Mikocheni B, Dar es Salaam',
+   DATE_ADD(CURDATE(), INTERVAL 5 DAY), 'Available on weekday afternoons after 2pm.');
 
 -- Initial audit trail
 INSERT INTO audit_logs (organization_id, actor_id, actor_email, action, resource, resource_id, severity) VALUES

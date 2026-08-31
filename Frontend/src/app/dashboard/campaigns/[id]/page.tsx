@@ -17,23 +17,30 @@ import {
   Calendar,
   Building2,
   Check,
+  ChevronDown,
   FileWarning,
   Gift,
   Heart,
   ImageIcon,
   Import,
+  Landmark,
   Loader2,
+  MapPin,
   Megaphone,
   MoreHorizontal,
+  PackageCheck,
   Pause,
   Phone,
   Play,
+  Truck,
   ShieldCheck,
+  Smartphone,
   Star,
   Target,
   Trash2,
   UploadCloud,
   UserRound,
+  Wallet,
   XCircle,
 } from "lucide-react";
 import { Button } from "@/components/dashboard/ui/button";
@@ -78,9 +85,12 @@ import {
   type CampaignTargetsResponse,
   type CampaignTarget,
   type CampaignGift,
+  type GiftStatus,
   type CompletionReport,
   type ClosureRequest,
   type PayoutRecord,
+  type PayoutMethod,
+  type PayoutCheckoutInput,
   type PoolImportPreview,
   type DonorPool,
   type MessageTemplate,
@@ -88,6 +98,8 @@ import {
   type UserRecord,
 } from "@/lib/dashboard/api";
 import { useRole } from "@/hooks/use-role";
+import { ExportMenu } from "@/components/dashboard/export-menu";
+import { ImportWizard } from "@/components/dashboard/import-wizard";
 import { cn } from "@/lib/dashboard/utils";
 import {
   SortableTh,
@@ -99,6 +111,7 @@ import { ReviewDecisionDialog } from "@/components/dashboard/campaigns/review-de
 import { ReviewTimeline } from "@/components/dashboard/widgets/review-timeline";
 import { PendingResendsPanel } from "@/components/dashboard/reminders/pending-resends-panel";
 import { SchedulesPanel } from "@/components/dashboard/reminders/schedules-panel";
+import { TemplatesPanel } from "@/components/dashboard/reminders/templates-panel";
 
 const STATUS_BADGE: Record<string, string> = {
   DRAFT: "bg-slate-50 text-slate-600 border-slate-200",
@@ -431,18 +444,24 @@ export default function CampaignDetailPage() {
         <div className="flex items-start gap-2.5 rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-900">
           <ShieldCheck className="w-4 h-4 mt-0.5 shrink-0" />
           <span>
-            A payout request of{" "}
-            <strong>{formatTZSFull(campaign.openPayoutRequest.amount)}</strong> is in
-            review —{" "}
-            <strong>
-              {campaign.openPayoutRequest.status === "REVIEWED"
-                ? "Stage 2 of 2"
-                : "Stage 1 of 2"}
-            </strong>{" "}
-            {campaign.openPayoutRequest.status === "REVIEWED"
-              ? "(an org admin's final approval)"
-              : "(a reviewer's first approval)"}
-            . See the <strong>Payout</strong> tab.
+            A payout of{" "}
+            <strong>{formatTZSFull(campaign.openPayoutRequest.amount)}</strong>{" "}
+            {campaign.openPayoutRequest.status === "REQUESTED" && (
+              <>is in review — <strong>Stage 1 of 2</strong> (a reviewer&apos;s first approval).</>
+            )}
+            {campaign.openPayoutRequest.status === "REVIEWED" && (
+              <>is in review — <strong>Stage 2 of 2</strong> (an org admin&apos;s final approval).</>
+            )}
+            {campaign.openPayoutRequest.status === "AWAITING_CHECKOUT" && (
+              <>
+                is approved — <strong>add the payout details</strong> (mobile money or
+                bank) in the <strong>Payout</strong> tab to release it.
+              </>
+            )}
+            {campaign.openPayoutRequest.status === "APPROVED" && (
+              <>has its payout details in — waiting for the transfer to be made.</>
+            )}{" "}
+            See the <strong>Payout</strong> tab.
           </span>
         </div>
       )}
@@ -770,7 +789,10 @@ export default function CampaignDetailPage() {
             </TabsTrigger>
           )}
           {(campaign.status === "ACTIVE" || campaign.status === "PAUSED" || campaign.status === "COMPLETED") && (
-            <TabsTrigger value="payout">Payout</TabsTrigger>
+            <TabsTrigger value="payout">
+              Payout
+              {campaign.openPayoutRequest?.status === "AWAITING_CHECKOUT" && " (action needed)"}
+            </TabsTrigger>
           )}
           {campaign.status === "COMPLETED" && (
             <TabsTrigger value="completion">
@@ -847,7 +869,11 @@ export default function CampaignDetailPage() {
         </TabsContent>
 
         <TabsContent value="donations" className="pt-2">
-          <DonationsList donations={campaign.donations ?? []} campaignId={id} />
+          <DonationsList
+            donations={campaign.donations ?? []}
+            campaignId={id}
+            onChanged={refresh}
+          />
         </TabsContent>
 
         <TabsContent value="user" className="pt-2">
@@ -889,6 +915,8 @@ export default function CampaignDetailPage() {
               campaignId={id}
               isAdmin={isAdmin}
               canRequest={isCampaignManager}
+              canCheckout={isCampaignManager || isOrgAdmin}
+              onChanged={refresh}
             />
           </TabsContent>
         )}
@@ -1325,29 +1353,82 @@ function BoardRow({
 function DonationsList({
   donations,
   campaignId,
+  onChanged,
 }: {
   donations: CampaignRecord["donations"];
   campaignId: string;
+  onChanged?: () => void;
 }) {
+  const { hasPermission, isOrgAdmin } = useRole();
+  const canImport =
+    isOrgAdmin || hasPermission("donor:add") || hasPermission("donor:manage");
+  const [importOpen, setImportOpen] = useState(false);
   const total = (donations ?? []).reduce((s, d) => s + d.amount, 0);
+
+  const toolbar = (
+    <div className="flex items-center gap-2">
+      <ExportMenu dataset="donations" params={{ campaignId }} label="Export" />
+      {canImport && (
+        <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+          <UploadCloud className="w-3.5 h-3.5 mr-1.5" />
+          Import
+        </Button>
+      )}
+    </div>
+  );
+
+  const importDialog = (
+    <Dialog open={importOpen} onOpenChange={setImportOpen}>
+      <DialogContent className="max-w-xl">
+        <DialogHeader>
+          <DialogTitle>Import offline contributions</DialogTitle>
+          <DialogDescription>
+            Each row is recorded as a confirmed contribution against this campaign and
+            updates its raised total. The campaign must be ACTIVE.
+          </DialogDescription>
+        </DialogHeader>
+        <ImportWizard
+          dataset="donations"
+          params={{ campaignId }}
+          columns={[
+            { field: "amount", required: true, help: "Whole TZS amount" },
+            { field: "donor_phone", help: "Links to an existing donor" },
+            { field: "donor_name" },
+            { field: "is_anonymous", help: "true / false" },
+          ]}
+          description="Each row becomes a confirmed contribution."
+          onImported={() => onChanged?.()}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+
   if (!donations || donations.length === 0) {
     return (
-      <div className="bg-card border border-border rounded-xl py-16 text-center">
-        <Heart className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
-        <p className="text-sm text-muted-foreground">
-          No donations recorded for this campaign yet.
-        </p>
+      <div className="space-y-3">
+        <div className="flex justify-end">{toolbar}</div>
+        <div className="bg-card border border-border rounded-xl py-16 text-center">
+          <Heart className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
+          <p className="text-sm text-muted-foreground">
+            No donations recorded for this campaign yet.
+          </p>
+        </div>
+        {importDialog}
       </div>
     );
   }
   return (
     <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
-      <div className="px-5 py-4 border-b border-border">
-        <h2 className="text-sm font-semibold text-foreground">All donations</h2>
-        <p className="text-[11px] text-muted-foreground mt-0.5">
-          Total {formatTZSFull(total)}
-        </p>
+      <div className="px-5 py-4 border-b border-border flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold text-foreground">All donations</h2>
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            Total {formatTZSFull(total)}
+          </p>
+        </div>
+        {toolbar}
       </div>
+      {importDialog}
       <div className="divide-y divide-border">
         {donations.map((d) => (
           <div key={d.id} className="flex items-center gap-3 px-5 py-3.5">
@@ -1443,9 +1524,10 @@ function UserTab({
 
 // ─── Reminders tab (per-campaign) ──────────────────────────────────────────
 //
-// Everything the /dashboard/reminders page offers, scoped to this one campaign:
-// a one-off send, the pending auto-resend cycles waiting for confirmation, and
-// the auto-resend schedules that target this campaign.
+// Reminders have no standalone dashboard page — everything lives here, scoped to
+// this one campaign: a one-off send, the pending auto-resend cycles waiting for
+// confirmation, the auto-resend schedules that target this campaign, and the
+// (org-wide) reusable message templates.
 
 function CampaignRemindersTab({
   campaignId,
@@ -1486,6 +1568,10 @@ function CampaignRemindersTab({
       <div className="border-t border-border" />
 
       <SchedulesPanel campaignId={Number(campaignId)} canManage={canManage} />
+
+      <div className="border-t border-border" />
+
+      <TemplatesPanel canManage={canManage} />
     </div>
   );
 }
@@ -1850,10 +1936,32 @@ function ReviewReportForm({ campaignId, onDone }: { campaignId: string; onDone: 
 const REQUEST_STATUS_BADGE: Record<string, string> = {
   PENDING: "bg-sky-50 text-sky-700 border-sky-200",
   REQUESTED: "bg-sky-50 text-sky-700 border-sky-200",
+  REVIEWED: "bg-violet-50 text-violet-700 border-violet-200",
+  AWAITING_CHECKOUT: "bg-amber-50 text-amber-700 border-amber-200",
   APPROVED: "bg-emerald-50 text-emerald-700 border-emerald-200",
   PAID: "bg-emerald-50 text-emerald-700 border-emerald-200",
   REJECTED: "bg-rose-50 text-rose-700 border-rose-200",
 };
+
+/** Human labels for a payout's status (the raw enum is terse / ALL-CAPS). */
+const PAYOUT_STATUS_LABEL: Record<string, string> = {
+  REQUESTED: "In first review",
+  REVIEWED: "Awaiting final approval",
+  AWAITING_CHECKOUT: "Approved — awaiting payout details",
+  APPROVED: "Ready to be paid",
+  PAID: "Paid",
+  REJECTED: "Rejected",
+};
+
+/** Tanzanian mobile-money providers offered on the payout checkout form. */
+const MOBILE_MONEY_PROVIDERS = [
+  "M-Pesa",
+  "Airtel Money",
+  "Tigo Pesa (Mixx by Yas)",
+  "HaloPesa",
+  "Azam Pesa",
+  "T-Pesa",
+] as const;
 
 function ClosureRequestTab({
   campaignId,
@@ -2112,6 +2220,7 @@ function CampaignGiftsSection({
   const [gifts, setGifts] = useState<CampaignGift[] | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<number | null>(null);
+  const [busyId, setBusyId] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -2139,11 +2248,27 @@ function CampaignGiftsSection({
     }
   };
 
+  const setStatus = async (giftId: number, status: GiftStatus) => {
+    setBusyId(giftId);
+    try {
+      await campaignApi.updateGiftStatus(campaignId, giftId, status);
+      await load();
+      onChanged();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to update the gift.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   if (gifts === undefined) {
     return <div className="h-40 bg-card border border-border rounded-xl animate-pulse" />;
   }
 
-  const total = gifts.reduce((s, g) => s + g.estimatedValue, 0);
+  const total = gifts
+    .filter((g) => g.status !== "CANCELLED")
+    .reduce((s, g) => s + g.estimatedValue, 0);
+  const pledgedCount = gifts.filter((g) => g.status === "PLEDGED").length;
 
   return (
     <div className="space-y-4">
@@ -2160,6 +2285,7 @@ function CampaignGiftsSection({
             <h2 className="text-sm font-semibold text-foreground">In-kind gifts</h2>
           </div>
           <span className="text-[11px] text-muted-foreground">
+            {pledgedCount > 0 ? `${pledgedCount} pledged · ` : ""}
             {gifts.length} gift{gifts.length === 1 ? "" : "s"} &middot;{" "}
             {formatTZSFull(total)} est.
           </span>
@@ -2167,36 +2293,100 @@ function CampaignGiftsSection({
 
         {gifts.length === 0 ? (
           <p className="px-5 py-8 text-center text-sm text-muted-foreground">
-            No gifts recorded. Not every contribution is money — log donated
-            goods, services or time here with an estimated value.
+            No gifts recorded. Not every contribution is money — supporters can
+            pledge goods from the campaign page, or you can log donated goods,
+            services or time here with an estimated value.
           </p>
         ) : (
           <ul className="divide-y divide-border">
             {gifts.map((g) => (
               <li key={g.id} className="px-5 py-3 flex items-start justify-between gap-3">
-                <div className="min-w-0">
+                <div className="min-w-0 space-y-1">
                   <p className="text-sm text-foreground">{g.description}</p>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">
+
+                  {g.source === "PUBLIC" && (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] font-medium text-violet-600 dark:text-violet-300">
+                        <Gift className="w-3 h-3" /> Gift donor · pledged via campaign page
+                      </span>
+                      {g.deliveryMethod === "PICKUP" ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-300">
+                          <Truck className="w-3 h-3" /> Pickup needed
+                        </span>
+                      ) : g.deliveryMethod === "DROP_OFF" ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-slate-500/10 px-2 py-0.5 text-[10px] font-medium text-slate-600 dark:text-slate-300">
+                          <PackageCheck className="w-3 h-3" /> Donor will deliver
+                        </span>
+                      ) : null}
+                    </div>
+                  )}
+
+                  <p className="text-[11px] text-muted-foreground">
                     {formatTZSFull(g.estimatedValue)} est.
                     {g.donorName ? ` · ${g.donorName}` : ""}
-                    {g.receivedAt
-                      ? ` · ${new Date(g.receivedAt).toLocaleDateString()}`
-                      : ""}
+                    {g.donorPhone ? ` · ${g.donorPhone}` : ""}
+                    {g.donorEmail ? ` · ${g.donorEmail}` : ""}
                   </p>
+
+                  {(g.pickupAddress || g.preferredDate) && (
+                    <p className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
+                      {g.pickupAddress && (
+                        <span className="inline-flex items-center gap-1">
+                          <MapPin className="w-3 h-3" /> {g.pickupAddress}
+                        </span>
+                      )}
+                      {g.preferredDate && (
+                        <span className="inline-flex items-center gap-1">
+                          <Calendar className="w-3 h-3" />{" "}
+                          {new Date(g.preferredDate).toLocaleDateString()}
+                        </span>
+                      )}
+                    </p>
+                  )}
+
+                  {g.note && (
+                    <p className="text-[11px] italic text-muted-foreground">“{g.note}”</p>
+                  )}
+
+                  {g.source === "STAFF" && g.receivedAt && (
+                    <p className="text-[11px] text-muted-foreground">
+                      Received {new Date(g.receivedAt).toLocaleDateString()}
+                    </p>
+                  )}
                 </div>
+
                 {canManage && (
-                  <Button
-                    size="xs"
-                    variant="ghost"
-                    onClick={() => remove(g.id)}
-                    disabled={removingId === g.id}
-                  >
-                    {removingId === g.id ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <Trash2 className="w-3.5 h-3.5" />
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    {g.source === "PUBLIC" && (
+                      <Select
+                        value={g.status}
+                        onValueChange={(v) => setStatus(g.id, v as GiftStatus)}
+                        disabled={busyId === g.id}
+                      >
+                        <SelectTrigger className="h-7 w-[8.5rem] text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="PLEDGED">Pledged</SelectItem>
+                          <SelectItem value="SCHEDULED">Scheduled</SelectItem>
+                          <SelectItem value="RECEIVED">Received</SelectItem>
+                          <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                        </SelectContent>
+                      </Select>
                     )}
-                  </Button>
+                    <Button
+                      size="xs"
+                      variant="ghost"
+                      onClick={() => remove(g.id)}
+                      disabled={removingId === g.id}
+                    >
+                      {removingId === g.id ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-3.5 h-3.5" />
+                      )}
+                    </Button>
+                  </div>
                 )}
               </li>
             ))}
@@ -2481,13 +2671,20 @@ function PayoutRequestTab({
   campaignId,
   isAdmin,
   canRequest,
+  canCheckout,
+  onChanged,
 }: {
   campaignId: string;
   isAdmin: boolean;
   canRequest: boolean;
+  /** May submit the payout destination on an approved request (requester or ORG_ADMIN). */
+  canCheckout: boolean;
+  /** Bubble up so the parent campaign banner / tab badge refresh too. */
+  onChanged: () => void;
 }) {
   const [payouts, setPayouts] = useState<PayoutRecord[] | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
+  const [checkoutFor, setCheckoutFor] = useState<PayoutRecord | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -2503,13 +2700,20 @@ function PayoutRequestTab({
     load();
   }, [load]);
 
+  const reload = useCallback(() => {
+    load();
+    onChanged();
+  }, [load, onChanged]);
+
   if (payouts === undefined) {
     return <div className="h-40 bg-card border border-border rounded-xl animate-pulse" />;
   }
 
-  // A payout still in the approval chain (first review OR final approval) blocks
-  // a new request — matches createPayout's "status IN ('REQUESTED','REVIEWED')".
-  const hasPending = payouts.some((p) => p.status === "REQUESTED" || p.status === "REVIEWED");
+  // Any request that isn't finished (PAID) or dead (REJECTED) blocks a new one —
+  // matches createPayout's open-request guard.
+  const hasInFlight = payouts.some((p) =>
+    ["REQUESTED", "REVIEWED", "AWAITING_CHECKOUT", "APPROVED"].includes(p.status)
+  );
 
   return (
     <div className="space-y-4">
@@ -2522,51 +2726,402 @@ function PayoutRequestTab({
       {payouts.length > 0 && (
         <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-border">
-            <h2 className="text-sm font-semibold text-foreground">Payout requests</h2>
+            <h2 className="text-sm font-semibold text-foreground">Payout activity</h2>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Every payout for this campaign — requested, reviewed, approved or
+              rejected, and where the money was sent.
+            </p>
           </div>
           <div className="divide-y divide-border">
             {payouts.map((p) => (
-              <div key={p.id} className="p-5 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span
-                    className={cn(
-                      "text-[10px] font-medium border rounded-full px-2.5 py-1",
-                      REQUEST_STATUS_BADGE[p.status]
-                    )}
-                  >
-                    {p.status}
-                  </span>
-                  <span className="text-sm font-semibold text-foreground">{formatTZSFull(p.amount)}</span>
-                </div>
-                {p.reason && <p className="text-sm text-muted-foreground leading-relaxed">{p.reason}</p>}
-                {p.notes && (
-                  <p className="text-[11px] text-muted-foreground">Admin note: &quot;{p.notes}&quot;</p>
-                )}
-                <PayoutProofStrip
-                  payoutId={p.id}
-                  images={p.proofImages}
-                  editable={canRequest && (p.status === "REQUESTED" || p.status === "REVIEWED")}
-                  onChanged={load}
-                />
-                <p className="text-[11px] text-muted-foreground">
-                  {new Date(p.createdAt).toLocaleDateString()}
-                </p>
-                {isAdmin && p.status === "REQUESTED" && (
-                  <DecidePayoutForm payoutId={p.id} onDone={load} />
-                )}
-              </div>
+              <PayoutActivityCard
+                key={p.id}
+                payout={p}
+                isAdmin={isAdmin}
+                canRequest={canRequest}
+                canCheckout={canCheckout}
+                onChanged={reload}
+                onCheckout={() => setCheckoutFor(p)}
+              />
             ))}
           </div>
         </div>
       )}
 
-      {canRequest && !hasPending && <RequestPayoutForm campaignId={campaignId} onSubmitted={load} />}
+      {canRequest && !hasInFlight && <RequestPayoutForm campaignId={campaignId} onSubmitted={reload} />}
       {!canRequest && payouts.length === 0 && (
         <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
           No payout requests yet.
         </div>
       )}
+
+      {checkoutFor && (
+        <PayoutCheckoutDialog
+          payout={checkoutFor}
+          onClose={() => setCheckoutFor(null)}
+          onDone={() => {
+            setCheckoutFor(null);
+            reload();
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+/** One payout request: status, amount, reason, proof, the approval timeline, and
+ *  — once it clears both approvals — the checkout step / submitted destination. */
+function PayoutActivityCard({
+  payout: p,
+  isAdmin,
+  canRequest,
+  canCheckout,
+  onChanged,
+  onCheckout,
+}: {
+  payout: PayoutRecord;
+  isAdmin: boolean;
+  canRequest: boolean;
+  canCheckout: boolean;
+  onChanged: () => void;
+  onCheckout: () => void;
+}) {
+  const [showTimeline, setShowTimeline] = useState(false);
+  const [timeline, setTimeline] = useState<ReviewTrailEntry[] | null>(null);
+  const [timelineError, setTimelineError] = useState<string | null>(null);
+
+  const toggleTimeline = async () => {
+    const next = !showTimeline;
+    setShowTimeline(next);
+    if (next && timeline === null && !timelineError) {
+      try {
+        setTimeline(await payoutApi.history(p.id));
+      } catch (e) {
+        setTimelineError(e instanceof Error ? e.message : "Failed to load the activity.");
+      }
+    }
+  };
+
+  return (
+    <div className="p-5 space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <span
+          className={cn(
+            "text-[10px] font-medium border rounded-full px-2.5 py-1",
+            REQUEST_STATUS_BADGE[p.status]
+          )}
+        >
+          {PAYOUT_STATUS_LABEL[p.status] ?? p.status}
+        </span>
+        <span className="text-sm font-semibold text-foreground">{formatTZSFull(p.amount)}</span>
+      </div>
+
+      {p.reason && <p className="text-sm text-muted-foreground leading-relaxed">{p.reason}</p>}
+      {p.notes && (
+        <p className="text-[11px] text-muted-foreground">Reviewer / admin note: &quot;{p.notes}&quot;</p>
+      )}
+
+      <PayoutProofStrip
+        payoutId={p.id}
+        images={p.proofImages}
+        editable={canRequest && (p.status === "REQUESTED" || p.status === "REVIEWED")}
+        onChanged={onChanged}
+      />
+
+      <p className="text-[11px] text-muted-foreground">
+        Requested {new Date(p.createdAt).toLocaleDateString()}
+      </p>
+
+      {/* Checkout: prompt + button while awaiting details */}
+      {p.status === "AWAITING_CHECKOUT" && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 space-y-2">
+          <p className="text-xs text-amber-800">
+            This payout is approved. Add where the money should be sent — mobile
+            money or bank — to release it for transfer.
+          </p>
+          {canCheckout ? (
+            <Button size="sm" onClick={onCheckout}>
+              <Wallet className="w-3.5 h-3.5 mr-1.5" />
+              Checkout — add payout details
+            </Button>
+          ) : (
+            <p className="text-[11px] text-amber-700">
+              Waiting for the campaign manager to add the payout details.
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Submitted destination (approved / paid) */}
+      {p.disbursement && <PayoutDestinationSummary disbursement={p.disbursement} />}
+
+      {p.status === "PAID" && (
+        <p className="text-[11px] text-emerald-700">
+          Paid {p.paidAt ? new Date(p.paidAt).toLocaleDateString() : ""}
+          {p.gatewayRef ? ` · ref ${p.gatewayRef}` : ""}
+        </p>
+      )}
+
+      {isAdmin && p.status === "REQUESTED" && <DecidePayoutForm payoutId={p.id} onDone={onChanged} />}
+
+      {/* Activity timeline */}
+      <div>
+        <button
+          onClick={toggleTimeline}
+          className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <ChevronDown
+            className={cn("w-3.5 h-3.5 transition-transform", showTimeline && "rotate-180")}
+          />
+          {showTimeline ? "Hide activity" : "View activity"}
+        </button>
+        {showTimeline && (
+          <div className="pt-3">
+            {timelineError ? (
+              <p className="text-[11px] text-destructive">{timelineError}</p>
+            ) : timeline === null ? (
+              <div className="h-24 bg-muted/40 rounded-lg animate-pulse" />
+            ) : (
+              <ReviewTimeline entries={timeline} />
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Read-only view of the payout destination the requester submitted at checkout. */
+function PayoutDestinationSummary({
+  disbursement: d,
+}: {
+  disbursement: NonNullable<PayoutRecord["disbursement"]>;
+}) {
+  const rows =
+    d.method === "MOBILE_MONEY"
+      ? [
+          ["Provider", d.provider],
+          ["Phone", d.phone],
+          ["Account name", d.accountName],
+        ]
+      : [
+          ["Bank", d.bankName],
+          ["Account number", d.accountNumber],
+          ["Account name", d.accountName],
+          ["Branch", d.branch],
+        ];
+  return (
+    <div className="rounded-lg border border-border bg-muted/30 px-4 py-3 space-y-1.5">
+      <p className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-foreground uppercase tracking-wide">
+        {d.method === "MOBILE_MONEY" ? (
+          <Smartphone className="w-3.5 h-3.5" />
+        ) : (
+          <Landmark className="w-3.5 h-3.5" />
+        )}
+        {d.method === "MOBILE_MONEY" ? "Mobile money" : "Bank transfer"}
+      </p>
+      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[11px]">
+        {rows
+          .filter(([, v]) => v)
+          .map(([label, value]) => (
+            <div key={label} className="contents">
+              <dt className="text-muted-foreground">{label}</dt>
+              <dd className="text-foreground font-medium">{value}</dd>
+            </div>
+          ))}
+      </dl>
+      {d.submittedAt && (
+        <p className="text-[10px] text-muted-foreground">
+          Submitted {new Date(d.submittedAt).toLocaleDateString()}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** Checkout form — where an approved payout's money should be sent. */
+function PayoutCheckoutDialog({
+  payout,
+  onClose,
+  onDone,
+}: {
+  payout: PayoutRecord;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [method, setMethod] = useState<PayoutMethod>("MOBILE_MONEY");
+  const [accountName, setAccountName] = useState("");
+  const [provider, setProvider] = useState<string>(MOBILE_MONEY_PROVIDERS[0]);
+  const [phone, setPhone] = useState("");
+  const [bankName, setBankName] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [branch, setBranch] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async () => {
+    setError(null);
+    if (accountName.trim().length < 2) {
+      setError("Enter the account holder's name.");
+      return;
+    }
+    if (method === "MOBILE_MONEY" && !phone.trim()) {
+      setError("Enter the mobile money number.");
+      return;
+    }
+    if (method === "BANK" && (!bankName.trim() || !accountNumber.trim())) {
+      setError("Enter the bank name and account number.");
+      return;
+    }
+    const body: PayoutCheckoutInput = {
+      method,
+      accountName: accountName.trim(),
+      ...(method === "MOBILE_MONEY"
+        ? { provider, phone: phone.trim() }
+        : {
+            bankName: bankName.trim(),
+            accountNumber: accountNumber.trim(),
+            branch: branch.trim() || undefined,
+          }),
+    };
+    setSubmitting(true);
+    try {
+      await payoutApi.submitCheckout(payout.id, body);
+      onDone();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to submit the payout details.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-base font-semibold">Payout details</DialogTitle>
+          <DialogDescription className="text-xs">
+            Where should the {formatTZSFull(payout.amount)} payout be sent? A super
+            admin makes the transfer to these details.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-2">
+            {(
+              [
+                ["MOBILE_MONEY", "Mobile money", Smartphone],
+                ["BANK", "Bank account", Landmark],
+              ] as const
+            ).map(([value, label, Icon]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setMethod(value)}
+                className={cn(
+                  "flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2.5 text-xs font-medium transition-colors",
+                  method === value
+                    ? "border-primary bg-primary/5 text-primary"
+                    : "border-border text-muted-foreground hover:bg-muted"
+                )}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {method === "MOBILE_MONEY" ? (
+            <>
+              <div className="grid gap-1.5">
+                <Label className="text-xs">Provider</Label>
+                <Select value={provider} onValueChange={(v) => setProvider(v ?? MOBILE_MONEY_PROVIDERS[0])}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MOBILE_MONEY_PROVIDERS.map((prov) => (
+                      <SelectItem key={prov} value={prov}>
+                        {prov}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-1.5">
+                <Label className="text-xs">Mobile money number</Label>
+                <Input
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="e.g. 0712 345 678"
+                  className="h-9"
+                  inputMode="tel"
+                />
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="grid gap-1.5">
+                <Label className="text-xs">Bank name</Label>
+                <Input
+                  value={bankName}
+                  onChange={(e) => setBankName(e.target.value)}
+                  placeholder="e.g. CRDB Bank"
+                  className="h-9"
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label className="text-xs">Account number</Label>
+                <Input
+                  value={accountNumber}
+                  onChange={(e) => setAccountNumber(e.target.value)}
+                  placeholder="Bank account number"
+                  className="h-9"
+                  inputMode="numeric"
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label className="text-xs">
+                  Branch <span className="font-normal text-muted-foreground">(optional)</span>
+                </Label>
+                <Input
+                  value={branch}
+                  onChange={(e) => setBranch(e.target.value)}
+                  placeholder="e.g. Dodoma"
+                  className="h-9"
+                />
+              </div>
+            </>
+          )}
+
+          <div className="grid gap-1.5">
+            <Label className="text-xs">Account holder name</Label>
+            <Input
+              value={accountName}
+              onChange={(e) => setAccountName(e.target.value)}
+              placeholder="Name on the account"
+              className="h-9"
+            />
+          </div>
+
+          {error && (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+              {error}
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button onClick={submit} disabled={submitting}>
+            {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : null}
+            Submit payout details
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

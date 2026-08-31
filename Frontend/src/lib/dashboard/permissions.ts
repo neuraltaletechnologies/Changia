@@ -214,16 +214,20 @@ export const ROUTE_ACCESS: Record<string, Role[]> = {
   "/dashboard/profile": ALL_ROLES,
   "/dashboard/campaigns": ALL_ROLES,
   "/dashboard/campaigns/new": [ROLE.ORG_ADMIN, ROLE.CAMPAIGN_MANAGER],
+  "/dashboard/campaigns/import": [ROLE.ORG_ADMIN, ROLE.CAMPAIGN_MANAGER],
+  // Org-wide donations / transactions list — the backend service scopes the
+  // rows per role, so every role may open the page.
+  "/dashboard/transactions": ALL_ROLES,
   "/dashboard/approvals": [ROLE.SUPER_ADMIN, ROLE.ORG_ADMIN, ROLE.REVIEWER],
   "/dashboard/donors": ORG_WORKSPACE_ROLES,
   "/dashboard/donors/import": [ROLE.SUPER_ADMIN],
   "/dashboard/pools": ORG_WORKSPACE_ROLES,
   "/dashboard/pools/new": [ROLE.CAMPAIGN_MANAGER],
   "/dashboard/pools/anomalous": ORG_WORKSPACE_ROLES,
-  // Reminders is one page: the Pending Resends review queue (campaign managers
-  // action it) plus the auto-resend schedules.
-  "/dashboard/reminders": ORG_WORKSPACE_ROLES,
-  "/dashboard/reminders/templates": ORG_WORKSPACE_ROLES,
+  // Reminders have no standalone page — every reminder (one-off sends, message
+  // templates, auto-resend schedules and the Pending Resends review queue) is
+  // managed from the Reminders tab on its own campaign, and the pending queue is
+  // also surfaced on the Approvals page.
   "/dashboard/notifications": ALL_ROLES,
   "/dashboard/user": [ROLE.SUPER_ADMIN],
   "/dashboard/audit-log": [ROLE.SUPER_ADMIN],

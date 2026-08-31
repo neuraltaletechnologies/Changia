@@ -159,6 +159,15 @@ When `CLICKPESA_ENABLED=false`:
 
 ## Payout Flow (Disbursement)
 
+> **Updated (Sep 2026):** the payout module no longer has a separate "checkout"
+> step or a super-admin `POST /payouts/:id/paid`. The mobile-money destination is
+> captured with the request, and after both approvals the **requesting
+> `CAMPAIGN_MANAGER` calls `POST /payouts/:id/confirm`**, which runs
+> `clickPesa.createPayout()` inside a `db.withTransaction` row lock and moves the
+> payout to `PAID` (a gateway failure rolls back to `APPROVED`). The
+> `previewPayout()` helper below is retained in `utils/clickPesa.js` but is no
+> longer wired to an endpoint. The diagrams below describe the retired flow.
+
 ### 1. Preview Payout (shows fee breakdown)
 
 ```
@@ -271,8 +280,7 @@ CLICKPESA_TIMEOUT_MS=15000
 - `POST /api/v1/public/donations/contributions/:attemptId/simulate-confirm` — Dev-only
 
 ### Payouts (authenticated)
-- `POST /api/v1/payouts/:id/preview` — Preview ClickPesa payout fees
-- `POST /api/v1/payouts/:id/paid` — Mark paid + execute ClickPesa transfer
+- `POST /api/v1/payouts/:id/confirm` — `CAMPAIGN_MANAGER` (requester) confirms an `APPROVED` payout; atomically executes the ClickPesa mobile-money transfer and moves it to `PAID`
 
 ### Webhooks (unauthenticated)
 - `POST /webhooks/clickpesa` — ClickPesa event receiver

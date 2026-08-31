@@ -85,47 +85,22 @@ const reject = asyncHandler(async (req, res) => {
 });
 
 /**
- * Submit the payout destination ("checkout") — moves AWAITING_CHECKOUT -> APPROVED.
- * POST /payouts/:id/checkout
+ * The requesting CAMPAIGN_MANAGER confirms an APPROVED payout — this atomically
+ * fires the ClickPesa transfer and moves APPROVED -> PAID.
+ * POST /payouts/:id/confirm
  */
-const submitCheckout = asyncHandler(async (req, res) => {
-  const payout = await service.submitCheckout(
+const confirm = asyncHandler(async (req, res) => {
+  const payout = await service.confirmPayout(
     req.user.organizationId,
     req.user,
     req.params.id,
     req.body
   );
-  await audit(req, "payout.checkout_submitted", payout, "INFO", {
-    method: payout.disbursement?.method,
-  });
-  res.json({ success: true, data: payout });
-});
-
-/**
- * Preview the ClickPesa payout — shows fee breakdown before confirmation.
- * POST /payouts/:id/preview
- */
-const preview = asyncHandler(async (req, res) => {
-  const preview = await service.previewPayout(
-    req.user.organizationId,
-    req.params.id,
-    req.body.phoneNumber,
-    req.user
-  );
-  res.json({ success: true, data: preview });
-});
-
-/**
- * Mark payout as paid and initiate ClickPesa transfer if enabled.
- * POST /payouts/:id/paid
- */
-const markPaid = asyncHandler(async (req, res) => {
-  const payout = await service.markPaid(req.user.organizationId, req.params.id, req.body, req.user);
+  await audit(req, "payout.confirmed", payout, "INFO", req.body?.notes ? { notes: req.body.notes } : undefined);
   await audit(req, "payout.paid", payout, "INFO", {
     gatewayRef: payout.gatewayRef || undefined,
-    notes: req.body?.notes || undefined,
   });
   res.json({ success: true, data: payout });
 });
 
-module.exports = { list, get, getHistory, create, attachProof, removeProof, approve, reject, submitCheckout, preview, markPaid };
+module.exports = { list, get, getHistory, create, attachProof, removeProof, approve, reject, confirm };

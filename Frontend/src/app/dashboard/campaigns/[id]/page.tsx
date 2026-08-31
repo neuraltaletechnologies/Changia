@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   DropdownMenu,
@@ -91,8 +91,6 @@ import {
   type CompletionReport,
   type ClosureRequest,
   type PayoutRecord,
-  type PayoutMethod,
-  type PayoutCheckoutInput,
   type PoolImportPreview,
   type DonorPool,
   type MessageTemplate,
@@ -109,6 +107,8 @@ import {
   type SortAccessors,
 } from "@/components/dashboard/ui/sortable-table";
 import { CampaignPhotosCard } from "@/components/dashboard/campaigns/campaign-photos-card";
+import { RequestPayoutDialog } from "@/components/dashboard/payouts/request-payout-dialog";
+import { PAYOUT_STATUS_LABEL } from "@/lib/dashboard/payouts";
 import { ReviewDecisionDialog } from "@/components/dashboard/campaigns/review-decision-dialog";
 import { ReviewTimeline } from "@/components/dashboard/widgets/review-timeline";
 import { PendingResendsPanel } from "@/components/dashboard/reminders/pending-resends-panel";
@@ -128,6 +128,7 @@ const STATUS_BADGE: Record<string, string> = {
 
 export default function CampaignDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const initialTab = useSearchParams().get("tab") || "overview";
   const {
     isSuperAdmin,
     isOrgAdmin,
@@ -437,14 +438,11 @@ export default function CampaignDetailPage() {
             {campaign.openPayoutRequest.status === "REVIEWED" && (
               <>is in review — <strong>Stage 2 of 2</strong> (an org admin&apos;s final approval).</>
             )}
-            {campaign.openPayoutRequest.status === "AWAITING_CHECKOUT" && (
-              <>
-                is approved — <strong>add the payout details</strong> (mobile money or
-                bank) in the <strong>Payout</strong> tab to release it.
-              </>
-            )}
             {campaign.openPayoutRequest.status === "APPROVED" && (
-              <>has its payout details in — waiting for the transfer to be made.</>
+              <>
+                is approved and on hold — <strong>confirm the release</strong> in the{" "}
+                <strong>Payout</strong> tab to send the money.
+              </>
             )}{" "}
             See the <strong>Payout</strong> tab.
           </span>
@@ -743,7 +741,7 @@ export default function CampaignDetailPage() {
         </div>
       </div>
 
-      <Tabs defaultValue="overview">
+      <Tabs defaultValue={initialTab}>
         <TabsList className="flex-wrap h-auto w-full sm:w-auto gap-1 py-1">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="board">
@@ -770,7 +768,7 @@ export default function CampaignDetailPage() {
           {(campaign.status === "ACTIVE" || campaign.status === "PAUSED" || campaign.status === "COMPLETED") && (
             <TabsTrigger value="payout">
               Payout
-              {campaign.openPayoutRequest?.status === "AWAITING_CHECKOUT"
+              {campaign.openPayoutRequest?.status === "APPROVED"
                 ? " (action needed)"
                 : campaign.latestClosureRequest?.status === "PENDING" && " (review needed)"}
             </TabsTrigger>
@@ -892,7 +890,6 @@ export default function CampaignDetailPage() {
               campaignRaised={campaign.raisedAmount}
               isAdmin={isAdmin}
               canRequestPayout={isCampaignManager}
-              canCheckout={isCampaignManager || isOrgAdmin}
               canReviewClosure={canApproveRole}
               canRequestClosure={
                 isCampaignManager &&
@@ -1958,31 +1955,10 @@ const REQUEST_STATUS_BADGE: Record<string, string> = {
   PENDING: "bg-sky-50 text-sky-700 border-sky-200",
   REQUESTED: "bg-sky-50 text-sky-700 border-sky-200",
   REVIEWED: "bg-violet-50 text-violet-700 border-violet-200",
-  AWAITING_CHECKOUT: "bg-amber-50 text-amber-700 border-amber-200",
-  APPROVED: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  APPROVED: "bg-amber-50 text-amber-700 border-amber-200",
   PAID: "bg-emerald-50 text-emerald-700 border-emerald-200",
   REJECTED: "bg-rose-50 text-rose-700 border-rose-200",
 };
-
-/** Human labels for a payout's status (the raw enum is terse / ALL-CAPS). */
-const PAYOUT_STATUS_LABEL: Record<string, string> = {
-  REQUESTED: "In first review",
-  REVIEWED: "Awaiting final approval",
-  AWAITING_CHECKOUT: "Approved — awaiting payout details",
-  APPROVED: "Ready to be paid",
-  PAID: "Paid",
-  REJECTED: "Rejected",
-};
-
-/** Tanzanian mobile-money providers offered on the payout checkout form. */
-const MOBILE_MONEY_PROVIDERS = [
-  "M-Pesa",
-  "Airtel Money",
-  "Tigo Pesa (Mixx by Yas)",
-  "HaloPesa",
-  "Azam Pesa",
-  "T-Pesa",
-] as const;
 
 function RequestClosureDialog({
   campaignId,
@@ -2600,7 +2576,6 @@ function PayoutRequestTab({
   campaignRaised,
   isAdmin,
   canRequestPayout,
-  canCheckout,
   canReviewClosure,
   canRequestClosure,
   onChanged,
@@ -2610,10 +2585,8 @@ function PayoutRequestTab({
   /** Total raised — used to suggest the remaining balance once closure is granted. */
   campaignRaised: number;
   isAdmin: boolean;
-  /** CAMPAIGN_MANAGER — may request a payout. */
+  /** CAMPAIGN_MANAGER — may request a payout and confirm its release. */
   canRequestPayout: boolean;
-  /** May submit the payout destination on an approved request (requester or ORG_ADMIN). */
-  canCheckout: boolean;
   /** REVIEWER / ORG_ADMIN / SUPER_ADMIN — may approve/reject a closure request. */
   canReviewClosure: boolean;
   /** CAMPAIGN_MANAGER on an ACTIVE/PAUSED campaign — may request closure. */
@@ -2624,7 +2597,6 @@ function PayoutRequestTab({
   const [payouts, setPayouts] = useState<PayoutRecord[] | undefined>(undefined);
   const [closures, setClosures] = useState<ClosureRequest[] | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
-  const [checkoutFor, setCheckoutFor] = useState<PayoutRecord | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [payoutDialog, setPayoutDialog] = useState(false);
   const [closureDialog, setClosureDialog] = useState(false);
@@ -2656,10 +2628,10 @@ function PayoutRequestTab({
     return <div className="h-40 bg-card border border-border rounded-xl animate-pulse" />;
   }
 
-  // One payout at a time: anything not PAID / REJECTED blocks a new request —
-  // matches createPayout's open-request guard.
+  // One payout at a time per campaign: anything not PAID / REJECTED blocks a new
+  // request — matches createPayout's open-request guard.
   const payoutInFlight = payouts.some((p) =>
-    ["REQUESTED", "REVIEWED", "AWAITING_CHECKOUT", "APPROVED"].includes(p.status)
+    ["REQUESTED", "REVIEWED", "APPROVED"].includes(p.status)
   );
   // Once closure is granted the manager typically withdraws everything that's
   // left — suggest raised minus whatever has already been paid out.
@@ -2731,11 +2703,9 @@ function PayoutRequestTab({
           payouts={payouts}
           isAdmin={isAdmin}
           canRequestPayout={canRequestPayout}
-          canCheckout={canCheckout}
           expandedId={expandedId}
           onToggleExpand={(pid) => setExpandedId((cur) => (cur === pid ? null : pid))}
           onChanged={reload}
-          onCheckout={setCheckoutFor}
         />
       ) : (
         <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
@@ -2743,16 +2713,6 @@ function PayoutRequestTab({
         </div>
       )}
 
-      {checkoutFor && (
-        <PayoutCheckoutDialog
-          payout={checkoutFor}
-          onClose={() => setCheckoutFor(null)}
-          onDone={() => {
-            setCheckoutFor(null);
-            reload();
-          }}
-        />
-      )}
       {payoutDialog && (
         <RequestPayoutDialog
           campaignId={campaignId}
@@ -2785,20 +2745,16 @@ function PayoutTable({
   payouts,
   isAdmin,
   canRequestPayout,
-  canCheckout,
   expandedId,
   onToggleExpand,
   onChanged,
-  onCheckout,
 }: {
   payouts: PayoutRecord[];
   isAdmin: boolean;
   canRequestPayout: boolean;
-  canCheckout: boolean;
   expandedId: number | null;
   onToggleExpand: (payoutId: number) => void;
   onChanged: () => void;
-  onCheckout: (p: PayoutRecord) => void;
 }) {
   return (
     <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
@@ -2852,9 +2808,9 @@ function PayoutTable({
                       >
                         {PAYOUT_STATUS_LABEL[p.status] ?? p.status}
                       </span>
-                      {p.status === "AWAITING_CHECKOUT" && canCheckout && (
+                      {p.status === "APPROVED" && canRequestPayout && (
                         <span className="ml-1.5 text-[10px] font-medium text-amber-700">
-                          • action needed
+                          • confirm to release
                         </span>
                       )}
                     </td>
@@ -2874,9 +2830,7 @@ function PayoutTable({
                           payout={p}
                           isAdmin={isAdmin}
                           canRequest={canRequestPayout}
-                          canCheckout={canCheckout}
                           onChanged={onChanged}
-                          onCheckout={() => onCheckout(p)}
                         />
                       </td>
                     </tr>
@@ -2891,25 +2845,22 @@ function PayoutTable({
   );
 }
 
-/** Expanded detail for one payout row — proof, checkout, destination, decision,
- *  and the full approval timeline. */
+/** Expanded detail for one payout row — proof, destination, release confirmation,
+ *  decision, and the full approval timeline. */
 function PayoutRowDetail({
   payout: p,
   isAdmin,
   canRequest,
-  canCheckout,
   onChanged,
-  onCheckout,
 }: {
   payout: PayoutRecord;
   isAdmin: boolean;
   canRequest: boolean;
-  canCheckout: boolean;
   onChanged: () => void;
-  onCheckout: () => void;
 }) {
   const [timeline, setTimeline] = useState<ReviewTrailEntry[] | null>(null);
   const [timelineError, setTimelineError] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -2941,35 +2892,47 @@ function PayoutRowDetail({
         onChanged={onChanged}
       />
 
-      {p.status === "AWAITING_CHECKOUT" && (
+      {p.disbursement && <PayoutDestinationSummary disbursement={p.disbursement} />}
+
+      {p.status === "APPROVED" && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 space-y-2">
           <p className="text-xs text-amber-800">
-            This payout is approved. Add where the money should be sent — mobile
-            money or bank — to release it for transfer.
+            This payout passed both approvals and is on hold. Confirming the
+            release sends {formatTZSFull(p.amount)} to the mobile-money number on
+            file — this can&apos;t be undone.
           </p>
-          {canCheckout ? (
-            <Button size="sm" onClick={onCheckout}>
+          {canRequest ? (
+            <Button size="sm" onClick={() => setConfirmOpen(true)}>
               <Wallet className="w-3.5 h-3.5 mr-1.5" />
-              Checkout — add payout details
+              Confirm &amp; release
             </Button>
           ) : (
             <p className="text-[11px] text-amber-700">
-              Waiting for the campaign manager to add the payout details.
+              Waiting for the campaign manager to confirm the release.
             </p>
           )}
         </div>
       )}
 
-      {p.disbursement && <PayoutDestinationSummary disbursement={p.disbursement} />}
-
       {p.status === "PAID" && (
         <p className="text-[11px] text-emerald-700">
-          Paid {p.paidAt ? new Date(p.paidAt).toLocaleDateString() : ""}
+          Released {p.paidAt ? new Date(p.paidAt).toLocaleDateString() : ""}
           {p.gatewayRef ? ` · ref ${p.gatewayRef}` : ""}
         </p>
       )}
 
       {isAdmin && p.status === "REQUESTED" && <DecidePayoutForm payoutId={p.id} onDone={onChanged} />}
+
+      {confirmOpen && (
+        <ConfirmPayoutDialog
+          payout={p}
+          onClose={() => setConfirmOpen(false)}
+          onDone={() => {
+            setConfirmOpen(false);
+            onChanged();
+          }}
+        />
+      )}
 
       <div>
         <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">
@@ -3084,8 +3047,11 @@ function PayoutDestinationSummary({
   );
 }
 
-/** Checkout form — where an approved payout's money should be sent. */
-function PayoutCheckoutDialog({
+const MAX_PROOF_IMAGES = 5;
+const PROOF_ACCEPT = "image/jpeg,image/png,image/webp";
+
+/** The requesting manager's final release confirmation — this fires the transfer. */
+function ConfirmPayoutDialog({
   payout,
   onClose,
   onDone,
@@ -3094,47 +3060,18 @@ function PayoutCheckoutDialog({
   onClose: () => void;
   onDone: () => void;
 }) {
-  const [method, setMethod] = useState<PayoutMethod>("MOBILE_MONEY");
-  const [accountName, setAccountName] = useState("");
-  const [provider, setProvider] = useState<string>(MOBILE_MONEY_PROVIDERS[0]);
-  const [phone, setPhone] = useState("");
-  const [bankName, setBankName] = useState("");
-  const [accountNumber, setAccountNumber] = useState("");
-  const [branch, setBranch] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const d = payout.disbursement;
 
   const submit = async () => {
     setError(null);
-    if (accountName.trim().length < 2) {
-      setError("Enter the account holder's name.");
-      return;
-    }
-    if (method === "MOBILE_MONEY" && !phone.trim()) {
-      setError("Enter the mobile money number.");
-      return;
-    }
-    if (method === "BANK" && (!bankName.trim() || !accountNumber.trim())) {
-      setError("Enter the bank name and account number.");
-      return;
-    }
-    const body: PayoutCheckoutInput = {
-      method,
-      accountName: accountName.trim(),
-      ...(method === "MOBILE_MONEY"
-        ? { provider, phone: phone.trim() }
-        : {
-            bankName: bankName.trim(),
-            accountNumber: accountNumber.trim(),
-            branch: branch.trim() || undefined,
-          }),
-    };
     setSubmitting(true);
     try {
-      await payoutApi.submitCheckout(payout.id, body);
+      await payoutApi.confirm(payout.id);
       onDone();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to submit the payout details.");
+      setError(e instanceof Error ? e.message : "Failed to release the payout.");
     } finally {
       setSubmitting(false);
     }
@@ -3142,298 +3079,35 @@ function PayoutCheckoutDialog({
 
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-base font-semibold">Payout details</DialogTitle>
+          <DialogTitle className="text-base font-semibold">Confirm payout release</DialogTitle>
           <DialogDescription className="text-xs">
-            Where should the {formatTZSFull(payout.amount)} payout be sent? A super
-            admin makes the transfer to these details.
+            This sends <strong>{formatTZSFull(payout.amount)}</strong>
+            {d?.provider ? ` via ${d.provider}` : ""}
+            {d?.phone ? ` to ${d.phone}` : ""}
+            {d?.accountName ? ` (${d.accountName})` : ""}. The transfer runs
+            immediately and can&apos;t be undone.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-2">
-            {(
-              [
-                ["MOBILE_MONEY", "Mobile money", Smartphone],
-                ["BANK", "Bank account", Landmark],
-              ] as const
-            ).map(([value, label, Icon]) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setMethod(value)}
-                className={cn(
-                  "flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2.5 text-xs font-medium transition-colors",
-                  method === value
-                    ? "border-primary bg-primary/5 text-primary"
-                    : "border-border text-muted-foreground hover:bg-muted"
-                )}
-              >
-                <Icon className="w-3.5 h-3.5" />
-                {label}
-              </button>
-            ))}
+        {d && <PayoutDestinationSummary disbursement={d} />}
+
+        {error && (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+            {error}
           </div>
-
-          {method === "MOBILE_MONEY" ? (
-            <>
-              <div className="grid gap-1.5">
-                <Label className="text-xs">Provider</Label>
-                <Select value={provider} onValueChange={(v) => setProvider(v ?? MOBILE_MONEY_PROVIDERS[0])}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {MOBILE_MONEY_PROVIDERS.map((prov) => (
-                      <SelectItem key={prov} value={prov}>
-                        {prov}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-1.5">
-                <Label className="text-xs">Mobile money number</Label>
-                <Input
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="e.g. 0712 345 678"
-                  className="h-9"
-                  inputMode="tel"
-                />
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="grid gap-1.5">
-                <Label className="text-xs">Bank name</Label>
-                <Input
-                  value={bankName}
-                  onChange={(e) => setBankName(e.target.value)}
-                  placeholder="e.g. CRDB Bank"
-                  className="h-9"
-                />
-              </div>
-              <div className="grid gap-1.5">
-                <Label className="text-xs">Account number</Label>
-                <Input
-                  value={accountNumber}
-                  onChange={(e) => setAccountNumber(e.target.value)}
-                  placeholder="Bank account number"
-                  className="h-9"
-                  inputMode="numeric"
-                />
-              </div>
-              <div className="grid gap-1.5">
-                <Label className="text-xs">
-                  Branch <span className="font-normal text-muted-foreground">(optional)</span>
-                </Label>
-                <Input
-                  value={branch}
-                  onChange={(e) => setBranch(e.target.value)}
-                  placeholder="e.g. Dodoma"
-                  className="h-9"
-                />
-              </div>
-            </>
-          )}
-
-          <div className="grid gap-1.5">
-            <Label className="text-xs">Account holder name</Label>
-            <Input
-              value={accountName}
-              onChange={(e) => setAccountName(e.target.value)}
-              placeholder="Name on the account"
-              className="h-9"
-            />
-          </div>
-
-          {error && (
-            <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-              {error}
-            </div>
-          )}
-        </div>
+        )}
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={submitting}>
             Cancel
           </Button>
           <Button onClick={submit} disabled={submitting}>
-            {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : null}
-            Submit payout details
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-const MAX_PROOF_IMAGES = 5;
-const PROOF_ACCEPT = "image/jpeg,image/png,image/webp";
-
-function RequestPayoutDialog({
-  campaignId,
-  suggestedAmount,
-  onClose,
-  onSubmitted,
-}: {
-  campaignId: string;
-  suggestedAmount?: number;
-  onClose: () => void;
-  onSubmitted: () => void;
-}) {
-  const [amount, setAmount] = useState(suggestedAmount ? String(suggestedAmount) : "");
-  const [reason, setReason] = useState(
-    suggestedAmount ? "Final payout — remaining balance after campaign closure." : ""
-  );
-  const [files, setFiles] = useState<File[]>([]);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const previews = useMemo(() => files.map((f) => URL.createObjectURL(f)), [files]);
-  useEffect(() => () => previews.forEach((url) => URL.revokeObjectURL(url)), [previews]);
-
-  const addFiles = (list: FileList | null) => {
-    if (!list || list.length === 0) return;
-    setFiles((prev) => [...prev, ...Array.from(list)].slice(0, MAX_PROOF_IMAGES));
-  };
-  const removeFile = (idx: number) => setFiles((prev) => prev.filter((_, i) => i !== idx));
-
-  const submit = async () => {
-    setError(null);
-    const amt = Number(amount);
-    if (!amount.trim() || Number.isNaN(amt) || amt <= 0) {
-      setError("Enter an amount greater than 0.");
-      return;
-    }
-    if (!reason.trim()) {
-      setError("Explain why you're requesting this payout.");
-      return;
-    }
-    setSubmitting(true);
-    try {
-      const created = await payoutApi.create({ amount: amt, campaignId, reason: reason.trim() });
-      if (files.length > 0) {
-        try {
-          await payoutApi.attachProof(created.id, files);
-        } catch (e) {
-          setError(
-            (e instanceof Error ? e.message : "The request was submitted, but the proof photos failed to upload.") +
-              " You can add them from the payout row."
-          );
-        }
-      }
-      onSubmitted();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to submit the payout request.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <Dialog open onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="text-base font-semibold">Request a payout</DialogTitle>
-          <DialogDescription className="text-xs">
-            A reviewer then an admin approve your reason. You then add the payout
-            destination before a super admin sends the money.
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-4">
-          <div className="grid gap-1.5">
-            <Label className="text-xs">Amount (TZS)</Label>
-            <Input
-              type="number"
-              min={1}
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder="e.g. 1500000"
-              className="h-9"
-            />
-            {suggestedAmount != null && (
-              <button
-                type="button"
-                onClick={() => setAmount(String(suggestedAmount))}
-                className="text-[11px] text-primary hover:underline w-fit"
-              >
-                Use remaining balance — {formatTZSFull(suggestedAmount)}
-              </button>
+            {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : (
+              <Wallet className="w-3.5 h-3.5 mr-1.5" />
             )}
-          </div>
-          <div className="grid gap-1.5">
-            <Label className="text-xs">Reason</Label>
-            <Textarea
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="What is this payout for?"
-              className="min-h-20"
-            />
-          </div>
-          <div className="grid gap-1.5">
-            <Label className="text-xs">
-              Proof of use <span className="font-normal text-muted-foreground">(optional)</span>
-            </Label>
-            <p className="text-[11px] text-muted-foreground">
-              Attach invoices, receipts or photos that show why this payout is needed — up to{" "}
-              {MAX_PROOF_IMAGES} images. The reviewer and admin will see them.
-            </p>
-            {files.length > 0 && (
-              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 pt-1">
-                {previews.map((url, idx) => (
-                  <div
-                    key={url}
-                    className="relative group aspect-square rounded-lg overflow-hidden border border-border"
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={url} alt="Proof preview" className="w-full h-full object-cover" />
-                    <button
-                      type="button"
-                      onClick={() => removeFile(idx)}
-                      className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                      aria-label="Remove image"
-                    >
-                      <XCircle className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-            {files.length < MAX_PROOF_IMAGES && (
-              <label className="inline-flex w-fit items-center gap-1.5 text-xs text-primary cursor-pointer hover:underline">
-                <ImageIcon className="w-3.5 h-3.5" />
-                {files.length > 0 ? "Add another image" : "Add images"}
-                <input
-                  type="file"
-                  accept={PROOF_ACCEPT}
-                  multiple
-                  className="hidden"
-                  onChange={(e) => {
-                    addFiles(e.target.files);
-                    e.target.value = "";
-                  }}
-                />
-              </label>
-            )}
-          </div>
-          {error && (
-            <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-              {error}
-            </div>
-          )}
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={submitting}>
-            Cancel
-          </Button>
-          <Button onClick={submit} disabled={submitting}>
-            {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : null}
-            Request payout
+            Release {formatTZSFull(payout.amount)}
           </Button>
         </DialogFooter>
       </DialogContent>

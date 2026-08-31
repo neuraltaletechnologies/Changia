@@ -3,23 +3,19 @@ const { authenticate, authorize } = require("../../middlewares/auth");
 const { validate } = require("../../middlewares/validate");
 const { uploadPayoutProof } = require("../../middlewares/upload");
 const controller = require("./controller");
-const {
-  listSchema,
-  createSchema,
-  decisionSchema,
-  paidSchema,
-  previewSchema,
-  checkoutSchema,
-} = require("./validation");
+const { listSchema, createSchema, decisionSchema, confirmSchema } = require("./validation");
 
 // Payouts follow the same two-person chain as campaigns:
 //   request (CAMPAIGN_MANAGER — the role placed under an organisation; a
-//            campaignId + reason are required)
+//            campaignId + reason + mobile-money destination are required)
 //     -> REVIEWED  (stage 1 — a REVIEWER or SUPER_ADMIN, not the requester)
-//     -> APPROVED  (stage 2 — an ORG_ADMIN or SUPER_ADMIN, a different person)
-//     -> PAID      (SUPER_ADMIN confirms the gateway transfer)
+//     -> APPROVED  (stage 2 — an ORG_ADMIN or SUPER_ADMIN, a different person;
+//                   the funds now sit on hold)
+//     -> PAID      (the requesting CAMPAIGN_MANAGER confirms the release, which
+//                   atomically fires the ClickPesa mobile-money transfer)
 // approve/reject accept all three approver roles; the service picks the stage
 // from the payout's current status and enforces the "different people" rule.
+// Only one payout per campaign may be in flight (not PAID / REJECTED) at a time.
 // List/get are scoped per-role in the service (a manager sees only their own
 // requests; platform roles — reviewer / org admin / super admin — see every
 // org's in-chain requests).
@@ -44,8 +40,8 @@ router.post(
 );
 router.delete("/:id/proof/:imageId", authorize("CAMPAIGN_MANAGER"), controller.removeProof);
 // Full chronological trail (audit_logs) for one payout — requested / reviewed /
-// approved / rejected (with reason) / paid. Visible to anyone who can see the
-// payout itself (getPayout enforces it).
+// approved / rejected (with reason) / released. Visible to anyone who can see
+// the payout itself (getPayout enforces it).
 router.get("/:id/history", controller.getHistory);
 router.post(
   "/:id/approve",
@@ -59,20 +55,12 @@ router.post(
   validate({ body: decisionSchema }),
   controller.reject
 );
-// Checkout — the requester (or an ORG_ADMIN acting for them) submits where the
-// approved payout should be sent. AWAITING_CHECKOUT -> APPROVED.
+// Release confirmation — the requesting CAMPAIGN_MANAGER confirms an APPROVED
+// payout, which atomically executes the ClickPesa transfer. APPROVED -> PAID.
 router.post(
-  "/:id/checkout",
-  authorize("CAMPAIGN_MANAGER", "ORG_ADMIN", "SUPER_ADMIN"),
-  validate({ body: checkoutSchema }),
-  controller.submitCheckout
+  "/:id/confirm",
+  authorize("CAMPAIGN_MANAGER"),
+  validate({ body: confirmSchema }),
+  controller.confirm
 );
-// Preview ClickPesa payout — shows fee breakdown before confirmation
-router.post(
-  "/:id/preview",
-  authorize("SUPER_ADMIN", "ORG_ADMIN"),
-  validate({ body: previewSchema }),
-  controller.preview
-);
-router.post("/:id/paid", authorize("SUPER_ADMIN"), validate({ body: paidSchema }), controller.markPaid);
 module.exports = router;

@@ -23,7 +23,6 @@ import {
 } from "@/components/dashboard/ui/dropdown-menu";
 import {
   campaignApi,
-  payoutApi,
   formatTZSCompact,
   type CampaignRecord,
 } from "@/lib/dashboard/api";
@@ -37,6 +36,7 @@ import {
 } from "@/components/dashboard/ui/dialog";
 import { Label } from "@/components/dashboard/ui/label";
 import { Textarea } from "@/components/dashboard/ui/textarea";
+import { RequestPayoutDialog } from "@/components/dashboard/payouts/request-payout-dialog";
 import {
   Plus,
   Upload,
@@ -649,11 +649,9 @@ const CHIP_VIOLET = "bg-violet-50 text-violet-700 border-violet-200";
 function stageChip(kind: string, status: string, styles: string): ReviewChip {
   if (status === "CHANGES_REQUESTED")
     return { label: `${kind} · Changes requested`, styles: CHIP_AMBER };
-  // Payout-only states past the two approvals.
-  if (status === "AWAITING_CHECKOUT")
-    return { label: `${kind} · Add payout details`, styles: CHIP_AMBER };
+  // Payout past both approvals — on hold until the manager confirms the release.
   if (status === "APPROVED")
-    return { label: `${kind} · Ready to pay`, styles };
+    return { label: `${kind} · Confirm to release`, styles: CHIP_AMBER };
   return { label: `${kind} · Stage ${status === "REVIEWED" ? 2 : 1} of 2`, styles };
 }
 
@@ -721,7 +719,7 @@ function reviewChipsForCampaign(c: CampaignRecord): ReviewChip[] {
   const needsAction = (chip: ReviewChip) =>
     chip.rejected ||
     chip.label.includes("Changes requested") ||
-    chip.label.includes("Add payout details");
+    chip.label.includes("Confirm to release");
   return chips
     .map((chip, i) => ({ chip, i }))
     .sort((a, b) => Number(needsAction(b.chip)) - Number(needsAction(a.chip)) || a.i - b.i)
@@ -1036,10 +1034,20 @@ function CampaignActionsMenu({
             <DropdownMenuSeparator />
           )}
           {managerHere && openPayoutReq ? (
-            <DropdownMenuItem disabled>
-              <Clock className="w-3.5 h-3.5 mr-1.5" />
-              Payout requested — in review
-            </DropdownMenuItem>
+            openPayoutReq.status === "APPROVED" ? (
+              <DropdownMenuItem
+                onClick={() => {}}
+                render={<Link href={`/dashboard/campaigns/${campaign.id}?tab=payout`} />}
+              >
+                <Banknote className="w-3.5 h-3.5 mr-1.5" />
+                Confirm payout — release funds
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem disabled>
+                <Clock className="w-3.5 h-3.5 mr-1.5" />
+                Payout requested — in review
+              </DropdownMenuItem>
+            )
           ) : (
             canRequestPayout && (
               <DropdownMenuItem onClick={() => setDialog("payout")}>
@@ -1074,7 +1082,14 @@ function CampaignActionsMenu({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      {dialog && (
+      {dialog === "payout" ? (
+        <RequestPayoutDialog
+          campaignId={campaign.id}
+          onClose={() => setDialog(null)}
+          onSubmitted={() => setDialog(null)}
+          run={onRun}
+        />
+      ) : dialog ? (
         <CampaignRequestDialog
           kind={dialog}
           campaign={campaign}
@@ -1082,7 +1097,7 @@ function CampaignActionsMenu({
           onDone={() => setDialog(null)}
           onRun={onRun}
         />
-      )}
+      ) : null}
 
       <CampaignEditSheet
         campaign={campaign}
@@ -1101,14 +1116,13 @@ function CampaignRequestDialog({
   onDone,
   onRun,
 }: {
-  kind: RequestDialog;
+  kind: Exclude<RequestDialog, "payout">;
   campaign: CampaignRecord;
   onClose: () => void;
   onDone: () => void;
   onRun: (fn: () => Promise<unknown>) => Promise<void>;
 }) {
   const [reason, setReason] = useState("");
-  const [amount, setAmount] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -1127,12 +1141,6 @@ function CampaignRequestDialog({
       reasonLabel: "Reason (optional)",
       reasonRequired: false,
     },
-    payout: {
-      title: "Request payout",
-      blurb: "This goes to a reviewer, then an org admin, before it can be paid.",
-      reasonLabel: "What is this payout for?",
-      reasonRequired: true,
-    },
     closure: {
       title: "Request closure",
       blurb:
@@ -1148,24 +1156,12 @@ function CampaignRequestDialog({
       setError("Please give a reason of at least 10 characters.");
       return;
     }
-    if (kind === "payout") {
-      const n = Number(amount);
-      if (!amount.trim() || Number.isNaN(n) || n <= 0) {
-        setError("Enter a payout amount greater than 0.");
-        return;
-      }
-    }
     setSubmitting(true);
     try {
       await onRun(async () => {
         if (kind === "suspend") return campaignApi.requestStatusChange(campaign.id, "PAUSE", reason.trim() || undefined);
         if (kind === "resume") return campaignApi.requestStatusChange(campaign.id, "RESUME", reason.trim() || undefined);
-        if (kind === "closure") return campaignApi.requestClosure(campaign.id, { reason: reason.trim() });
-        return payoutApi.create({
-          amount: Number(amount),
-          campaignId: campaign.id,
-          reason: reason.trim(),
-        });
+        return campaignApi.requestClosure(campaign.id, { reason: reason.trim() });
       });
       onDone();
     } catch (e) {
@@ -1186,22 +1182,6 @@ function CampaignRequestDialog({
           <p className="text-xs text-muted-foreground">
             Campaign: <span className="font-medium text-foreground">{campaign.name}</span>
           </p>
-          {kind === "payout" && (
-            <div className="grid gap-1.5">
-              <Label htmlFor="req-amount" className="text-xs">
-                Amount (TZS)
-              </Label>
-              <Input
-                id="req-amount"
-                type="number"
-                min={1}
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                className="h-9"
-                placeholder="e.g. 500000"
-              />
-            </div>
-          )}
           <div className="grid gap-1.5">
             <Label htmlFor="req-reason" className="text-xs">
               {meta.reasonLabel}

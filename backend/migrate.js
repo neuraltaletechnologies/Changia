@@ -47,12 +47,12 @@ const MIGRATIONS = [
   `ALTER TABLE payouts ADD COLUMN first_approved_at DATETIME NULL AFTER first_approved_by_id`,
   `ALTER TABLE payouts ADD CONSTRAINT fk_payouts_first_approver FOREIGN KEY (first_approved_by_id) REFERENCES users(id) ON DELETE SET NULL`,
 
-  // payouts — "checkout" step. After both approvals the request now parks in
-  // AWAITING_CHECKOUT until the requester (or an ORG_ADMIN) submits where the
-  // money goes — mobile money (provider + phone) or bank (bank_name + account_
-  // number + optional branch); account_name applies to both. Only then does it
-  // move to APPROVED and a SUPER_ADMIN can mark it PAID.
-  `ALTER TABLE payouts MODIFY COLUMN status ENUM('REQUESTED','REVIEWED','AWAITING_CHECKOUT','APPROVED','PAID','REJECTED') NOT NULL DEFAULT 'REQUESTED'`,
+  // payouts — mobile-money / bank disbursement destination columns. (Originally
+  // filled in at a separate "checkout" step; now captured with the request. The
+  // status enum below stays 5-value — a live DB that still carries the retired
+  // AWAITING_CHECKOUT value keeps it, harmless, since the guard skips the MODIFY
+  // once every listed value is already present.)
+  `ALTER TABLE payouts MODIFY COLUMN status ENUM('REQUESTED','REVIEWED','APPROVED','PAID','REJECTED') NOT NULL DEFAULT 'REQUESTED'`,
   `ALTER TABLE payouts ADD COLUMN disbursement_method ENUM('MOBILE_MONEY','BANK') NULL AFTER notes`,
   `ALTER TABLE payouts ADD COLUMN disbursement_provider VARCHAR(40) NULL AFTER disbursement_method`,
   `ALTER TABLE payouts ADD COLUMN disbursement_account_name VARCHAR(120) NULL AFTER disbursement_provider`,
@@ -63,6 +63,19 @@ const MIGRATIONS = [
   `ALTER TABLE payouts ADD COLUMN disbursement_submitted_at DATETIME NULL AFTER disbursement_branch`,
   `ALTER TABLE payouts ADD COLUMN disbursement_submitted_by_id BIGINT UNSIGNED NULL AFTER disbursement_submitted_at`,
   `ALTER TABLE payouts ADD CONSTRAINT fk_payouts_checkout_by FOREIGN KEY (disbursement_submitted_by_id) REFERENCES users(id) ON DELETE SET NULL`,
+
+  // payouts — manager-confirmed atomic release. The payout destination
+  // (mobile money only) is now captured with the request itself, so there is no
+  // separate "checkout" step: after both approvals the payout sits in APPROVED
+  // ("on hold") until the requesting CAMPAIGN_MANAGER confirms the release,
+  // which fires the ClickPesa transfer and moves it straight to PAID. Any row
+  // left in the retired AWAITING_CHECKOUT state becomes APPROVED (converges to
+  // zero rows after the first run; the enum value itself is left in place on
+  // live DBs — harmless — and dropped from database.sql for fresh installs).
+  `UPDATE payouts SET status = 'APPROVED' WHERE status = 'AWAITING_CHECKOUT'`,
+  `ALTER TABLE payouts ADD COLUMN confirmed_by_id BIGINT UNSIGNED NULL AFTER disbursement_submitted_by_id`,
+  `ALTER TABLE payouts ADD COLUMN confirmed_at DATETIME NULL AFTER confirmed_by_id`,
+  `ALTER TABLE payouts ADD CONSTRAINT fk_payouts_confirmed_by FOREIGN KEY (confirmed_by_id) REFERENCES users(id) ON DELETE SET NULL`,
 
   // payout_images — optional "proof of use" photos a CAMPAIGN_MANAGER attaches
   // to a payout request (invoices, receipts, site photos) so the reviewer and

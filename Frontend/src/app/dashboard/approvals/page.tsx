@@ -195,18 +195,11 @@ export default function CampaignApprovalsPage() {
     [payouts, canFinalApprovePayout, isSuperAdmin, uid]
   );
 
-  // ── Approved payouts still awaiting the gateway transfer — only SUPER_ADMIN
-  //    records this final "paid" step, and it happens on the slim payouts page.
-  const payoutsToPay = useMemo(
-    () => (isSuperAdmin ? payouts.filter((p) => p.status === "APPROVED") : []),
-    [payouts, isSuperAdmin]
-  );
-
   // ── Counts per request type, for the summary bar at the top of the page ────
   const counts = {
     campaigns: stage1Campaigns.length + stage2Campaigns.length,
     edits: changeRequests.length,
-    payouts: stage1Payouts.length + stage2Payouts.length + payoutsToPay.length,
+    payouts: stage1Payouts.length + stage2Payouts.length,
     fees: feeProposals.length,
     closures: closureReviews.length,
     reports: reportReviews.length,
@@ -661,44 +654,6 @@ export default function CampaignApprovalsPage() {
         </section>
       )}
 
-      {/* ── Approved payouts — record the gateway transfer ────────────────── */}
-      {payoutsToPay.length > 0 && (
-        <section className="space-y-3">
-          <SectionHeading
-            icon={HandCoins}
-            title="Approved payouts — mark as paid"
-            sub="Both approvals are done. Record the gateway transfer on the payouts page to close each one out."
-          />
-          {payoutsToPay.map((p) => (
-            <div
-              key={p.id}
-              className="bg-card border border-border rounded-xl p-5 shadow-sm flex flex-col sm:flex-row sm:items-center gap-4"
-            >
-              <div className="flex-1 min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-medium text-foreground">
-                    {p.campaignName ?? `Campaign #${p.campaignId ?? "—"}`}
-                  </span>
-                  <span className="inline-flex items-center gap-1 text-[10px] font-medium border rounded-full px-2 py-0.5 bg-sky-50 text-sky-700 border-sky-200">
-                    Approved — awaiting payment
-                  </span>
-                </div>
-                <div className="mt-1 text-[11px] text-muted-foreground">
-                  <span className="font-semibold text-foreground">{formatTZSFull(p.amount)}</span>
-                  {p.reason && <span className="ml-3 truncate">{p.reason}</span>}
-                </div>
-              </div>
-              <Button
-                size="sm"
-                nativeButton={false}
-                render={<Link href="/dashboard/payouts" />}
-              >
-                Mark as paid
-              </Button>
-            </div>
-          ))}
-        </section>
-      )}
 
       <span id="closures" className="block scroll-mt-24" aria-hidden />
 

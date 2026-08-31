@@ -700,7 +700,7 @@ The full chronological review trail from the audit log — who submitted / first
 
 Entries are chronological (oldest first). `notes` carries the reviewer/admin reason where the step has one; `fields` lists which fields an edit touched. The trail covers **every** campaign request type — the two-stage approval chain, parked edits (`campaign.change_request.*`), suspend/resume asks, custom service-fee proposals (`campaign.fee_proposal.*`), closure requests and completion reports — each with the reason a reviewer/admin gave.
 
-Payouts have the same trail at **`GET /payouts/:id/history`** (same response shape, `fields` always `null`) — requested → first-reviewed → approved → payout details submitted → rejected (with reason) → paid (with gateway ref). Visible to anyone who can see the payout.
+Payouts have the same trail at **`GET /payouts/:id/history`** (same response shape, `fields` always `null`) — requested → first-reviewed → approved → released (by the manager) → transfer completed / rejected (with reason). Visible to anyone who can see the payout.
 
 ### `POST /campaigns/:id/submit` — `SUPER_ADMIN`, `ORG_ADMIN` or assigned `CAMPAIGN_MANAGER`
 
@@ -833,14 +833,15 @@ Every payout record carries `proofImages: [{ id, url }]` — optional photos (in
 - `POST /payouts/:id/proof` — `CAMPAIGN_MANAGER` (the requester only). `multipart/form-data`, up to 5 files under the `proof` field (JPEG/PNG/WEBP, ≤ 5 MB each). Allowed only while the request is `REQUESTED` or `REVIEWED`. Returns the updated payout. Errors: `404` (not the requester), `409 PAYOUT_PROOF_LOCKED`, `400 TOO_MANY_IMAGES`, `400 NO_IMAGES`, `400 INVALID_IMAGE_TYPE`.
 - `DELETE /payouts/:id/proof/:imageId` — same role/state rules. Returns the updated payout.
 
-### Payout checkout (disbursement destination)
+### Payout lifecycle, destination & release
 
-Payout lifecycle: `REQUESTED` → `REVIEWED` (reviewer's first approval) → `AWAITING_CHECKOUT` (org admin's final approval) → `APPROVED` (requester submits the payout destination) → `PAID` (super admin records the gateway transfer). `reject` (`REQUESTED`/`REVIEWED` only) → `REJECTED`.
+Payout lifecycle: `REQUESTED` → `REVIEWED` (reviewer's first approval) → `APPROVED` (org admin's final approval — the funds are now **on hold**) → `PAID` (the requesting `CAMPAIGN_MANAGER` confirms the release, which atomically fires the ClickPesa mobile-money transfer). `reject` (`REQUESTED`/`REVIEWED` only) → `REJECTED`.
 
-Every payout record carries `disbursement` — `null` until checkout, then `{ method: "MOBILE_MONEY" | "BANK", provider, accountName, accountNumber, phone, bankName, branch, submittedAt, submittedBy }` (only the fields relevant to the method are set).
+The mobile-money destination is captured **with the request** (no separate checkout step). `POST /payouts` body: `{ amount (int TZS), campaignId, reason, provider, phone (Tanzanian number), accountName, notes? }`. Only one payout per campaign may be in flight (not `PAID`/`REJECTED`) — a duplicate is `409 PAYOUT_REQUEST_PENDING`.
 
-- `POST /payouts/:id/checkout` — `CAMPAIGN_MANAGER` (the requester only) or `ORG_ADMIN` / `SUPER_ADMIN` acting for them. Allowed only while the payout is `AWAITING_CHECKOUT`; moves it to `APPROVED`. Body: `{ method, accountName, ... }` — `MOBILE_MONEY` requires `provider` + `phone` (Tanzanian number); `BANK` requires `bankName` + `accountNumber` (+ optional `branch`). Returns the updated payout. Errors: `403 CHECKOUT_FORBIDDEN`, `404` (not the requester), `409 PAYOUT_NOT_AWAITING_CHECKOUT`, `400` (missing method-specific fields).
-- `POST /payouts/:id/paid` — `SUPER_ADMIN`. Uses the checkout `phone` for the ClickPesa transfer when the method is mobile money (a `phoneNumber` in the body still overrides it).
+Every payout record carries `disbursement` — `{ method: "MOBILE_MONEY", provider, accountName, phone, submittedAt, submittedBy }` — plus `confirmedBy` / `confirmedAt` once released.
+
+- `POST /payouts/:id/confirm` — `CAMPAIGN_MANAGER` (the requester only). Allowed only while the payout is `APPROVED`. Body: `{ notes? }`. Atomically executes the ClickPesa mobile-money payout to the stored `phone` and moves the row to `PAID` (dev mode records a mock `gateway_ref`); a gateway failure rolls back and the row stays `APPROVED` for a retry. Errors: `404` (not the requester), `409 PAYOUT_NOT_AWAITING_CONFIRMATION`, `409 PAYOUT_ALREADY_CONFIRMED`, `400 PAYOUT_NO_DESTINATION`, `400 CLICKPESA_PAYOUT_FAILED`.
 
 ### In-kind gifts & payment breakdown
 

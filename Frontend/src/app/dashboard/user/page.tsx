@@ -54,6 +54,11 @@ import {
 } from "@/lib/dashboard/api";
 import { useRole } from "@/hooks/use-role";
 import { cn } from "@/lib/dashboard/utils";
+import {
+  SortableTh,
+  useTableSort,
+  type SortAccessors,
+} from "@/components/dashboard/ui/sortable-table";
 
 const PAGE_SIZE = 10;
 
@@ -75,6 +80,23 @@ const STATUS_BADGE: Record<string, string> = {
   ACTIVE: "bg-emerald-50 text-emerald-700 border-emerald-200",
   PENDING: "bg-amber-50 text-amber-700 border-amber-200",
   INACTIVE: "bg-slate-50 text-slate-500 border-slate-200",
+};
+
+type MemberColumn =
+  | "member"
+  | "role"
+  | "status"
+  | "organization"
+  | "lastLogin"
+  | "joined";
+
+const memberColumnAccessors: SortAccessors<UserRecord, MemberColumn> = {
+  member: (m) => `${m.firstName} ${m.lastName ?? ""}`.trim().toLowerCase(),
+  role: (m) => ROLE_LABEL[m.role] ?? m.role,
+  status: (m) => m.status ?? "",
+  organization: (m) => m.organizationName?.toLowerCase() ?? "",
+  lastLogin: (m) => (m.lastLoginAt ? Date.parse(m.lastLoginAt) : null),
+  joined: (m) => (m.createdAt ? Date.parse(m.createdAt) : null),
 };
 
 function initialsOf(m: Pick<UserRecord, "firstName" | "lastName">): string {
@@ -154,6 +176,12 @@ export default function UserPage() {
   }, [refresh]);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  const {
+    sorted: sortedMembers,
+    sort: colSort,
+    toggle: toggleColSort,
+  } = useTableSort(members, memberColumnAccessors);
 
   return (
     <div className="space-y-5">
@@ -294,26 +322,56 @@ export default function UserPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/40">
-                <th className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3">
+                <SortableTh
+                  sortKey="member"
+                  sort={colSort}
+                  onSort={toggleColSort}
+                  className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3"
+                >
                   Member
-                </th>
-                <th className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3 hidden sm:table-cell">
+                </SortableTh>
+                <SortableTh
+                  sortKey="role"
+                  sort={colSort}
+                  onSort={toggleColSort}
+                  className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3 hidden sm:table-cell"
+                >
                   Role
-                </th>
-                <th className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3 hidden md:table-cell">
+                </SortableTh>
+                <SortableTh
+                  sortKey="status"
+                  sort={colSort}
+                  onSort={toggleColSort}
+                  className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3 hidden md:table-cell"
+                >
                   Status
-                </th>
+                </SortableTh>
                 {isSuperAdmin && (
-                  <th className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3 hidden lg:table-cell">
+                  <SortableTh
+                    sortKey="organization"
+                    sort={colSort}
+                    onSort={toggleColSort}
+                    className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3 hidden lg:table-cell"
+                  >
                     Organization
-                  </th>
+                  </SortableTh>
                 )}
-                <th className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3 hidden lg:table-cell">
+                <SortableTh
+                  sortKey="lastLogin"
+                  sort={colSort}
+                  onSort={toggleColSort}
+                  className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3 hidden lg:table-cell"
+                >
                   Last Login
-                </th>
-                <th className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3 hidden md:table-cell">
+                </SortableTh>
+                <SortableTh
+                  sortKey="joined"
+                  sort={colSort}
+                  onSort={toggleColSort}
+                  className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3 hidden md:table-cell"
+                >
                   Joined
-                </th>
+                </SortableTh>
                 <th className="w-10 px-3" />
               </tr>
             </thead>
@@ -340,7 +398,7 @@ export default function UserPage() {
                   </td>
                 </tr>
               ) : (
-                members.map((member) => {
+                sortedMembers.map((member) => {
                   const isSelf = user && Number(user.id) === Number(member.id);
                   return (
                     <tr key={member.id} className="hover:bg-muted/30 transition-colors">

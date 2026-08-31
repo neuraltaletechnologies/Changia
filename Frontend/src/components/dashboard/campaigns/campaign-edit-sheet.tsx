@@ -263,7 +263,7 @@ export function CampaignEditSheet({
                     {fresh.status === "ACTIVE" ? "The campaign stays active" : "The campaign stays paused"}{" "}
                     and keeps showing the last-approved version until both approve. You can
                     track it under{" "}
-                    <Link href="/dashboard/campaigns/approvals" className="underline">
+                    <Link href="/dashboard/approvals" className="underline">
                       Campaign Approvals
                     </Link>
                     .

@@ -89,6 +89,11 @@ import {
 } from "@/lib/dashboard/api";
 import { useRole } from "@/hooks/use-role";
 import { cn } from "@/lib/dashboard/utils";
+import {
+  SortableTh,
+  useTableSort,
+  type SortAccessors,
+} from "@/components/dashboard/ui/sortable-table";
 import { CampaignPhotosCard } from "@/components/dashboard/campaigns/campaign-photos-card";
 import { ReviewDecisionDialog } from "@/components/dashboard/campaigns/review-decision-dialog";
 import { ReviewTimeline } from "@/components/dashboard/widgets/review-timeline";
@@ -122,7 +127,7 @@ export default function CampaignDetailPage() {
   // A REVIEWER has no Campaigns list — they arrive here from the Approvals
   // queue, so that's where "Back" returns them.
   const backHref = isReviewer
-    ? "/dashboard/campaigns/approvals"
+    ? "/dashboard/approvals"
     : "/dashboard/campaigns";
   const backLabel = isReviewer ? "Back to Approvals" : "Back to Campaigns";
   // REVIEWER can approve too (two-stage chain) — isAdmin above stays reserved
@@ -398,6 +403,46 @@ export default function CampaignDetailPage() {
             <strong>Submit for approval</strong>. Adding donors or importing pools
             doesn&apos;t need review; the campaign does — first a reviewer, then an
             admin.
+          </span>
+        </div>
+      )}
+
+      {(campaign.status === "PENDING" || campaign.status === "REVIEWED") &&
+        campaign.reviewState !== "CHANGES_REQUESTED" && (
+          <div className="flex items-start gap-2.5 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+            <ShieldCheck className="w-4 h-4 mt-0.5 shrink-0" />
+            <span>
+              This campaign is awaiting activation approval —{" "}
+              <strong>
+                {campaign.status === "PENDING"
+                  ? "Stage 1 of 2"
+                  : "Stage 2 of 2"}
+              </strong>{" "}
+              {campaign.status === "PENDING"
+                ? "(a reviewer's first approval)"
+                : "(an org admin's final approval)"}
+              . It goes live once both approvals are in — see the{" "}
+              <strong>History</strong> tab for the full trail.
+            </span>
+          </div>
+        )}
+
+      {campaign.openPayoutRequest && (
+        <div className="flex items-start gap-2.5 rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-900">
+          <ShieldCheck className="w-4 h-4 mt-0.5 shrink-0" />
+          <span>
+            A payout request of{" "}
+            <strong>{formatTZSFull(campaign.openPayoutRequest.amount)}</strong> is in
+            review —{" "}
+            <strong>
+              {campaign.openPayoutRequest.status === "REVIEWED"
+                ? "Stage 2 of 2"
+                : "Stage 1 of 2"}
+            </strong>{" "}
+            {campaign.openPayoutRequest.status === "REVIEWED"
+              ? "(an org admin's final approval)"
+              : "(a reviewer's first approval)"}
+            . See the <strong>Payout</strong> tab.
           </span>
         </div>
       )}
@@ -965,6 +1010,18 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 // ─── Donor Board tab ───────────────────────────────────────────────────────────
 
+type BoardColumn = "donor" | "pool" | "expected" | "paid" | "status";
+
+const BOARD_STATUS_ORDER = { PAID_FULL: 2, PARTIAL: 1, UNPAID: 0 } as const;
+
+const boardColumnAccessors: SortAccessors<CampaignTarget, BoardColumn> = {
+  donor: (t) => donorFullName(t.donor).toLowerCase(),
+  pool: (t) => t.pool?.name?.toLowerCase() ?? "",
+  expected: (t) => t.expectedAmount ?? null,
+  paid: (t) => t.paidAmount ?? 0,
+  status: (t) => BOARD_STATUS_ORDER[t.status] ?? 0,
+};
+
 function DonorBoardTab({
   board,
   selected,
@@ -988,6 +1045,15 @@ function DonorBoardTab({
 }) {
   const [inline, setInline] = useState<{ donorId: number; value: string } | null>(null);
 
+  const {
+    sorted: sortedTargets,
+    sort: colSort,
+    toggle: toggleColSort,
+  } = useTableSort(board?.targets ?? [], boardColumnAccessors, {
+    key: "status",
+    dir: "desc",
+  });
+
   if (!board || board.targets.length === 0) {
     return (
       <div className="bg-card border border-border rounded-xl py-16 text-center">
@@ -1001,11 +1067,6 @@ function DonorBoardTab({
       </div>
     );
   }
-
-  const sorted = [...board.targets].sort((a, b) => {
-    const order = { PAID_FULL: 2, PARTIAL: 1, UNPAID: 0 } as const;
-    return order[b.status] - order[a.status];
-  });
 
   return (
     <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
@@ -1038,26 +1099,26 @@ function DonorBoardTab({
                   <input type="checkbox" checked={false} readOnly className="accent-primary" />
                 )}
               </th>
-              <th className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-3">
+              <SortableTh sortKey="donor" sort={colSort} onSort={toggleColSort} className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-3">
                 Donor
-              </th>
-              <th className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-3 hidden md:table-cell">
+              </SortableTh>
+              <SortableTh sortKey="pool" sort={colSort} onSort={toggleColSort} className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-3 hidden md:table-cell">
                 Pool
-              </th>
-              <th className="text-right text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-3">
+              </SortableTh>
+              <SortableTh sortKey="expected" sort={colSort} onSort={toggleColSort} align="right" className="text-right text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-3">
                 Expected
-              </th>
-              <th className="text-right text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-3">
+              </SortableTh>
+              <SortableTh sortKey="paid" sort={colSort} onSort={toggleColSort} align="right" className="text-right text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-3">
                 Paid
-              </th>
-              <th className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-3 hidden sm:table-cell">
+              </SortableTh>
+              <SortableTh sortKey="status" sort={colSort} onSort={toggleColSort} className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-3 hidden sm:table-cell">
                 Status
-              </th>
+              </SortableTh>
               <th className="text-right px-3 py-3" />
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {sorted.map((t) => (
+            {sortedTargets.map((t) => (
               <BoardRow
                 key={t.id}
                 target={t}
@@ -2481,6 +2542,12 @@ function PayoutRequestTab({
                 {p.notes && (
                   <p className="text-[11px] text-muted-foreground">Admin note: &quot;{p.notes}&quot;</p>
                 )}
+                <PayoutProofStrip
+                  payoutId={p.id}
+                  images={p.proofImages}
+                  editable={canRequest && (p.status === "REQUESTED" || p.status === "REVIEWED")}
+                  onChanged={load}
+                />
                 <p className="text-[11px] text-muted-foreground">
                   {new Date(p.createdAt).toLocaleDateString()}
                 </p>
@@ -2503,6 +2570,9 @@ function PayoutRequestTab({
   );
 }
 
+const MAX_PROOF_IMAGES = 5;
+const PROOF_ACCEPT = "image/jpeg,image/png,image/webp";
+
 function RequestPayoutForm({
   campaignId,
   onSubmitted,
@@ -2512,8 +2582,18 @@ function RequestPayoutForm({
 }) {
   const [amount, setAmount] = useState("");
   const [reason, setReason] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const previews = useMemo(() => files.map((f) => URL.createObjectURL(f)), [files]);
+  useEffect(() => () => previews.forEach((url) => URL.revokeObjectURL(url)), [previews]);
+
+  const addFiles = (list: FileList | null) => {
+    if (!list || list.length === 0) return;
+    setFiles((prev) => [...prev, ...Array.from(list)].slice(0, MAX_PROOF_IMAGES));
+  };
+  const removeFile = (idx: number) => setFiles((prev) => prev.filter((_, i) => i !== idx));
 
   const submit = async () => {
     setError(null);
@@ -2528,9 +2608,20 @@ function RequestPayoutForm({
     }
     setSubmitting(true);
     try {
-      await payoutApi.create({ amount: amt, campaignId, reason: reason.trim() });
+      const created = await payoutApi.create({ amount: amt, campaignId, reason: reason.trim() });
+      if (files.length > 0) {
+        try {
+          await payoutApi.attachProof(created.id, files);
+        } catch (e) {
+          setError(
+            (e instanceof Error ? e.message : "The request was submitted, but the proof photos failed to upload.") +
+              " You can add them from the request below."
+          );
+        }
+      }
       setAmount("");
       setReason("");
+      setFiles([]);
       onSubmitted();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to submit the payout request.");
@@ -2568,6 +2659,52 @@ function RequestPayoutForm({
             className="min-h-20"
           />
         </div>
+        <div className="grid gap-1.5">
+          <Label className="text-xs">
+            Proof of use <span className="font-normal text-muted-foreground">(optional)</span>
+          </Label>
+          <p className="text-[11px] text-muted-foreground">
+            Attach invoices, receipts or photos that show why this payout is needed — up to{" "}
+            {MAX_PROOF_IMAGES} images. The reviewer and admin will see them.
+          </p>
+          {files.length > 0 && (
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 pt-1">
+              {previews.map((url, idx) => (
+                <div
+                  key={url}
+                  className="relative group aspect-square rounded-lg overflow-hidden border border-border"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={url} alt="Proof preview" className="w-full h-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => removeFile(idx)}
+                    className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    aria-label="Remove image"
+                  >
+                    <XCircle className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          {files.length < MAX_PROOF_IMAGES && (
+            <label className="inline-flex w-fit items-center gap-1.5 text-xs text-primary cursor-pointer hover:underline">
+              <ImageIcon className="w-3.5 h-3.5" />
+              {files.length > 0 ? "Add another image" : "Add images"}
+              <input
+                type="file"
+                accept={PROOF_ACCEPT}
+                multiple
+                className="hidden"
+                onChange={(e) => {
+                  addFiles(e.target.files);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+          )}
+        </div>
         {error && (
           <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
             {error}
@@ -2578,6 +2715,106 @@ function RequestPayoutForm({
           Request payout
         </Button>
       </div>
+    </div>
+  );
+}
+
+/** Proof-of-use thumbnails for one payout request, with add/remove while the
+ *  request is still the manager's to edit (REQUESTED / REVIEWED). */
+function PayoutProofStrip({
+  payoutId,
+  images,
+  editable,
+  onChanged,
+}: {
+  payoutId: number;
+  images: { id: number; url: string }[];
+  editable: boolean;
+  onChanged: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (images.length === 0 && !editable) return null;
+
+  const upload = async (list: FileList | null) => {
+    if (!list || list.length === 0) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await payoutApi.attachProof(payoutId, Array.from(list).slice(0, MAX_PROOF_IMAGES));
+      onChanged();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to upload the image.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async (imageId: number) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await payoutApi.removeProof(payoutId, imageId);
+      onChanged();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to remove the image.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
+        Proof of use
+      </p>
+      {images.length > 0 ? (
+        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+          {images.map((img) => (
+            <div
+              key={img.id}
+              className="relative group aspect-square rounded-lg overflow-hidden border border-border"
+            >
+              <a href={img.url} target="_blank" rel="noreferrer">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={img.url} alt="Payout proof" className="w-full h-full object-cover" />
+              </a>
+              {editable && (
+                <button
+                  type="button"
+                  onClick={() => remove(img.id)}
+                  disabled={busy}
+                  className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  aria-label="Remove image"
+                >
+                  <XCircle className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-[11px] text-muted-foreground">No proof attached.</p>
+      )}
+      {editable && images.length < MAX_PROOF_IMAGES && (
+        <label className="inline-flex w-fit items-center gap-1.5 text-xs text-primary cursor-pointer hover:underline">
+          {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImageIcon className="w-3.5 h-3.5" />}
+          Add proof image
+          <input
+            type="file"
+            accept={PROOF_ACCEPT}
+            multiple
+            className="hidden"
+            disabled={busy}
+            onChange={(e) => {
+              upload(e.target.files);
+              e.target.value = "";
+            }}
+          />
+        </label>
+      )}
+      {error && <p className="text-[11px] text-destructive">{error}</p>}
     </div>
   );
 }

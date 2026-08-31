@@ -300,7 +300,7 @@ export default function DashboardPage() {
     quickActions.push({
       label: "Review Campaigns",
       sub: `${pendingApprovalCount} awaiting review`,
-      href: "/dashboard/campaigns/approvals",
+      href: "/dashboard/approvals",
       icon: BadgeCheck,
       accent: "bg-emerald-50 text-emerald-600",
     });
@@ -309,7 +309,7 @@ export default function DashboardPage() {
     quickActions.push({
       label: "Review Payouts",
       sub: `${pendingPayoutCount} awaiting your approval`,
-      href: "/dashboard/campaigns/approvals#payouts",
+      href: "/dashboard/approvals#payouts",
       icon: HandCoins,
       accent: "bg-teal-50 text-teal-600",
     });

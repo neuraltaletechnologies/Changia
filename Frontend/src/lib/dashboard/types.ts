@@ -33,7 +33,7 @@ export interface Donor {
 }
 
 // REVIEWED = has its first of two required approvals; awaiting a second,
-// different approver before it goes ACTIVE (see campaigns/approvals page).
+// different approver before it goes ACTIVE (see the /dashboard/approvals page).
 export type CampaignStatus =
   | "DRAFT"
   | "PENDING"

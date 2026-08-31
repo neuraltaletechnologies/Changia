@@ -1,10 +1,27 @@
+const path = require("path");
 const db = require("../../db");
+const { env } = require("../../config");
 const { ApiError } = require("../../utils/ApiError");
 const { assertCampaignAccess } = require("../campaign/service");
+const { deleteUploadedFiles } = require("../../middlewares/upload");
 const notificationService = require("../notification/service");
 const clickPesa = require("../../utils/clickPesa");
 
-function serialize(row) {
+/** "/uploads/..." web path -> absolute URL the frontend can load. */
+function toAbsoluteImageUrl(webPath) {
+  if (!webPath) return null;
+  if (webPath.startsWith("/uploads/")) return `${env.API_PUBLIC_URL}${webPath}`;
+  return webPath;
+}
+
+/** "/uploads/..." web path -> absolute disk path, so a removed proof photo can
+ *  be cleaned off disk. */
+function uploadWebPathToDiskPath(webPath) {
+  const segments = webPath.split("/").filter(Boolean);
+  return path.join(__dirname, "..", "..", ...segments);
+}
+
+function serialize(row, proofImages = []) {
   return {
     id: row.id,
     organizationId: row.organization_id,
@@ -21,9 +38,32 @@ function serialize(row) {
     approvedAt: row.approved_at,
     paidAt: row.paid_at,
     gatewayRef: row.gateway_ref,
+    proofImages,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+/** { [payoutId]: [{ id, url }] } proof-of-use photos for the given payouts. */
+async function loadPayoutImages(payoutIds) {
+  if (!payoutIds || payoutIds.length === 0) return {};
+  const rows = await db.query(
+    `SELECT id, payout_id, image_path FROM payout_images
+     WHERE payout_id IN (?) ORDER BY sort_order ASC, id ASC`,
+    [payoutIds]
+  );
+  const byId = {};
+  for (const r of rows) {
+    if (!byId[r.payout_id]) byId[r.payout_id] = [];
+    byId[r.payout_id].push({ id: r.id, url: toAbsoluteImageUrl(r.image_path) });
+  }
+  return byId;
+}
+
+/** serialize() + its proof photos, in one round-trip. */
+async function serializeWithImages(row) {
+  const byId = await loadPayoutImages([row.id]);
+  return serialize(row, byId[row.id] || []);
 }
 
 /** Fire-and-forget notification — never lets a notify failure break the flow. */
@@ -114,8 +154,9 @@ async function listPayouts(organizationId, filters, user) {
     [...values, limit, offset]
   );
   const count = await db.query(`SELECT COUNT(*) AS total FROM payouts p WHERE ${whereSql}`, values);
+  const imagesById = await loadPayoutImages(payouts.map((p) => p.id));
   return {
-    payouts: payouts.map(serialize),
+    payouts: payouts.map((p) => serialize(p, imagesById[p.id] || [])),
     pagination: { page, limit, total: count[0].total, totalPages: Math.ceil(count[0].total / limit) },
   };
 }
@@ -137,7 +178,7 @@ async function getPayout(organizationId, id, user) {
   if (user && user.role === "CAMPAIGN_MANAGER" && Number(payout.requested_by_id) !== Number(user.id)) {
     throw ApiError.notFound("Payout not found");
   }
-  return serialize(payout);
+  return serializeWithImages(payout);
 }
 
 /**
@@ -206,6 +247,84 @@ async function createPayout(organizationId, user, data) {
   return payout;
 }
 
+// ─── Proof-of-use photos ─────────────────────────────────────────────────────
+//
+// The requesting CAMPAIGN_MANAGER may attach up to 5 optional photos
+// (invoices, receipts, delivery/site photos) so the reviewer and org admin can
+// see why the money is needed. Editable only while the request is still in the
+// approval chain (REQUESTED / REVIEWED) — once APPROVED / PAID / REJECTED the
+// evidence is frozen.
+
+const MAX_PROOF_IMAGES = 5;
+const PROOF_EDITABLE_STATUSES = ["REQUESTED", "REVIEWED"];
+
+/** Loads the payout and asserts the actor is its requester (managers only
+ *  touch their own) and it's still in a state where proof can change. */
+async function getEditableOwnPayout(organizationId, user, id) {
+  const payout = await getPayoutRow(organizationId, id);
+  if (Number(payout.requested_by_id) !== Number(user.id)) {
+    throw ApiError.notFound("Payout not found");
+  }
+  if (!PROOF_EDITABLE_STATUSES.includes(payout.status)) {
+    throw ApiError.conflict(
+      "You can only change the proof while the request is still under review",
+      "PAYOUT_PROOF_LOCKED"
+    );
+  }
+  return payout;
+}
+
+/** Attaches proof photos to a payout request. `files` is multer's `.array()`
+ *  output (req.files). */
+async function attachProofImages(organizationId, user, id, files) {
+  const list = Array.isArray(files) ? files : [];
+  if (list.length === 0) throw ApiError.badRequest("No images were uploaded", "NO_IMAGES");
+
+  const payout = await getEditableOwnPayout(organizationId, user, id);
+
+  const [{ count }] = await db.query(
+    "SELECT COUNT(*) AS count FROM payout_images WHERE payout_id = ?",
+    [id]
+  );
+  if (Number(count) + list.length > MAX_PROOF_IMAGES) {
+    throw ApiError.badRequest(
+      `A payout request can have at most ${MAX_PROOF_IMAGES} proof photos`,
+      "TOO_MANY_IMAGES"
+    );
+  }
+
+  const [{ maxOrder }] = await db.query(
+    "SELECT COALESCE(MAX(sort_order), -1) AS maxOrder FROM payout_images WHERE payout_id = ?",
+    [id]
+  );
+  let order = Number(maxOrder) + 1;
+  for (const file of list) {
+    await db.execute(
+      "INSERT INTO payout_images (payout_id, image_path, sort_order) VALUES (?, ?, ?)",
+      [id, `/uploads/payouts/${payout.id}/${file.filename}`, order]
+    );
+    order++;
+  }
+
+  return serializeWithImages(await getPayoutRow(organizationId, id));
+}
+
+/** Removes one proof photo (DB row + file on disk). */
+async function removeProofImage(organizationId, user, id, imageId) {
+  await getEditableOwnPayout(organizationId, user, id);
+
+  const rows = await db.query(
+    "SELECT image_path FROM payout_images WHERE id = ? AND payout_id = ?",
+    [imageId, id]
+  );
+  if (rows.length === 0) throw ApiError.notFound("Image not found");
+
+  await db.execute("DELETE FROM payout_images WHERE id = ?", [imageId]);
+  deleteUploadedFiles([{ path: uploadWebPathToDiskPath(rows[0].image_path) }]);
+
+  return serializeWithImages(await getPayoutRow(organizationId, id));
+}
+
 /**
  * Stage-aware decision. The router allows REVIEWER / ORG_ADMIN / SUPER_ADMIN
  * here; which stage applies is chosen from the payout's current status.
@@ -246,7 +365,7 @@ async function decidePayout(organizationId, user, id, approved, data = {}) {
       resourceId: id,
       organizationId: orgId,
     });
-    return getPayoutRow(scopeOrg, id).then(serialize);
+    return getPayoutRow(scopeOrg, id).then(serializeWithImages);
   }
 
   if (stage === 1) {
@@ -283,7 +402,7 @@ async function decidePayout(organizationId, user, id, approved, data = {}) {
       }
     );
   }
-  return getPayoutRow(scopeOrg, id).then(serialize);
+  return getPayoutRow(scopeOrg, id).then(serializeWithImages);
 }
 
 // ─── Payout review history / timeline ──────────────────────────────────────
@@ -296,6 +415,8 @@ async function decidePayout(organizationId, user, id, approved, data = {}) {
 
 const PAYOUT_HISTORY_LABELS = {
   "payout.requested": "Payout requested",
+  "payout.proof_added": "Proof of use attached",
+  "payout.proof_removed": "Proof of use removed",
   "payout.first_approved": "Passed first review",
   "payout.approved": "Final approval given",
   "payout.rejected": "Rejected",
@@ -463,7 +584,7 @@ async function markPaid(organizationId, id, data, user) {
   );
 
   const updated = await getPayoutRow(scopeOrg, id);
-  const serialized = serialize(updated);
+  const serialized = await serializeWithImages(updated);
   if (clickPesaResult) {
     serialized.clickPesa = clickPesaResult;
   }
@@ -475,6 +596,8 @@ module.exports = {
   getPayout,
   getPayoutHistory,
   createPayout,
+  attachProofImages,
+  removeProofImage,
   decidePayout,
   previewPayout,
   markPaid,

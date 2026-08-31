@@ -9,6 +9,7 @@ const { ApiError } = require("../utils/ApiError");
 const UPLOADS_BASE = path.join(__dirname, "..", "uploads");
 const UPLOAD_ROOT = path.join(UPLOADS_BASE, "completion-reports");
 const CAMPAIGN_IMAGES_ROOT = path.join(UPLOADS_BASE, "campaigns");
+const PAYOUT_IMAGES_ROOT = path.join(UPLOADS_BASE, "payouts");
 
 const ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
@@ -51,6 +52,14 @@ const uploadCampaignImages = multer({
   { name: "gallery", maxCount: 8 },
 ]);
 
+/** Route middleware: optional payout "proof of use" photos — up to 5 files
+ *  under the "proof" field. */
+const uploadPayoutProof = multer({
+  storage: makeStorage(PAYOUT_IMAGES_ROOT),
+  fileFilter,
+  limits: { fileSize: 5 * 1024 * 1024, files: 5 },
+}).array("proof", 5);
+
 /** Best-effort cleanup for files multer already wrote to disk before a later
  *  validation step rejected the request (so failed submissions don't leak
  *  orphaned files). Accepts a flat array (`.array()` output) or the
@@ -65,7 +74,9 @@ function deleteUploadedFiles(files) {
 module.exports = {
   uploadCompletionImages,
   uploadCampaignImages,
+  uploadPayoutProof,
   deleteUploadedFiles,
   UPLOAD_ROOT,
   CAMPAIGN_IMAGES_ROOT,
+  PAYOUT_IMAGES_ROOT,
 };

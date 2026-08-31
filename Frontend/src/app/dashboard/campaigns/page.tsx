@@ -55,10 +55,16 @@ import {
   Banknote,
   Flag,
   Clock,
+  XCircle,
 } from "lucide-react";
 import { useRole } from "@/hooks/use-role";
 import { cn } from "@/lib/dashboard/utils";
 import { CampaignEditSheet } from "@/components/dashboard/campaigns/campaign-edit-sheet";
+import {
+  SortableTh,
+  useTableSort,
+  type SortAccessors,
+} from "@/components/dashboard/ui/sortable-table";
 
 const statusChips: { status: string; styles: string; dot: string }[] = [
   { status: "ACTIVE", styles: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-500" },
@@ -79,6 +85,30 @@ const SORT_OPTIONS = [
   { value: "goal", label: "Largest goal" },
 ] as const;
 type SortBy = (typeof SORT_OPTIONS)[number]["value"];
+
+type CampaignColumn =
+  | "campaign"
+  | "category"
+  | "manager"
+  | "featured"
+  | "status"
+  | "review"
+  | "raised";
+
+const campaignColumnAccessors: SortAccessors<CampaignRecord, CampaignColumn> = {
+  campaign: (c) => c.name?.toLowerCase() ?? "",
+  category: (c) => c.category?.toLowerCase() ?? "",
+  manager: (c) =>
+    c.assignments?.[0]
+      ? `${c.assignments[0].user.firstName} ${c.assignments[0].user.lastName ?? ""}`
+          .trim()
+          .toLowerCase()
+      : "",
+  featured: (c) => Boolean(c.isFeatured),
+  status: (c) => c.status ?? "",
+  review: (c) => reviewChipsForCampaign(c)[0]?.label ?? "",
+  raised: (c) => c.raisedAmount ?? 0,
+};
 
 export default function CampaignsPage() {
   const [campaigns, setCampaigns] = useState<CampaignRecord[]>([]);
@@ -102,7 +132,7 @@ export default function CampaignsPage() {
   // A REVIEWER doesn't create or run campaigns — they only review them. Their
   // campaign entry point is the Approvals queue, so send them straight there.
   useEffect(() => {
-    if (isReviewer) router.replace("/dashboard/campaigns/approvals");
+    if (isReviewer) router.replace("/dashboard/approvals");
   }, [isReviewer, router]);
 
   const [viewMode, setViewMode] = useState<"card" | "list">("list");
@@ -163,6 +193,12 @@ export default function CampaignsPage() {
     return sorted;
   }, [campaigns, search, statusFilter, categoryFilter, sortBy]);
 
+  const {
+    sorted: sortedRows,
+    sort: colSort,
+    toggle: toggleColSort,
+  } = useTableSort(filtered, campaignColumnAccessors);
+
   const act = async (fn: () => Promise<unknown>) => {
     setActionError(null);
     try {
@@ -173,7 +209,7 @@ export default function CampaignsPage() {
     }
   };
 
-  // Reviewers are being redirected to /dashboard/campaigns/approvals — don't
+  // Reviewers are being redirected to /dashboard/approvals — don't
   // flash the list at them on the way out.
   if (isReviewer) return null;
 
@@ -403,32 +439,68 @@ export default function CampaignsPage() {
             <table className="w-full text-sm min-w-[1040px]">
               <thead>
                 <tr className="border-b border-border bg-muted/40">
-                  <th className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3">
+                  <SortableTh
+                    sortKey="campaign"
+                    sort={colSort}
+                    onSort={toggleColSort}
+                    className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3"
+                  >
                     Campaign
-                  </th>
-                  <th className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-3 hidden md:table-cell">
+                  </SortableTh>
+                  <SortableTh
+                    sortKey="category"
+                    sort={colSort}
+                    onSort={toggleColSort}
+                    className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-3 hidden md:table-cell"
+                  >
                     Category
-                  </th>
-                  <th className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-3 hidden lg:table-cell">
+                  </SortableTh>
+                  <SortableTh
+                    sortKey="manager"
+                    sort={colSort}
+                    onSort={toggleColSort}
+                    className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-3 hidden lg:table-cell"
+                  >
                     Manager
-                  </th>
-                  <th className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-3">
+                  </SortableTh>
+                  <SortableTh
+                    sortKey="featured"
+                    sort={colSort}
+                    onSort={toggleColSort}
+                    className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-3"
+                  >
                     Featured
-                  </th>
-                  <th className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-3">
+                  </SortableTh>
+                  <SortableTh
+                    sortKey="status"
+                    sort={colSort}
+                    onSort={toggleColSort}
+                    className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-3"
+                  >
                     Status
-                  </th>
-                  <th className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-3">
+                  </SortableTh>
+                  <SortableTh
+                    sortKey="review"
+                    sort={colSort}
+                    onSort={toggleColSort}
+                    className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-3"
+                  >
                     Review
-                  </th>
-                  <th className="text-right text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-3">
+                  </SortableTh>
+                  <SortableTh
+                    sortKey="raised"
+                    sort={colSort}
+                    onSort={toggleColSort}
+                    align="right"
+                    className="text-right text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-3"
+                  >
                     Raised / Goal
-                  </th>
+                  </SortableTh>
                   <th className="text-right px-3 py-3" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {filtered.map((c) => (
+                {sortedRows.map((c) => (
                   <tr key={c.id} className="hover:bg-muted/30 transition-colors">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2.5">
@@ -544,59 +616,105 @@ function hasEditInReview(c: CampaignRecord): boolean {
   return !!edit && ["PENDING", "REVIEWED"].includes(edit.status);
 }
 
-/**
- * "Review" column — the campaign's position in an approval chain, or the state
- * of anything else about it that's currently in review (parked edits, a
- * suspend/resume ask, or an open payout request).
- */
-function reviewStatusForCampaign(c: CampaignRecord): { label: string; styles: string } | null {
-  if (c.status === "PENDING" && c.reviewState === "CHANGES_REQUESTED")
-    return { label: "Changes requested", styles: "bg-amber-50 text-amber-700 border-amber-200" };
-  if (c.status === "PENDING")
-    return { label: "Awaiting 1st approval", styles: "bg-orange-50 text-orange-700 border-orange-200" };
-  if (c.status === "REVIEWED")
-    return { label: "Awaiting final approval", styles: "bg-blue-50 text-blue-700 border-blue-200" };
-  if (c.status === "REJECTED")
-    return { label: "Rejected — needs edit", styles: "bg-rose-50 text-rose-700 border-rose-200" };
+type ReviewChip = { label: string; styles: string; rejected?: boolean };
 
+const CHIP_ORANGE = "bg-orange-50 text-orange-700 border-orange-200";
+const CHIP_BLUE = "bg-blue-50 text-blue-700 border-blue-200";
+const CHIP_AMBER = "bg-amber-50 text-amber-700 border-amber-200";
+const CHIP_ROSE = "bg-rose-50 text-rose-700 border-rose-200";
+const CHIP_SKY = "bg-sky-50 text-sky-700 border-sky-200";
+const CHIP_VIOLET = "bg-violet-50 text-violet-700 border-violet-200";
+
+/** A two-stage request's position: PENDING = stage 1, REVIEWED = stage 2. */
+function stageChip(kind: string, status: string, styles: string): ReviewChip {
+  if (status === "CHANGES_REQUESTED")
+    return { label: `${kind} · Changes requested`, styles: CHIP_AMBER };
+  return { label: `${kind} · Stage ${status === "REVIEWED" ? 2 : 1} of 2`, styles };
+}
+
+/**
+ * "Review" column — every review this campaign is currently in, each tagged
+ * with what kind it is (activation / edit / suspension / payout / closure /
+ * proof / fee) and how far it's got. Denied outcomes show as a red chip so the
+ * manager can open the campaign and see the reviewer's reason.
+ */
+function reviewChipsForCampaign(c: CampaignRecord): ReviewChip[] {
+  const chips: ReviewChip[] = [];
+
+  // 1. The campaign itself going live (DRAFT → PENDING → REVIEWED → ACTIVE).
+  if (c.status === "PENDING" && c.reviewState === "CHANGES_REQUESTED")
+    chips.push({ label: "Activation · Changes requested", styles: CHIP_AMBER });
+  else if (c.status === "PENDING")
+    chips.push({ label: "Activation · Stage 1 of 2", styles: CHIP_ORANGE });
+  else if (c.status === "REVIEWED")
+    chips.push({ label: "Activation · Stage 2 of 2", styles: CHIP_BLUE });
+  else if (c.status === "REJECTED")
+    chips.push({ label: "Activation · Rejected", styles: CHIP_ROSE, rejected: true });
+
+  // 2. Parked field edits on a live campaign.
+  const edit =
+    c.editRequest ??
+    (c.changeRequest && (c.changeRequest.kind ?? "EDIT") === "EDIT" ? c.changeRequest : null);
+  if (edit && ["PENDING", "REVIEWED", "CHANGES_REQUESTED"].includes(edit.status))
+    chips.push(stageChip("Edit", edit.status, CHIP_SKY));
+
+  // 3. A manager's suspend / resume ask.
   const statusReq =
-    c.statusRequest ??
-    (c.changeRequest?.kind === "STATUS" ? c.changeRequest : null);
-  if (statusReq && ["PENDING", "REVIEWED"].includes(statusReq.status)) {
+    c.statusRequest ?? (c.changeRequest?.kind === "STATUS" ? c.changeRequest : null);
+  if (statusReq && ["PENDING", "REVIEWED", "CHANGES_REQUESTED"].includes(statusReq.status)) {
     const verb = statusReq.statusAction === "PAUSE" ? "Suspension" : "Resume";
-    return {
-      label: `${verb} in review`,
-      styles: "bg-sky-50 text-sky-700 border-sky-200",
-    };
+    chips.push(stageChip(verb, statusReq.status, CHIP_SKY));
   }
-  if (hasEditInReview(c))
-    return { label: "Edit in review", styles: "bg-sky-50 text-sky-700 border-sky-200" };
+
+  // 4. A payout request in the approval chain.
   if (c.openPayoutRequest)
-    return {
-      label: `Payout ${c.openPayoutRequest.status === "REVIEWED" ? "awaiting final" : "in review"}`,
-      styles: "bg-violet-50 text-violet-700 border-violet-200",
-    };
+    chips.push(stageChip("Payout", c.openPayoutRequest.status, CHIP_VIOLET));
+
+  // 5. A request to close the campaign (single decision, not two-stage).
   if (c.latestClosureRequest?.status === "PENDING")
-    return { label: "Closure in review", styles: "bg-sky-50 text-sky-700 border-sky-200" };
+    chips.push({ label: "Closure · In review", styles: CHIP_SKY });
+  else if (
+    c.latestClosureRequest?.status === "REJECTED" &&
+    (c.status === "ACTIVE" || c.status === "PAUSED")
+  )
+    chips.push({ label: "Closure · Rejected", styles: CHIP_ROSE, rejected: true });
+
+  // 6. Completion proof for a finished campaign.
   if (c.completionReport?.status === "PENDING_REVIEW")
-    return { label: "Proof in review", styles: "bg-sky-50 text-sky-700 border-sky-200" };
-  return null;
+    chips.push({ label: "Proof · In review", styles: CHIP_SKY });
+  else if (c.completionReport?.status === "REJECTED")
+    chips.push({ label: "Proof · Rejected", styles: CHIP_ROSE, rejected: true });
+
+  // 7. A proposed custom service-fee rate.
+  if (c.feeStatus === "PENDING")
+    chips.push({ label: "Custom fee · In review", styles: CHIP_SKY });
+
+  return chips;
 }
 
 function ReviewStatusCell({ campaign }: { campaign: CampaignRecord }) {
-  const review = reviewStatusForCampaign(campaign);
-  if (!review)
+  const chips = reviewChipsForCampaign(campaign);
+  if (chips.length === 0)
     return <span className="text-[11px] text-muted-foreground">—</span>;
   return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1 text-[10px] font-medium border rounded-full px-2 py-0.5",
-        review.styles
-      )}
-    >
-      <Clock className="w-2.5 h-2.5" />
-      {review.label}
-    </span>
+    <div className="flex flex-col items-start gap-1">
+      {chips.map((chip) => (
+        <span
+          key={chip.label}
+          className={cn(
+            "inline-flex items-center gap-1 text-[10px] font-medium border rounded-full px-2 py-0.5 whitespace-nowrap",
+            chip.styles
+          )}
+        >
+          {chip.rejected ? (
+            <XCircle className="w-2.5 h-2.5 shrink-0" />
+          ) : (
+            <Clock className="w-2.5 h-2.5 shrink-0" />
+          )}
+          {chip.label}
+        </span>
+      ))}
+    </div>
   );
 }
 

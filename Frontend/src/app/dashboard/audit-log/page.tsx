@@ -13,6 +13,11 @@ import {
 import { Button } from "@/components/dashboard/ui/button";
 import { auditApi, type AuditLogEntry, type AuditSeverity } from "@/lib/dashboard/api";
 import { cn } from "@/lib/dashboard/utils";
+import {
+  SortableTh,
+  useTableSort,
+  type SortAccessors,
+} from "@/components/dashboard/ui/sortable-table";
 
 const PAGE_SIZE = 25;
 
@@ -28,6 +33,28 @@ const severityDot: Record<AuditSeverity, string> = {
   INFO: "bg-sky-400",
   WARNING: "bg-amber-400",
   CRITICAL: "bg-rose-500",
+};
+
+type AuditColumn =
+  | "action"
+  | "resource"
+  | "details"
+  | "user"
+  | "ip"
+  | "severity"
+  | "timestamp";
+
+const auditColumnAccessors: SortAccessors<AuditLogEntry, AuditColumn> = {
+  action: (l) => l.action?.toLowerCase() ?? "",
+  resource: (l) => l.resource?.toLowerCase() ?? "",
+  details: (l) => detailsText(l.details).toLowerCase(),
+  user: (l) => actorName(l).toLowerCase(),
+  ip: (l) => l.ipAddress ?? "",
+  severity: (l) => {
+    const i = SEVERITIES.indexOf(l.severity);
+    return i === -1 ? SEVERITIES.length : i;
+  },
+  timestamp: (l) => (l.createdAt ? Date.parse(l.createdAt) : 0),
 };
 
 function actorName(log: AuditLogEntry): string {
@@ -112,6 +139,12 @@ export default function AuditLogPage() {
     () => Array.from(new Set(logs.map((l) => l.resource))).sort(),
     [logs]
   );
+
+  const {
+    sorted: sortedLogs,
+    sort: colSort,
+    toggle: toggleColSort,
+  } = useTableSort(logs, auditColumnAccessors);
 
   const exportCsv = async () => {
     setExporting(true);
@@ -231,27 +264,27 @@ export default function AuditLogPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/40">
-                <th className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3">
+                <SortableTh sortKey="action" sort={colSort} onSort={toggleColSort} className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3">
                   Action
-                </th>
-                <th className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3 hidden sm:table-cell">
+                </SortableTh>
+                <SortableTh sortKey="resource" sort={colSort} onSort={toggleColSort} className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3 hidden sm:table-cell">
                   Resource
-                </th>
-                <th className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3 hidden lg:table-cell">
+                </SortableTh>
+                <SortableTh sortKey="details" sort={colSort} onSort={toggleColSort} className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3 hidden lg:table-cell">
                   Details
-                </th>
-                <th className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3 hidden md:table-cell">
+                </SortableTh>
+                <SortableTh sortKey="user" sort={colSort} onSort={toggleColSort} className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3 hidden md:table-cell">
                   User
-                </th>
-                <th className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3 hidden xl:table-cell">
+                </SortableTh>
+                <SortableTh sortKey="ip" sort={colSort} onSort={toggleColSort} className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3 hidden xl:table-cell">
                   IP Address
-                </th>
-                <th className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3">
+                </SortableTh>
+                <SortableTh sortKey="severity" sort={colSort} onSort={toggleColSort} className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3">
                   Severity
-                </th>
-                <th className="text-right text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3 hidden sm:table-cell">
+                </SortableTh>
+                <SortableTh sortKey="timestamp" sort={colSort} onSort={toggleColSort} align="right" className="text-right text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3 hidden sm:table-cell">
                   Timestamp
-                </th>
+                </SortableTh>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -270,7 +303,7 @@ export default function AuditLogPage() {
                 </tr>
               )}
               {!loading &&
-                logs.map((log) => (
+                sortedLogs.map((log) => (
                   <tr
                     key={log.id}
                     className={cn(

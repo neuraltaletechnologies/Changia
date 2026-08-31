@@ -25,7 +25,7 @@ import {
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Campaigns", href: "/dashboard/campaigns", icon: Megaphone },
-  { label: "Approvals", href: "/dashboard/campaigns/approvals", icon: ShieldCheck },
+  { label: "Approvals", href: "/dashboard/approvals", icon: ShieldCheck },
   { label: "Donor Pools", href: "/dashboard/pools", icon: Layers },
   { label: "Reminders", href: "/dashboard/reminders", icon: BellRing },
   { label: "Notifications", href: "/dashboard/notifications", icon: Bell },
@@ -54,19 +54,13 @@ export function MobileNav({ open, onClose }: MobileNavProps) {
 
   const badgeFor = (href: string): number => {
     if (href === "/dashboard/reminders") return pendingReminders;
-    if (href === "/dashboard/campaigns/approvals") return pendingApprovals;
+    if (href === "/dashboard/approvals") return pendingApprovals;
     if (href === "/dashboard/notifications") return unreadCount;
     return 0;
   };
 
   const isActive = (href: string) => {
     if (href === "/dashboard") return pathname === "/dashboard";
-    if (href === "/dashboard/campaigns") {
-      return (
-        pathname.startsWith("/dashboard/campaigns") &&
-        !pathname.startsWith("/dashboard/campaigns/approvals")
-      );
-    }
     return pathname.startsWith(href);
   };
 

@@ -214,7 +214,7 @@ export const ROUTE_ACCESS: Record<string, Role[]> = {
   "/dashboard/profile": ALL_ROLES,
   "/dashboard/campaigns": ALL_ROLES,
   "/dashboard/campaigns/new": [ROLE.ORG_ADMIN, ROLE.CAMPAIGN_MANAGER],
-  "/dashboard/campaigns/approvals": [ROLE.SUPER_ADMIN, ROLE.ORG_ADMIN, ROLE.REVIEWER],
+  "/dashboard/approvals": [ROLE.SUPER_ADMIN, ROLE.ORG_ADMIN, ROLE.REVIEWER],
   "/dashboard/donors": ORG_WORKSPACE_ROLES,
   "/dashboard/donors/import": [ROLE.SUPER_ADMIN],
   "/dashboard/pools": ORG_WORKSPACE_ROLES,

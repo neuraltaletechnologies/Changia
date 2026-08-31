@@ -661,7 +661,7 @@ Authenticated (SUPER_ADMIN, ORG_ADMIN). Cannot self-delete or remove the last re
 
 ## 8. Campaigns
 
-> **Backed by frontend pages:** `/dashboard/campaigns` (list + status tabs), `/dashboard/campaigns/new` (create), `/dashboard/campaigns/approvals` (approve), and `/dashboard/campaigns/:id` (detail with Overview · Donors · Transactions · Evidence · User tabs).
+> **Backed by frontend pages:** `/dashboard/campaigns` (list + status tabs), `/dashboard/campaigns/new` (create), `/dashboard/approvals` (the cross-cutting approvals workspace — campaigns, edits, fees, closures, reports, payouts, plus a "My history" tab backed by `GET /approvals/history`), and `/dashboard/campaigns/:id` (detail with Overview · Donors · Transactions · Evidence · User tabs).
 
 Campaigns have an approval workflow and a status lifecycle. All authenticated org members can read; only `SUPER_ADMIN`/`ORG_ADMIN` can create/manage; managers only view campaigns they're assigned to.
 

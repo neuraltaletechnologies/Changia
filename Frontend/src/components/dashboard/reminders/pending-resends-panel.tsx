@@ -46,9 +46,9 @@ interface PendingResendsPanelProps {
 
 /**
  * "Pending Resends" section — automatic resend cycles wait here for a manual
- * confirmation before anything sends. Rendered as one section of the combined
- * /dashboard/reminders page (alongside the auto-resend schedules), and embedded
- * as a queue on the Campaign Approvals page.
+ * confirmation before anything sends. Rendered on a campaign's Reminders tab
+ * (alongside its auto-resend schedules), and embedded as a queue on the Campaign
+ * Approvals page.
  */
 export function PendingResendsPanel({
   hideWhenEmpty,

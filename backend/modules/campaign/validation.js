@@ -169,6 +169,44 @@ const createGiftSchema = z.object({
     .or(z.literal("")),
 });
 
+// A visitor on the public campaign page pledging an in-kind gift. No PIN or
+// payment here — just what the item is and how it changes hands.
+const publicGiftPledgeSchema = z
+  .object({
+    description: z.string().trim().min(1, "Describe the item you're donating").max(300),
+    estimatedValue: z
+      .number({ message: "Estimated value must be a number" })
+      .int("Estimated value must be a whole TZS number")
+      .min(0, "Estimated value cannot be negative")
+      .max(1_000_000_000_000)
+      .optional()
+      .default(0),
+    deliveryMethod: z.enum(["PICKUP", "DROP_OFF"], {
+      message: "Choose whether the team should pick it up or you'll deliver it",
+    }),
+    donorName: z.string().trim().min(1, "Enter your name").max(150),
+    donorPhone: z
+      .string()
+      .regex(/^(\+?255|0)?[67][0-9]{8}$/, "Enter a valid Tanzanian phone number"),
+    donorEmail: z.string().email("Enter a valid email address").optional().or(z.literal("")),
+    pickupAddress: z.string().trim().max(400).optional().or(z.literal("")),
+    preferredDate: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, "Use a YYYY-MM-DD date")
+      .optional()
+      .or(z.literal("")),
+    note: z.string().trim().max(600).optional().or(z.literal("")),
+  })
+  .refine(
+    (d) => d.deliveryMethod !== "PICKUP" || Boolean(d.pickupAddress && d.pickupAddress.trim()),
+    { message: "A pickup address is required when you ask the team to collect it", path: ["pickupAddress"] }
+  );
+
+// A manager/admin advancing a gift pledge along its handover lifecycle.
+const updateGiftStatusSchema = z.object({
+  status: z.enum(["PLEDGED", "SCHEDULED", "RECEIVED", "CANCELLED"]),
+});
+
 const publicListQuerySchema = z.object({
   featured: z.enum(["true", "false"]).optional(),
   limit: z.coerce.number().int().min(1).max(5).optional(),
@@ -199,6 +237,8 @@ module.exports = {
   changeRequestDecisionSchema,
   feeReviewSchema,
   createGiftSchema,
+  publicGiftPledgeSchema,
+  updateGiftStatusSchema,
   publicListQuerySchema,
   publicDetailQuerySchema,
 };

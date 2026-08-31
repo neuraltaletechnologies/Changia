@@ -31,6 +31,7 @@ import {
 import { useRole } from "@/hooks/use-role";
 import { cn } from "@/lib/dashboard/utils";
 import { ReviewTimeline } from "@/components/dashboard/widgets/review-timeline";
+import { ExportMenu } from "@/components/dashboard/export-menu";
 import {
   SortableTh,
   useTableSort,
@@ -40,7 +41,8 @@ import {
 const STATUS_META: Record<PayoutRecord["status"], { label: string; styles: string }> = {
   REQUESTED: { label: "In first review", styles: "bg-orange-50 text-orange-700 border-orange-200" },
   REVIEWED: { label: "Awaiting final approval", styles: "bg-violet-50 text-violet-700 border-violet-200" },
-  APPROVED: { label: "Approved", styles: "bg-sky-50 text-sky-700 border-sky-200" },
+  AWAITING_CHECKOUT: { label: "Awaiting payout details", styles: "bg-amber-50 text-amber-700 border-amber-200" },
+  APPROVED: { label: "Ready to be paid", styles: "bg-sky-50 text-sky-700 border-sky-200" },
   PAID: { label: "Paid", styles: "bg-emerald-50 text-emerald-700 border-emerald-200" },
   REJECTED: { label: "Rejected", styles: "bg-rose-50 text-rose-700 border-rose-200" },
 };
@@ -48,6 +50,7 @@ const STATUS_META: Record<PayoutRecord["status"], { label: string; styles: strin
 const STATUS_ORDER: PayoutRecord["status"][] = [
   "REQUESTED",
   "REVIEWED",
+  "AWAITING_CHECKOUT",
   "APPROVED",
   "PAID",
   "REJECTED",
@@ -152,6 +155,10 @@ export default function PayoutsPage() {
       await payoutApi.markPaid(payingFor.id, {
         gatewayRef: gatewayRef.trim() || undefined,
         notes: payNotes.trim() || undefined,
+        phoneNumber:
+          payingFor.disbursement?.method === "MOBILE_MONEY"
+            ? payingFor.disbursement.phone ?? undefined
+            : undefined,
       });
       setPayingFor(null);
       await load();
@@ -175,13 +182,17 @@ export default function PayoutsPage() {
           <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
           Approvals
         </Button>
-        <div>
+        <div className="flex-1">
           <h1 className="text-xl font-semibold text-foreground tracking-tight">Payouts</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             Record gateway transfers for approved payouts and review the full disbursement history.
             Requests are made from a campaign&rsquo;s Payout tab; approvals happen on the Approvals page.
           </p>
         </div>
+        <ExportMenu
+          dataset="payouts"
+          params={{ status: statusFilter !== "ALL" ? statusFilter : undefined }}
+        />
       </div>
 
       {/* Summary chips */}
@@ -389,6 +400,38 @@ export default function PayoutsPage() {
           </DialogHeader>
 
           <div className="space-y-4">
+            {payingFor?.disbursement && (
+              <div className="rounded-lg border border-border bg-muted/30 px-4 py-3 space-y-1.5">
+                <p className="text-[11px] font-semibold text-foreground uppercase tracking-wide">
+                  Send to —{" "}
+                  {payingFor.disbursement.method === "MOBILE_MONEY"
+                    ? "Mobile money"
+                    : "Bank transfer"}
+                </p>
+                <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[11px]">
+                  {(payingFor.disbursement.method === "MOBILE_MONEY"
+                    ? ([
+                        ["Provider", payingFor.disbursement.provider],
+                        ["Phone", payingFor.disbursement.phone],
+                        ["Account name", payingFor.disbursement.accountName],
+                      ] as const)
+                    : ([
+                        ["Bank", payingFor.disbursement.bankName],
+                        ["Account number", payingFor.disbursement.accountNumber],
+                        ["Account name", payingFor.disbursement.accountName],
+                        ["Branch", payingFor.disbursement.branch],
+                      ] as const)
+                  )
+                    .filter(([, v]) => v)
+                    .map(([label, value]) => (
+                      <div key={label} className="contents">
+                        <dt className="text-muted-foreground">{label}</dt>
+                        <dd className="text-foreground font-medium">{value}</dd>
+                      </div>
+                    ))}
+                </dl>
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label htmlFor="payout-gateway-ref">Gateway reference (optional)</Label>
               <Input

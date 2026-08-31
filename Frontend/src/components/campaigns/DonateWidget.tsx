@@ -6,9 +6,11 @@ import {
   PublicApiError,
   formatTZS,
   getContributionStatus,
+  pledgeGift,
   simulateConfirmContribution,
   startContribution,
   type ContributionStatus,
+  type GiftDeliveryMethod,
   type Locale,
 } from '@/lib/public-campaigns';
 
@@ -19,7 +21,8 @@ type DonateWidgetProps = {
   locale?: Locale;
 };
 
-type Stage = 'form' | 'pending' | 'success' | 'error';
+type Stage = 'form' | 'pending' | 'success' | 'error' | 'giftSuccess';
+type Mode = 'money' | 'gift';
 
 const buttonClasses =
   'group inline-flex w-full items-center justify-center gap-x-2 rounded-lg border border-transparent bg-emerald-600 px-4 py-3 text-sm font-bold text-neutral-50 ring-zinc-500 transition duration-300 hover:bg-emerald-700 focus-visible:ring-3 disabled:pointer-events-none disabled:opacity-50 dark:ring-zinc-200';
@@ -60,6 +63,27 @@ const STRINGS = {
     sending: 'Sending request…',
     submit: 'Contribute now',
     noPin: 'Changia never stores or asks for your mobile-money PIN.',
+    modeMoney: 'Money',
+    modeGift: 'Gift an item',
+    giftIntro: 'Not every contribution is money. Pledge goods and the campaign team will arrange collection or delivery.',
+    giftDescPlaceholder: 'What are you donating? (e.g. 20 blankets, a laptop, food supplies)',
+    giftValuePlaceholder: 'Estimated value in TZS (optional)',
+    giftHandoverLabel: 'How should the item reach the campaign?',
+    giftPickup: 'Please pick it up from me',
+    giftDropOff: "I'll deliver it myself",
+    giftAddressPlaceholder: 'Pickup address / location',
+    giftDatePlaceholder: 'Preferred handover date',
+    giftNamePlaceholder: 'Your name',
+    giftPhonePlaceholder: 'Phone number (e.g. 07XXXXXXXX)',
+    giftEmailPlaceholder: 'Email address (optional)',
+    giftNotePlaceholder: 'Anything the team should know (condition, timing…) — optional',
+    giftDescError: 'Describe the item you want to donate',
+    giftNameError: 'Enter your name',
+    giftAddressError: 'Add a pickup address so the team can collect it',
+    giftSubmit: 'Pledge this gift',
+    giftSending: 'Sending pledge…',
+    giftThanks: 'Asante! Your gift is pledged.',
+    giftPledgeAgain: 'Pledge another gift',
   },
   sw: {
     minError: (min: string) => `Mchango wa chini ni ${min}`,
@@ -91,6 +115,27 @@ const STRINGS = {
     sending: 'Inatuma ombi…',
     submit: 'Changia sasa',
     noPin: 'Changia haihifadhi wala haiombi PIN yako ya pesa za simu.',
+    modeMoney: 'Pesa',
+    modeGift: 'Changia kitu',
+    giftIntro: 'Si kila mchango ni pesa. Ahidi vitu na timu ya kampeni itapanga ukusanyaji au uwasilishaji.',
+    giftDescPlaceholder: 'Unachangia nini? (mf. blanketi 20, laptop, chakula)',
+    giftValuePlaceholder: 'Thamani inayokadiriwa kwa TZS (si lazima)',
+    giftHandoverLabel: 'Kitu kifikeje kwenye kampeni?',
+    giftPickup: 'Tafadhali mje mkichukue kwangu',
+    giftDropOff: 'Nitakiwasilisha mwenyewe',
+    giftAddressPlaceholder: 'Anwani / mahali pa kuchukua',
+    giftDatePlaceholder: 'Tarehe unayopendelea kukabidhi',
+    giftNamePlaceholder: 'Jina lako',
+    giftPhonePlaceholder: 'Namba ya simu (mf. 07XXXXXXXX)',
+    giftEmailPlaceholder: 'Anwani ya barua pepe (si lazima)',
+    giftNotePlaceholder: 'Chochote timu inapaswa kujua (hali, muda…) — si lazima',
+    giftDescError: 'Eleza kitu unachotaka kuchangia',
+    giftNameError: 'Weka jina lako',
+    giftAddressError: 'Ongeza anwani ili timu iweze kuja kuchukua',
+    giftSubmit: 'Ahidi kitu hiki',
+    giftSending: 'Inatuma ahadi…',
+    giftThanks: 'Asante! Kitu chako kimeahidiwa.',
+    giftPledgeAgain: 'Ahidi kitu kingine',
   },
 } as const;
 
@@ -103,12 +148,22 @@ export default function DonateWidget({
   const t = STRINGS[locale];
   const router = useRouter();
   const [stage, setStage] = useState<Stage>('form');
+  const [mode, setMode] = useState<Mode>('money');
   const [amount, setAmount] = useState(String(minimumAmount));
   const [donorName, setDonorName] = useState('');
   const [donorPhone, setDonorPhone] = useState('');
   const [donorEmail, setDonorEmail] = useState('');
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // ── Gift-pledge form state ────────────────────────────────────────────────
+  const [giftDescription, setGiftDescription] = useState('');
+  const [giftValue, setGiftValue] = useState('');
+  const [giftMethod, setGiftMethod] = useState<GiftDeliveryMethod>('PICKUP');
+  const [giftAddress, setGiftAddress] = useState('');
+  const [giftDate, setGiftDate] = useState('');
+  const [giftNote, setGiftNote] = useState('');
+  const [giftMessage, setGiftMessage] = useState('');
   const [attemptId, setAttemptId] = useState<number | null>(null);
   const [status, setStatus] = useState<ContributionStatus | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -187,6 +242,59 @@ export default function DonateWidget({
     setStatus(null);
     setError(null);
     setAmount(String(minimumAmount));
+  };
+
+  const submitGift = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    if (giftDescription.trim().length < 1) {
+      setError(t.giftDescError);
+      return;
+    }
+    if (donorName.trim().length < 1) {
+      setError(t.giftNameError);
+      return;
+    }
+    if (!/^(\+?255|0)?[67][0-9]{8}$/.test(donorPhone.trim())) {
+      setError(t.phoneError);
+      return;
+    }
+    if (giftMethod === 'PICKUP' && giftAddress.trim().length < 1) {
+      setError(t.giftAddressError);
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const result = await pledgeGift(campaignSlug, {
+        description: giftDescription.trim(),
+        estimatedValue: Math.max(0, Math.round(Number(giftValue) || 0)) || undefined,
+        deliveryMethod: giftMethod,
+        donorName: donorName.trim(),
+        donorPhone: donorPhone.trim(),
+        donorEmail: donorEmail.trim() || undefined,
+        pickupAddress: giftMethod === 'PICKUP' ? giftAddress.trim() : undefined,
+        preferredDate: giftDate || undefined,
+        note: giftNote.trim() || undefined,
+      });
+      setGiftMessage(result.message);
+      setStage('giftSuccess');
+    } catch (err) {
+      setError(err instanceof PublicApiError ? err.message : t.genericError);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const resetGift = () => {
+    setStage('form');
+    setError(null);
+    setGiftDescription('');
+    setGiftValue('');
+    setGiftMethod('PICKUP');
+    setGiftAddress('');
+    setGiftDate('');
+    setGiftNote('');
+    setGiftMessage('');
   };
 
   if (stage === 'success') {
@@ -275,8 +383,161 @@ export default function DonateWidget({
     );
   }
 
+  if (stage === 'giftSuccess') {
+    return (
+      <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-6 text-center dark:border-emerald-900 dark:bg-emerald-900/20">
+        <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/40">
+          <svg className="h-8 w-8 text-emerald-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+          </svg>
+        </div>
+        <p className="text-xl font-bold text-emerald-700 dark:text-emerald-400">{t.giftThanks}</p>
+        <p className="mt-2 text-sm text-pretty text-emerald-700 dark:text-emerald-300">{giftMessage}</p>
+        <div className="mt-4 rounded-lg border border-emerald-200 bg-white p-4 text-left text-sm dark:border-emerald-800 dark:bg-neutral-900">
+          <p className="font-medium text-neutral-800 dark:text-neutral-200">{giftDescription}</p>
+          <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
+            {giftMethod === 'PICKUP' ? t.giftPickup : t.giftDropOff}
+            {giftMethod === 'PICKUP' && giftAddress ? ` · ${giftAddress}` : ''}
+          </p>
+        </div>
+        <button type="button" onClick={resetGift} className={`${buttonClasses} mt-5`}>
+          {t.giftPledgeAgain}
+        </button>
+      </div>
+    );
+  }
+
+  const modeToggle = (
+    <div className="flex gap-1 rounded-lg border border-neutral-200 p-1 dark:border-neutral-700">
+      {(['money', 'gift'] as const).map((m) => (
+        <button
+          key={m}
+          type="button"
+          onClick={() => {
+            setMode(m);
+            setError(null);
+          }}
+          className={`flex-1 rounded-md px-3 py-2 text-xs font-bold transition ${
+            mode === m
+              ? 'bg-emerald-600 text-neutral-50'
+              : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800'
+          }`}
+        >
+          {m === 'money' ? t.modeMoney : t.modeGift}
+        </button>
+      ))}
+    </div>
+  );
+
+  if (mode === 'gift') {
+    return (
+      <form
+        onSubmit={submitGift}
+        className="space-y-3 rounded-xl border border-neutral-200 p-6 dark:border-neutral-700"
+      >
+        {modeToggle}
+        <p className="text-xs text-pretty text-neutral-500 dark:text-neutral-400">{t.giftIntro}</p>
+
+        <textarea
+          value={giftDescription}
+          onChange={(e) => setGiftDescription(e.target.value)}
+          placeholder={t.giftDescPlaceholder}
+          className={`${inputClasses} min-h-20`}
+          required
+        />
+        <input
+          type="number"
+          inputMode="numeric"
+          min={0}
+          step={100}
+          value={giftValue}
+          onChange={(e) => setGiftValue(e.target.value)}
+          placeholder={t.giftValuePlaceholder}
+          className={inputClasses}
+        />
+
+        <fieldset className="space-y-2">
+          <legend className="text-xs font-medium text-neutral-600 dark:text-neutral-400">
+            {t.giftHandoverLabel}
+          </legend>
+          {(['PICKUP', 'DROP_OFF'] as const).map((m) => (
+            <label
+              key={m}
+              className="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300"
+            >
+              <input
+                type="radio"
+                name="giftMethod"
+                checked={giftMethod === m}
+                onChange={() => setGiftMethod(m)}
+              />
+              {m === 'PICKUP' ? t.giftPickup : t.giftDropOff}
+            </label>
+          ))}
+        </fieldset>
+
+        {giftMethod === 'PICKUP' && (
+          <textarea
+            value={giftAddress}
+            onChange={(e) => setGiftAddress(e.target.value)}
+            placeholder={t.giftAddressPlaceholder}
+            className={`${inputClasses} min-h-16`}
+            required
+          />
+        )}
+
+        <label className="block text-xs text-neutral-500 dark:text-neutral-400">
+          {t.giftDatePlaceholder}
+          <input
+            type="date"
+            value={giftDate}
+            onChange={(e) => setGiftDate(e.target.value)}
+            className={`${inputClasses} mt-1`}
+          />
+        </label>
+
+        <input
+          type="text"
+          value={donorName}
+          onChange={(e) => setDonorName(e.target.value)}
+          placeholder={t.giftNamePlaceholder}
+          className={inputClasses}
+          required
+        />
+        <input
+          type="tel"
+          value={donorPhone}
+          onChange={(e) => setDonorPhone(e.target.value)}
+          placeholder={t.giftPhonePlaceholder}
+          className={inputClasses}
+          required
+        />
+        <input
+          type="email"
+          value={donorEmail}
+          onChange={(e) => setDonorEmail(e.target.value)}
+          placeholder={t.giftEmailPlaceholder}
+          className={inputClasses}
+        />
+        <textarea
+          value={giftNote}
+          onChange={(e) => setGiftNote(e.target.value)}
+          placeholder={t.giftNotePlaceholder}
+          className={`${inputClasses} min-h-16`}
+        />
+
+        {error ? <p className="text-xs text-rose-600 dark:text-rose-400">{error}</p> : null}
+
+        <button type="submit" disabled={submitting} className={buttonClasses}>
+          {submitting ? t.giftSending : t.giftSubmit}
+        </button>
+      </form>
+    );
+  }
+
   return (
     <form onSubmit={submit} className="space-y-3 rounded-xl border border-neutral-200 p-6 dark:border-neutral-700">
+      {modeToggle}
       <div className="flex flex-wrap gap-2">
         {quickAmounts.map((v) => (
           <button

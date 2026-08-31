@@ -1,8 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
-import { ArrowLeft, Loader2, MoreHorizontal, Pencil, Plus, Sparkles, Trash2 } from "lucide-react";
+import { Loader2, MoreHorizontal, Pencil, Plus, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/dashboard/ui/button";
 import { Input } from "@/components/dashboard/ui/input";
 import { Label } from "@/components/dashboard/ui/label";
@@ -40,7 +39,13 @@ const CHANNEL_META: Record<ReminderChannel, { label: string; className: string }
 const PLACEHOLDER_HELP =
   "Use {{donorName}}, {{amountDue}}, {{campaignName}} or {{orgName}} — they're filled in automatically when a reminder is sent.";
 
-export default function TemplatesPage() {
+/**
+ * "Message Templates" section — reusable SMS / WhatsApp / Email bodies for one-off
+ * sends and auto-resend schedules. Templates are org-wide (not campaign-specific);
+ * this panel is embedded in every campaign's Reminders tab so they can be managed
+ * without leaving the campaign.
+ */
+export function TemplatesPanel({ canManage = true }: { canManage?: boolean } = {}) {
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
   const [channelFilter, setChannelFilter] = useState<ReminderChannel | "">("");
   const [loading, setLoading] = useState(true);
@@ -79,30 +84,22 @@ export default function TemplatesPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <section className="space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <Button
-            variant="outline"
-            size="sm"
-            nativeButton={false}
-            render={<Link href="/dashboard/reminders" />}
-          >
-            <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
-            Reminders
-          </Button>
-          <h1 className="text-xl font-semibold text-foreground tracking-tight mt-3">
-            Reminder Templates
-          </h1>
+          <h2 className="text-base font-semibold text-foreground">Message Templates</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Reusable SMS, WhatsApp and Email messages for manual and
-            automatic resends.
+            Reusable SMS, WhatsApp and Email messages for one-off sends and
+            auto-resend schedules — shared across all of this organisation&apos;s
+            campaigns.
           </p>
         </div>
-        <Button size="sm" onClick={() => setEditing("new")}>
-          <Plus className="w-3.5 h-3.5 mr-1.5" />
-          New Template
-        </Button>
+        {canManage && (
+          <Button size="sm" onClick={() => setEditing("new")}>
+            <Plus className="w-3.5 h-3.5 mr-1.5" />
+            New Template
+          </Button>
+        )}
       </div>
 
       <div className="flex items-center gap-2">
@@ -134,10 +131,12 @@ export default function TemplatesPage() {
         <div className="bg-card border border-border rounded-xl py-16 text-center">
           <Sparkles className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
           <p className="text-sm text-muted-foreground">No templates yet.</p>
-          <Button size="sm" className="mt-4" onClick={() => setEditing("new")}>
-            <Plus className="w-3.5 h-3.5 mr-1.5" />
-            Create your first template
-          </Button>
+          {canManage && (
+            <Button size="sm" className="mt-4" onClick={() => setEditing("new")}>
+              <Plus className="w-3.5 h-3.5 mr-1.5" />
+              Create your first template
+            </Button>
+          )}
         </div>
       ) : (
         <div className="bg-card border border-border rounded-xl shadow-sm divide-y divide-border">
@@ -169,24 +168,26 @@ export default function TemplatesPage() {
                   className="mt-1 shrink-0"
                 />
               )}
-              <DropdownMenu>
-                <DropdownMenuTrigger className="flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0">
-                  <MoreHorizontal className="w-4 h-4" />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-40">
-                  <DropdownMenuItem className="text-xs cursor-pointer" onClick={() => setEditing(t)}>
-                    <Pencil className="w-3.5 h-3.5 mr-2" />
-                    Edit
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    className="text-xs cursor-pointer text-destructive"
-                    onClick={() => remove(t.id)}
-                  >
-                    <Trash2 className="w-3.5 h-3.5 mr-2" />
-                    Delete
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              {canManage && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger className="flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0">
+                    <MoreHorizontal className="w-4 h-4" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-40">
+                    <DropdownMenuItem className="text-xs cursor-pointer" onClick={() => setEditing(t)}>
+                      <Pencil className="w-3.5 h-3.5 mr-2" />
+                      Edit
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className="text-xs cursor-pointer text-destructive"
+                      onClick={() => remove(t.id)}
+                    >
+                      <Trash2 className="w-3.5 h-3.5 mr-2" />
+                      Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </div>
           ))}
         </div>
@@ -202,7 +203,7 @@ export default function TemplatesPage() {
           }}
         />
       )}
-    </div>
+    </section>
   );
 }
 

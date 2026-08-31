@@ -23,6 +23,7 @@ Every endpoint of the Changia backend: **what you must send** (auth, roles, body
 - [Reminder schedules (auto-resend)](#reminder-schedules-auto-resend-module)
 - [Donations & payments](#donations--payments-module)
 - [Audit logs](#audit-logs-module)
+- [Data transfer (CSV / XLSX)](#data-transfer-module--bulk-csv--xlsx-export--import)
 - [Roles & permissions matrix](#roles--permissions-matrix)
 
 ---
@@ -699,7 +700,7 @@ The full chronological review trail from the audit log — who submitted / first
 
 Entries are chronological (oldest first). `notes` carries the reviewer/admin reason where the step has one; `fields` lists which fields an edit touched. The trail covers **every** campaign request type — the two-stage approval chain, parked edits (`campaign.change_request.*`), suspend/resume asks, custom service-fee proposals (`campaign.fee_proposal.*`), closure requests and completion reports — each with the reason a reviewer/admin gave.
 
-Payouts have the same trail at **`GET /payouts/:id/history`** (same response shape, `fields` always `null`) — requested → first-reviewed → approved → rejected (with reason) → paid (with gateway ref). Visible to anyone who can see the payout.
+Payouts have the same trail at **`GET /payouts/:id/history`** (same response shape, `fields` always `null`) — requested → first-reviewed → approved → payout details submitted → rejected (with reason) → paid (with gateway ref). Visible to anyone who can see the payout.
 
 ### `POST /campaigns/:id/submit` — `SUPER_ADMIN`, `ORG_ADMIN` or assigned `CAMPAIGN_MANAGER`
 
@@ -832,12 +833,23 @@ Every payout record carries `proofImages: [{ id, url }]` — optional photos (in
 - `POST /payouts/:id/proof` — `CAMPAIGN_MANAGER` (the requester only). `multipart/form-data`, up to 5 files under the `proof` field (JPEG/PNG/WEBP, ≤ 5 MB each). Allowed only while the request is `REQUESTED` or `REVIEWED`. Returns the updated payout. Errors: `404` (not the requester), `409 PAYOUT_PROOF_LOCKED`, `400 TOO_MANY_IMAGES`, `400 NO_IMAGES`, `400 INVALID_IMAGE_TYPE`.
 - `DELETE /payouts/:id/proof/:imageId` — same role/state rules. Returns the updated payout.
 
+### Payout checkout (disbursement destination)
+
+Payout lifecycle: `REQUESTED` → `REVIEWED` (reviewer's first approval) → `AWAITING_CHECKOUT` (org admin's final approval) → `APPROVED` (requester submits the payout destination) → `PAID` (super admin records the gateway transfer). `reject` (`REQUESTED`/`REVIEWED` only) → `REJECTED`.
+
+Every payout record carries `disbursement` — `null` until checkout, then `{ method: "MOBILE_MONEY" | "BANK", provider, accountName, accountNumber, phone, bankName, branch, submittedAt, submittedBy }` (only the fields relevant to the method are set).
+
+- `POST /payouts/:id/checkout` — `CAMPAIGN_MANAGER` (the requester only) or `ORG_ADMIN` / `SUPER_ADMIN` acting for them. Allowed only while the payout is `AWAITING_CHECKOUT`; moves it to `APPROVED`. Body: `{ method, accountName, ... }` — `MOBILE_MONEY` requires `provider` + `phone` (Tanzanian number); `BANK` requires `bankName` + `accountNumber` (+ optional `branch`). Returns the updated payout. Errors: `403 CHECKOUT_FORBIDDEN`, `404` (not the requester), `409 PAYOUT_NOT_AWAITING_CHECKOUT`, `400` (missing method-specific fields).
+- `POST /payouts/:id/paid` — `SUPER_ADMIN`. Uses the checkout `phone` for the ClickPesa transfer when the method is mobile money (a `phoneNumber` in the body still overrides it).
+
 ### In-kind gifts & payment breakdown
 
-- `GET /campaigns/payments/breakdown` — any authenticated member. Per-campaign payment split (TZS) for the caller's campaigns (a `CAMPAIGN_MANAGER` sees only assigned campaigns). Each row: `{ campaignId, name, goal, raised, paid, unpaid, promisedPaid, promisedUnpaid, giftValue }` where `paid` = confirmed money not tied to a pledge, `unpaid` = goal not covered by a pledge, `promisedPaid` / `promisedUnpaid` = money received / still owed against donor pledges, `giftValue` = estimated value of in-kind gifts. A row sums to `goal + giftValue`.
-- `GET /campaigns/:id/gifts` — any member with campaign access. `Gift[]`: `{ id, campaignId, donorId, donorName, description, estimatedValue, receivedAt, createdAt }`.
+- `GET /campaigns/payments/breakdown` — any authenticated member. Per-campaign payment split (TZS) for the caller's campaigns (a `CAMPAIGN_MANAGER` sees only assigned campaigns). Each row: `{ campaignId, name, goal, raised, paid, unpaid, promisedPaid, promisedUnpaid, giftValue }` where `paid` = confirmed money not tied to a pledge, `unpaid` = goal not covered by a pledge, `promisedPaid` / `promisedUnpaid` = money received / still owed against donor pledges, `giftValue` = summed `estimatedValue` of in-kind gifts that aren't `CANCELLED`. A row sums to `goal + giftValue`.
+- `GET /campaigns/:id/gifts` — any member with campaign access. `Gift[]`, ordered `PLEDGED` → `SCHEDULED` → `RECEIVED` → `CANCELLED` then newest first: `{ id, campaignId, donorId, donorName, description, estimatedValue, receivedAt, createdAt, source ("STAFF"|"PUBLIC"), status ("PLEDGED"|"SCHEDULED"|"RECEIVED"|"CANCELLED"), deliveryMethod ("PICKUP"|"DROP_OFF"|null), donorPhone, donorEmail, pickupAddress, preferredDate, note }`. Staff-recorded gifts are `source:"STAFF"`, `status:"RECEIVED"`; public pledges (see below) are `source:"PUBLIC"`, `status:"PLEDGED"` and carry the donor's contact + handover details.
 - `POST /campaigns/:id/gifts` — `SUPER_ADMIN`, `ORG_ADMIN` or assigned `CAMPAIGN_MANAGER`. Body `{ description (1–300, required), estimatedValue? (int TZS ≥ 0, default 0), donorId?, receivedAt? (YYYY-MM-DD) }`. Returns the updated `Gift[]`.
+- `PATCH /campaigns/:id/gifts/:giftId/status` — same roles. Body `{ status: "PLEDGED"|"SCHEDULED"|"RECEIVED"|"CANCELLED" }`. Advances a gift pledge along its handover lifecycle (moving to `RECEIVED` back-fills `receivedAt` if unset). Returns the updated `Gift[]`.
 - `DELETE /campaigns/:id/gifts/:giftId` — same roles. Returns the updated `Gift[]`.
+- `POST /public/campaigns/:id/gift-pledges` — **unauthenticated**. A visitor on the public campaign page pledges an in-kind gift instead of money (`:id` = campaign id or slug; campaign must be public + `ACTIVE`). Body `{ description (1–300, required), estimatedValue? (int TZS ≥ 0), deliveryMethod ("PICKUP"|"DROP_OFF", required), donorName (required), donorPhone (TZ number, required), donorEmail?, pickupAddress? (required when deliveryMethod = "PICKUP"), preferredDate? (YYYY-MM-DD), note? }`. Creates a `source:"PUBLIC"`, `status:"PLEDGED"` gift row (visible immediately in the dashboard list) and notifies the assigned manager. Returns `{ id, status: "PLEDGED", deliveryMethod, message }`. Errors: `404` (no matching public campaign), `409 RATE_LIMITED` (same phone pledged to this campaign in the last 5 min).
 
 ### Notifications module — `/notifications` (authenticated, per-user)
 
@@ -1424,6 +1436,37 @@ The 10 most recent entries (same log shape, no pagination):
 
 ---
 
+## Data transfer module — bulk CSV / XLSX export & import
+
+Routes: `/data/:dataset/...` (authenticated). One dispatcher over the existing
+feature services (`backend/modules/data-transfer/`). Every export is scoped by
+the caller's role exactly like the underlying list endpoint; per-dataset role
+gates live in `datasets.js`.
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /data/:dataset/export?format=csv\|xlsx&<filters>` | Stream the dataset's current filtered view as a file (`format` defaults to `csv`). Forwards the same query filters the list endpoint accepts. |
+| `GET /data/:dataset/import-template?format=csv\|xlsx` | Header-only starter file; the `.xlsx` variant adds an **Instructions** sheet. Import-only datasets. |
+| `POST /data/:dataset/import` (multipart, field `file`) | Parse + per-row Zod-validate a `.csv`/`.xlsx`, insert valid rows via the feature service. Responds `{ imported, duplicates, skipped, errors: [{ row, message }] }` and writes one `data.imported.<dataset>` audit entry. Max 5 MB, one file. |
+
+**Datasets**
+
+| `:dataset` | Export roles | Import roles | Notes |
+|------------|--------------|--------------|-------|
+| `donors` | all | `SUPER_ADMIN` | Import → `donorService.createDonor` per row; `DONOR_EXISTS` rows counted as `duplicates`. |
+| `donor-pools` | `SUPER_ADMIN`, `CAMPAIGN_MANAGER` | — | |
+| `pool-members` | `SUPER_ADMIN`, `CAMPAIGN_MANAGER` | `SUPER_ADMIN`, `CAMPAIGN_MANAGER` | Requires `?poolId=`. Import columns: `donor_phone` (required), `expected_amount`. |
+| `donations` / `transactions` | all | `SUPER_ADMIN`, `ORG_ADMIN`, `CAMPAIGN_MANAGER` | Import records **confirmed** offline contributions (`recordManualDonation`) — updates campaign totals. Org is taken from the campaign row; a `CAMPAIGN_MANAGER` is limited to assigned campaigns in their own org. Columns: `campaign_id`, `amount` (required), `donor_phone`, `donor_name`, `is_anonymous`. |
+| `payouts` | `SUPER_ADMIN`, `ORG_ADMIN`, `REVIEWER`, `CAMPAIGN_MANAGER` | — | |
+| `campaigns` | all | `ORG_ADMIN`, `CAMPAIGN_MANAGER` | Import creates each row as a `DRAFT` (`createCampaign` with `asDraft`). Columns: `name`, `goal_amount` (required), `category`, `story`, `minimum_amount`, `start_date`, `end_date`, `contact_phone`. |
+| `audit-logs` | `SUPER_ADMIN` | — | |
+| `approvals` | `SUPER_ADMIN`, `ORG_ADMIN`, `REVIEWER` | — | The caller's own review decisions; accepts `?type=`. |
+
+The legacy `GET /audit-logs/export` and JSON `POST /donors/import` still work; the
+audit export now also honours `?format=xlsx`.
+
+---
+
 ## Roles & permissions matrix
 
 | Endpoint | `SUPER_ADMIN` | `ORG_ADMIN` | `CAMPAIGN_MANAGER` |
@@ -1450,6 +1493,8 @@ The 10 most recent entries (same log shape, no pagination):
 | POST `/donations/campaigns/:id/attempts` | ✅ | ✅ | ✅ |
 | POST `/donations/simulate-callback` | ✅ | ✅ | ❌ |
 | GET `/audit-logs` (+ `/recent`, `/export`) | ✅ | ❌ | ❌ |
+| GET `/data/:dataset/export` | ✅ (all datasets) | ✅ (campaigns, donations, payouts, approvals) | ✅ (donors, donor-pools, pool-members, donations, payouts, campaigns) |
+| POST `/data/:dataset/import` | ✅ (donors) | ✅ (donations, campaigns) | ✅ (pool-members, donations, campaigns) |
 
 \* `CAMPAIGN_MANAGER` can update their own assigned campaigns and change status, but not `/managers` or `/featured`. A `CAMPAIGN_MANAGER` is also blocked from **creating** any new campaign (`409 CAMPAIGN_PROOF_REQUIRED`) while a campaign assigned to them is `COMPLETED` without an `APPROVED` completion report.
 

@@ -1,9 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import {
-  Layers,
   Loader2,
   Megaphone,
   MoreHorizontal,
@@ -40,13 +38,9 @@ import {
 import { ActionStatusBadge, type ActionState } from "@/components/dashboard/ui/action-status";
 import {
   reminderScheduleApi,
-  poolApi,
-  campaignApi,
   templateApi,
   type ReminderSchedule,
   type ReminderChannel,
-  type DonorPool,
-  type CampaignRecord,
   type MessageTemplate,
 } from "@/lib/dashboard/api";
 import { cn } from "@/lib/dashboard/utils";
@@ -61,15 +55,17 @@ const CHANNEL_LABEL: Record<ReminderChannel, string> = {
 /**
  * "Auto-Resend Schedules" section — set an interval and every cycle is queued
  * for a manual review/confirm in the Pending Resends section above. Rendered as
- * one section of the combined /dashboard/reminders page.
+ * one section of a campaign's Reminders tab; every schedule targets that
+ * campaign.
  */
 export function SchedulesPanel({
   campaignId,
   canManage = true,
-}: { campaignId?: number; canManage?: boolean } = {}) {
+}: {
+  campaignId: number;
+  canManage?: boolean;
+}) {
   const [schedules, setSchedules] = useState<ReminderSchedule[]>([]);
-  const [pools, setPools] = useState<DonorPool[]>([]);
-  const [campaigns, setCampaigns] = useState<CampaignRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<ReminderSchedule | "new" | null>(null);
@@ -94,20 +90,12 @@ export function SchedulesPanel({
   const refresh = useCallback(async () => {
     try {
       setError(null);
-      const [s, p, c] = await Promise.all([
-        reminderScheduleApi.list({ limit: 100 }),
-        poolApi.list({ limit: 100 }),
-        campaignApi.list({ limit: 100 }),
-      ]);
+      const s = await reminderScheduleApi.list({ limit: 100 });
       setSchedules(
-        campaignId
-          ? s.schedules.filter(
-              (x) => x.scope === "CAMPAIGN" && x.campaignId === campaignId
-            )
-          : s.schedules
+        s.schedules.filter(
+          (x) => x.scope === "CAMPAIGN" && x.campaignId === campaignId
+        )
       );
-      setPools(p.pools.filter((pool) => !pool.isSystem));
-      setCampaigns(c.campaigns);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load auto-resend schedules.");
     } finally {
@@ -142,11 +130,6 @@ export function SchedulesPanel({
     }
   };
 
-  const targetName = (s: ReminderSchedule) =>
-    s.scope === "POOL"
-      ? pools.find((p) => p.id === s.poolId)?.name || "Deleted pool"
-      : campaigns.find((c) => c.id === s.campaignId)?.name || "Deleted campaign";
-
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -157,7 +140,6 @@ export function SchedulesPanel({
           <p className="text-sm text-muted-foreground mt-0.5">
             Set an interval and every cycle is queued for a campaign manager to
             review and confirm in Pending Resends — nothing sends on its own.
-            Not available for the anomalous pool.
           </p>
         </div>
         {canManage && (
@@ -192,16 +174,12 @@ export function SchedulesPanel({
           {schedules.map((s) => (
             <div key={s.id} className="flex items-center gap-3 px-5 py-4">
               <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                {s.scope === "POOL" ? (
-                  <Layers className="w-4 h-4 text-primary" />
-                ) : (
-                  <Megaphone className="w-4 h-4 text-primary" />
-                )}
+                <Megaphone className="w-4 h-4 text-primary" />
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-foreground truncate">{s.name}</p>
                 <p className="text-[11px] text-muted-foreground truncate">
-                  {targetName(s)} · every {s.intervalDays} day{s.intervalDays === 1 ? "" : "s"} ·{" "}
+                  Every {s.intervalDays} day{s.intervalDays === 1 ? "" : "s"} ·{" "}
                   {s.channels.map((c) => CHANNEL_LABEL[c]).join(" / ")}
                 </p>
                 <p className="text-[10px] text-muted-foreground/70 mt-0.5">
@@ -216,29 +194,33 @@ export function SchedulesPanel({
                   failedLabel={rowStatus[s.id].label}
                 />
               )}
-              <Switch
-                checked={s.isActive}
-                onCheckedChange={() => toggleActive(s)}
-                aria-label={s.isActive ? "Deactivate schedule" : "Activate schedule"}
-              />
-              <DropdownMenu>
-                <DropdownMenuTrigger className="flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0">
-                  <MoreHorizontal className="w-4 h-4" />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-40">
-                  <DropdownMenuItem className="text-xs cursor-pointer" onClick={() => setEditing(s)}>
-                    <Pencil className="w-3.5 h-3.5 mr-2" />
-                    Edit
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    className="text-xs cursor-pointer text-destructive"
-                    onClick={() => remove(s.id)}
-                  >
-                    <Trash2 className="w-3.5 h-3.5 mr-2" />
-                    Delete
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              {canManage && (
+                <>
+                  <Switch
+                    checked={s.isActive}
+                    onCheckedChange={() => toggleActive(s)}
+                    aria-label={s.isActive ? "Deactivate schedule" : "Activate schedule"}
+                  />
+                  <DropdownMenu>
+                    <DropdownMenuTrigger className="flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0">
+                      <MoreHorizontal className="w-4 h-4" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-40">
+                      <DropdownMenuItem className="text-xs cursor-pointer" onClick={() => setEditing(s)}>
+                        <Pencil className="w-3.5 h-3.5 mr-2" />
+                        Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="text-xs cursor-pointer text-destructive"
+                        onClick={() => remove(s.id)}
+                      >
+                        <Trash2 className="w-3.5 h-3.5 mr-2" />
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </>
+              )}
             </div>
           ))}
         </div>
@@ -247,9 +229,7 @@ export function SchedulesPanel({
       {editing && (
         <ScheduleDialog
           schedule={editing === "new" ? null : editing}
-          pools={pools}
-          campaigns={campaigns}
-          lockedCampaignId={campaignId}
+          campaignId={campaignId}
           onClose={() => setEditing(null)}
           onSaved={() => {
             setEditing(null);
@@ -263,32 +243,17 @@ export function SchedulesPanel({
 
 function ScheduleDialog({
   schedule,
-  pools,
-  campaigns,
-  lockedCampaignId,
+  campaignId,
   onClose,
   onSaved,
 }: {
   schedule: ReminderSchedule | null;
-  pools: DonorPool[];
-  campaigns: CampaignRecord[];
-  /** When set (campaign Reminders tab), new schedules are forced to this campaign. */
-  lockedCampaignId?: number;
+  /** New schedules are always scoped to this campaign. */
+  campaignId: number;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const [name, setName] = useState(schedule?.name || "");
-  const [scope, setScope] = useState<"POOL" | "CAMPAIGN">(
-    schedule?.scope || (lockedCampaignId ? "CAMPAIGN" : "POOL")
-  );
-  const [poolId, setPoolId] = useState<string>(schedule?.poolId ? String(schedule.poolId) : "");
-  const [campaignId, setCampaignId] = useState<string>(
-    schedule?.campaignId
-      ? String(schedule.campaignId)
-      : lockedCampaignId
-        ? String(lockedCampaignId)
-        : ""
-  );
   const [intervalDays, setIntervalDays] = useState(String(schedule?.intervalDays ?? 7));
   const [channels, setChannels] = useState<ReminderChannel[]>(schedule?.channels ?? ["WHATSAPP"]);
   const [templatesByChannel, setTemplatesByChannel] = useState<Partial<Record<ReminderChannel, MessageTemplate[]>>>({});
@@ -318,10 +283,6 @@ function ScheduleDialog({
   const save = async () => {
     if (!name.trim()) return setError("Name is required.");
     if (channels.length === 0) return setError("Select at least one channel.");
-    if (!schedule) {
-      if (scope === "POOL" && !poolId) return setError("Select a donor pool.");
-      if (scope === "CAMPAIGN" && !campaignId) return setError("Select a campaign.");
-    }
 
     setSaving(true);
     setError(null);
@@ -344,9 +305,8 @@ function ScheduleDialog({
       } else {
         await reminderScheduleApi.create({
           name: name.trim(),
-          scope,
-          poolId: scope === "POOL" ? Number(poolId) : undefined,
-          campaignId: scope === "CAMPAIGN" ? Number(campaignId) : undefined,
+          scope: "CAMPAIGN",
+          campaignId,
           intervalDays: Number(intervalDays),
           channels,
           isActive,
@@ -380,66 +340,10 @@ function ScheduleDialog({
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Weekly nudge — School Fees Pool"
+              placeholder="e.g. Weekly nudge — unpaid donors"
               className="h-9 text-sm"
             />
           </div>
-
-          {!schedule && !lockedCampaignId && (
-            <>
-              <div className="grid gap-1.5">
-                <Label className="text-xs">Applies to</Label>
-                <Select value={scope} onValueChange={(v) => setScope((v ?? "POOL") as "POOL" | "CAMPAIGN")}>
-                  <SelectTrigger className="h-9 text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="POOL">A donor pool</SelectItem>
-                    <SelectItem value="CAMPAIGN">A campaign</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {scope === "POOL" ? (
-                <div className="grid gap-1.5">
-                  <Label className="text-xs">Donor pool</Label>
-                  <Select value={poolId} onValueChange={(v) => setPoolId(v ?? "")}>
-                    <SelectTrigger className="h-9 text-sm">
-                      <SelectValue placeholder="Select a pool" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {pools.map((p) => (
-                        <SelectItem key={p.id} value={String(p.id)}>
-                          {p.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {pools.length === 0 && (
-                    <p className="text-[11px] text-muted-foreground">
-                      No eligible pools — the anomalous pool can't be scheduled.
-                    </p>
-                  )}
-                </div>
-              ) : (
-                <div className="grid gap-1.5">
-                  <Label className="text-xs">Campaign</Label>
-                  <Select value={campaignId} onValueChange={(v) => setCampaignId(v ?? "")}>
-                    <SelectTrigger className="h-9 text-sm">
-                      <SelectValue placeholder="Select a campaign" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {campaigns.map((c) => (
-                        <SelectItem key={c.id} value={String(c.id)}>
-                          {c.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-            </>
-          )}
 
           <div className="grid gap-1.5">
             <Label className="text-xs">Resend every (days)</Label>
@@ -498,11 +402,8 @@ function ScheduleDialog({
               </Select>
               {(templatesByChannel[c] || []).length === 0 && (
                 <p className="text-[11px] text-muted-foreground">
-                  No {CHANNEL_LABEL[c]} templates yet —{" "}
-                  <Link href="/dashboard/reminders/templates" className="text-primary hover:underline">
-                    create one
-                  </Link>
-                  .
+                  No {CHANNEL_LABEL[c]} templates yet — add one in Message
+                  Templates below.
                 </p>
               )}
             </div>

@@ -32,6 +32,7 @@ import { useRole } from "@/hooks/use-role";
 import { cn } from "@/lib/dashboard/utils";
 import { ReviewDecisionDialog } from "@/components/dashboard/campaigns/review-decision-dialog";
 import { PendingResendsPanel } from "@/components/dashboard/reminders/pending-resends-panel";
+import { ExportMenu } from "@/components/dashboard/export-menu";
 
 const SUMMARY_ITEMS = [
   { key: "campaigns", label: "Campaigns", icon: Megaphone, color: "text-orange-500" },
@@ -856,8 +857,9 @@ function ApprovalHistory() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-1.5">
-        {HISTORY_FILTERS.map((f) => (
+      <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex flex-wrap gap-1.5 flex-1">
+          {HISTORY_FILTERS.map((f) => (
           <button
             key={f.label}
             type="button"
@@ -875,6 +877,8 @@ function ApprovalHistory() {
             {f.label}
           </button>
         ))}
+        </div>
+        <ExportMenu dataset="approvals" params={{ type: filter }} />
       </div>
 
       {error && (

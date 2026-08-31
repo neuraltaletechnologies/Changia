@@ -60,6 +60,32 @@ const uploadPayoutProof = multer({
   limits: { fileSize: 5 * 1024 * 1024, files: 5 },
 }).array("proof", 5);
 
+// ─── Bulk-import spreadsheet upload ─────────────────────────────────────────
+// A single .csv / .xlsx file under the "file" field, kept in memory (never
+// persisted — the buffer is parsed then discarded). Used by modules/data-transfer.
+const IMPORT_MIME_TYPES = new Set([
+  "text/csv",
+  "application/csv",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/octet-stream", // some browsers send this for .csv
+]);
+
+function importFileFilter(req, file, cb) {
+  const okExt = /\.(csv|xlsx)$/i.test(file.originalname || "");
+  if (!okExt && !IMPORT_MIME_TYPES.has(file.mimetype)) {
+    cb(ApiError.badRequest("Upload a .csv or .xlsx file", "INVALID_IMPORT_FILE"));
+    return;
+  }
+  cb(null, true);
+}
+
+const uploadImportFile = multer({
+  storage: multer.memoryStorage(),
+  fileFilter: importFileFilter,
+  limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+}).single("file");
+
 /** Best-effort cleanup for files multer already wrote to disk before a later
  *  validation step rejected the request (so failed submissions don't leak
  *  orphaned files). Accepts a flat array (`.array()` output) or the
@@ -75,6 +101,7 @@ module.exports = {
   uploadCompletionImages,
   uploadCampaignImages,
   uploadPayoutProof,
+  uploadImportFile,
   deleteUploadedFiles,
   UPLOAD_ROOT,
   CAMPAIGN_IMAGES_ROOT,

@@ -5,6 +5,7 @@ const { env } = require("../../config");
 const { deleteUploadedFiles } = require("../../middlewares/upload");
 const { sendEmail, buildCampaignLinkEmail } = require("../../utils/email");
 const { translateFields } = require("../../utils/translate");
+const { normalizePhone } = require("../../utils/phone");
 const notificationService = require("../notification/service");
 
 // ─── Strict ordered approval chain ──────────────────────────────────────────
@@ -992,16 +993,18 @@ async function loadOpenChangeRequests(campaignIds) {
 
 /**
  * { [campaignId]: { id, status, amount, requestedBy } } — the newest payout
- * still in the approval chain (REQUESTED/REVIEWED) per campaign. Lets the
- * campaigns list flag "a payout is already in review" instead of offering the
- * action and having createPayout reject it.
+ * still in progress (REQUESTED/REVIEWED/AWAITING_CHECKOUT/APPROVED — i.e. not
+ * yet PAID or REJECTED) per campaign. Lets the campaigns list flag "a payout is
+ * already in progress" instead of offering the action and having createPayout
+ * reject it.
  */
 async function loadOpenPayoutRequests(campaignIds) {
   if (!campaignIds || campaignIds.length === 0) return {};
   const rows = await db.query(
     `SELECT campaign_id, id, status, amount, requested_by_id
        FROM payouts
-      WHERE campaign_id IN (?) AND status IN ('REQUESTED','REVIEWED')
+      WHERE campaign_id IN (?)
+        AND status IN ('REQUESTED','REVIEWED','AWAITING_CHECKOUT','APPROVED')
       ORDER BY id DESC`,
     [campaignIds]
   );
@@ -2861,17 +2864,28 @@ async function decideClosureRequest(organizationId, campaignId, requestId, actor
 // ─── In-kind gifts + campaign payment breakdown ──────────────────────────────
 
 function mapGift(r) {
+  const linkedName = r.donor_id
+    ? [r.donor_first_name, r.donor_last_name].filter(Boolean).join(" ") || null
+    : null;
   return {
     id: r.id,
     campaignId: r.campaign_id,
     donorId: r.donor_id,
-    donorName: r.donor_id
-      ? [r.donor_first_name, r.donor_last_name].filter(Boolean).join(" ") || null
-      : null,
+    // A public pledge carries the donor's own name on the gift row; a
+    // staff-recorded gift resolves it from the linked donor record.
+    donorName: linkedName || r.donor_name || null,
     description: r.description,
     estimatedValue: num(r.estimated_value),
     receivedAt: r.received_at,
     createdAt: r.created_at,
+    source: r.source || "STAFF",
+    status: r.status || "RECEIVED",
+    deliveryMethod: r.delivery_method || null,
+    donorPhone: r.donor_phone || null,
+    donorEmail: r.donor_email || null,
+    pickupAddress: r.pickup_address || null,
+    preferredDate: r.preferred_date || null,
+    note: r.note || null,
   };
 }
 
@@ -2882,7 +2896,8 @@ async function listCampaignGifts(organizationId, campaignId, user) {
      FROM campaign_gifts g
      LEFT JOIN donors d ON d.id = g.donor_id
      WHERE g.campaign_id = ?
-     ORDER BY g.created_at DESC, g.id DESC`,
+     ORDER BY FIELD(g.status, 'PLEDGED', 'SCHEDULED', 'RECEIVED', 'CANCELLED'),
+              g.created_at DESC, g.id DESC`,
     [campaignId]
   );
   return rows.map(mapGift);
@@ -2955,6 +2970,131 @@ async function removeCampaignGift(organizationId, campaignId, giftId, actor) {
 }
 
 /**
+ * Advances a gift pledge along its handover lifecycle
+ * (PLEDGED → SCHEDULED → RECEIVED, or CANCELLED). Used by the assigned manager
+ * (or an admin) from the campaign dashboard once they've arranged a pickup or
+ * taken delivery of the item.
+ */
+async function updateCampaignGiftStatus(organizationId, campaignId, giftId, actor, status) {
+  await assertCampaignAccess(organizationId, actor, campaignId);
+  const rows = await db.query(
+    "SELECT id, organization_id, status FROM campaign_gifts WHERE id = ? AND campaign_id = ?",
+    [giftId, campaignId]
+  );
+  const gift = rows[0];
+  if (!gift) throw ApiError.notFound("Gift not found");
+
+  if (gift.status !== status) {
+    const receivedClause = status === "RECEIVED" ? ", received_at = COALESCE(received_at, CURDATE())" : "";
+    await db.execute(
+      `UPDATE campaign_gifts SET status = ?${receivedClause} WHERE id = ?`,
+      [status, giftId]
+    );
+    await db.execute(
+      `INSERT INTO audit_logs (organization_id, actor_id, actor_email, action, resource, resource_id, details, severity)
+       VALUES (?, ?, ?, 'campaign.gift.status_changed', 'campaign', ?, ?, 'INFO')`,
+      [
+        gift.organization_id,
+        actor.id,
+        actor.email,
+        String(campaignId),
+        JSON.stringify({ giftId: Number(giftId), from: gift.status, to: status }),
+      ]
+    );
+  }
+
+  return listCampaignGifts(organizationId, campaignId, actor);
+}
+
+/**
+ * A visitor on the public campaign page pledges an in-kind gift (goods) rather
+ * than money. Creates a PLEDGED, PUBLIC-sourced campaign_gifts row against a
+ * public + ACTIVE campaign and pings the assigned manager. No payment, no PIN.
+ */
+async function createPublicGiftPledge(idOrSlug, data) {
+  const isNumeric = /^\d+$/.test(String(idOrSlug));
+  const campaigns = await db.query(
+    `SELECT id, organization_id FROM campaigns
+     WHERE is_public = 1 AND status = 'ACTIVE' AND (slug = ? ${isNumeric ? "OR id = ?" : ""}) LIMIT 1`,
+    isNumeric ? [idOrSlug, idOrSlug] : [idOrSlug]
+  );
+  const campaign = campaigns[0];
+  if (!campaign) throw ApiError.notFound("Campaign not found");
+
+  const phone = normalizePhone(data.donorPhone);
+
+  // Light rate-limit: one open pledge per phone per campaign per 5 minutes,
+  // so a double-tap doesn't create duplicates.
+  const recent = await db.query(
+    `SELECT id FROM campaign_gifts
+     WHERE campaign_id = ? AND donor_phone = ? AND status = 'PLEDGED'
+       AND created_at >= DATE_SUB(NOW(), INTERVAL 5 MINUTE)
+     LIMIT 1`,
+    [campaign.id, phone]
+  );
+  if (recent.length > 0) {
+    throw ApiError.conflict(
+      "You already pledged an item to this campaign a moment ago. The team will be in touch.",
+      "RATE_LIMITED"
+    );
+  }
+
+  const clean = (v) => {
+    const s = typeof v === "string" ? v.trim() : v;
+    return s ? s : null;
+  };
+
+  const result = await db.execute(
+    `INSERT INTO campaign_gifts
+       (campaign_id, organization_id, description, estimated_value, source, status,
+        delivery_method, donor_name, donor_phone, donor_email, pickup_address, preferred_date, note)
+     VALUES (?, ?, ?, ?, 'PUBLIC', 'PLEDGED', ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      campaign.id,
+      campaign.organization_id,
+      data.description.trim(),
+      Number(data.estimatedValue) || 0,
+      data.deliveryMethod,
+      data.donorName.trim(),
+      phone,
+      clean(data.donorEmail),
+      data.deliveryMethod === "PICKUP" ? clean(data.pickupAddress) : null,
+      clean(data.preferredDate),
+      clean(data.note),
+    ]
+  );
+
+  await db.execute(
+    `INSERT INTO audit_logs (organization_id, actor_email, action, resource, resource_id, details, severity)
+     VALUES (?, ?, 'campaign.gift.pledged', 'campaign', ?, ?, 'INFO')`,
+    [
+      campaign.organization_id,
+      data.donorName.trim(),
+      String(campaign.id),
+      JSON.stringify({
+        giftId: result.insertId,
+        deliveryMethod: data.deliveryMethod,
+        estimatedValue: Number(data.estimatedValue) || 0,
+      }),
+    ]
+  );
+
+  await notifySafe(notificationService.campaignManagerAudience(campaign.id), {
+    type: "gift",
+    title: "New gift pledge",
+    body: `${data.donorName.trim()} pledged "${data.description.trim()}" — ${
+      data.deliveryMethod === "PICKUP" ? "needs pickup" : "donor will deliver"
+    }.`,
+    link: campaignLink(campaign.id),
+    resource: "campaign",
+    resourceId: campaign.id,
+    organizationId: campaign.organization_id,
+  });
+
+  return { id: result.insertId, status: "PLEDGED", deliveryMethod: data.deliveryMethod };
+}
+
+/**
  * Per-campaign payment breakdown for the caller's campaigns, sized in TZS:
  *   paid           — confirmed money not tied to a pledge
  *   unpaid         — remaining campaign goal not covered by a pledge
@@ -3002,7 +3142,9 @@ async function getPaymentsBreakdown(organizationId, user) {
   );
   const giftRows = await db.query(
     `SELECT campaign_id, SUM(estimated_value) AS gift_value
-     FROM campaign_gifts WHERE campaign_id IN (?) GROUP BY campaign_id`,
+     FROM campaign_gifts
+     WHERE campaign_id IN (?) AND status <> 'CANCELLED'
+     GROUP BY campaign_id`,
     [ids]
   );
 
@@ -3478,6 +3620,8 @@ module.exports = {
   listCampaignGifts,
   addCampaignGift,
   removeCampaignGift,
+  updateCampaignGiftStatus,
+  createPublicGiftPledge,
   getPaymentsBreakdown,
   listPublicCampaigns,
   getPublicCampaign,

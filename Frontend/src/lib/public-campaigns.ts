@@ -222,3 +222,37 @@ export function simulateConfirmContribution(
 ): Promise<{ attemptId: number; status: string; receiptNumber: string | null; amount: number | null }> {
   return publicPost(`/public/donations/contributions/${attemptId}/simulate-confirm`);
 }
+
+// ─── Public in-kind gift pledge ──────────────────────────────────────────────
+// Not every supporter gives money — some donate goods. A visitor describes the
+// item and says how it changes hands: the team picks it up (with an address) or
+// the donor delivers it. No payment, no PIN. The pledge lands in the campaign's
+// dashboard as a "gift donor" the manager then follows up with.
+
+export type GiftDeliveryMethod = 'PICKUP' | 'DROP_OFF';
+
+export interface GiftPledgeInput {
+  description: string;
+  estimatedValue?: number;
+  deliveryMethod: GiftDeliveryMethod;
+  donorName: string;
+  donorPhone: string;
+  donorEmail?: string;
+  pickupAddress?: string;
+  preferredDate?: string;
+  note?: string;
+}
+
+export interface GiftPledgeResult {
+  id: number;
+  status: 'PLEDGED';
+  deliveryMethod: GiftDeliveryMethod;
+  message: string;
+}
+
+export function pledgeGift(
+  campaignSlug: string,
+  data: GiftPledgeInput
+): Promise<GiftPledgeResult> {
+  return publicPost(`/public/campaigns/${encodeURIComponent(campaignSlug)}/gift-pledges`, data);
+}

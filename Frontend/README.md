@@ -40,9 +40,12 @@ elsewhere). Donor pool / reminder pages:
 - `/dashboard/pools` — donor pools by category (Family/School/Student/Office). Each pool card has a ⋯ menu (Edit details → right-side sheet / Delete pool). Donor section below shows **all donors** by default; picking a pool card narrows it to that pool and adds Add-Members / Resolve-Duplicates. Each donor row's ⋯ menu → View full profile (always) / Edit details (right-side sheet) / Remove from pool / Delete donor — Edit + Delete need the `donor:manage` permission (SUPER_ADMIN / ORG_ADMIN). Payment-status tracking, expected amounts and reminders live on the campaign page instead.
 - `/dashboard/pools/[id]` — legacy redirect to `/dashboard/pools?pool=<id>`
 - `/dashboard/pools/anomalous` — unmatched-payment donors, re-attach to a known donor
-- `/dashboard/reminders` — **Pending Resends**: auto-resend cycles waiting for your confirmation before anything sends
-- `/dashboard/reminders/templates` — reusable SMS/WhatsApp/Email reminder templates
-- `/dashboard/reminders/schedules` — configure automatic resend intervals per pool or campaign
+- Reminders have no standalone page — every campaign's **Reminders** tab
+  (`/dashboard/campaigns/[id]` → Reminders) holds the one-off send, the
+  **Pending Resends** queue (auto-resend cycles waiting for your confirmation
+  before anything sends), the auto-resend schedules for that campaign, and the
+  org-wide reusable SMS/WhatsApp/Email message templates. The Pending Resends
+  queue is also surfaced on `/dashboard/approvals`.
 
 Actually sending a reminder (manual or a confirmed auto-resend batch)
 requires the backend's messaging credentials — see

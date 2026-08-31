@@ -39,6 +39,20 @@ function serialize(row, proofImages = []) {
     paidAt: row.paid_at,
     gatewayRef: row.gateway_ref,
     proofImages,
+    // Payout destination filled in at "checkout" (null until then).
+    disbursement: row.disbursement_method
+      ? {
+          method: row.disbursement_method,
+          provider: row.disbursement_provider,
+          accountName: row.disbursement_account_name,
+          accountNumber: row.disbursement_account_number,
+          phone: row.disbursement_phone,
+          bankName: row.disbursement_bank_name,
+          branch: row.disbursement_branch,
+          submittedAt: row.disbursement_submitted_at,
+          submittedBy: row.disbursement_submitted_by_id,
+        }
+      : null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -218,12 +232,14 @@ async function createPayout(organizationId, user, data) {
   }
 
   const open = await db.query(
-    "SELECT id FROM payouts WHERE campaign_id = ? AND requested_by_id = ? AND status IN ('REQUESTED','REVIEWED')",
+    `SELECT id FROM payouts
+      WHERE campaign_id = ? AND requested_by_id = ?
+        AND status IN ('REQUESTED','REVIEWED','AWAITING_CHECKOUT','APPROVED')`,
     [campaignId, user.id]
   );
   if (open.length > 0) {
     throw ApiError.conflict(
-      "You already have a payout request in review for this campaign",
+      "You already have a payout request in progress for this campaign",
       "PAYOUT_REQUEST_PENDING"
     );
   }
@@ -384,24 +400,95 @@ async function decidePayout(organizationId, user, id, approved, data = {}) {
       organizationId: orgId,
     });
   } else {
+    // Stage 2 cleared — the request now waits on the requester to say where the
+    // money goes ("checkout") before a SUPER_ADMIN can pay it.
     await db.execute(
-      `UPDATE payouts SET status = 'APPROVED', approved_by_id = ?, approved_at = NOW(),
+      `UPDATE payouts SET status = 'AWAITING_CHECKOUT', approved_by_id = ?, approved_at = NOW(),
          notes = COALESCE(?, notes) WHERE id = ?`,
       [user.id, data.notes || null, id]
     );
-    await notifySafe(
-      [payout.requested_by_id, ...(await notificationService.superAdmins())],
-      {
-        type: "payout",
-        title: "Payout approved",
-        body: `The payout for "${payout.campaign_name || "a campaign"}" is fully approved and ready to be paid.`,
-        link: "/dashboard/payouts",
-        resource: "payout",
-        resourceId: id,
-        organizationId: orgId,
-      }
+    await notifySafe([payout.requested_by_id], {
+      type: "payout",
+      title: "Payout approved — add your payout details",
+      body: `Your payout for "${payout.campaign_name || "your campaign"}" is approved. Add where the money should be sent to release it.`,
+      link: payout.campaign_id ? `/dashboard/campaigns/${payout.campaign_id}` : "/dashboard/payouts",
+      resource: "payout",
+      resourceId: id,
+      organizationId: orgId,
+    });
+  }
+  return getPayoutRow(scopeOrg, id).then(serializeWithImages);
+}
+
+// ─── Checkout: the payout destination ───────────────────────────────────────
+//
+// Once a request clears both approvals (AWAITING_CHECKOUT), the requesting
+// CAMPAIGN_MANAGER — or an ORG_ADMIN acting for them — submits where the money
+// goes: mobile money (provider + phone) or bank (bank name + account number +
+// optional branch). That moves it to APPROVED so a SUPER_ADMIN can mark it paid.
+
+const CHECKOUT_ROLES = ["CAMPAIGN_MANAGER", "ORG_ADMIN", "SUPER_ADMIN"];
+
+async function submitCheckout(organizationId, user, id, data) {
+  if (!CHECKOUT_ROLES.includes(user.role)) {
+    throw ApiError.forbidden("You can't submit payout details for this request", "CHECKOUT_FORBIDDEN");
+  }
+  const scopeOrg =
+    user.role === "ORG_ADMIN" || user.role === "SUPER_ADMIN" ? null : organizationId;
+  const payout = await getPayoutRow(scopeOrg, id);
+
+  // A manager only touches their own request.
+  if (
+    user.role === "CAMPAIGN_MANAGER" &&
+    Number(payout.requested_by_id) !== Number(user.id)
+  ) {
+    throw ApiError.notFound("Payout not found");
+  }
+  if (payout.status !== "AWAITING_CHECKOUT") {
+    throw ApiError.conflict(
+      "This payout isn't waiting for payout details",
+      "PAYOUT_NOT_AWAITING_CHECKOUT"
     );
   }
+
+  const isMobile = data.method === "MOBILE_MONEY";
+  await db.execute(
+    `UPDATE payouts SET
+       status = 'APPROVED',
+       disbursement_method = ?,
+       disbursement_provider = ?,
+       disbursement_account_name = ?,
+       disbursement_account_number = ?,
+       disbursement_phone = ?,
+       disbursement_bank_name = ?,
+       disbursement_branch = ?,
+       disbursement_submitted_at = NOW(),
+       disbursement_submitted_by_id = ?
+     WHERE id = ?`,
+    [
+      data.method,
+      isMobile ? data.provider : null,
+      data.accountName,
+      isMobile ? null : data.accountNumber,
+      isMobile ? clickPesa.normalizePhone(data.phone) : null,
+      isMobile ? null : data.bankName,
+      isMobile ? null : data.branch || null,
+      user.id,
+      id,
+    ]
+  );
+
+  const orgId = payout.organization_id;
+  await notifySafe(notificationService.superAdmins(), {
+    type: "payout",
+    title: "Payout ready to be paid",
+    body: `The payout for "${payout.campaign_name || "a campaign"}" has payout details and is ready for a gateway transfer.`,
+    link: "/dashboard/payouts",
+    resource: "payout",
+    resourceId: id,
+    organizationId: orgId,
+  });
+
   return getPayoutRow(scopeOrg, id).then(serializeWithImages);
 }
 
@@ -419,6 +506,7 @@ const PAYOUT_HISTORY_LABELS = {
   "payout.proof_removed": "Proof of use removed",
   "payout.first_approved": "Passed first review",
   "payout.approved": "Final approval given",
+  "payout.checkout_submitted": "Payout details submitted",
   "payout.rejected": "Rejected",
   "payout.paid": "Marked paid",
 };
@@ -546,14 +634,18 @@ async function markPaid(organizationId, id, data, user) {
   let gatewayRef = data.gatewayRef || null;
   let clickPesaResult = null;
 
-  if (clickPesa.CLICKPESA.enabled && data.phoneNumber) {
+  // Prefer the phone the requester submitted at checkout; fall back to a phone
+  // the admin types on the mark-paid form (older APPROVED rows have neither).
+  const payoutPhone = data.phoneNumber || payout.disbursement_phone || null;
+
+  if (clickPesa.CLICKPESA.enabled && payoutPhone) {
     // Initiate actual ClickPesa payout
     const orderReference = clickPesa.generateOrderReference("Payout");
 
     try {
       const cpResponse = await clickPesa.createPayout({
         amount: Number(payout.amount),
-        phoneNumber: data.phoneNumber,
+        phoneNumber: payoutPhone,
         orderReference,
       });
 
@@ -599,6 +691,7 @@ module.exports = {
   attachProofImages,
   removeProofImage,
   decidePayout,
+  submitCheckout,
   previewPayout,
   markPaid,
 };

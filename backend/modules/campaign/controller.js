@@ -366,6 +366,17 @@ const removeGift = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true, data: gifts });
 });
 
+const updateGiftStatus = asyncHandler(async (req, res) => {
+  const gifts = await campaignService.updateCampaignGiftStatus(
+    req.user.organizationId,
+    req.params.id,
+    req.params.giftId,
+    { id: req.user.id, email: req.user.email, role: req.user.role },
+    req.body.status
+  );
+  res.status(200).json({ success: true, data: gifts });
+});
+
 const removeCampaign = asyncHandler(async (req, res) => {
   const result = await campaignService.removeCampaign(
     req.user.organizationId,
@@ -410,5 +421,6 @@ module.exports = {
   listGifts,
   addGift,
   removeGift,
+  updateGiftStatus,
   removeCampaign,
 };

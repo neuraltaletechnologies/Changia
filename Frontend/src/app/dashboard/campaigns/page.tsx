@@ -39,6 +39,7 @@ import { Label } from "@/components/dashboard/ui/label";
 import { Textarea } from "@/components/dashboard/ui/textarea";
 import {
   Plus,
+  Upload,
   Megaphone,
   LayoutGrid,
   Rows3,
@@ -60,6 +61,7 @@ import {
 import { useRole } from "@/hooks/use-role";
 import { cn } from "@/lib/dashboard/utils";
 import { CampaignEditSheet } from "@/components/dashboard/campaigns/campaign-edit-sheet";
+import { ExportMenu } from "@/components/dashboard/export-menu";
 import {
   SortableTh,
   useTableSort,
@@ -249,6 +251,24 @@ export default function CampaignsPage() {
               <Rows3 className="w-3.5 h-3.5" />
             </button>
           </div>
+          <ExportMenu
+            dataset="campaigns"
+            params={{
+              status: statusFilter || undefined,
+              search: search.trim() || undefined,
+            }}
+          />
+          {canCreate && (
+            <Button
+              size="sm"
+              variant="outline"
+              nativeButton={false}
+              render={<Link href="/dashboard/campaigns/import" />}
+            >
+              <Upload className="w-3.5 h-3.5 mr-1.5" />
+              Import
+            </Button>
+          )}
           {canCreate && (
             <Button size="sm" nativeButton={false} render={<Link href="/dashboard/campaigns/new" />}>
               <Plus className="w-3.5 h-3.5 mr-1.5" />
@@ -689,31 +709,47 @@ function reviewChipsForCampaign(c: CampaignRecord): ReviewChip[] {
   if (c.feeStatus === "PENDING")
     chips.push({ label: "Custom fee · In review", styles: CHIP_SKY });
 
-  return chips;
+  // Chips are built in a natural priority order (activation → edit → status →
+  // payout → closure → proof → fee); anything needing the manager to act
+  // (rejected / changes requested) is pulled to the front. The Review column
+  // only surfaces the first chip, so this ordering decides what shows.
+  const needsAction = (chip: ReviewChip) =>
+    chip.rejected || chip.label.includes("Changes requested");
+  return chips
+    .map((chip, i) => ({ chip, i }))
+    .sort((a, b) => Number(needsAction(b.chip)) - Number(needsAction(a.chip)) || a.i - b.i)
+    .map((e) => e.chip);
 }
 
 function ReviewStatusCell({ campaign }: { campaign: CampaignRecord }) {
   const chips = reviewChipsForCampaign(campaign);
   if (chips.length === 0)
     return <span className="text-[11px] text-muted-foreground">—</span>;
+  const [chip] = chips;
+  const extra = chips.length - 1;
   return (
-    <div className="flex flex-col items-start gap-1">
-      {chips.map((chip) => (
+    <div className="flex items-center gap-1">
+      <span
+        className={cn(
+          "inline-flex items-center gap-1 text-[10px] font-medium border rounded-full px-2 py-0.5 whitespace-nowrap",
+          chip.styles
+        )}
+      >
+        {chip.rejected ? (
+          <XCircle className="w-2.5 h-2.5 shrink-0" />
+        ) : (
+          <Clock className="w-2.5 h-2.5 shrink-0" />
+        )}
+        {chip.label}
+      </span>
+      {extra > 0 && (
         <span
-          key={chip.label}
-          className={cn(
-            "inline-flex items-center gap-1 text-[10px] font-medium border rounded-full px-2 py-0.5 whitespace-nowrap",
-            chip.styles
-          )}
+          className="text-[10px] font-medium text-muted-foreground whitespace-nowrap"
+          title={chips.slice(1).map((c) => c.label).join(", ")}
         >
-          {chip.rejected ? (
-            <XCircle className="w-2.5 h-2.5 shrink-0" />
-          ) : (
-            <Clock className="w-2.5 h-2.5 shrink-0" />
-          )}
-          {chip.label}
+          +{extra}
         </span>
-      ))}
+      )}
     </div>
   );
 }

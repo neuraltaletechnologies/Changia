@@ -58,9 +58,17 @@ export function formatTZS(amount: number): string {
   return `TZS ${Math.round(amount).toLocaleString('en-TZ')}`;
 }
 
-async function publicGet<T>(path: string): Promise<T | null> {
+async function publicGet<T>(
+  path: string,
+  opts: { revalidate?: number } = {}
+): Promise<T | null> {
   try {
-    const res = await fetch(`${API_BASE_URL}${path}`, { cache: 'no-store' });
+    // `revalidate: 0` keeps the call fully dynamic (the default for most
+    // reads); pass a positive value where a briefly-stale-but-always-present
+    // response beats a blank section when the API hiccups.
+    const res = await fetch(`${API_BASE_URL}${path}`, {
+      next: { revalidate: opts.revalidate ?? 0 },
+    });
     if (!res.ok) return null;
     const payload = await res.json();
     return payload?.data ?? null;
@@ -72,14 +80,25 @@ async function publicGet<T>(path: string): Promise<T | null> {
 
 export async function getFeaturedCampaigns(locale: Locale = 'en'): Promise<PublicCampaign[]> {
   const data = await publicGet<{ campaigns: PublicCampaign[] }>(
-    `/public/campaigns?featured=true&locale=${locale}`
+    `/public/campaigns?featured=true&locale=${locale}`,
+    { revalidate: 300 }
   );
-  return data?.campaigns ?? [];
+  const featured = data?.campaigns ?? [];
+  if (featured.length > 0) return featured;
+  // No featured picks selected (or the API briefly failed) — fall back to the
+  // most recent active public campaigns so the homepage section still renders
+  // rather than vanishing entirely.
+  return getPublicCampaigns(3, locale, { revalidate: 300 });
 }
 
-export async function getPublicCampaigns(limit = 5, locale: Locale = 'en'): Promise<PublicCampaign[]> {
+export async function getPublicCampaigns(
+  limit = 5,
+  locale: Locale = 'en',
+  opts: { revalidate?: number } = {}
+): Promise<PublicCampaign[]> {
   const data = await publicGet<{ campaigns: PublicCampaign[] }>(
-    `/public/campaigns?limit=${limit}&locale=${locale}`
+    `/public/campaigns?limit=${limit}&locale=${locale}`,
+    opts
   );
   return data?.campaigns ?? [];
 }

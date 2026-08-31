@@ -493,6 +493,11 @@ export default function UserPage() {
         isSuperAdmin={isSuperAdmin}
         organizations={organizations}
         onCreated={(password) => setTempPassword(password)}
+        onOrgCreated={(org) =>
+          setOrganizations((prev) =>
+            prev.some((o) => o.id === org.id) ? prev : [org, ...prev]
+          )
+        }
         onSaved={refresh}
       />
 
@@ -580,8 +585,8 @@ export default function UserPage() {
               Member created
             </DialogTitle>
             <DialogDescription>
-              Share this one-time password with the new member. They can change
-              it after signing in.
+              Share this one-time password with the new member. They must set a
+              new password the first time they sign in.
             </DialogDescription>
           </DialogHeader>
           <TempPasswordField
@@ -605,12 +610,33 @@ export default function UserPage() {
 
 // ─── Add member dialog ────────────────────────────────────────────────────────
 
+const NEW_ORG = "__new__";
+
+interface NewOrgForm {
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+  description: string;
+  feePercent: string;
+}
+
+const EMPTY_NEW_ORG: NewOrgForm = {
+  name: "",
+  email: "",
+  phone: "",
+  address: "",
+  description: "",
+  feePercent: "",
+};
+
 function AddMemberDialog({
   open,
   onOpenChange,
   isSuperAdmin,
   organizations,
   onCreated,
+  onOrgCreated,
   onSaved,
 }: {
   open: boolean;
@@ -618,6 +644,7 @@ function AddMemberDialog({
   isSuperAdmin: boolean;
   organizations: OrganizationBrief[];
   onCreated: (temporaryPassword: string) => void;
+  onOrgCreated: (org: OrganizationBrief) => void;
   onSaved: () => void;
 }) {
   const [firstName, setFirstName] = useState("");
@@ -626,9 +653,14 @@ function AddMemberDialog({
   const [phone, setPhone] = useState("");
   const [role, setRole] = useState<UserRole>("CAMPAIGN_MANAGER");
   const [orgId, setOrgId] = useState("");
+  const [newOrg, setNewOrg] = useState<NewOrgForm>(EMPTY_NEW_ORG);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [serverError, setServerError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const creatingOrg = orgId === NEW_ORG;
+  const setNewOrgField = (key: keyof NewOrgForm, value: string) =>
+    setNewOrg((prev) => ({ ...prev, [key]: value }));
 
   // REVIEWER is a platform-level role (vets every org's campaigns) — only a
   // super admin can create one, and it carries no organization.
@@ -646,6 +678,7 @@ function AddMemberDialog({
       setPhone("");
       setRole("CAMPAIGN_MANAGER");
       setOrgId("");
+      setNewOrg(EMPTY_NEW_ORG);
       setErrors({});
       setServerError(null);
     }
@@ -669,11 +702,31 @@ function AddMemberDialog({
     if (isSuperAdmin && !isPlatformRole && !orgId) {
       nextErrors.orgId = "Select an organization for this member.";
     }
-    if (orgId && isPlatformRole) {
+    if ((orgId || creatingOrg) && isPlatformRole) {
       nextErrors.orgId =
         role === "SUPER_ADMIN"
           ? "Super admins are platform-level and have no organization."
           : "Reviewers are platform-level (they vet every organisation) and have no organization.";
+    }
+    if (creatingOrg && !isPlatformRole) {
+      if (newOrg.name.trim().length < 2) {
+        nextErrors.newOrgName = "Organisation name is required (min 2 characters).";
+      }
+      if (newOrg.email.trim() && !/.+@.+\..+/.test(newOrg.email.trim())) {
+        nextErrors.newOrgEmail = "Enter a valid organisation email.";
+      }
+      if (
+        newOrg.phone.trim() &&
+        !/^(\+?255|0)?[67][0-9]{8}$/.test(newOrg.phone.replace(/[\s-]/g, ""))
+      ) {
+        nextErrors.newOrgPhone = "Enter a valid Tanzanian phone number.";
+      }
+      if (newOrg.feePercent.trim()) {
+        const pct = Number(newOrg.feePercent);
+        if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
+          nextErrors.newOrgFee = "Enter a fee between 0 and 100.";
+        }
+      }
     }
 
     setErrors(nextErrors);
@@ -681,13 +734,30 @@ function AddMemberDialog({
 
     setLoading(true);
     try {
+      let organizationId: number | undefined = orgId ? Number(orgId) : undefined;
+
+      if (creatingOrg && !isPlatformRole) {
+        const created = await organizationApi.create({
+          name: newOrg.name.trim(),
+          email: newOrg.email.trim() || undefined,
+          phone: newOrg.phone.trim() || undefined,
+          address: newOrg.address.trim() || undefined,
+          description: newOrg.description.trim() || undefined,
+          defaultServiceFeePercent: newOrg.feePercent.trim()
+            ? Number(newOrg.feePercent)
+            : undefined,
+        });
+        onOrgCreated(created);
+        organizationId = created.id;
+      }
+
       const result = await userApi.create({
         firstName: firstName.trim(),
         lastName: lastName.trim() || undefined,
         email: email.trim(),
         phone: phone.trim() || undefined,
         role,
-        organizationId: orgId ? Number(orgId) : undefined,
+        organizationId,
       });
       onCreated(result.temporaryPassword);
       onSaved();
@@ -805,7 +875,7 @@ function AddMemberDialog({
             </Select>
           </div>
 
-          {isSuperAdmin && organizations.length > 0 && (
+          {isSuperAdmin && (
             <div className="space-y-1.5">
               <Label className="text-xs">Organization</Label>
               <Select
@@ -824,11 +894,115 @@ function AddMemberDialog({
                       {o.name}
                     </SelectItem>
                   ))}
+                  <SelectItem value={NEW_ORG}>＋ Create new organisation…</SelectItem>
                 </SelectContent>
               </Select>
               {errors.orgId ? (
                 <p role="alert" className="text-xs text-destructive">{errors.orgId}</p>
               ) : null}
+
+              {creatingOrg && !isPlatformRole && (
+                <div className="mt-2 space-y-3 rounded-lg border border-border bg-muted/30 p-3">
+                  <p className="text-[11px] font-medium text-muted-foreground">
+                    New organisation
+                  </p>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="new-org-name" className="text-xs">
+                      Name <span className="text-destructive">*</span>
+                    </Label>
+                    <Input
+                      id="new-org-name"
+                      placeholder="e.g. Tumaini Trust"
+                      maxLength={150}
+                      value={newOrg.name}
+                      onChange={(e) => setNewOrgField("name", e.target.value)}
+                      aria-invalid={Boolean(errors.newOrgName)}
+                      className={`h-9 text-sm ${errors.newOrgName ? "border-destructive" : ""}`}
+                    />
+                    {errors.newOrgName ? (
+                      <p role="alert" className="text-xs text-destructive">{errors.newOrgName}</p>
+                    ) : null}
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="new-org-email" className="text-xs">Email</Label>
+                      <Input
+                        id="new-org-email"
+                        type="email"
+                        placeholder="org@example.org"
+                        value={newOrg.email}
+                        onChange={(e) => setNewOrgField("email", e.target.value)}
+                        aria-invalid={Boolean(errors.newOrgEmail)}
+                        className={`h-9 text-sm ${errors.newOrgEmail ? "border-destructive" : ""}`}
+                      />
+                      {errors.newOrgEmail ? (
+                        <p role="alert" className="text-xs text-destructive">{errors.newOrgEmail}</p>
+                      ) : null}
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="new-org-phone" className="text-xs">Phone</Label>
+                      <Input
+                        id="new-org-phone"
+                        type="tel"
+                        placeholder="+255 7XX XXX XXX"
+                        value={newOrg.phone}
+                        onChange={(e) => setNewOrgField("phone", e.target.value)}
+                        aria-invalid={Boolean(errors.newOrgPhone)}
+                        className={`h-9 text-sm ${errors.newOrgPhone ? "border-destructive" : ""}`}
+                      />
+                      {errors.newOrgPhone ? (
+                        <p role="alert" className="text-xs text-destructive">{errors.newOrgPhone}</p>
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="new-org-address" className="text-xs">Address</Label>
+                    <Input
+                      id="new-org-address"
+                      placeholder="Street, city"
+                      maxLength={250}
+                      value={newOrg.address}
+                      onChange={(e) => setNewOrgField("address", e.target.value)}
+                      className="h-9 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="new-org-description" className="text-xs">Description</Label>
+                    <Input
+                      id="new-org-description"
+                      placeholder="What this organisation does"
+                      maxLength={2000}
+                      value={newOrg.description}
+                      onChange={(e) => setNewOrgField("description", e.target.value)}
+                      className="h-9 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="new-org-fee" className="text-xs">
+                      Default service fee %
+                    </Label>
+                    <Input
+                      id="new-org-fee"
+                      type="number"
+                      min={0}
+                      max={100}
+                      step="0.01"
+                      placeholder="5.00"
+                      value={newOrg.feePercent}
+                      onChange={(e) => setNewOrgField("feePercent", e.target.value)}
+                      aria-invalid={Boolean(errors.newOrgFee)}
+                      className={`h-9 text-sm ${errors.newOrgFee ? "border-destructive" : ""}`}
+                    />
+                    {errors.newOrgFee ? (
+                      <p role="alert" className="text-xs text-destructive">{errors.newOrgFee}</p>
+                    ) : (
+                      <p className="text-[10px] text-muted-foreground">
+                        Added on top of a campaign&rsquo;s goal. Defaults to 5% if left blank.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

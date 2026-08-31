@@ -2,7 +2,7 @@ const { z } = require("zod");
 
 const amount = z.number().int().positive().max(1_000_000_000_000);
 const listSchema = z.object({
-  status: z.enum(["REQUESTED", "APPROVED", "PAID", "REJECTED"]).optional(),
+  status: z.enum(["REQUESTED", "REVIEWED", "APPROVED", "PAID", "REJECTED"]).optional(),
   campaignId: z.coerce.number().int().positive().optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(25),

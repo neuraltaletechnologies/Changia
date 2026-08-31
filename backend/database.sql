@@ -19,6 +19,7 @@ CREATE DATABASE IF NOT EXISTS changia
 USE changia;
 
 SET FOREIGN_KEY_CHECKS = 0;
+DROP TABLE IF EXISTS password_reset_tokens;
 DROP TABLE IF EXISTS notifications;
 DROP TABLE IF EXISTS campaign_gifts;
 DROP TABLE IF EXISTS campaign_change_requests;
@@ -97,6 +98,9 @@ CREATE TABLE users (
   -- final approval. It does NOT manage users, platform settings or payouts.
   role            ENUM('SUPER_ADMIN','ORG_ADMIN','REVIEWER','CAMPAIGN_MANAGER') NOT NULL DEFAULT 'CAMPAIGN_MANAGER',
   status          ENUM('ACTIVE','PENDING','INACTIVE') NOT NULL DEFAULT 'PENDING',
+  -- Set to 1 for admin-created accounts (temporary password). The dashboard
+  -- forces a password change before anything else; changePassword clears it.
+  must_change_password TINYINT(1) NOT NULL DEFAULT 0,
   avatar_url      VARCHAR(500) NULL,
   last_login_at   TIMESTAMP    NULL,
   created_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -141,7 +145,7 @@ CREATE TABLE donor_pools (
   created_by_id   BIGINT UNSIGNED NULL,
   name            VARCHAR(150) NOT NULL,
   description     TEXT NULL,
-  category        ENUM('FAMILY','SCHOOL','STUDENT','OFFICE') NOT NULL DEFAULT 'FAMILY',
+  category        ENUM('FAMILY','SCHOOL','STUDENT','OFFICE','ALUMNI','COMMUNITY','CHURCH','BUSINESS','FRIENDS','OTHER') NOT NULL DEFAULT 'FAMILY',
   is_system       TINYINT(1) NOT NULL DEFAULT 0,
   status          ENUM('ACTIVE','ARCHIVED') NOT NULL DEFAULT 'ACTIVE',
   created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -208,6 +212,13 @@ CREATE TABLE campaigns (
   name_sw             VARCHAR(150) NULL,
   story_sw            TEXT NULL,
   category_sw         VARCHAR(100) NULL,
+  -- "Scope" = what the funds will deliver; "Acceptance" = how a supporter knows
+  -- their contribution landed / the campaign delivered. Shown on the public
+  -- campaign tabs. Swahili variants are auto-filled on save.
+  scope               TEXT NULL,
+  acceptance          TEXT NULL,
+  scope_sw            TEXT NULL,
+  acceptance_sw       TEXT NULL,
   image_url           VARCHAR(500) NULL,
   category            VARCHAR(100) NULL,
   goal_amount         DECIMAL(14,0) NOT NULL,
@@ -232,8 +243,10 @@ CREATE TABLE campaigns (
   -- PENDING -> REVIEWED on stage-1 sign-off by a REVIEWER (or SUPER_ADMIN),
   -- REVIEWED -> ACTIVE on stage-2 sign-off by an ORG_ADMIN (or SUPER_ADMIN)
   -- who is neither the creator nor the stage-1 approver. Enforced in the
-  -- service layer via created_by_id + first_approved_by.
-  status              ENUM('DRAFT','PENDING','REVIEWED','ACTIVE','PAUSED','COMPLETED','CANCELLED') NOT NULL DEFAULT 'DRAFT',
+  -- service layer via created_by_id + first_approved_by. A reviewer's hard
+  -- "reject" parks the campaign at REJECTED (not the terminal CANCELLED) so
+  -- the manager can fix and re-submit it straight back to PENDING.
+  status              ENUM('DRAFT','PENDING','REVIEWED','ACTIVE','PAUSED','COMPLETED','CANCELLED','REJECTED') NOT NULL DEFAULT 'DRAFT',
   is_public           TINYINT(1) NOT NULL DEFAULT 0,
   contact_phone       VARCHAR(32) NULL,
   raised_amount       DECIMAL(14,0) NOT NULL DEFAULT 0,
@@ -611,8 +624,7 @@ CREATE TABLE receipts (
 
 -- ─── Fees, payouts and settlements ───────────────────────────────────────────
 
--- A payout can be requested at the organization level (SUPER_ADMIN/ORG_ADMIN,
--- campaign_id NULL) or by a CAMPAIGN_MANAGER for one of their assigned
+-- A payout is requested by a CAMPAIGN_MANAGER for one of their assigned
 -- campaigns (campaign_id set, reason required). `reason` is the requester's
 -- own justification; `notes` stays the admin's decision note (unchanged
 -- COALESCE-on-decide behavior) — shown back to the requester as why a
@@ -623,8 +635,14 @@ CREATE TABLE payouts (
   campaign_id     BIGINT UNSIGNED NULL,
   amount          DECIMAL(14,0) NOT NULL,
   reason          TEXT NULL,
-  status          ENUM('REQUESTED','APPROVED','PAID','REJECTED') NOT NULL DEFAULT 'REQUESTED',
+  -- Two-stage approval chain (mirrors two-stage campaign approval):
+  --   REQUESTED -> REVIEWED (stage 1 — a REVIEWER/SUPER_ADMIN, not the requester)
+  --             -> APPROVED (stage 2 — an ORG_ADMIN/SUPER_ADMIN, a different person, not the requester)
+  --             -> PAID     (SUPER_ADMIN confirms the gateway transfer)
+  status          ENUM('REQUESTED','REVIEWED','APPROVED','PAID','REJECTED') NOT NULL DEFAULT 'REQUESTED',
   requested_by_id BIGINT UNSIGNED NULL,
+  first_approved_by_id BIGINT UNSIGNED NULL,
+  first_approved_at    DATETIME NULL,
   approved_by_id  BIGINT UNSIGNED NULL,
   approved_at     DATETIME NULL,
   paid_at         DATETIME NULL,
@@ -634,6 +652,7 @@ CREATE TABLE payouts (
   updated_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_payouts_org FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
   CONSTRAINT fk_payouts_campaign FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE SET NULL,
+  CONSTRAINT fk_payouts_first_approver FOREIGN KEY (first_approved_by_id) REFERENCES users(id) ON DELETE SET NULL,
   INDEX idx_payouts_campaign_status (campaign_id, status)
 ) ENGINE=InnoDB;
 
@@ -680,6 +699,23 @@ CREATE TABLE notifications (
   INDEX idx_notif_user_created (user_id, created_at)
 ) ENGINE=InnoDB;
 
+-- ─── Password reset tokens ───────────────────────────────────────────────────
+-- One row per "forgot password" request. Only the SHA-256 hash of the token is
+-- stored; the raw token travels in the emailed reset link. A row is single-use
+-- (used_at) and short-lived (expires_at, ~1h). requestPasswordReset clears any
+-- earlier unused rows for the same user before inserting a fresh one.
+CREATE TABLE password_reset_tokens (
+  id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id         BIGINT UNSIGNED NOT NULL,
+  token_hash      CHAR(64) NOT NULL,
+  expires_at      DATETIME NOT NULL,
+  used_at         DATETIME NULL,
+  created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_prt_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX idx_prt_token (token_hash),
+  INDEX idx_prt_user (user_id)
+) ENGINE=InnoDB;
+
 -- =============================================================================
 -- DEMO DATA
 -- All demo accounts use the password: Changia@2026
@@ -693,7 +729,10 @@ INSERT INTO organizations (name, slug, email, phone, description) VALUES
 INSERT INTO users (organization_id, first_name, last_name, email, phone, password_hash, role, status) VALUES
   (NULL, 'Changia', 'Super Admin', 'admin@changia.org.tz', '255712000099',
    '$2b$12$YBiH.YibjVq/6ydw/Pa97eEG/HbjPVWH.a2Am4NvHTPGkhBW8xVbW', 'SUPER_ADMIN', 'ACTIVE'),
-  (1, 'Amina', 'Msuya', 'admin@msuya-foundation.org.tz', '255712000001',
+  -- ORG_ADMIN is PLATFORM-level (organization_id NULL, like SUPER_ADMIN /
+  -- REVIEWER) — it gives the final (stage-2) approval on campaigns AND payouts
+  -- across every organisation, not one.
+  (NULL, 'Amina', 'Msuya', 'admin@msuya-foundation.org.tz', '255712000001',
    '$2b$12$YBiH.YibjVq/6ydw/Pa97eEG/HbjPVWH.a2Am4NvHTPGkhBW8xVbW', 'ORG_ADMIN', 'ACTIVE'),
   (1, 'Baraka', 'Mushi', 'manager@msuya-foundation.org.tz', '255713000002',
    '$2b$12$YBiH.YibjVq/6ydw/Pa97eEG/HbjPVWH.a2Am4NvHTPGkhBW8xVbW', 'CAMPAIGN_MANAGER', 'ACTIVE'),

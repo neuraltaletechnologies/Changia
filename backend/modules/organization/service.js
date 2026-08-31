@@ -2,6 +2,15 @@ const db = require("../../db");
 const { ApiError } = require("../../utils/ApiError");
 const { normalizePhone } = require("../../utils/phone");
 
+function slugify(name) {
+  const base = name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return `${base || "org"}-${Date.now().toString(36)}`;
+}
+
 /** Lists every organization (platform admin use) with a member count. */
 async function listOrganizations() {
   return db.query(
@@ -10,6 +19,36 @@ async function listOrganizations() {
      FROM organizations o
      ORDER BY o.created_at DESC`
   );
+}
+
+/** Creates a bare organization (SUPER_ADMIN, e.g. from the add-user flow). */
+async function createOrganization(data) {
+  const existing = await db.query("SELECT id FROM organizations WHERE name = ?", [data.name]);
+  if (existing.length > 0) {
+    throw ApiError.conflict("An organization with this name already exists", "ORG_NAME_TAKEN");
+  }
+
+  const result = await db.execute(
+    `INSERT INTO organizations (name, slug, email, phone, address, description, default_service_fee_percent)
+     VALUES (?, ?, ?, ?, ?, ?, COALESCE(?, 5.00))`,
+    [
+      data.name,
+      slugify(data.name),
+      data.email || null,
+      data.phone ? normalizePhone(data.phone) : null,
+      data.address || null,
+      data.description || null,
+      data.defaultServiceFeePercent ?? null,
+    ]
+  );
+
+  const rows = await db.query(
+    `SELECT o.id, o.name, o.slug, o.email, o.phone, o.status, o.created_at,
+            (SELECT COUNT(*) FROM users u WHERE u.organization_id = o.id) AS user_count
+     FROM organizations o WHERE o.id = ?`,
+    [result.insertId]
+  );
+  return rows[0];
 }
 
 function mapOrganization(o) {
@@ -112,4 +151,10 @@ async function getOrganizationStats(organizationId) {
   };
 }
 
-module.exports = { listOrganizations, getOrganization, updateOrganization, getOrganizationStats };
+module.exports = {
+  listOrganizations,
+  createOrganization,
+  getOrganization,
+  updateOrganization,
+  getOrganizationStats,
+};

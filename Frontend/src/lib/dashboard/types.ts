@@ -41,7 +41,8 @@ export type CampaignStatus =
   | "ACTIVE"
   | "PAUSED"
   | "COMPLETED"
-  | "CANCELLED";
+  | "CANCELLED"
+  | "REJECTED";
 
 export interface Campaign {
   id: string;
@@ -58,6 +59,7 @@ export interface Campaign {
   submittedAt?: string;
   ownerName?: string;
   ownerEmail?: string;
+  organizationName?: string;
   image?: string;
   evidence?: string[];
   memberIds?: string[];

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { type Campaign, type CampaignStatus } from "@/lib/dashboard/types";
 import { CampaignCard } from "@/components/dashboard/widgets/campaign-card";
 import { Button } from "@/components/dashboard/ui/button";
@@ -67,6 +68,7 @@ const statusChips: { status: string; styles: string; dot: string }[] = [
   { status: "COMPLETED", styles: "bg-sky-50 text-sky-700 border-sky-200", dot: "bg-sky-500" },
   { status: "PAUSED", styles: "bg-amber-50 text-amber-700 border-amber-200", dot: "bg-amber-500" },
   { status: "CANCELLED", styles: "bg-rose-50 text-rose-700 border-rose-200", dot: "bg-rose-500" },
+  { status: "REJECTED", styles: "bg-rose-50 text-rose-700 border-rose-200", dot: "bg-rose-500" },
 ];
 
 const SORT_OPTIONS = [
@@ -88,12 +90,20 @@ export default function CampaignsPage() {
     isSuperAdmin,
     isOrgAdmin,
     isCampaignManager,
+    isReviewer,
     canReviewCampaign,
     canFinalApproveCampaign,
     user,
   } = useRole();
+  const router = useRouter();
   const canCreate = hasPermission("campaign:create");
   const isAdmin = isSuperAdmin || isOrgAdmin;
+
+  // A REVIEWER doesn't create or run campaigns — they only review them. Their
+  // campaign entry point is the Approvals queue, so send them straight there.
+  useEffect(() => {
+    if (isReviewer) router.replace("/dashboard/campaigns/approvals");
+  }, [isReviewer, router]);
 
   const [viewMode, setViewMode] = useState<"card" | "list">("list");
   const [search, setSearch] = useState("");
@@ -153,59 +163,6 @@ export default function CampaignsPage() {
     return sorted;
   }, [campaigns, search, statusFilter, categoryFilter, sortBy]);
 
-  // Everything sitting in the two-stage review pipeline: a brand-new campaign
-  // awaiting approval, plus any parked edit / suspend / resume request on a
-  // live campaign. Surfaced as its own section so "in review" work isn't buried
-  // among the ACTIVE rows (a live campaign with edits in review still shows as
-  // ACTIVE in the main list).
-  const reviewItems = useMemo(() => {
-    const stageLabel = (s: string, reviewState?: string) =>
-      s === "CHANGES_REQUESTED" || reviewState === "CHANGES_REQUESTED"
-        ? "Changes requested"
-        : s === "REVIEWED"
-          ? "Awaiting final approval"
-          : "Awaiting first review";
-    const items: {
-      key: string;
-      campaign: CampaignRecord;
-      what: string;
-      stage: string;
-    }[] = [];
-    const uid = user ? String(user.id) : null;
-    // A manager only cares about campaigns they run; admins/reviewers see all.
-    const mine = (c: CampaignRecord) =>
-      isAdmin ||
-      canReviewCampaign ||
-      canFinalApproveCampaign ||
-      (!!uid &&
-        (String(c.createdBy ?? "") === uid ||
-          !!c.assignments?.some((a) => String(a.user.id) === uid)));
-    for (const c of campaigns) {
-      if (!mine(c)) continue;
-      if (c.status === "PENDING" || c.status === "REVIEWED") {
-        items.push({
-          key: `c-${c.id}`,
-          campaign: c,
-          what: "New campaign",
-          stage: stageLabel(c.status, c.reviewState),
-        });
-      }
-      const cr = c.changeRequest;
-      if (cr && ["PENDING", "REVIEWED", "CHANGES_REQUESTED"].includes(cr.status)) {
-        const what =
-          cr.kind === "STATUS"
-            ? cr.statusAction === "PAUSE"
-              ? "Suspend request"
-              : "Resume request"
-            : "Edited details";
-        items.push({ key: `cr-${cr.id}`, campaign: c, what, stage: stageLabel(cr.status) });
-      }
-    }
-    return items;
-  }, [campaigns, user, isAdmin, canReviewCampaign, canFinalApproveCampaign]);
-
-  const canReviewAny = isAdmin || canReviewCampaign || canFinalApproveCampaign;
-
   const act = async (fn: () => Promise<unknown>) => {
     setActionError(null);
     try {
@@ -216,6 +173,10 @@ export default function CampaignsPage() {
     }
   };
 
+  // Reviewers are being redirected to /dashboard/campaigns/approvals — don't
+  // flash the list at them on the way out.
+  if (isReviewer) return null;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -224,7 +185,7 @@ export default function CampaignsPage() {
             Campaigns
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {filtered.length} of {campaigns.length} campaigns &mdash; track goals and donor engagement
+            Track goals, approvals and donor engagement across your campaigns.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -272,7 +233,7 @@ export default function CampaignsPage() {
         </div>
       )}
 
-      {/* Status summary bar */}
+      {/* Filters — status chips on top, then search / category / sort, one card */}
       <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
         <div className="flex flex-wrap sm:flex-nowrap divide-y divide-border sm:divide-y-0 sm:divide-x">
           {statusChips.map(({ status, dot }) => {
@@ -289,6 +250,7 @@ export default function CampaignsPage() {
                   active && "bg-muted/50",
                   dimmed && "opacity-45"
                 )}
+                title={active ? `Show all statuses` : `Show only ${status.toLowerCase()}`}
               >
                 <div className="flex items-center gap-2">
                   <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", dot)} />
@@ -304,54 +266,7 @@ export default function CampaignsPage() {
             );
           })}
         </div>
-      </div>
-
-      {/* In-review pipeline — new campaigns + parked edits / suspend-resume requests */}
-      {!loading && reviewItems.length > 0 && (
-        <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
-          <div className="px-4 py-3 border-b border-border flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-sky-600" />
-              <h2 className="text-sm font-semibold text-foreground">
-                In review ({reviewItems.length})
-              </h2>
-            </div>
-            {canReviewAny && (
-              <Button
-                size="xs"
-                variant="outline"
-                nativeButton={false}
-                render={<Link href="/dashboard/campaigns/approvals" />}
-              >
-                Open approvals
-              </Button>
-            )}
-          </div>
-          <div className="divide-y divide-border">
-            {reviewItems.map((it) => (
-              <Link
-                key={it.key}
-                href={`/dashboard/campaigns/${it.campaign.id}`}
-                className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/40 transition-colors"
-              >
-                <span className="flex-1 min-w-0 truncate text-sm font-medium text-foreground">
-                  {it.campaign.name}
-                </span>
-                <span className="text-[10px] font-medium border rounded-full px-2 py-0.5 bg-sky-50 text-sky-700 border-sky-200 shrink-0">
-                  {it.what}
-                </span>
-                <span className="text-[11px] text-muted-foreground shrink-0 hidden sm:block">
-                  {it.stage}
-                </span>
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Filters */}
-      <div className="bg-card border border-border rounded-xl p-4 shadow-sm">
-        <div className="flex flex-col lg:flex-row gap-3">
+        <div className="border-t border-border p-4 flex flex-col lg:flex-row gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
             <Input
@@ -393,6 +308,27 @@ export default function CampaignsPage() {
           </div>
         </div>
       </div>
+
+      {/* Result count + clear */}
+      {!loading && campaigns.length > 0 && (
+        <p className="text-xs text-muted-foreground">
+          Showing {filtered.length} of {campaigns.length} campaign
+          {campaigns.length === 1 ? "" : "s"}
+          {(statusFilter || categoryFilter || search.trim()) && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearch("");
+                setStatusFilter("");
+                setCategoryFilter("");
+              }}
+              className="ml-2 text-primary hover:underline"
+            >
+              Clear filters
+            </button>
+          )}
+        </p>
+      )}
 
       {loading ? (
         <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -445,6 +381,7 @@ export default function CampaignsPage() {
                 <CampaignActionsMenu
                   campaign={c}
                   isAdmin={isAdmin}
+                  isSuperAdmin={isSuperAdmin}
                   isCampaignManager={isCampaignManager}
                   canReviewCampaign={canReviewCampaign}
                   canFinalApproveCampaign={canFinalApproveCampaign}
@@ -463,7 +400,7 @@ export default function CampaignsPage() {
       ) : (
         <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[920px]">
+            <table className="w-full text-sm min-w-[1040px]">
               <thead>
                 <tr className="border-b border-border bg-muted/40">
                   <th className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3">
@@ -476,10 +413,13 @@ export default function CampaignsPage() {
                     Manager
                   </th>
                   <th className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-3">
+                    Featured
+                  </th>
+                  <th className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-3">
                     Status
                   </th>
                   <th className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-3">
-                    Featured
+                    Review
                   </th>
                   <th className="text-right text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-3">
                     Raised / Goal
@@ -502,9 +442,16 @@ export default function CampaignsPage() {
                         ) : (
                           <div className="w-8 h-8 rounded-md bg-muted shrink-0" />
                         )}
-                        <Link href={`/dashboard/campaigns/${c.id}`} className="font-medium text-foreground hover:text-primary transition-colors">
-                          {c.name}
-                        </Link>
+                        <div className="min-w-0">
+                          <Link href={`/dashboard/campaigns/${c.id}`} className="font-medium text-foreground hover:text-primary transition-colors">
+                            {c.name}
+                          </Link>
+                          {c.organizationName && (
+                            <p className="text-[11px] text-muted-foreground truncate">
+                              {c.organizationName}
+                            </p>
+                          )}
+                        </div>
                       </div>
                       {c.status === "COMPLETED" && (
                         <div>
@@ -525,6 +472,13 @@ export default function CampaignsPage() {
                         : "Unassigned"}
                     </td>
                     <td className="px-3 py-3">
+                      <FeaturedCell
+                        campaign={c}
+                        canManage={isAdmin}
+                        onToggle={() => act(() => campaignApi.setFeatured(c.id, !c.isFeatured))}
+                      />
+                    </td>
+                    <td className="px-3 py-3">
                       <span
                         className={cn(
                           "text-[10px] font-medium border rounded-full px-2 py-0.5",
@@ -533,19 +487,9 @@ export default function CampaignsPage() {
                       >
                         {c.status}
                       </span>
-                      {hasEditInReview(c) && (
-                        <span className="mt-1 flex items-center gap-1 text-[10px] font-medium text-sky-600">
-                          <Clock className="w-2.5 h-2.5" />
-                          Changes in review
-                        </span>
-                      )}
                     </td>
                     <td className="px-3 py-3">
-                      <FeaturedCell
-                        campaign={c}
-                        canManage={isAdmin}
-                        onToggle={() => act(() => campaignApi.setFeatured(c.id, !c.isFeatured))}
-                      />
+                      <ReviewStatusCell campaign={c} />
                     </td>
                     <td className="px-3 py-3 text-right text-xs">
                       <span className="font-semibold text-foreground">{formatTZSCompact(c.raisedAmount)}</span>
@@ -555,6 +499,7 @@ export default function CampaignsPage() {
                       <CampaignActionsMenu
                         campaign={c}
                         isAdmin={isAdmin}
+                        isSuperAdmin={isSuperAdmin}
                         isCampaignManager={isCampaignManager}
                         canReviewCampaign={canReviewCampaign}
                         canFinalApproveCampaign={canFinalApproveCampaign}
@@ -593,10 +538,65 @@ const PROOF_LABEL: Record<string, string> = {
 
 /** A live campaign whose latest field edits are parked awaiting reviewer + admin approval. */
 function hasEditInReview(c: CampaignRecord): boolean {
+  const edit =
+    c.editRequest ??
+    (c.changeRequest && (c.changeRequest.kind ?? "EDIT") === "EDIT" ? c.changeRequest : null);
+  return !!edit && ["PENDING", "REVIEWED"].includes(edit.status);
+}
+
+/**
+ * "Review" column — the campaign's position in an approval chain, or the state
+ * of anything else about it that's currently in review (parked edits, a
+ * suspend/resume ask, or an open payout request).
+ */
+function reviewStatusForCampaign(c: CampaignRecord): { label: string; styles: string } | null {
+  if (c.status === "PENDING" && c.reviewState === "CHANGES_REQUESTED")
+    return { label: "Changes requested", styles: "bg-amber-50 text-amber-700 border-amber-200" };
+  if (c.status === "PENDING")
+    return { label: "Awaiting 1st approval", styles: "bg-orange-50 text-orange-700 border-orange-200" };
+  if (c.status === "REVIEWED")
+    return { label: "Awaiting final approval", styles: "bg-blue-50 text-blue-700 border-blue-200" };
+  if (c.status === "REJECTED")
+    return { label: "Rejected — needs edit", styles: "bg-rose-50 text-rose-700 border-rose-200" };
+
+  const statusReq =
+    c.statusRequest ??
+    (c.changeRequest?.kind === "STATUS" ? c.changeRequest : null);
+  if (statusReq && ["PENDING", "REVIEWED"].includes(statusReq.status)) {
+    const verb = statusReq.statusAction === "PAUSE" ? "Suspension" : "Resume";
+    return {
+      label: `${verb} in review`,
+      styles: "bg-sky-50 text-sky-700 border-sky-200",
+    };
+  }
+  if (hasEditInReview(c))
+    return { label: "Edit in review", styles: "bg-sky-50 text-sky-700 border-sky-200" };
+  if (c.openPayoutRequest)
+    return {
+      label: `Payout ${c.openPayoutRequest.status === "REVIEWED" ? "awaiting final" : "in review"}`,
+      styles: "bg-violet-50 text-violet-700 border-violet-200",
+    };
+  if (c.latestClosureRequest?.status === "PENDING")
+    return { label: "Closure in review", styles: "bg-sky-50 text-sky-700 border-sky-200" };
+  if (c.completionReport?.status === "PENDING_REVIEW")
+    return { label: "Proof in review", styles: "bg-sky-50 text-sky-700 border-sky-200" };
+  return null;
+}
+
+function ReviewStatusCell({ campaign }: { campaign: CampaignRecord }) {
+  const review = reviewStatusForCampaign(campaign);
+  if (!review)
+    return <span className="text-[11px] text-muted-foreground">—</span>;
   return (
-    !!c.changeRequest &&
-    (c.changeRequest.kind ?? "EDIT") === "EDIT" &&
-    ["PENDING", "REVIEWED"].includes(c.changeRequest.status)
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 text-[10px] font-medium border rounded-full px-2 py-0.5",
+        review.styles
+      )}
+    >
+      <Clock className="w-2.5 h-2.5" />
+      {review.label}
+    </span>
   );
 }
 
@@ -673,6 +673,7 @@ function toCardCampaign(c: CampaignRecord): Campaign {
     endDate: c.endDate ? new Date(c.endDate).toLocaleDateString() : "—",
     category: c.category ?? undefined,
     description: c.story ?? undefined,
+    organizationName: c.organizationName ?? undefined,
     ownerName: c.assignments?.[0]
       ? `${c.assignments[0].user.firstName} ${c.assignments[0].user.lastName ?? ""}`.trim()
       : undefined,
@@ -687,6 +688,7 @@ type RequestDialog = "suspend" | "resume" | "payout" | "closure";
 function CampaignActionsMenu({
   campaign,
   isAdmin,
+  isSuperAdmin,
   isCampaignManager,
   canReviewCampaign,
   canFinalApproveCampaign,
@@ -699,6 +701,7 @@ function CampaignActionsMenu({
 }: {
   campaign: CampaignRecord;
   isAdmin: boolean;
+  isSuperAdmin: boolean;
   isCampaignManager: boolean;
   /** Can give the FIRST (stage-1) approval — REVIEWER / SUPER_ADMIN. */
   canReviewCampaign: boolean;
@@ -723,12 +726,23 @@ function CampaignActionsMenu({
     uid && campaign.assignments?.some((a) => String(a.user.id) === uid)
   );
   const isCreator = !!(uid && String(campaign.createdBy ?? "") === uid);
-  // "Works this campaign" — an assigned manager, or the manager who created it.
+  // "Works this campaign" — its creator (any role, incl. an org admin who made
+  // it themselves), or an assigned manager.
   const worksHere = isAssigned || isCreator;
+  // Editing content belongs to the people who build the campaign. An ORG_ADMIN
+  // only edits campaigns they created — for anyone else's they use the approval
+  // chain ("Request changes"). A SUPER_ADMIN can still edit any.
   const canEdit =
-    (isAdmin || worksHere) && campaign.status !== "COMPLETED" && campaign.status !== "CANCELLED";
+    (isSuperAdmin || worksHere) &&
+    campaign.status !== "COMPLETED" &&
+    campaign.status !== "CANCELLED";
   const canDelete = isAdmin && campaign.status !== "ACTIVE" && campaign.status !== "COMPLETED";
-  const canSubmitDraft = campaign.status === "DRAFT" && (isAdmin || worksHere);
+  // DRAFT → first submission; REJECTED → re-submission after a hard reject.
+  // Both go back into the reviewer queue via the same POST /:id/submit.
+  const canSubmitDraft =
+    (campaign.status === "DRAFT" || campaign.status === "REJECTED") &&
+    (isSuperAdmin || worksHere);
+  const isResubmit = campaign.status === "REJECTED";
   // Ordered chain: PENDING → a reviewer's first approval; REVIEWED → a
   // different admin's final approval. Neither may be the creator. The backend
   // enforces all of this — this just picks which quick-action to show.
@@ -739,22 +753,32 @@ function CampaignActionsMenu({
   const canApprove =
     !isCreator &&
     !isOwnFirstApproval &&
-    ((campaign.status === "PENDING" && canReviewCampaign) ||
+    ((campaign.status === "PENDING" &&
+      campaign.reviewState !== "CHANGES_REQUESTED" &&
+      canReviewCampaign) ||
       (campaign.status === "REVIEWED" && canFinalApproveCampaign));
   const canFeature = isAdmin && campaign.status === "ACTIVE" && campaign.isPublic;
 
   // A manager works only their assigned campaigns; suspend/resume/payout/closure
   // are all "requests" for them (they clear review), direct only for admins.
   const managerHere = isCampaignManager && worksHere;
+  // A suspend/resume ask is "open" (and blocks a new one) while it's PENDING,
+  // REVIEWED *or* CHANGES_REQUESTED — matches getOpenChangeRequestRow on the
+  // backend, which rejects a duplicate in all three states.
+  const statusReqRaw =
+    campaign.statusRequest ??
+    (campaign.changeRequest?.kind === "STATUS" ? campaign.changeRequest : null);
   const openStatusReq =
-    campaign.changeRequest &&
-    campaign.changeRequest.kind === "STATUS" &&
-    ["PENDING", "REVIEWED"].includes(campaign.changeRequest.status)
-      ? campaign.changeRequest
+    statusReqRaw && ["PENDING", "REVIEWED", "CHANGES_REQUESTED"].includes(statusReqRaw.status)
+      ? statusReqRaw
       : null;
+  // A payout already in the approval chain — offering "Request payout" again
+  // would only hit the backend's "already in review" conflict.
+  const openPayoutReq = campaign.openPayoutRequest ?? null;
   const canSuspend = campaign.status === "ACTIVE";
   const canResume = campaign.status === "PAUSED";
-  const canRequestPayout = managerHere && ["ACTIVE", "PAUSED", "COMPLETED"].includes(campaign.status);
+  const canRequestPayout =
+    managerHere && !openPayoutReq && ["ACTIVE", "PAUSED", "COMPLETED"].includes(campaign.status);
   const canRequestClosure = managerHere && ["ACTIVE", "PAUSED"].includes(campaign.status);
 
   const wrap = (fn: () => void) => async () => {
@@ -789,7 +813,7 @@ function CampaignActionsMenu({
           {canSubmitDraft && (
             <DropdownMenuItem onClick={() => onRun(() => campaignApi.submit(campaign.id))}>
               <Check className="w-3.5 h-3.5 mr-1.5" />
-              Submit for approval
+              {isResubmit ? "Re-submit for approval" : "Submit for approval"}
             </DropdownMenuItem>
           )}
           {canApprove && (
@@ -847,12 +871,21 @@ function CampaignActionsMenu({
             </>
           )}
 
-          {(canRequestPayout || canRequestClosure) && <DropdownMenuSeparator />}
-          {canRequestPayout && (
-            <DropdownMenuItem onClick={() => setDialog("payout")}>
-              <Banknote className="w-3.5 h-3.5 mr-1.5" />
-              Request payout
+          {(canRequestPayout || canRequestClosure || (managerHere && openPayoutReq)) && (
+            <DropdownMenuSeparator />
+          )}
+          {managerHere && openPayoutReq ? (
+            <DropdownMenuItem disabled>
+              <Clock className="w-3.5 h-3.5 mr-1.5" />
+              Payout requested — in review
             </DropdownMenuItem>
+          ) : (
+            canRequestPayout && (
+              <DropdownMenuItem onClick={() => setDialog("payout")}>
+                <Banknote className="w-3.5 h-3.5 mr-1.5" />
+                Request payout
+              </DropdownMenuItem>
+            )
           )}
           {canRequestClosure && (
             <DropdownMenuItem onClick={() => setDialog("closure")}>
@@ -935,7 +968,7 @@ function CampaignRequestDialog({
     },
     payout: {
       title: "Request payout",
-      blurb: "An org admin reviews and approves payout requests.",
+      blurb: "This goes to a reviewer, then an org admin, before it can be paid.",
       reasonLabel: "What is this payout for?",
       reasonRequired: true,
     },
@@ -970,7 +1003,7 @@ function CampaignRequestDialog({
         return payoutApi.create({
           amount: Number(amount),
           campaignId: campaign.id,
-          reason: reason.trim() || undefined,
+          reason: reason.trim(),
         });
       });
       onDone();

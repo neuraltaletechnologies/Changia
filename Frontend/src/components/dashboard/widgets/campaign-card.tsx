@@ -12,6 +12,7 @@ export const campaignStatusMap: Record<Campaign["status"], { label: string; clas
   PENDING: { label: "Pending Approval", className: "bg-orange-50 text-orange-700 border-orange-200" },
   REVIEWED: { label: "Awaiting 2nd Approval", className: "bg-blue-50 text-blue-700 border-blue-200" },
   CANCELLED: { label: "Cancelled", className: "bg-rose-50 text-rose-700 border-rose-200" },
+  REJECTED: { label: "Rejected", className: "bg-rose-50 text-rose-700 border-rose-200" },
 };
 
 export function CampaignCard({ campaign }: { campaign: Campaign }) {
@@ -36,7 +37,14 @@ export function CampaignCard({ campaign }: { campaign: Campaign }) {
       )}
       <div className="p-4">
         <div className="flex items-start justify-between gap-2 mb-3">
-          <p className="text-sm font-medium text-foreground leading-snug flex-1">{campaign.name}</p>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-foreground leading-snug">{campaign.name}</p>
+            {campaign.organizationName && (
+              <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+                {campaign.organizationName}
+              </p>
+            )}
+          </div>
           <span
             className={cn(
               "text-[10px] font-medium border rounded-full px-2 py-0.5 shrink-0",

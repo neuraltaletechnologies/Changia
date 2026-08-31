@@ -5,7 +5,9 @@ import { getStoredUser, type ApiUser } from "@/lib/api-client";
 import {
   canAccessRoute,
   canFinalApproveCampaign,
+  canFinalApprovePayout,
   canReviewCampaign,
+  canReviewPayout,
   getRoleMeta,
   hasPermission,
   type Permission,
@@ -41,6 +43,10 @@ export function useRole() {
     canReviewCampaign: canReviewCampaign(role ?? undefined),
     /** Can give a campaign / campaign-edit its FINAL (stage-2) approval. */
     canFinalApproveCampaign: canFinalApproveCampaign(role ?? undefined),
+    /** Can give a payout its FIRST (stage-1) review. */
+    canReviewPayout: canReviewPayout(role ?? undefined),
+    /** Can give a payout its FINAL (stage-2) approval. */
+    canFinalApprovePayout: canFinalApprovePayout(role ?? undefined),
     hasPermission: (perm: Permission) => hasPermission(role ?? undefined, perm),
     canAccessRoute: (pathname: string) => canAccessRoute(role ?? undefined, pathname),
     resolved: role !== null,

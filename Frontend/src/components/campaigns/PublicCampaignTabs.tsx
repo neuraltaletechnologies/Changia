@@ -21,6 +21,7 @@ const STRINGS = {
     goal: 'Goal',
     goalText: (goal: string, pct: number, fee: string, target: string) =>
       `${goal} purpose amount, plus a ${pct}% Changia service fee (${fee}) — a ${target} public target in total.`,
+    scopeTitle: 'What your contribution funds',
     timeline: 'Timeline',
     ongoing: 'Ongoing',
     minContribution: 'Minimum contribution',
@@ -56,6 +57,7 @@ const STRINGS = {
     goal: 'Lengo',
     goalText: (goal: string, pct: number, fee: string, target: string) =>
       `${goal} kiasi cha lengo, pamoja na ada ya huduma ya Changia ya ${pct}% (${fee}) — jumla ya lengo la umma la ${target}.`,
+    scopeTitle: 'Mchango wako unafadhili nini',
     timeline: 'Muda',
     ongoing: 'Inaendelea',
     minContribution: 'Mchango wa chini',
@@ -220,7 +222,18 @@ export default function PublicCampaignTabs({ campaign, locale = 'en' }: PublicCa
         )}
 
         {active === 1 && (
-          <div className="grid gap-12 md:grid-cols-2">
+          <div className="space-y-10">
+            {campaign.scope && (
+              <div>
+                <h2 className="text-2xl font-bold text-neutral-800 dark:text-neutral-200">
+                  {t.scopeTitle}
+                </h2>
+                <p className="mt-4 whitespace-pre-line text-lg text-pretty text-neutral-700 dark:text-neutral-300">
+                  {campaign.scope}
+                </p>
+              </div>
+            )}
+            <div className="grid gap-12 md:grid-cols-2">
             <div className="space-y-8">
               <div>
                 <h3 className="text-lg font-bold text-neutral-800 dark:text-neutral-200">{t.goal}</h3>
@@ -279,10 +292,22 @@ export default function PublicCampaignTabs({ campaign, locale = 'en' }: PublicCa
                 </p>
               </div>
             </div>
+            </div>
           </div>
         )}
 
         {active === 2 && (
+          <div className="space-y-10">
+            {campaign.acceptance && (
+              <div>
+                <h2 className="text-2xl font-bold text-neutral-800 dark:text-neutral-200">
+                  {t.acceptanceTitle}
+                </h2>
+                <p className="mt-4 whitespace-pre-line text-lg text-pretty text-neutral-700 dark:text-neutral-300">
+                  {campaign.acceptance}
+                </p>
+              </div>
+            )}
           <div className="grid gap-6 sm:grid-cols-2">
             <div className="rounded-xl bg-neutral-50 p-6 dark:bg-white/[.05]">
               <h3 className="text-lg font-bold text-neutral-800 dark:text-neutral-200">
@@ -318,6 +343,7 @@ export default function PublicCampaignTabs({ campaign, locale = 'en' }: PublicCa
                 </ul>
               )}
             </div>
+          </div>
           </div>
         )}
       </div>

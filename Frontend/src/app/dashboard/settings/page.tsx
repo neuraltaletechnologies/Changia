@@ -54,10 +54,20 @@ const NOTIFICATION_ITEMS: { key: keyof OrgNotificationPrefs; label: string; desc
 ];
 
 export default function SettingsPage() {
-  const { hasPermission } = useRole();
-  const canManageOrg = hasPermission("settings:org");
+  const { hasPermission, user, resolved } = useRole();
 
-  const tabs = allTabs.filter((t) => !t.permission || hasPermission(t.permission));
+  // Organisation settings need an org to belong to. A user whose role grants
+  // "settings:org" but who isn't linked to an organisation (e.g. a platform
+  // reviewer, or an account mid role-change) would otherwise fire
+  // GET /settings/org and get a bare "Failed to load" — hide those tabs and
+  // show a short notice instead.
+  const hasOrg = Boolean(user?.organizationId);
+  const canManageOrg = hasPermission("settings:org") && hasOrg;
+  const orgTabsHidden = resolved && hasPermission("settings:org") && !hasOrg;
+
+  const tabs = allTabs.filter(
+    (t) => !t.permission || (hasPermission(t.permission) && hasOrg)
+  );
 
   // ─── Organisation settings (org admin+, backed by /settings/org) ────────────
   const [loading, setLoading] = useState(canManageOrg);
@@ -236,6 +246,16 @@ export default function SettingsPage() {
           Manage your organisation preferences and account settings
         </p>
       </div>
+
+      {orgTabsHidden && (
+        <div className="rounded-xl border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+          Your account isn&apos;t linked to an organisation, so organisation
+          settings aren&apos;t available. You can still manage your account under{" "}
+          <span className="font-medium text-foreground">Security</span>. If this
+          looks wrong, ask a platform administrator to check your organisation
+          membership.
+        </div>
+      )}
 
       <Tabs defaultValue={tabs[0]?.value ?? "security"}>
         <TabsList className="mb-6 flex-wrap h-auto gap-1 bg-muted/50 p-1">

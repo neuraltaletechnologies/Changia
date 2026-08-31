@@ -62,6 +62,16 @@ const env = {
   // ─── Reminder auto-resend scheduler ─────────────────────────────────────────
   REMINDER_SCHEDULER_INTERVAL_MINUTES:
     Number(process.env.REMINDER_SCHEDULER_INTERVAL_MINUTES) || 60,
+
+  // ─── Google Cloud Translation (English → Swahili) ──────────────────────────
+  // When set, a campaign's name/story/category/scope/acceptance are
+  // auto-translated to Swahili on save (utils/translate.js) and stored in the
+  // *_sw columns. Unset → the *_sw columns stay NULL and public /sw pages fall
+  // back to the English text. A plain API key for the Translation v2 REST API.
+  GOOGLE_TRANSLATE_API_KEY: process.env.GOOGLE_TRANSLATE_API_KEY || "",
+  GOOGLE_TRANSLATE_ENDPOINT:
+    process.env.GOOGLE_TRANSLATE_ENDPOINT ||
+    "https://translation.googleapis.com/language/translate/v2",
 };
 
 if (!process.env.JWT_SECRET) {

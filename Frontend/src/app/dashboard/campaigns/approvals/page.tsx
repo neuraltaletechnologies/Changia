@@ -4,23 +4,39 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   campaignApi,
+  payoutApi,
   formatTZSFull,
   type CampaignRecord,
+  type PayoutRecord,
   type ReviewAction,
 } from "@/lib/dashboard/api";
 import { Button } from "@/components/dashboard/ui/button";
 import { Avatar, AvatarFallback } from "@/components/dashboard/ui/avatar";
 import {
   ArrowLeft,
+  Ban,
   Check,
   Clock,
+  FileText,
+  HandCoins,
   Loader2,
   Megaphone,
   PencilRuler,
   ShieldCheck,
 } from "lucide-react";
 import { useRole } from "@/hooks/use-role";
+import { cn } from "@/lib/dashboard/utils";
 import { ReviewDecisionDialog } from "@/components/dashboard/campaigns/review-decision-dialog";
+import { PendingResendsPanel } from "@/components/dashboard/reminders/pending-resends-panel";
+
+const SUMMARY_ITEMS = [
+  { key: "campaigns", label: "Campaigns", icon: Megaphone, color: "text-orange-500" },
+  { key: "edits", label: "Edits", icon: PencilRuler, color: "text-sky-500" },
+  { key: "payouts", label: "Payouts", icon: HandCoins, color: "text-teal-500" },
+  { key: "fees", label: "Fees", icon: ShieldCheck, color: "text-amber-500" },
+  { key: "closures", label: "Closures", icon: Ban, color: "text-rose-500" },
+  { key: "reports", label: "Reports", icon: FileText, color: "text-violet-500" },
+] as const;
 
 type DialogTarget =
   | { kind: "campaign"; id: number; action: Exclude<ReviewAction, "approve"> }
@@ -30,7 +46,8 @@ type DialogTarget =
       requestId: number;
       action: Exclude<ReviewAction, "approve">;
     }
-  | { kind: "fee"; id: number; action: Exclude<ReviewAction, "approve"> };
+  | { kind: "fee"; id: number; action: Exclude<ReviewAction, "approve"> }
+  | { kind: "payout"; id: number; action: "reject" };
 
 const FIELD_LABELS: Record<string, string> = {
   name: "Name",
@@ -45,10 +62,22 @@ const FIELD_LABELS: Record<string, string> = {
 };
 
 export default function CampaignApprovalsPage() {
-  const { user, canReviewCampaign, canFinalApproveCampaign, isSuperAdmin } = useRole();
+  const {
+    user,
+    canReviewCampaign,
+    canFinalApproveCampaign,
+    canReviewPayout,
+    canFinalApprovePayout,
+    isSuperAdmin,
+    hasPermission,
+  } = useRole();
   const uid = user ? String(user.id) : null;
+  const seesPayouts = canReviewPayout || canFinalApprovePayout;
+  const seesReminders = hasPermission("reminder:manage");
 
   const [all, setAll] = useState<CampaignRecord[]>([]);
+  const [payouts, setPayouts] = useState<PayoutRecord[]>([]);
+  const [reminderCount, setReminderCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actingId, setActingId] = useState<string | null>(null);
@@ -58,14 +87,20 @@ export default function CampaignApprovalsPage() {
   const load = useCallback(async () => {
     try {
       setError(null);
-      const res = await campaignApi.list({ limit: 100 });
+      const [res, payoutRes] = await Promise.all([
+        campaignApi.list({ limit: 100 }),
+        seesPayouts
+          ? payoutApi.list({ limit: 100 }).catch(() => null)
+          : Promise.resolve(null),
+      ]);
       setAll(res.campaigns);
+      if (payoutRes) setPayouts(payoutRes.payouts);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load pending items.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [seesPayouts]);
 
   useEffect(() => {
     load();
@@ -77,6 +112,9 @@ export default function CampaignApprovalsPage() {
       all.filter(
         (c) =>
           c.status === "PENDING" &&
+          // A campaign that was just sent back sits at PENDING + CHANGES_REQUESTED
+          // until the manager re-edits and resubmits — it's not our queue yet.
+          c.reviewState !== "CHANGES_REQUESTED" &&
           (canReviewCampaign || isSuperAdmin) &&
           String(c.createdBy ?? "") !== uid
       ),
@@ -109,8 +147,73 @@ export default function CampaignApprovalsPage() {
   );
   const feeProposals = useMemo(() => all.filter((c) => c.feeStatus === "PENDING"), [all]);
 
+  // ── Closure requests + completion reports — reviewed in full context on the
+  //    campaign page, so here we just surface the queue and link through.
+  const closureReviews = useMemo(
+    () =>
+      all.filter(
+        (c) => c.latestClosureRequest && c.latestClosureRequest.status === "PENDING"
+      ),
+    [all]
+  );
+  const reportReviews = useMemo(
+    () =>
+      all.filter(
+        (c) => c.completionReport && c.completionReport.status === "PENDING_REVIEW"
+      ),
+    [all]
+  );
+
+  // ── Payout queues — the same two-stage chain as campaigns.
+  //    Stage 1: a reviewer's first review of a REQUESTED payout.
+  //    Stage 2: an org admin's final approval of one that cleared first review.
+  const stage1Payouts = useMemo(
+    () =>
+      payouts.filter(
+        (p) =>
+          p.status === "REQUESTED" &&
+          (canReviewPayout || isSuperAdmin) &&
+          String(p.requestedBy ?? "") !== uid
+      ),
+    [payouts, canReviewPayout, isSuperAdmin, uid]
+  );
+  const stage2Payouts = useMemo(
+    () =>
+      payouts.filter(
+        (p) =>
+          p.status === "REVIEWED" &&
+          (canFinalApprovePayout || isSuperAdmin) &&
+          String(p.firstApprovedBy ?? "") !== uid &&
+          String(p.requestedBy ?? "") !== uid
+      ),
+    [payouts, canFinalApprovePayout, isSuperAdmin, uid]
+  );
+
+  // ── Approved payouts still awaiting the gateway transfer — only SUPER_ADMIN
+  //    records this final "paid" step, and it happens on the slim payouts page.
+  const payoutsToPay = useMemo(
+    () => (isSuperAdmin ? payouts.filter((p) => p.status === "APPROVED") : []),
+    [payouts, isSuperAdmin]
+  );
+
+  // ── Counts per request type, for the summary bar at the top of the page ────
+  const counts = {
+    campaigns: stage1Campaigns.length + stage2Campaigns.length,
+    edits: changeRequests.length,
+    payouts: stage1Payouts.length + stage2Payouts.length + payoutsToPay.length,
+    fees: feeProposals.length,
+    closures: closureReviews.length,
+    reports: reportReviews.length,
+  };
+
   const totalPending =
-    stage1Campaigns.length + stage2Campaigns.length + changeRequests.length + feeProposals.length;
+    counts.campaigns +
+    counts.edits +
+    counts.payouts +
+    counts.fees +
+    counts.closures +
+    counts.reports +
+    reminderCount;
 
   // ── Actions ───────────────────────────────────────────────────────────────
   const run = async (key: string, fn: () => Promise<unknown>) => {
@@ -137,6 +240,8 @@ export default function CampaignApprovalsPage() {
           action: dialog.action,
           notes,
         });
+      } else if (dialog.kind === "payout") {
+        await payoutApi.reject(dialog.id, notes);
       } else {
         await campaignApi.reviewFee(dialog.id, { action: dialog.action, notes });
       }
@@ -187,7 +292,7 @@ export default function CampaignApprovalsPage() {
           variant="outline"
           size="sm"
           nativeButton={false}
-          render={<Link href="/dashboard/campaigns" />}
+          render={<Link href="/dashboard" />}
         >
           <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
           Back
@@ -198,9 +303,42 @@ export default function CampaignApprovalsPage() {
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             {totalPending} item{totalPending !== 1 ? "s" : ""} awaiting your review
+            {" · "}open any campaign to review it in full context.
           </p>
         </div>
       </div>
+
+      {/* ── Summary bar — counts by request type, jumps to each section ──── */}
+      {!loading && (
+        <div className="flex flex-wrap gap-2">
+          {SUMMARY_ITEMS.map((s) => {
+            const v = counts[s.key];
+            return (
+              <a
+                key={s.key}
+                href={`#${s.key}`}
+                className={cn(
+                  "flex items-center gap-2 rounded-xl border px-3 py-2 text-xs transition-colors",
+                  v > 0
+                    ? "border-border bg-card hover:border-primary/40"
+                    : "border-border/60 bg-muted/30 text-muted-foreground"
+                )}
+              >
+                <s.icon className={cn("h-3.5 w-3.5", v > 0 ? s.color : "text-muted-foreground/50")} />
+                <span className="font-medium text-foreground">{s.label}</span>
+                <span
+                  className={cn(
+                    "rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
+                    v > 0 ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+                  )}
+                >
+                  {v}
+                </span>
+              </a>
+            );
+          })}
+        </div>
+      )}
 
       {error && (
         <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
@@ -220,6 +358,8 @@ export default function CampaignApprovalsPage() {
           <p className="text-sm text-muted-foreground">Nothing is waiting for your approval.</p>
         </div>
       ) : null}
+
+      <span id="campaigns" className="block scroll-mt-24" aria-hidden />
 
       {/* ── Stage 1: first review ─────────────────────────────────────────── */}
       {stage1Campaigns.length > 0 && (
@@ -274,6 +414,8 @@ export default function CampaignApprovalsPage() {
         </section>
       )}
 
+      <span id="edits" className="block scroll-mt-24" aria-hidden />
+
       {/* ── Campaign changes (parked material edits) ──────────────────────── */}
       {changeRequests.length > 0 && (
         <section className="space-y-3">
@@ -292,12 +434,19 @@ export default function CampaignApprovalsPage() {
                 className="bg-card border border-border rounded-xl p-5 shadow-sm space-y-3"
               >
                 <div className="flex items-start justify-between gap-3">
-                  <Link
-                    href={`/dashboard/campaigns/${c.id}`}
-                    className="text-sm font-medium text-foreground hover:text-primary transition-colors"
-                  >
-                    {c.name}
-                  </Link>
+                  <div className="min-w-0">
+                    <Link
+                      href={`/dashboard/campaigns/${c.id}`}
+                      className="text-sm font-medium text-foreground hover:text-primary transition-colors"
+                    >
+                      {c.name}
+                    </Link>
+                    {c.organizationName && (
+                      <p className="text-[11px] text-muted-foreground truncate">
+                        {c.organizationName}
+                      </p>
+                    )}
+                  </div>
                   <span
                     className={`text-[10px] font-medium border rounded-full px-2 py-0.5 shrink-0 ${
                       stage2
@@ -367,6 +516,8 @@ export default function CampaignApprovalsPage() {
         </section>
       )}
 
+      <span id="fees" className="block scroll-mt-24" aria-hidden />
+
       {/* ── Service-fee proposals ─────────────────────────────────────────── */}
       {feeProposals.length > 0 && (
         <section className="space-y-3">
@@ -388,6 +539,7 @@ export default function CampaignApprovalsPage() {
                   {c.name}
                 </Link>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 mt-1 text-[11px] text-muted-foreground">
+                  {c.organizationName && <span className="font-medium">{c.organizationName}</span>}
                   <span>
                     Proposed{" "}
                     <span className="font-medium text-amber-600">
@@ -414,15 +566,278 @@ export default function CampaignApprovalsPage() {
         </section>
       )}
 
+      <span id="payouts" className="block scroll-mt-24" aria-hidden />
+
+      {/* ── Payout approvals — a distinct area from campaign approvals ─────── */}
+      {seesPayouts && (
+        <section className="space-y-3">
+          <SectionHeading
+            icon={HandCoins}
+            title="Payout approvals"
+            sub="Withdrawal requests move through the same two-stage chain as campaigns — a reviewer's first approval, then an admin's final approval, then payment."
+          />
+          {counts.payouts === 0 && (
+            <div className="rounded-xl border border-border bg-muted/20 px-4 py-6 text-center text-sm text-muted-foreground">
+              No payout requests are waiting for your approval.
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* ── Payout requests — first review ────────────────────────────────── */}
+      {stage1Payouts.length > 0 && (
+        <section className="space-y-3">
+          <SectionHeading
+            icon={HandCoins}
+            title="Payout requests — first review"
+            sub="Withdrawal requests needing a reviewer's first approval before an admin signs off."
+          />
+          {stage1Payouts.map((p) => (
+            <PayoutCard
+              key={p.id}
+              p={p}
+              stage={1}
+              busy={actingId === `p-${p.id}`}
+              onApprove={() => run(`p-${p.id}`, () => payoutApi.approve(p.id))}
+              onReject={() => setDialog({ kind: "payout", id: p.id, action: "reject" })}
+            />
+          ))}
+        </section>
+      )}
+
+      {/* ── Payout requests — final approval ──────────────────────────────── */}
+      {stage2Payouts.length > 0 && (
+        <section className="space-y-3">
+          <SectionHeading
+            icon={HandCoins}
+            title="Payout requests — final approval"
+            sub="First review done — an admin gives the decisive approval before the funds can be paid."
+          />
+          {stage2Payouts.map((p) => (
+            <PayoutCard
+              key={p.id}
+              p={p}
+              stage={2}
+              busy={actingId === `p-${p.id}`}
+              onApprove={() => run(`p-${p.id}`, () => payoutApi.approve(p.id))}
+              onReject={() => setDialog({ kind: "payout", id: p.id, action: "reject" })}
+            />
+          ))}
+        </section>
+      )}
+
+      {/* ── Approved payouts — record the gateway transfer ────────────────── */}
+      {payoutsToPay.length > 0 && (
+        <section className="space-y-3">
+          <SectionHeading
+            icon={HandCoins}
+            title="Approved payouts — mark as paid"
+            sub="Both approvals are done. Record the gateway transfer on the payouts page to close each one out."
+          />
+          {payoutsToPay.map((p) => (
+            <div
+              key={p.id}
+              className="bg-card border border-border rounded-xl p-5 shadow-sm flex flex-col sm:flex-row sm:items-center gap-4"
+            >
+              <div className="flex-1 min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-medium text-foreground">
+                    {p.campaignName ?? `Campaign #${p.campaignId ?? "—"}`}
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-[10px] font-medium border rounded-full px-2 py-0.5 bg-sky-50 text-sky-700 border-sky-200">
+                    Approved — awaiting payment
+                  </span>
+                </div>
+                <div className="mt-1 text-[11px] text-muted-foreground">
+                  <span className="font-semibold text-foreground">{formatTZSFull(p.amount)}</span>
+                  {p.reason && <span className="ml-3 truncate">{p.reason}</span>}
+                </div>
+              </div>
+              <Button
+                size="sm"
+                nativeButton={false}
+                render={<Link href="/dashboard/payouts" />}
+              >
+                Mark as paid
+              </Button>
+            </div>
+          ))}
+        </section>
+      )}
+
+      <span id="closures" className="block scroll-mt-24" aria-hidden />
+
+      {/* ── Closure requests — reviewed in full context on the campaign ───── */}
+      {closureReviews.length > 0 && (
+        <section className="space-y-3">
+          <SectionHeading
+            icon={Ban}
+            title="Closure requests"
+            sub="Managers asking to end a campaign early — open each campaign to review the reason and decide."
+          />
+          {closureReviews.map((c) => (
+            <div
+              key={c.id}
+              className="bg-card border border-border rounded-xl p-5 shadow-sm flex flex-col sm:flex-row sm:items-center gap-4"
+            >
+              <div className="flex-1 min-w-0">
+                <Link
+                  href={`/dashboard/campaigns/${c.id}`}
+                  className="text-sm font-medium text-foreground hover:text-primary transition-colors"
+                >
+                  {c.name}
+                </Link>
+                <div className="mt-1 text-[11px] text-muted-foreground">
+                  {c.organizationName && <span className="font-medium">{c.organizationName} · </span>}
+                  {c.latestClosureRequest?.reason && (
+                    <span className="truncate">“{c.latestClosureRequest.reason}”</span>
+                  )}
+                </div>
+              </div>
+              <Button
+                size="sm"
+                nativeButton={false}
+                render={<Link href={`/dashboard/campaigns/${c.id}`} />}
+              >
+                Review on campaign
+              </Button>
+            </div>
+          ))}
+        </section>
+      )}
+
+      <span id="reports" className="block scroll-mt-24" aria-hidden />
+
+      {/* ── Completion reports — reviewed in full context on the campaign ─── */}
+      {reportReviews.length > 0 && (
+        <section className="space-y-3">
+          <SectionHeading
+            icon={FileText}
+            title="Completion reports"
+            sub="Reports submitted after a campaign ends — open each campaign to review the report and record your decision."
+          />
+          {reportReviews.map((c) => (
+            <div
+              key={c.id}
+              className="bg-card border border-border rounded-xl p-5 shadow-sm flex flex-col sm:flex-row sm:items-center gap-4"
+            >
+              <div className="flex-1 min-w-0">
+                <Link
+                  href={`/dashboard/campaigns/${c.id}`}
+                  className="text-sm font-medium text-foreground hover:text-primary transition-colors"
+                >
+                  {c.name}
+                </Link>
+                <div className="mt-1 text-[11px] text-muted-foreground">
+                  {c.organizationName && <span className="font-medium">{c.organizationName} · </span>}
+                  {c.completionReport?.submittedAt && (
+                    <span>
+                      Submitted {new Date(c.completionReport.submittedAt).toLocaleDateString()}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <Button
+                size="sm"
+                nativeButton={false}
+                render={<Link href={`/dashboard/campaigns/${c.id}`} />}
+              >
+                Review on campaign
+              </Button>
+            </div>
+          ))}
+        </section>
+      )}
+
+      {/* ── Pending reminder resends ──────────────────────────────────────── */}
+      {seesReminders && (
+        <PendingResendsPanel hideWhenEmpty onLoaded={setReminderCount} />
+      )}
+
       {dialog && (
         <ReviewDecisionDialog
           open
           onOpenChange={(v) => !v && setDialog(null)}
           action={dialog.action}
+          title={dialog.kind === "payout" ? "Reject payout request" : undefined}
+          description={
+            dialog.kind === "payout"
+              ? "The requester is notified with your reason. They can submit a new request afterwards."
+              : undefined
+          }
           submitting={dialogSubmitting}
           onSubmit={submitDialog}
         />
       )}
+    </div>
+  );
+}
+
+function PayoutCard({
+  p,
+  stage,
+  busy,
+  onApprove,
+  onReject,
+}: {
+  p: PayoutRecord;
+  stage: 1 | 2;
+  busy: boolean;
+  onApprove: () => void;
+  onReject: () => void;
+}) {
+  return (
+    <div className="bg-card border border-border rounded-xl p-5 shadow-sm flex flex-col sm:flex-row sm:items-center gap-4">
+      <div className="flex-1 min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          {p.campaignId ? (
+            <Link
+              href={`/dashboard/campaigns/${p.campaignId}`}
+              className="text-sm font-medium text-foreground hover:text-primary transition-colors"
+            >
+              {p.campaignName ?? `Campaign #${p.campaignId}`}
+            </Link>
+          ) : (
+            <span className="text-sm font-medium text-foreground">
+              {p.campaignName ?? "Organisation payout"}
+            </span>
+          )}
+          <span
+            className={`inline-flex items-center gap-1 text-[10px] font-medium border rounded-full px-2 py-0.5 ${
+              stage === 2
+                ? "bg-blue-50 text-blue-700 border-blue-200"
+                : "bg-orange-50 text-orange-700 border-orange-200"
+            }`}
+          >
+            {stage === 2 ? "1st approval done — needs a different final approver" : "Awaiting 1st approval"}
+          </span>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 mt-1 text-[11px] text-muted-foreground">
+          <span className="font-semibold text-foreground">{formatTZSFull(p.amount)}</span>
+          {p.reason && <span className="truncate max-w-xs">{p.reason}</span>}
+        </div>
+        {p.campaignId && (
+          <Link
+            href={`/dashboard/campaigns/${p.campaignId}`}
+            className="inline-block text-[11px] font-medium text-primary hover:underline mt-2"
+          >
+            Open campaign for context →
+          </Link>
+        )}
+      </div>
+      <div className="flex flex-wrap items-center gap-2 shrink-0">
+        <Button size="sm" variant="destructive" onClick={onReject}>
+          Reject
+        </Button>
+        <Button size="sm" onClick={onApprove} disabled={busy}>
+          {busy ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          ) : (
+            <Check className="w-3.5 h-3.5 mr-1" />
+          )}
+          {stage === 2 ? "Give final approval" : "Give first approval"}
+        </Button>
+      </div>
     </div>
   );
 }
@@ -491,6 +906,7 @@ function CampaignCard({
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 mt-1 text-[11px] text-muted-foreground">
+          {c.organizationName && <span className="font-medium">{c.organizationName}</span>}
           {c.category && <span>{c.category}</span>}
           <span>{formatTZSFull(c.publicTarget)} target</span>
         </div>
@@ -511,6 +927,12 @@ function CampaignCard({
             Previously sent back: “{c.reviewNotes}”
           </p>
         )}
+        <Link
+          href={`/dashboard/campaigns/${c.id}`}
+          className="inline-block text-[11px] font-medium text-primary hover:underline mt-2"
+        >
+          Open campaign to review →
+        </Link>
       </div>
       {children}
     </div>

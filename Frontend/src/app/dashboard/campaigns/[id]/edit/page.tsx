@@ -38,7 +38,10 @@ interface FormState {
   name: string;
   category: string;
   description: string;
+  scope: string;
+  acceptance: string;
   goal: string;
+  minimumAmount: string;
   serviceFee: string;
   startDate: string;
   endDate: string;
@@ -51,7 +54,10 @@ function formFromCampaign(c: CampaignRecord): FormState {
     name: c.name,
     category: c.category ?? "",
     description: c.story ?? "",
+    scope: c.scope ?? "",
+    acceptance: c.acceptance ?? "",
     goal: String(c.goalAmount),
+    minimumAmount: c.minimumAmount ? String(c.minimumAmount) : "",
     serviceFee: String(
       c.feeStatus === "PENDING" && c.proposedServiceFeePercent != null
         ? c.proposedServiceFeePercent
@@ -67,8 +73,9 @@ export default function EditCampaignPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   // Only an admin (org/super) or reviewer can change the service-fee rate.
-  const { hasPermission, isOrgAdmin, isCampaignManager } = useRole();
+  const { hasPermission, isSuperAdmin, isOrgAdmin, isCampaignManager, user } = useRole();
   const canSetFee = hasPermission("campaign:fee_review");
+  const uid = user ? String(user.id) : null;
   // The backend image endpoint is ORG_ADMIN / CAMPAIGN_MANAGER only (same as
   // campaign creation) — SUPER_ADMIN can't upload campaign photos.
   const canManagePhotos = isOrgAdmin || isCampaignManager;
@@ -77,7 +84,10 @@ export default function EditCampaignPage() {
     name: "",
     category: "",
     description: "",
+    scope: "",
+    acceptance: "",
     goal: "",
+    minimumAmount: "",
     serviceFee: "",
     startDate: "",
     endDate: "",
@@ -93,6 +103,16 @@ export default function EditCampaignPage() {
   const dirty = campaign
     ? JSON.stringify(form) !== JSON.stringify(formFromCampaign(campaign))
     : false;
+
+  // Content edits belong to the campaign's creator / assigned manager (or a
+  // super admin). An ORG_ADMIN doesn't edit a campaign someone else built —
+  // they run it through the approval chain. The backend enforces this too.
+  const canEditContent = campaign
+    ? isSuperAdmin ||
+      String(campaign.createdBy ?? "") === uid ||
+      (isCampaignManager &&
+        !!campaign.assignments?.some((a) => String(a.user.id) === uid))
+    : true;
 
   const loadCampaign = useCallback(async () => {
     try {
@@ -125,6 +145,13 @@ export default function EditCampaignPage() {
     const goal = Number(form.goal);
     if (!form.goal.trim() || Number.isNaN(goal) || goal <= 0)
       next.goal = "Enter a goal amount greater than 0.";
+    if (form.minimumAmount.trim()) {
+      const min = Number(form.minimumAmount);
+      if (Number.isNaN(min) || min <= 0)
+        next.minimumAmount = "Minimum amount must be greater than 0.";
+      else if (goal > 0 && min > goal)
+        next.minimumAmount = "Minimum amount can't exceed the goal.";
+    }
     if (form.startDate && form.endDate && form.endDate < form.startDate)
       next.endDate = "End date must be after the start date.";
     if (
@@ -155,11 +182,17 @@ export default function EditCampaignPage() {
         name: form.name.trim(),
         category: form.category || undefined,
         story: form.description.trim() || undefined,
+        scope: form.scope.trim() || undefined,
+        acceptance: form.acceptance.trim() || undefined,
         goalAmount: Number(form.goal),
+        minimumAmount: form.minimumAmount.trim() ? Number(form.minimumAmount) : undefined,
         serviceFeePercent: feeChanged ? Number(form.serviceFee) : undefined,
         startDate: form.startDate ? new Date(form.startDate).toISOString() : undefined,
         endDate: form.endDate ? new Date(form.endDate).toISOString() : undefined,
-        contactPhone: form.contactPhone.trim() || undefined,
+        // Strip spaces/dashes — the backend expects a compact TZS number.
+        contactPhone: form.contactPhone.trim()
+          ? form.contactPhone.replace(/[\s-]/g, "")
+          : undefined,
       });
       router.push(`/dashboard/campaigns/${id}`);
     } catch (err) {
@@ -185,6 +218,28 @@ export default function EditCampaignPage() {
         <Button variant="outline" size="sm" nativeButton={false} render={<Link href="/dashboard/campaigns" />}>
           <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
           Back to Campaigns
+        </Button>
+      </div>
+    );
+  }
+
+  if (campaign && !canEditContent) {
+    return (
+      <div className="space-y-4">
+        <div className="rounded-xl border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+          Only the campaign&apos;s creator or its assigned manager can edit it. If
+          it needs changes, open it and use{" "}
+          <span className="font-medium">Request changes</span> to send it back to
+          the manager.
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          nativeButton={false}
+          render={<Link href={`/dashboard/campaigns/${id}`} />}
+        >
+          <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
+          Back to campaign
         </Button>
       </div>
     );
@@ -233,11 +288,12 @@ export default function EditCampaignPage() {
 
       {campaign && (campaign.status === "ACTIVE" || campaign.status === "PAUSED") && (
         <div className="rounded-xl border border-border bg-muted/40 px-4 py-3 text-xs text-muted-foreground">
-          This campaign is live. Saved changes to the name, story, goal, service
-          fee, category, dates, minimum amount, contact phone or cover image need
-          a reviewer&apos;s <span className="font-medium">and</span> an
-          admin&apos;s approval before they show publicly. Swahili translations
-          and gallery photos apply right away.
+          This campaign is live. Saved changes to the name, story, scope,
+          acceptance, goal, service fee, category, dates, minimum amount, contact
+          phone or cover image need a reviewer&apos;s{" "}
+          <span className="font-medium">and</span> an admin&apos;s approval before
+          they show publicly. Gallery photos apply right away, and the Swahili
+          translation refreshes automatically once the change is approved.
         </div>
       )}
 
@@ -301,6 +357,39 @@ export default function EditCampaignPage() {
               onChange={(e) => setField("description", e.target.value)}
               className="min-h-24"
             />
+            <p className="text-xs text-muted-foreground">
+              The Swahili version shown on the public /sw pages is translated automatically
+              whenever you save.
+            </p>
+          </div>
+
+          <div className="grid gap-1.5">
+            <Label htmlFor="campaign-scope">Scope</Label>
+            <Textarea
+              id="campaign-scope"
+              placeholder="What exactly will the funds deliver? e.g. 200 desks, one borehole pump, a term of fees for 12 pupils…"
+              value={form.scope}
+              onChange={(e) => setField("scope", e.target.value)}
+              className="min-h-20"
+            />
+            <p className="text-xs text-muted-foreground">
+              Shown on the campaign&apos;s public &ldquo;Scope&rdquo; tab. Optional.
+            </p>
+          </div>
+
+          <div className="grid gap-1.5">
+            <Label htmlFor="campaign-acceptance">Acceptance</Label>
+            <Textarea
+              id="campaign-acceptance"
+              placeholder="How will supporters know a contribution landed and the campaign delivered?"
+              value={form.acceptance}
+              onChange={(e) => setField("acceptance", e.target.value)}
+              className="min-h-20"
+            />
+            <p className="text-xs text-muted-foreground">
+              Shown on the public &ldquo;Acceptance&rdquo; tab, above Changia&apos;s standard
+              payment-safety notes. Optional.
+            </p>
           </div>
 
           <div className="grid gap-1.5">
@@ -321,6 +410,27 @@ export default function EditCampaignPage() {
             {form.goal && Number(form.goal) > 0 && (
               <p className="text-xs text-muted-foreground">
                 {formatTZS(Number(form.goal))}
+              </p>
+            )}
+          </div>
+
+          <div className="grid gap-1.5">
+            <Label htmlFor="campaign-min">Minimum contribution (TZS, optional)</Label>
+            <Input
+              id="campaign-min"
+              type="number"
+              min={1}
+              placeholder="e.g. 1000"
+              value={form.minimumAmount}
+              onChange={(e) => setField("minimumAmount", e.target.value)}
+              aria-invalid={!!errors.minimumAmount}
+              className="h-9"
+            />
+            {errors.minimumAmount ? (
+              <p className="text-xs text-destructive">{errors.minimumAmount}</p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                The smallest amount a donor can give. Defaults to TZS 1,000.
               </p>
             )}
           </div>

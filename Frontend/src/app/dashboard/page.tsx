@@ -5,7 +5,6 @@ import Link from "next/link";
 import {
   Users,
   Megaphone,
-  TrendingUp,
   Wallet,
   UserCog,
   ShieldCheck,
@@ -21,19 +20,19 @@ import { CampaignCard } from "@/components/dashboard/widgets/campaign-card";
 import { RecentDonations } from "@/components/dashboard/widgets/recent-donations";
 import { ActivityFeed } from "@/components/dashboard/widgets/activity-feed";
 import { CampaignMix } from "@/components/dashboard/widgets/campaign-mix";
-import { CampaignPaymentPies } from "@/components/dashboard/widgets/campaign-payments";
 import { ReviewerWork } from "@/components/dashboard/widgets/reviewer-work";
 import { Button } from "@/components/dashboard/ui/button";
 import { Badge } from "@/components/dashboard/ui/badge";
-import { loadDonors } from "@/lib/dashboard/donor-store";
-import { loadUsers} from "@/lib/dashboard/user-store";
 import {
   campaignApi,
+  donorApi,
+  payoutApi,
   poolApi,
+  userApi,
   type CampaignRecord,
-  type CampaignPaymentBreakdown,
+  type PayoutRecord,
 } from "@/lib/dashboard/api";
-import { formatTZS, type Campaign, type CampaignStatus, type Donor, type User } from "@/lib/dashboard/types";
+import { formatTZS, type Campaign, type CampaignStatus } from "@/lib/dashboard/types";
 import { ROLE } from "@/lib/dashboard/permissions";
 import { useRole } from "@/hooks/use-role";
 import { cn } from "@/lib/dashboard/utils";
@@ -81,24 +80,28 @@ function QuickActions({ actions }: { actions: QuickAction[] }) {
 }
 
 export default function DashboardPage() {
-  const { role, user: sessionUser, meta, resolved, hasPermission, canAccessRoute } = useRole();
+  const {
+    role,
+    user: sessionUser,
+    meta,
+    resolved,
+    hasPermission,
+    canAccessRoute,
+    canReviewPayout,
+    canFinalApprovePayout,
+  } = useRole();
 
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [campaignRecords, setCampaignRecords] = useState<CampaignRecord[]>([]);
   const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
-  const [donors, setDonors] = useState<Donor[]>([]);
-  const [user, setUser] = useState<User[]>([]);
+  const [donorCount, setDonorCount] = useState(0);
+  const [consentedCount, setConsentedCount] = useState(0);
+  const [userCount, setUserCount] = useState(0);
+  const [payouts, setPayouts] = useState<PayoutRecord[]>([]);
   const [poolStats, setPoolStats] = useState({ count: 0, donors: 0 });
-  const [breakdown, setBreakdown] = useState<CampaignPaymentBreakdown[]>([]);
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    setDonors(loadDonors());
-    setUser(loadUsers());
-    campaignApi
-      .paymentsBreakdown()
-      .then(setBreakdown)
-      .catch(() => setBreakdown([]));
     poolApi
       .list({ limit: 100 })
       .then((r) =>
@@ -115,7 +118,7 @@ export default function DashboardPage() {
         setPendingApprovalCount(
           r.campaigns.filter(
             (c) =>
-              c.status === "PENDING" ||
+              (c.status === "PENDING" && c.reviewState !== "CHANGES_REQUESTED") ||
               c.status === "REVIEWED" ||
               c.hasPendingChanges === true
           ).length
@@ -142,6 +145,44 @@ export default function DashboardPage() {
     setHydrated(true);
   }, []);
 
+  // Real donor / user totals for the platform overview + access-scope note.
+  // Scoped by role so we never fire a request the caller can't make: donors are
+  // org-visible to admins + managers, the user directory is SUPER_ADMIN-only.
+  useEffect(() => {
+    if (!role) return;
+    const totalOf = (p: unknown, fallback: number) =>
+      (p as { total?: number } | null)?.total ?? fallback;
+    if (role === ROLE.SUPER_ADMIN || role === ROLE.CAMPAIGN_MANAGER) {
+      donorApi
+        .list({ limit: 1 })
+        .then((r) => setDonorCount(totalOf(r.pagination, r.donors.length)))
+        .catch(() => undefined);
+      donorApi
+        .list({ consent: "CONSENTED", limit: 1 })
+        .then((r) => setConsentedCount(totalOf(r.pagination, r.donors.length)))
+        .catch(() => undefined);
+    }
+    if (role === ROLE.SUPER_ADMIN) {
+      userApi
+        .list({ limit: 1 })
+        .then((r) => setUserCount(totalOf(r.pagination, r.users.length)))
+        .catch(() => undefined);
+    }
+    // Payouts are review work too — a reviewer clears their first review, an org
+    // admin gives the final approval. Feed them into the "Review workload"
+    // widget alongside campaigns.
+    if (
+      role === ROLE.SUPER_ADMIN ||
+      role === ROLE.ORG_ADMIN ||
+      role === ROLE.REVIEWER
+    ) {
+      payoutApi
+        .list({ limit: 100 })
+        .then((r) => setPayouts(r.payouts))
+        .catch(() => setPayouts([]));
+    }
+  }, [role]);
+
   if (!resolved || !hydrated) {
     return (
       <div className="space-y-6">
@@ -162,136 +203,77 @@ export default function DashboardPage() {
   const draftCampaigns = campaigns.filter((c) => c.status === "DRAFT");
   const totalRaised = campaigns.reduce((sum, c) => sum + c.raised, 0);
   const totalRequired = campaigns.reduce((sum, c) => sum + c.goal, 0);
-  const givingDonors = donors.filter((d) => d.totalGiven > 0);
-  const avgGift =
-    givingDonors.length > 0
-      ? Math.round(
-          givingDonors.reduce((sum, d) => sum + d.lastGiftAmount, 0) /
-            givingDonors.length
-        )
-      : 0;
-
-  const consentedDonors = donors.filter((d) => d.consentStatus === "consented");
 
   const canCreateCampaigns = hasPermission("campaign:create");
   const canApproveCampaigns = hasPermission("campaign:approve");
+
+  // Payout requests waiting on THIS user's stage of the two-stage chain —
+  // stage 1 for a reviewer, stage 2 for an org admin, plus the final "mark as
+  // paid" step for a super admin. Mirrors the Approvals page / sidebar badge.
+  const payoutUid = sessionUser ? String(sessionUser.id) : null;
+  const pendingPayoutCount = payouts.filter((p) => {
+    if (
+      canReviewPayout &&
+      p.status === "REQUESTED" &&
+      String(p.requestedBy ?? "") !== payoutUid
+    )
+      return true;
+    if (
+      canFinalApprovePayout &&
+      p.status === "REVIEWED" &&
+      String(p.firstApprovedBy ?? "") !== payoutUid &&
+      String(p.requestedBy ?? "") !== payoutUid
+    )
+      return true;
+    if (role === ROLE.SUPER_ADMIN && p.status === "APPROVED") return true;
+    return false;
+  }).length;
   const canAddDonors = hasPermission("donor:add");
   const canRequestPayout = hasPermission("payout:request");
-  const isPlatformRole = role === ROLE.SUPER_ADMIN;
   const isReviewer = role === ROLE.REVIEWER;
+  const isOrgAdmin = role === ROLE.ORG_ADMIN;
 
-  // Role-specific stats. Super admins get a platform overview; reviewers get a
-  // review-queue view (no donor data — they're platform-level with no org);
-  // everyone else gets an operational view.
-  const reviewerStats = [
-    {
-      label: "Awaiting Review",
-      value: pendingApprovalCount.toString(),
-      sub: "Campaigns & edits in the queue",
-      icon: BadgeCheck,
-      iconBg: "bg-emerald-50",
-      iconColor: "text-emerald-600",
-      href: "/dashboard/campaigns/approvals",
-    },
+  // The stat grid is the SUPER_ADMIN platform overview only. Campaign managers
+  // get the minimalist visuals below; reviewers and org admins get the "Review
+  // workload" widget as their whole snapshot.
+  const stats = [
     {
       label: "Active Campaigns",
       value: activeCampaigns.length.toString(),
-      sub: "Live across all organisations",
+      sub: "Platform-wide",
       icon: Megaphone,
-      iconBg: "bg-sky-50",
-      iconColor: "text-sky-600",
+      iconBg: "bg-emerald-50",
+      iconColor: "text-emerald-600",
       href: "/dashboard/campaigns",
     },
     {
       label: "Total Raised",
       value: formatTZS(totalRaised),
-      sub: "Across all organisations",
+      sub: "All organisations",
       icon: Wallet,
       iconBg: "bg-amber-50",
       iconColor: "text-amber-600",
       href: "/dashboard/campaigns",
     },
+    {
+      label: "Registered Donors",
+      value: donorCount.toString(),
+      sub: "Across programs",
+      icon: Users,
+      iconBg: "bg-sky-50",
+      iconColor: "text-sky-600",
+      href: "/dashboard/donors",
+    },
+    {
+      label: "User Members",
+      value: userCount.toString(),
+      sub: "Org users managed",
+      icon: UserCog,
+      iconBg: "bg-violet-50",
+      iconColor: "text-violet-600",
+      href: "/dashboard/user",
+    },
   ];
-
-  const stats = isReviewer
-    ? reviewerStats
-    : isPlatformRole
-    ? [
-        {
-          label: "Active Campaigns",
-          value: activeCampaigns.length.toString(),
-          sub: "Platform-wide",
-          icon: Megaphone,
-          iconBg: "bg-emerald-50",
-          iconColor: "text-emerald-600",
-          href: "/dashboard/campaigns",
-        },
-        {
-          label: "Total Raised",
-          value: formatTZS(totalRaised),
-          sub: "All organisations",
-          icon: Wallet,
-          iconBg: "bg-amber-50",
-          iconColor: "text-amber-600",
-          href: "/dashboard/campaigns",
-        },
-        {
-          label: "Registered Donors",
-          value: donors.length.toString(),
-          sub: "Across programs",
-          icon: Users,
-          iconBg: "bg-sky-50",
-          iconColor: "text-sky-600",
-          href: "/dashboard/donors",
-        },
-        {
-          label: "User Members",
-          value: user.length.toString(),
-          sub: "Org users managed",
-          icon: UserCog,
-          iconBg: "bg-violet-50",
-          iconColor: "text-violet-600",
-          href: "/dashboard/user",
-        },
-      ]
-    : [
-        {
-          label: "Total Donors",
-          value: donors.length.toString(),
-          sub: "Across all campaigns",
-          icon: Users,
-          iconBg: "bg-sky-50",
-          iconColor: "text-sky-600",
-          href: "/dashboard/donors",
-        },
-        {
-          label: "Active Campaigns",
-          value: activeCampaigns.length.toString(),
-          sub: "Live right now",
-          icon: Megaphone,
-          iconBg: "bg-emerald-50",
-          iconColor: "text-emerald-600",
-          href: "/dashboard/campaigns",
-        },
-        {
-          label: "Total Raised",
-          value: formatTZS(totalRaised),
-          sub: "Across all time",
-          icon: Wallet,
-          iconBg: "bg-amber-50",
-          iconColor: "text-amber-600",
-          href: "/dashboard/campaigns",
-        },
-        {
-          label: "Avg Gift Size",
-          value: avgGift > 0 ? formatTZS(avgGift) : "—",
-          sub: "Last 30 days",
-          icon: TrendingUp,
-          iconBg: "bg-rose-50",
-          iconColor: "text-rose-500",
-          href: "/dashboard/donors",
-        },
-      ];
 
   // Role-specific quick actions. Nothing payout-related is offered unless the
   // role holds `payout:request` (ORG_ADMIN / SUPER_ADMIN only).
@@ -323,11 +305,20 @@ export default function DashboardPage() {
       accent: "bg-emerald-50 text-emerald-600",
     });
   }
+  if ((canReviewPayout || canFinalApprovePayout) && pendingPayoutCount > 0) {
+    quickActions.push({
+      label: "Review Payouts",
+      sub: `${pendingPayoutCount} awaiting your approval`,
+      href: "/dashboard/campaigns/approvals#payouts",
+      icon: HandCoins,
+      accent: "bg-teal-50 text-teal-600",
+    });
+  }
   if (canRequestPayout) {
     quickActions.push({
       label: "Request Payout",
-      sub: "Withdraw raised funds",
-      href: "/dashboard/payouts",
+      sub: "From a campaign's Payout tab",
+      href: "/dashboard/campaigns",
       icon: HandCoins,
       accent: "bg-amber-50 text-amber-600",
     });
@@ -357,8 +348,10 @@ export default function DashboardPage() {
         <p className="text-sm text-muted-foreground mt-0.5">{meta.tagline}</p>
       </div>
 
-      {/* Stats — campaign managers get the minimalist visuals below instead */}
-      {role !== ROLE.CAMPAIGN_MANAGER && (
+      {/* Stats — campaign managers get the minimalist visuals below instead;
+          reviewers and org admins get the "Review workload" widget as their
+          whole snapshot (their day is approvals, not headline totals) */}
+      {role !== ROLE.CAMPAIGN_MANAGER && !isReviewer && !isOrgAdmin && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {stats.map((s) => (
             <StatCard
@@ -375,28 +368,29 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Minimalist portfolio + payment snapshot (campaign managers) */}
+      {/* Minimalist portfolio snapshot (campaign managers) */}
       {role === ROLE.CAMPAIGN_MANAGER && (
-        <div className="space-y-6">
-          <CampaignMix
-            active={activeCampaigns.length}
-            pending={pendingCampaigns.length}
-            reviewing={reviewingCampaigns.length}
-            draft={draftCampaigns.length}
-            raised={totalRaised}
-            required={totalRequired}
-            poolDonors={poolStats.donors}
-            poolCount={poolStats.count}
-          />
-          <CampaignPaymentPies breakdown={breakdown} />
-        </div>
+        <CampaignMix
+          active={activeCampaigns.length}
+          pending={pendingCampaigns.length}
+          reviewing={reviewingCampaigns.length}
+          draft={draftCampaigns.length}
+          raised={totalRaised}
+          required={totalRequired}
+          poolDonors={poolStats.donors}
+          poolCount={poolStats.count}
+        />
       )}
 
-      {/* Review workload snapshot (reviewers) */}
-      {isReviewer && (
+      {/* Review workload snapshot — reviewers see their first-review queue,
+          org admins see what's cleared first review and needs their final
+          approval. */}
+      {(isReviewer || isOrgAdmin) && (
         <ReviewerWork
           campaigns={campaignRecords}
+          payouts={payouts}
           reviewerId={sessionUser?.id ?? null}
+          stage={isOrgAdmin ? 2 : 1}
         />
       )}
 
@@ -461,10 +455,10 @@ export default function DashboardPage() {
                 </p>
               </div>
               <ul className="text-xs text-muted-foreground space-y-1.5">
-                {!isReviewer && (
+                {!isReviewer && !isOrgAdmin && (
                   <li className="flex items-center gap-2">
                     <BadgeCheck className="w-3.5 h-3.5 text-emerald-600" />
-                    {consentedDonors.length} consented donors ready to engage
+                    {consentedCount} consented donors ready to engage
                   </li>
                 )}
                 <li className="flex items-center gap-2">

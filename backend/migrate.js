@@ -12,6 +12,18 @@ const MIGRATIONS = [
   `ALTER TABLE campaigns ADD COLUMN story_sw     TEXT NULL AFTER name_sw`,
   `ALTER TABLE campaigns ADD COLUMN category_sw  VARCHAR(100) NULL AFTER story_sw`,
 
+  // campaigns — "Scope" (what the funds will deliver) and "Acceptance"
+  // (how supporters know a contribution was accepted / the campaign delivered)
+  // shown on the public campaign tabs. Swahili variants are auto-filled on save
+  // alongside name/story/category.
+  `ALTER TABLE campaigns ADD COLUMN scope           TEXT NULL AFTER category_sw`,
+  `ALTER TABLE campaigns ADD COLUMN acceptance      TEXT NULL AFTER scope`,
+  `ALTER TABLE campaigns ADD COLUMN scope_sw        TEXT NULL AFTER acceptance`,
+  `ALTER TABLE campaigns ADD COLUMN acceptance_sw   TEXT NULL AFTER scope_sw`,
+
+  // donor_pools — extra segment categories beyond the original four.
+  `ALTER TABLE donor_pools MODIFY COLUMN category ENUM('FAMILY','SCHOOL','STUDENT','OFFICE','ALUMNI','COMMUNITY','CHURCH','BUSINESS','FRIENDS','OTHER') NOT NULL DEFAULT 'FAMILY'`,
+
   // campaigns — featured columns
   `ALTER TABLE campaigns ADD COLUMN is_featured  TINYINT(1) NOT NULL DEFAULT 0 AFTER donor_count`,
   `ALTER TABLE campaigns ADD COLUMN featured_at  DATETIME NULL AFTER is_featured`,
@@ -23,6 +35,21 @@ const MIGRATIONS = [
   `ALTER TABLE payouts ADD COLUMN reason      TEXT NULL AFTER amount`,
   `ALTER TABLE payouts ADD CONSTRAINT fk_payouts_campaign FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE SET NULL`,
   `ALTER TABLE payouts ADD INDEX idx_payouts_campaign_status (campaign_id, status)`,
+
+  // payouts — two-stage approval chain (mirrors two-stage campaign approval):
+  //   REQUESTED -> REVIEWED (stage 1, a REVIEWER/SUPER_ADMIN, not the requester)
+  //             -> APPROVED (stage 2, an ORG_ADMIN/SUPER_ADMIN, a different person, not the requester)
+  //             -> PAID     (SUPER_ADMIN marks the gateway transfer done)
+  // first_approved_by_id/at track the stage-1 sign-off so the service can require
+  // a *different* person for stage 2; approved_by_id/at stay as the stage-2 columns.
+  `ALTER TABLE payouts MODIFY COLUMN status ENUM('REQUESTED','REVIEWED','APPROVED','PAID','REJECTED') NOT NULL DEFAULT 'REQUESTED'`,
+  `ALTER TABLE payouts ADD COLUMN first_approved_by_id BIGINT UNSIGNED NULL AFTER requested_by_id`,
+  `ALTER TABLE payouts ADD COLUMN first_approved_at DATETIME NULL AFTER first_approved_by_id`,
+  `ALTER TABLE payouts ADD CONSTRAINT fk_payouts_first_approver FOREIGN KEY (first_approved_by_id) REFERENCES users(id) ON DELETE SET NULL`,
+
+  // users — force a password change on first login for admin-created accounts
+  // (createUser / resendInvite set this to 1; changePassword clears it).
+  `ALTER TABLE users ADD COLUMN must_change_password TINYINT(1) NOT NULL DEFAULT 0 AFTER status`,
 
   // organizations — per-org default campaign service fee (%), editable by
   // ORG_ADMIN/SUPER_ADMIN; falls back to DEFAULT_SERVICE_FEE_PERCENT when a
@@ -36,6 +63,11 @@ const MIGRATIONS = [
   // SUPER_ADMIN) — detach any reviewer that an earlier build scoped to an org.
   // Bounded by IS NOT NULL, so a no-op after the first run.
   `UPDATE users SET organization_id = NULL WHERE role = 'REVIEWER' AND organization_id IS NOT NULL`,
+
+  // ORG_ADMIN is now also platform-level: it gives the final (stage-2) approval
+  // on campaigns and payouts across EVERY organisation, not one. Detach any
+  // org-admin an earlier build scoped to a single org. Idempotent.
+  `UPDATE users SET organization_id = NULL WHERE role = 'ORG_ADMIN' AND organization_id IS NOT NULL`,
 
   // campaigns — custom service-fee proposal/approval flow. A manager's proposed
   // rate is parked in proposed_service_fee_percent (fee_status='PENDING') until
@@ -55,6 +87,11 @@ const MIGRATIONS = [
   `ALTER TABLE campaigns ADD COLUMN first_approved_by BIGINT UNSIGNED NULL AFTER featured_at`,
   `ALTER TABLE campaigns ADD COLUMN first_approved_at DATETIME NULL AFTER first_approved_by`,
   `ALTER TABLE campaigns ADD CONSTRAINT fk_campaigns_first_approved_by FOREIGN KEY (first_approved_by) REFERENCES users(id) ON DELETE SET NULL`,
+
+  // campaigns — a hard "reject" is now recoverable: the campaign moves to
+  // REJECTED (not the terminal CANCELLED) and the manager can fix + resubmit it
+  // straight back to PENDING (see submitCampaign / rejectCampaign).
+  `ALTER TABLE campaigns MODIFY COLUMN status ENUM('DRAFT','PENDING','REVIEWED','ACTIVE','PAUSED','COMPLETED','CANCELLED','REJECTED') NOT NULL DEFAULT 'DRAFT'`,
 
   // payment_attempts — donor_email/provider/campaign_donor_target_id are in
   // database.sql but were missing here, so any DB older than that addition
@@ -168,6 +205,21 @@ const MIGRATIONS = [
     CONSTRAINT fk_gift_donor    FOREIGN KEY (donor_id) REFERENCES donors(id) ON DELETE SET NULL,
     CONSTRAINT fk_gift_recorder FOREIGN KEY (recorded_by_id) REFERENCES users(id) ON DELETE SET NULL,
     INDEX idx_gift_campaign (campaign_id)
+  ) ENGINE=InnoDB`,
+
+  // password_reset_tokens — "forgot password" flow. Only the SHA-256 hash of
+  // the token is stored; the raw token is in the emailed link. Single-use
+  // (used_at) and short-lived (expires_at, ~1h).
+  `CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id         BIGINT UNSIGNED NOT NULL,
+    token_hash      CHAR(64) NOT NULL,
+    expires_at      DATETIME NOT NULL,
+    used_at         DATETIME NULL,
+    created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_prt_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_prt_token (token_hash),
+    INDEX idx_prt_user (user_id)
   ) ENGINE=InnoDB`,
 
   // organization_settings — org-wide preferences edited on the dashboard

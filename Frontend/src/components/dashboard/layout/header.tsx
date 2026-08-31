@@ -50,7 +50,7 @@ function relativeTime(iso: string): string {
   return new Date(iso).toLocaleDateString();
 }
 
-const NOTIF_TYPES = new Set(["donation", "campaign", "system", "user"]);
+const NOTIF_TYPES = new Set(["donation", "campaign", "system", "user", "payout"]);
 
 export function Header({ onMobileMenuToggle, mobileMenuOpen }: HeaderProps) {
   const router = useRouter();
@@ -154,6 +154,7 @@ export function Header({ onMobileMenuToggle, mobileMenuOpen }: HeaderProps) {
                           | "campaign"
                           | "system"
                           | "user"
+                          | "payout"
                       }
                     />
                     <div className="min-w-0 flex-1">

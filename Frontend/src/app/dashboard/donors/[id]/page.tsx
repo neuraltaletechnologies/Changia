@@ -17,6 +17,22 @@ import {
 import { Button } from "@/components/dashboard/ui/button";
 import { Avatar, AvatarFallback } from "@/components/dashboard/ui/avatar";
 import { Separator } from "@/components/dashboard/ui/separator";
+import { Input } from "@/components/dashboard/ui/input";
+import { Label } from "@/components/dashboard/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/dashboard/ui/select";
+import {
+  Sheet,
+  SheetContent,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/dashboard/ui/sheet";
 import {
   donorApi,
   donorFullName,
@@ -341,7 +357,7 @@ export default function DonorProfilePage() {
       </div>
 
       {editing && (
-        <EditDonorDialog
+        <EditDonorSheet
           donor={donor}
           onClose={() => setEditing(false)}
           onSaved={() => {
@@ -432,7 +448,7 @@ function PaymentMethodRow({
   );
 }
 
-function EditDonorDialog({
+function EditDonorSheet({
   donor,
   onClose,
   onSaved,
@@ -456,8 +472,9 @@ function EditDonorDialog({
     preferredChannel: donor.preferredChannel ?? "SMS",
   });
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  const submit = async () => {
     setSaving(true);
     setError(null);
     try {
@@ -469,107 +486,124 @@ function EditDonorDialog({
     }
   };
 
-  const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/60 p-4" role="dialog" aria-modal="true">
-      <div className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-xl bg-card border border-border shadow-xl">
-        <form onSubmit={submit} className="p-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold text-foreground">Edit donor</h2>
-            <Button size="xs" variant="ghost" onClick={onClose} type="button">
-              ✕
-            </Button>
-          </div>
-
+    <Sheet open onOpenChange={(o) => !o && onClose()}>
+      <SheetContent side="right">
+        <SheetHeader>
+          <SheetTitle>Edit donor</SheetTitle>
+        </SheetHeader>
+        <div className="flex-1 overflow-y-auto px-4 space-y-4">
           <div className="grid grid-cols-2 gap-3">
-            <Field label="First name">
-              <input
-                className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            <div className="space-y-1.5">
+              <Label className="text-xs">First name</Label>
+              <Input
                 value={form.firstName}
                 onChange={(e) => set("firstName", e.target.value)}
+                className="h-9 text-sm"
               />
-            </Field>
-            <Field label="Last name">
-              <input
-                className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Last name</Label>
+              <Input
                 value={form.lastName}
                 onChange={(e) => set("lastName", e.target.value)}
+                className="h-9 text-sm"
               />
-            </Field>
+            </div>
           </div>
 
-          <Field label="Email">
-            <input
+          <div className="space-y-1.5">
+            <Label className="text-xs">Email</Label>
+            <Input
               type="email"
-              className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
               value={form.email}
               onChange={(e) => set("email", e.target.value)}
+              className="h-9 text-sm"
             />
-          </Field>
+          </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Phone">
-              <input
-                className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            <div className="space-y-1.5">
+              <Label className="text-xs">Phone</Label>
+              <Input
                 value={form.phone}
                 onChange={(e) => set("phone", e.target.value)}
+                placeholder="+255 7XX XXX XXX"
+                className="h-9 text-sm"
               />
-            </Field>
-            <Field label="Location">
-              <input
-                className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Location</Label>
+              <Input
                 value={form.location}
                 onChange={(e) => set("location", e.target.value)}
+                className="h-9 text-sm"
               />
-            </Field>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Gender">
-              <select
-                className="w-full h-9 rounded-lg border border-border bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            <div className="space-y-1.5">
+              <Label className="text-xs">Gender</Label>
+              <Select
                 value={form.gender}
-                onChange={(e) => set("gender", e.target.value)}
+                onValueChange={(v) => set("gender", v ?? "UNSPECIFIED")}
               >
-                <option value="UNSPECIFIED">Unspecified</option>
-                <option value="MALE">Male</option>
-                <option value="FEMALE">Female</option>
-              </select>
-            </Field>
-            <Field label="Position">
-              <input
-                className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="UNSPECIFIED">Unspecified</SelectItem>
+                  <SelectItem value="MALE">Male</SelectItem>
+                  <SelectItem value="FEMALE">Female</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Position</Label>
+              <Input
                 value={form.position}
                 onChange={(e) => set("position", e.target.value)}
+                placeholder="e.g. Head Teacher"
+                className="h-9 text-sm"
               />
-            </Field>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Status">
-              <select
-                className="w-full h-9 rounded-lg border border-border bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            <div className="space-y-1.5">
+              <Label className="text-xs">Status</Label>
+              <Select
                 value={form.status}
-                onChange={(e) => set("status", e.target.value)}
+                onValueChange={(v) => set("status", v ?? "PROSPECT")}
               >
-                <option value="ACTIVE">Active</option>
-                <option value="PROSPECT">Prospect</option>
-                <option value="LAPSED">Lapsed</option>
-                <option value="INACTIVE">Inactive</option>
-              </select>
-            </Field>
-            <Field label="Consent">
-              <select
-                className="w-full h-9 rounded-lg border border-border bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ACTIVE">Active</SelectItem>
+                  <SelectItem value="PROSPECT">Prospect</SelectItem>
+                  <SelectItem value="LAPSED">Lapsed</SelectItem>
+                  <SelectItem value="INACTIVE">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Consent</Label>
+              <Select
                 value={form.consentStatus}
-                onChange={(e) => set("consentStatus", e.target.value)}
+                onValueChange={(v) => set("consentStatus", v ?? "PENDING")}
               >
-                <option value="CONSENTED">Consented</option>
-                <option value="PENDING">Pending</option>
-                <option value="WITHDRAWN">Withdrawn</option>
-              </select>
-            </Field>
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="CONSENTED">Consented</SelectItem>
+                  <SelectItem value="PENDING">Pending</SelectItem>
+                  <SelectItem value="WITHDRAWN">Withdrawn</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {error && (
@@ -577,18 +611,17 @@ function EditDonorDialog({
               {error}
             </div>
           )}
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button size="sm" variant="outline" onClick={onClose} type="button">
-              Cancel
-            </Button>
-            <Button size="sm" type="submit" disabled={saving}>
-              {saving ? "Saving…" : "Save changes"}
-            </Button>
-          </div>
-        </form>
-      </div>
-    </div>
+        </div>
+        <SheetFooter className="flex-row justify-end">
+          <Button size="sm" variant="outline" onClick={onClose} disabled={saving}>
+            Cancel
+          </Button>
+          <Button size="sm" onClick={submit} disabled={saving}>
+            {saving ? "Saving…" : "Save changes"}
+          </Button>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }
 
@@ -606,8 +639,7 @@ function AddPaymentMethodDialog({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const submit = async () => {
     setSaving(true);
     setError(null);
     try {
@@ -623,60 +655,56 @@ function AddPaymentMethodDialog({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/60 p-4" role="dialog" aria-modal="true">
-      <form onSubmit={submit} className="w-full max-w-sm rounded-xl bg-card border border-border shadow-xl p-5 space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold text-foreground">Add payment method</h2>
-          <Button size="xs" variant="ghost" onClick={onClose} type="button">
-            ✕
-          </Button>
-        </div>
-
-        <Field label="Method">
-          <select
-            className="w-full h-9 rounded-lg border border-border bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-            value={method}
-            onChange={(e) => setMethod(e.target.value as PaymentMethodType)}
-          >
-            {Object.entries(METHOD_LABEL).map(([v, l]) => (
-              <option key={v} value={v}>{l}</option>
-            ))}
-          </select>
-        </Field>
-
-        <Field label="Account / reference">
-          <input
-            className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-            placeholder="e.g. phone number"
-            value={accountRef}
-            onChange={(e) => setAccountRef(e.target.value)}
-          />
-        </Field>
-
-        {error && (
-          <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-            {error}
+    <Sheet open onOpenChange={(o) => !o && onClose()}>
+      <SheetContent side="right">
+        <SheetHeader>
+          <SheetTitle>Add payment method</SheetTitle>
+        </SheetHeader>
+        <div className="flex-1 overflow-y-auto px-4 space-y-4">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Method</Label>
+            <Select
+              value={method}
+              onValueChange={(v) => setMethod((v ?? "MOMO") as PaymentMethodType)}
+            >
+              <SelectTrigger className="h-9 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(METHOD_LABEL).map(([v, l]) => (
+                  <SelectItem key={v} value={v}>
+                    {l}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-        )}
 
-        <div className="flex justify-end gap-2 pt-2">
-          <Button size="sm" variant="outline" onClick={onClose} type="button">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Account / reference</Label>
+            <Input
+              placeholder="e.g. phone number"
+              value={accountRef}
+              onChange={(e) => setAccountRef(e.target.value)}
+              className="h-9 text-sm"
+            />
+          </div>
+
+          {error && (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+              {error}
+            </div>
+          )}
+        </div>
+        <SheetFooter className="flex-row justify-end">
+          <Button size="sm" variant="outline" onClick={onClose} disabled={saving}>
             Cancel
           </Button>
-          <Button size="sm" type="submit" disabled={saving}>
+          <Button size="sm" onClick={submit} disabled={saving}>
             {saving ? "Saving…" : "Add method"}
           </Button>
-        </div>
-      </form>
-    </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <span className="block text-xs font-medium text-muted-foreground mb-1">{label}</span>
-      {children}
-    </label>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }

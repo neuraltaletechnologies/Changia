@@ -15,6 +15,7 @@ import {
   ArrowLeft,
   BellRing,
   Calendar,
+  Building2,
   Check,
   FileWarning,
   Gift,
@@ -73,6 +74,7 @@ import {
   formatTZSCompact,
   PAY_STATUS_META,
   type CampaignRecord,
+  type ReviewTrailEntry,
   type CampaignTargetsResponse,
   type CampaignTarget,
   type CampaignGift,
@@ -89,6 +91,9 @@ import { useRole } from "@/hooks/use-role";
 import { cn } from "@/lib/dashboard/utils";
 import { CampaignPhotosCard } from "@/components/dashboard/campaigns/campaign-photos-card";
 import { ReviewDecisionDialog } from "@/components/dashboard/campaigns/review-decision-dialog";
+import { ReviewTimeline } from "@/components/dashboard/widgets/review-timeline";
+import { PendingResendsPanel } from "@/components/dashboard/reminders/pending-resends-panel";
+import { SchedulesPanel } from "@/components/dashboard/reminders/schedules-panel";
 
 const STATUS_BADGE: Record<string, string> = {
   DRAFT: "bg-slate-50 text-slate-600 border-slate-200",
@@ -98,6 +103,7 @@ const STATUS_BADGE: Record<string, string> = {
   PAUSED: "bg-amber-50 text-amber-700 border-amber-200",
   COMPLETED: "bg-sky-50 text-sky-700 border-sky-200",
   CANCELLED: "bg-rose-50 text-rose-700 border-rose-200",
+  REJECTED: "bg-rose-50 text-rose-700 border-rose-200",
 };
 
 export default function CampaignDetailPage() {
@@ -106,12 +112,19 @@ export default function CampaignDetailPage() {
     isSuperAdmin,
     isOrgAdmin,
     isCampaignManager,
+    isReviewer,
     hasPermission,
     canReviewCampaign,
     canFinalApproveCampaign,
     user,
   } = useRole();
   const isAdmin = isSuperAdmin || isOrgAdmin;
+  // A REVIEWER has no Campaigns list — they arrive here from the Approvals
+  // queue, so that's where "Back" returns them.
+  const backHref = isReviewer
+    ? "/dashboard/campaigns/approvals"
+    : "/dashboard/campaigns";
+  const backLabel = isReviewer ? "Back to Approvals" : "Back to Campaigns";
   // REVIEWER can approve too (two-stage chain) — isAdmin above stays reserved
   // for admin-only actions (delete, feature) further down this page.
   const canApproveRole = hasPermission("campaign:approve");
@@ -202,10 +215,10 @@ export default function CampaignDetailPage() {
           variant="outline"
           size="sm"
           nativeButton={false}
-          render={<Link href="/dashboard/campaigns" />}
+          render={<Link href={backHref} />}
         >
           <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
-          Back to Campaigns
+          {backLabel}
         </Button>
       </div>
     );
@@ -217,6 +230,14 @@ export default function CampaignDetailPage() {
       : 0;
   const summary = board?.summary;
 
+  // Editing a campaign's content is for the people who build it: its creator,
+  // an assigned manager, or a super admin. An ORG_ADMIN only edits campaigns
+  // they created themselves — for anyone else's they use "Request changes".
+  const isCreator = String(campaign.createdBy ?? "") === uid;
+  const isAssignedManager =
+    isCampaignManager && !!campaign.assignments?.some((a) => String(a.user.id) === uid);
+  const canEditContent = isSuperAdmin || isCreator || isAssignedManager;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -224,10 +245,10 @@ export default function CampaignDetailPage() {
           variant="outline"
           size="sm"
           nativeButton={false}
-          render={<Link href="/dashboard/campaigns" />}
+          render={<Link href={backHref} />}
         >
           <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
-          Back to Campaigns
+          {backLabel}
         </Button>
         <div className="flex items-center gap-2">
           {(isAdmin || isCampaignManager) && (
@@ -348,6 +369,26 @@ export default function CampaignDetailPage() {
           </div>
         )}
 
+      {campaign.status === "REJECTED" && (
+        <div className="flex items-start gap-2.5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          <XCircle className="w-4 h-4 mt-0.5 shrink-0" />
+          <span>
+            <strong>This campaign was rejected by a reviewer.</strong>
+            {campaign.reviewNotes ? <> Reason: {campaign.reviewNotes}</> : null}
+            {canEditContent && (
+              <>
+                {" "}
+                <Link href={`/dashboard/campaigns/${id}/edit`} className="underline">
+                  Edit the campaign
+                </Link>{" "}
+                to address it, then re-submit for approval — it goes back to a
+                reviewer for a fresh first approval.
+              </>
+            )}
+          </span>
+        </div>
+      )}
+
       {campaign.status === "DRAFT" && (
         <div className="flex items-start gap-2.5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
           <FileWarning className="w-4 h-4 mt-0.5 shrink-0" />
@@ -380,6 +421,12 @@ export default function CampaignDetailPage() {
                 {campaign.name}
               </h1>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-muted-foreground">
+                {campaign.organizationName && (
+                  <span className="inline-flex items-center gap-1">
+                    <Building2 className="w-3.5 h-3.5" />
+                    {campaign.organizationName}
+                  </span>
+                )}
                 {campaign.category && (
                   <span className="inline-flex items-center gap-1">
                     <Megaphone className="w-3.5 h-3.5" />
@@ -429,43 +476,55 @@ export default function CampaignDetailPage() {
                   {campaign.isFeatured ? "Featured" : "Feature on homepage"}
                 </Button>
               )}
-              {campaign.status === "DRAFT" && (isAdmin || isCampaignManager) && (() => {
-                // The essentials POST /:id/submit enforces server-side — mirror
-                // them here so the button explains what's still missing.
-                const missing = [
-                  !campaign.imageUrl && "a cover photo",
-                  !campaign.contactPhone && "a contact phone",
-                  (!campaign.startDate || !campaign.endDate) && "start and end dates",
-                ].filter(Boolean) as string[];
-                return (
-                  <>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      nativeButton={false}
-                      render={<Link href={`/dashboard/campaigns/${id}/edit`} />}
-                    >
-                      Edit
-                    </Button>
-                    <Button
-                      size="sm"
-                      disabled={acting || missing.length > 0}
-                      title={
-                        missing.length > 0
-                          ? `Add ${missing.join(", ")} before submitting`
-                          : undefined
-                      }
-                      onClick={() => act(() => campaignApi.submit(id))}
-                    >
-                      {acting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5 mr-1" />}
-                      Submit for approval
-                    </Button>
-                  </>
-                );
-              })()}
+              {(campaign.status === "DRAFT" || campaign.status === "REJECTED") &&
+                canEditContent &&
+                (() => {
+                  const isResubmit = campaign.status === "REJECTED";
+                  // The essentials POST /:id/submit enforces server-side — mirror
+                  // them here so the button explains what's still missing.
+                  const missing = [
+                    !campaign.imageUrl && "a cover photo",
+                    !campaign.contactPhone && "a contact phone",
+                    (!campaign.startDate || !campaign.endDate) && "start and end dates",
+                  ].filter(Boolean) as string[];
+                  return (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        nativeButton={false}
+                        render={<Link href={`/dashboard/campaigns/${id}/edit`} />}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        size="sm"
+                        disabled={acting || missing.length > 0}
+                        title={
+                          missing.length > 0
+                            ? `Add ${missing.join(", ")} before submitting`
+                            : undefined
+                        }
+                        onClick={() => act(() => campaignApi.submit(id))}
+                      >
+                        {acting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5 mr-1" />}
+                        {isResubmit ? "Re-submit for approval" : "Submit for approval"}
+                      </Button>
+                    </>
+                  );
+                })()}
               {(campaign.status === "PENDING" || campaign.status === "REVIEWED") &&
                 (() => {
                   const stage = campaign.status === "PENDING" ? 1 : 2;
+                  // Sent back for changes — parked with the manager to re-edit
+                  // and resubmit; no reviewer action until it comes back.
+                  if (stage === 1 && campaign.reviewState === "CHANGES_REQUESTED") {
+                    return canApproveRole ? (
+                      <span className="text-[11px] text-muted-foreground italic">
+                        Sent back for changes — waiting for the manager to resubmit
+                      </span>
+                    ) : null;
+                  }
                   const canActThisStage =
                     stage === 1 ? canReviewCampaign : canFinalApproveCampaign;
                   const isCreator = String(campaign.createdBy ?? "") === uid;
@@ -585,7 +644,8 @@ export default function CampaignDetailPage() {
               {isAdmin &&
                 (campaign.status === "DRAFT" ||
                   campaign.status === "PENDING" ||
-                  campaign.status === "REVIEWED") && (
+                  campaign.status === "REVIEWED" ||
+                  campaign.status === "REJECTED") && (
                 <Button
                   size="sm"
                   variant="outline"
@@ -646,7 +706,8 @@ export default function CampaignDetailPage() {
           <TabsTrigger value="user">
             User ({campaign.assignments?.length ?? 0})
           </TabsTrigger>
-          <TabsTrigger value="translation">Swahili</TabsTrigger>
+          <TabsTrigger value="reminders">Reminders</TabsTrigger>
+          <TabsTrigger value="history">History</TabsTrigger>
           {campaign.changeRequest &&
             ["PENDING", "REVIEWED", "CHANGES_REQUESTED"].includes(
               campaign.changeRequest.status
@@ -707,7 +768,7 @@ export default function CampaignDetailPage() {
             <CampaignPhotosCard
               campaignId={id}
               images={campaign.images ?? []}
-              canManage={isAdmin || isCampaignManager}
+              canManage={canEditContent}
               onChanged={refresh}
             />
           </div>
@@ -753,8 +814,17 @@ export default function CampaignDetailPage() {
           />
         </TabsContent>
 
-        <TabsContent value="translation" className="pt-2">
-          <TranslationTab campaign={campaign} campaignId={id} onSaved={refresh} />
+        <TabsContent value="reminders" className="pt-2">
+          <CampaignRemindersTab
+            campaignId={id}
+            hasTrackedDonors={Boolean(summary && summary.totalTargets > 0)}
+            canManage={isAdmin || isCampaignManager}
+            onSendNow={() => setReminderOpen(true)}
+          />
+        </TabsContent>
+
+        <TabsContent value="history" className="pt-2">
+          <CampaignHistoryTab campaignId={id} />
         </TabsContent>
 
         {(campaign.status === "ACTIVE" || campaign.status === "PAUSED") && (
@@ -1310,97 +1380,101 @@ function UserTab({
   );
 }
 
-// ─── Swahili translation tab ───────────────────────────────────────────────
+// ─── Reminders tab (per-campaign) ──────────────────────────────────────────
+//
+// Everything the /dashboard/reminders page offers, scoped to this one campaign:
+// a one-off send, the pending auto-resend cycles waiting for confirmation, and
+// the auto-resend schedules that target this campaign.
 
-function TranslationTab({
-  campaign,
+function CampaignRemindersTab({
   campaignId,
-  onSaved,
+  hasTrackedDonors,
+  canManage,
+  onSendNow,
 }: {
-  campaign: CampaignRecord;
   campaignId: string;
-  onSaved: () => void;
+  hasTrackedDonors: boolean;
+  canManage: boolean;
+  onSendNow: () => void;
 }) {
-  const [nameSw, setNameSw] = useState(campaign.nameSw ?? "");
-  const [categorySw, setCategorySw] = useState(campaign.categorySw ?? "");
-  const [storySw, setStorySw] = useState(campaign.storySw ?? "");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
+  return (
+    <div className="space-y-8">
+      <div className="bg-card border border-border rounded-xl p-5 shadow-sm flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold text-foreground">Send a reminder now</h2>
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            A one-off nudge to this campaign&apos;s unpaid / partial donors — you
+            pick the recipients, channel and message.
+          </p>
+        </div>
+        {canManage && (
+          <Button size="sm" disabled={!hasTrackedDonors} onClick={onSendNow}>
+            <BellRing className="w-3.5 h-3.5 mr-1.5" />
+            Send reminder
+          </Button>
+        )}
+      </div>
+      {!hasTrackedDonors && (
+        <p className="text-[11px] text-muted-foreground -mt-4">
+          Import a donor pool on the Donor Board tab first — reminders go to tracked donors.
+        </p>
+      )}
 
-  const save = async () => {
-    setSaving(true);
-    setError(null);
-    setSaved(false);
-    try {
-      await campaignApi.setTranslations(campaignId, { nameSw, storySw, categorySw });
-      setSaved(true);
-      onSaved();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to save the translation.");
-    } finally {
-      setSaving(false);
-    }
-  };
+      <PendingResendsPanel campaignId={Number(campaignId)} />
+
+      <div className="border-t border-border" />
+
+      <SchedulesPanel campaignId={Number(campaignId)} canManage={canManage} />
+    </div>
+  );
+}
+
+// ─── History / review timeline tab ─────────────────────────────────────────
+
+/**
+ * Full chronological trail of everything a campaign has been through —
+ * submitted, first-reviewed, sent back (with the reason), edited (with which
+ * fields changed), re-submitted, approved. Everyone with campaign access sees
+ * the same timeline, so a reviewer picking a campaign back up can see exactly
+ * why an admin sent it back and what the manager changed since.
+ */
+function CampaignHistoryTab({ campaignId }: { campaignId: string }) {
+  const [entries, setEntries] = useState<ReviewTrailEntry[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    campaignApi
+      .history(campaignId)
+      .then((r) => {
+        if (!cancelled) setEntries(r);
+      })
+      .catch((e) => {
+        if (!cancelled)
+          setError(e instanceof Error ? e.message : "Failed to load the campaign history.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [campaignId]);
+
+  if (error) {
+    return (
+      <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+        {error}
+      </div>
+    );
+  }
+  if (entries === null) {
+    return <div className="h-40 bg-card border border-border rounded-xl animate-pulse" />;
+  }
 
   return (
-    <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
-      <div className="px-5 py-4 border-b border-border">
-        <h2 className="text-sm font-semibold text-foreground">Swahili translation</h2>
-        <p className="text-[11px] text-muted-foreground mt-0.5">
-          Optional — shown on the /sw public pages. Leave blank to fall back to the English
-          content above. Unlike the main details, this can be edited at any campaign status.
-        </p>
-      </div>
-      <div className="p-5 space-y-4">
-        <div className="grid gap-1.5">
-          <Label htmlFor="name-sw" className="text-xs">Campaign name (Swahili)</Label>
-          <Input
-            id="name-sw"
-            value={nameSw}
-            onChange={(e) => setNameSw(e.target.value)}
-            placeholder={campaign.name}
-            className="h-9"
-          />
-        </div>
-        <div className="grid gap-1.5">
-          <Label htmlFor="category-sw" className="text-xs">Category (Swahili)</Label>
-          <Input
-            id="category-sw"
-            value={categorySw}
-            onChange={(e) => setCategorySw(e.target.value)}
-            placeholder={campaign.category ?? ""}
-            className="h-9"
-          />
-        </div>
-        <div className="grid gap-1.5">
-          <Label htmlFor="story-sw" className="text-xs">Story (Swahili)</Label>
-          <Textarea
-            id="story-sw"
-            value={storySw}
-            onChange={(e) => setStorySw(e.target.value)}
-            placeholder={campaign.story ?? ""}
-            className="min-h-32"
-          />
-        </div>
-
-        {error && (
-          <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-            {error}
-          </div>
-        )}
-        {saved && !error && (
-          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
-            Translation saved.
-          </div>
-        )}
-
-        <Button size="sm" onClick={save} disabled={saving}>
-          {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : null}
-          Save translation
-        </Button>
-      </div>
-    </div>
+    <ReviewTimeline
+      entries={entries}
+      title="Review history"
+      subtitle="Every step this campaign has gone through, most recent first."
+    />
   );
 }
 
@@ -2198,6 +2272,8 @@ function AddGiftForm({
 const CR_FIELD_LABELS: Record<string, string> = {
   name: "Name",
   story: "Story",
+  scope: "Scope",
+  acceptance: "Acceptance",
   goalAmount: "Goal amount",
   serviceFeePercent: "Service fee %",
   category: "Category",
@@ -2235,6 +2311,8 @@ function ChangeRequestTab({
   const current: Record<string, unknown> = {
     name: campaign.name,
     story: campaign.story,
+    scope: campaign.scope,
+    acceptance: campaign.acceptance,
     goalAmount: campaign.goalAmount,
     serviceFeePercent: campaign.serviceFeePercent,
     category: campaign.category,
@@ -2368,7 +2446,9 @@ function PayoutRequestTab({
     return <div className="h-40 bg-card border border-border rounded-xl animate-pulse" />;
   }
 
-  const hasPending = payouts.some((p) => p.status === "REQUESTED");
+  // A payout still in the approval chain (first review OR final approval) blocks
+  // a new request — matches createPayout's "status IN ('REQUESTED','REVIEWED')".
+  const hasPending = payouts.some((p) => p.status === "REQUESTED" || p.status === "REVIEWED");
 
   return (
     <div className="space-y-4">

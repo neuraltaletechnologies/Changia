@@ -4,6 +4,7 @@ const { ApiError } = require("../../utils/ApiError");
 const { env } = require("../../config");
 const { deleteUploadedFiles } = require("../../middlewares/upload");
 const { sendEmail, buildCampaignLinkEmail } = require("../../utils/email");
+const { translateFields } = require("../../utils/translate");
 const notificationService = require("../notification/service");
 
 // ─── Strict ordered approval chain ──────────────────────────────────────────
@@ -20,6 +21,8 @@ const STAGE2_ROLES = ["ORG_ADMIN", "SUPER_ADMIN"];
 const MATERIAL_FIELDS = [
   "name",
   "story",
+  "scope",
+  "acceptance",
   "goalAmount",
   "serviceFeePercent",
   "category",
@@ -66,6 +69,39 @@ function campaignLink(campaignId) {
   return `/dashboard/campaigns/${campaignId}`;
 }
 
+// English → Swahili is an automatic process: whenever a campaign's English
+// name/story/category/scope/acceptance is written, we machine-translate it and
+// keep the matching *_sw column in sync. Best-effort — with no Google
+// Translate key configured, or on any failure, the *_sw column is left as-is
+// and the public /sw pages fall back to the English text.
+const SWAHILI_COLUMN = {
+  name: "name_sw",
+  story: "story_sw",
+  category: "category_sw",
+  scope: "scope_sw",
+  acceptance: "acceptance_sw",
+};
+
+/** Awaited, but never throws: translate whichever English fields are supplied
+ *  (non-empty) and write them onto the campaign's *_sw columns. */
+async function syncSwahiliTranslations(campaignId, english) {
+  try {
+    const translated = await translateFields(english);
+    const fields = [];
+    const values = [];
+    for (const [key, col] of Object.entries(SWAHILI_COLUMN)) {
+      if (translated[key] === undefined) continue;
+      fields.push(`${col} = ?`);
+      values.push(translated[key]);
+    }
+    if (fields.length === 0) return;
+    values.push(campaignId);
+    await db.execute(`UPDATE campaigns SET ${fields.join(", ")} WHERE id = ?`, values);
+  } catch (err) {
+    console.warn(`[campaign-translate] #${campaignId}: ${err.message}`);
+  }
+}
+
 /** Converts a stored "/uploads/..." web path back to an absolute disk path,
  *  so a superseded completion-report photo can be removed from disk. */
 function uploadWebPathToDiskPath(webPath) {
@@ -89,16 +125,22 @@ function slugify(name) {
 }
 
 /**
- * Returns [sqlFragment, ...params] for org-scoping queries.
- * SUPER_ADMIN, ORG_ADMIN and REVIEWER see all orgs (a REVIEWER is a
- * platform-level role that vets every org's campaigns before an org admin
- * gives the final approval); CAMPAIGN_MANAGER is scoped to their own org.
+ * Platform-level roles are not tied to one organisation: SUPER_ADMIN, REVIEWER
+ * (stage-1 "first review" on every org's campaigns) and ORG_ADMIN (stage-2
+ * "final approval" on every org's campaigns + payouts). CAMPAIGN_MANAGER is the
+ * only org-scoped role — placed under the organisation created at registration.
+ */
+const PLATFORM_ROLES = ["SUPER_ADMIN", "REVIEWER", "ORG_ADMIN"];
+function isPlatformRole(user) {
+  return !!user && PLATFORM_ROLES.includes(user.role);
+}
+
+/**
+ * Returns [sqlFragment, ...params] for org-scoping queries. Platform-level
+ * roles see every org; a CAMPAIGN_MANAGER is limited to their own.
  */
 function orgScope(organizationId, user) {
-  if (
-    user &&
-    (user.role === "SUPER_ADMIN" || user.role === "ORG_ADMIN" || user.role === "REVIEWER")
-  ) {
+  if (isPlatformRole(user)) {
     return ["", []];
   }
   if (!organizationId && organizationId !== 0) return ["", []];
@@ -186,6 +228,10 @@ function mapCampaign(c) {
     nameSw: c.name_sw,
     storySw: c.story_sw,
     categorySw: c.category_sw,
+    scope: c.scope ?? null,
+    acceptance: c.acceptance ?? null,
+    scopeSw: c.scope_sw ?? null,
+    acceptanceSw: c.acceptance_sw ?? null,
     imageUrl: toAbsoluteImageUrl(c.image_url),
     category: c.category,
     goalAmount: num(c.goal_amount),
@@ -226,6 +272,10 @@ function mapCampaign(c) {
     hasPendingChanges: Boolean(c.has_pending_changes),
     createdAt: c.created_at,
     updatedAt: c.updated_at,
+    // The owning organisation's name — campaigns are branded with it, and
+    // cross-org viewers (SUPER_ADMIN / REVIEWER) need it to tell campaigns apart.
+    organizationId: c.organization_id ?? null,
+    organizationName: c.organization_name || null,
   };
 }
 
@@ -243,6 +293,8 @@ function mapPublicCampaign(c, locale = "en") {
     name: (sw && c.name_sw) || c.name,
     slug: c.slug,
     story: (sw && c.story_sw) || c.story,
+    scope: (sw && c.scope_sw) || c.scope || null,
+    acceptance: (sw && c.acceptance_sw) || c.acceptance || null,
     imageUrl: toAbsoluteImageUrl(c.image_url),
     category: (sw && c.category_sw) || c.category,
     goalAmount: num(c.goal_amount),
@@ -264,11 +316,10 @@ function mapPublicCampaign(c, locale = "en") {
 }
 
 async function assertCampaignAccess(organizationId, user, campaignId) {
-  // REVIEWER reviews/approves whatever a manager submits org-wide (campaign
-  // approvals, closure requests, completion reports, fee proposals) — they
-  // are never added to campaign_assignments, so they'd otherwise be locked
-  // out of every campaign they're specifically authorized to act on.
-  if (!user || user.role === "SUPER_ADMIN" || user.role === "ORG_ADMIN" || user.role === "REVIEWER") {
+  // Platform-level roles (SUPER_ADMIN, REVIEWER, ORG_ADMIN) act on every org's
+  // campaigns and are never added to campaign_assignments, so they'd otherwise
+  // be locked out of every campaign they can review / approve / manage.
+  if (!user || isPlatformRole(user)) {
     return;
   }
   const rows = await db.query(
@@ -279,18 +330,34 @@ async function assertCampaignAccess(organizationId, user, campaignId) {
   if (rows.length === 0) throw ApiError.notFound("Campaign not found");
 }
 
+/**
+ * Content edits (name / story / goal / dates / translations / photos) belong to
+ * the people who build the campaign: its creator, an assigned CAMPAIGN_MANAGER
+ * (assignment already enforced by assertCampaignAccess), or a SUPER_ADMIN.
+ *
+ * An ORG_ADMIN runs the approval chain — approve, send back, pause, feature —
+ * but does NOT edit a campaign somebody else created. If it needs work they
+ * send it back with "Request changes" so the manager makes the change and it
+ * re-enters review. This keeps the reviewer/approver separate from the author.
+ */
+function assertOrgAdminMayEdit(campaign, actor) {
+  if (!actor || actor.role !== "ORG_ADMIN") return;
+  const creatorId = campaign.created_by_id ?? null;
+  if (Number(creatorId) !== Number(actor.id)) {
+    throw ApiError.forbidden(
+      'You can only edit campaigns you created. Send this one back to its manager with "Request changes" if it needs work.',
+      "NOT_CAMPAIGN_EDITOR"
+    );
+  }
+}
+
 async function listCampaigns(organizationId, filters, user) {
   const where = [];
   const values = [];
 
-  // SUPER_ADMIN / ORG_ADMIN / REVIEWER are not org-scoped (the REVIEWER vets
-  // every org's campaigns platform-wide). Everyone else sees only their org.
-  if (
-    user &&
-    user.role !== "SUPER_ADMIN" &&
-    user.role !== "ORG_ADMIN" &&
-    user.role !== "REVIEWER"
-  ) {
+  // Platform-level roles (SUPER_ADMIN, REVIEWER, ORG_ADMIN) see every org's
+  // campaigns. Only a CAMPAIGN_MANAGER is scoped to their own organisation.
+  if (user && !isPlatformRole(user)) {
     where.push("organization_id = ?");
     values.push(organizationId);
   }
@@ -316,13 +383,15 @@ async function listCampaigns(organizationId, filters, user) {
   const offset = (page - 1) * limit;
 
   const campaigns = await db.query(
-    `SELECT id, name, slug, story, name_sw, story_sw, category_sw, image_url, category, goal_amount,
+    `SELECT id, organization_id, name, slug, story, name_sw, story_sw, category_sw,
+            scope, acceptance, scope_sw, acceptance_sw, image_url, category, goal_amount,
             service_fee_percent, service_fee_amount, public_target,
             proposed_service_fee_percent, fee_status, fee_reviewed_by, fee_reviewed_at, fee_review_notes,
             minimum_amount, start_date, end_date,
             status, is_public, contact_phone, raised_amount, donor_count, is_featured, featured_at,
             first_approved_by, first_approved_at, approved_by, approved_at,
-            created_by_id, review_notes, review_state, has_pending_changes, created_at, updated_at
+            created_by_id, review_notes, review_state, has_pending_changes, created_at, updated_at,
+            (SELECT name FROM organizations WHERE id = campaigns.organization_id) AS organization_name
      FROM campaigns ${whereSql}
      ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`,
     values
@@ -354,13 +423,19 @@ async function listCampaigns(organizationId, filters, user) {
 
   const completedIds = campaigns.filter((c) => c.status === "COMPLETED").map((c) => c.id);
   const allIds = campaigns.map((c) => c.id);
-  const [reportByCampaign, imagesByCampaign, closureByCampaign, changeReqByCampaign] =
-    await Promise.all([
-      loadCompletionReportSummaries(completedIds),
-      loadCampaignImages(allIds),
-      loadLatestClosureRequests(allIds),
-      loadOpenChangeRequests(allIds),
-    ]);
+  const [
+    reportByCampaign,
+    imagesByCampaign,
+    closureByCampaign,
+    changeReqByCampaign,
+    payoutReqByCampaign,
+  ] = await Promise.all([
+    loadCompletionReportSummaries(completedIds),
+    loadCampaignImages(allIds),
+    loadLatestClosureRequests(allIds),
+    loadOpenChangeRequests(allIds),
+    loadOpenPayoutRequests(allIds),
+  ]);
 
   return {
     campaigns: campaigns.map((c) => ({
@@ -369,7 +444,10 @@ async function listCampaigns(organizationId, filters, user) {
       completionReport: reportByCampaign[c.id] || null,
       images: imagesByCampaign[c.id] || [],
       latestClosureRequest: closureByCampaign[c.id] || null,
-      changeRequest: changeReqByCampaign[c.id] || null,
+      changeRequest: changeReqByCampaign.byId[c.id] || null,
+      editRequest: changeReqByCampaign.editById[c.id] || null,
+      statusRequest: changeReqByCampaign.statusById[c.id] || null,
+      openPayoutRequest: payoutReqByCampaign[c.id] || null,
     })),
     pagination: {
       page,
@@ -384,13 +462,15 @@ async function getCampaign(organizationId, campaignId, user) {
   await assertCampaignAccess(organizationId, user, campaignId);
   const [orgSql, ...orgParams] = orgScope(organizationId, user);
   const campaigns = await db.query(
-    `SELECT id, name, slug, story, name_sw, story_sw, category_sw, image_url, category, goal_amount,
+    `SELECT id, organization_id, name, slug, story, name_sw, story_sw, category_sw,
+            scope, acceptance, scope_sw, acceptance_sw, image_url, category, goal_amount,
             service_fee_percent, service_fee_amount, public_target,
             proposed_service_fee_percent, fee_status, fee_reviewed_by, fee_reviewed_at, fee_review_notes,
             minimum_amount, start_date, end_date,
             status, is_public, contact_phone, raised_amount, donor_count, is_featured, featured_at,
             first_approved_by, first_approved_at, approved_by, approved_at,
-            created_by_id, review_notes, review_state, has_pending_changes, created_at, updated_at
+            created_by_id, review_notes, review_state, has_pending_changes, created_at, updated_at,
+            (SELECT name FROM organizations WHERE id = campaigns.organization_id) AS organization_name
      FROM campaigns WHERE id = ?${orgSql}`,
     [campaignId, ...orgParams]
   );
@@ -416,13 +496,19 @@ async function getCampaign(organizationId, campaignId, user) {
 
   const raised = num(campaign.raised_amount);
   const target = num(campaign.public_target);
-  const [reportByCampaign, imagesByCampaign, closureByCampaign, changeReqByCampaign] =
-    await Promise.all([
-      campaign.status === "COMPLETED" ? loadCompletionReportSummaries([campaign.id]) : {},
-      loadCampaignImages([campaign.id]),
-      loadLatestClosureRequests([campaign.id]),
-      loadOpenChangeRequests([campaign.id]),
-    ]);
+  const [
+    reportByCampaign,
+    imagesByCampaign,
+    closureByCampaign,
+    changeReqByCampaign,
+    payoutReqByCampaign,
+  ] = await Promise.all([
+    campaign.status === "COMPLETED" ? loadCompletionReportSummaries([campaign.id]) : {},
+    loadCampaignImages([campaign.id]),
+    loadLatestClosureRequests([campaign.id]),
+    loadOpenChangeRequests([campaign.id]),
+    loadOpenPayoutRequests([campaign.id]),
+  ]);
 
   return {
     ...mapCampaign(campaign),
@@ -432,7 +518,10 @@ async function getCampaign(organizationId, campaignId, user) {
     completionReport: reportByCampaign[campaign.id] || null,
     images: imagesByCampaign[campaign.id] || [],
     latestClosureRequest: closureByCampaign[campaign.id] || null,
-    changeRequest: changeReqByCampaign[campaign.id] || null,
+    changeRequest: changeReqByCampaign.byId[campaign.id] || null,
+    editRequest: changeReqByCampaign.editById[campaign.id] || null,
+    statusRequest: changeReqByCampaign.statusById[campaign.id] || null,
+    openPayoutRequest: payoutReqByCampaign[campaign.id] || null,
     donations: donations.map((d) => ({
       id: d.id,
       amount: num(d.amount),
@@ -459,10 +548,11 @@ async function createCampaign(organizationId, data, actor) {
   // and doesn't take effect until a reviewer/admin approves it. An
   // ORG_ADMIN/SUPER_ADMIN/REVIEWER who sets a rate applies it immediately.
 
-  // SUPER_ADMIN has no organization_id (platform-wide) — their campaigns
-  // belong to the dedicated "Changia Platform" organization.
+  // Platform-level roles (SUPER_ADMIN / ORG_ADMIN / REVIEWER) have no
+  // organization_id — a campaign they create belongs to the dedicated
+  // "Changia Platform" organization.
   const resolvedOrgId =
-    organizationId || (actor.role === "SUPER_ADMIN" ? await getOrCreatePlatformOrganizationId() : organizationId);
+    organizationId || (isPlatformRole(actor) ? await getOrCreatePlatformOrganizationId() : organizationId);
   if (!resolvedOrgId) {
     throw ApiError.badRequest("No organization to create this campaign under");
   }
@@ -525,11 +615,12 @@ async function createCampaign(organizationId, data, actor) {
   const initialStatus = startAsDraft ? "DRAFT" : "PENDING";
   const result = await db.execute(
     `INSERT INTO campaigns
-       (organization_id, created_by_id, name, slug, story, name_sw, story_sw, category_sw, image_url, category,
+       (organization_id, created_by_id, name, slug, story, name_sw, story_sw, category_sw,
+        scope, acceptance, image_url, category,
         goal_amount, service_fee_percent, service_fee_amount, public_target,
         proposed_service_fee_percent, fee_status, minimum_amount,
         start_date, end_date, contact_phone, status, is_public, approved_by, approved_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       resolvedOrgId,
       actor.id,
@@ -539,6 +630,8 @@ async function createCampaign(organizationId, data, actor) {
       data.nameSw || null,
       data.storySw || null,
       data.categorySw || null,
+      data.scope || null,
+      data.acceptance || null,
       data.imageUrl || null,
       data.category || null,
       data.goalAmount,
@@ -590,6 +683,14 @@ async function createCampaign(organizationId, data, actor) {
     [resolvedOrgId, actor.id, actor.email, String(campaignId)]
   );
 
+  await syncSwahiliTranslations(campaignId, {
+    name: data.name,
+    story: data.story,
+    category: data.category,
+    scope: data.scope,
+    acceptance: data.acceptance,
+  });
+
   // A draft isn't in the approval queue yet — the reviewers are notified only
   // once the creator submits it (see submitCampaign).
   if (!startAsDraft) {
@@ -620,6 +721,7 @@ async function updateCampaign(organizationId, campaignId, data, actor) {
   );
   const campaign = existing[0];
   if (!campaign) throw ApiError.notFound("Campaign not found");
+  assertOrgAdminMayEdit(campaign, actor);
 
   // Campaigns activate immediately on creation, so "editable" now means any
   // live/ongoing status — only the archival end states (COMPLETED/CANCELLED)
@@ -697,6 +799,8 @@ async function updateCampaign(organizationId, campaignId, data, actor) {
   const values = [];
   if (data.name !== undefined) { fields.push("name = ?"); values.push(data.name); }
   if (data.story !== undefined) { fields.push("story = ?"); values.push(data.story); }
+  if (data.scope !== undefined) { fields.push("scope = ?"); values.push(data.scope || null); }
+  if (data.acceptance !== undefined) { fields.push("acceptance = ?"); values.push(data.acceptance || null); }
   if (data.nameSw !== undefined) { fields.push("name_sw = ?"); values.push(data.nameSw || null); }
   if (data.storySw !== undefined) { fields.push("story_sw = ?"); values.push(data.storySw || null); }
   if (data.categorySw !== undefined) { fields.push("category_sw = ?"); values.push(data.categorySw || null); }
@@ -755,13 +859,25 @@ async function updateCampaign(organizationId, campaignId, data, actor) {
     await db.execute(`UPDATE campaigns SET ${fields.join(", ")} WHERE id = ?`, values);
   }
 
-  await db.execute(
-    `INSERT INTO audit_logs (organization_id, actor_id, actor_email, action, resource, resource_id, severity)
-     VALUES (?, ?, ?, 'campaign.updated', 'campaign', ?, 'INFO')`,
-    [organizationId, actor.id, actor.email, String(campaignId)]
+  // Record which fields the edit touched so the campaign history / review
+  // timeline can show a reviewer exactly what changed since the last round.
+  const editedFields = Object.keys(data).filter(
+    (k) =>
+      data[k] !== undefined &&
+      !["managerIds", "poolIds", "expectedAmounts", "asDraft"].includes(k)
+  );
+  const resubmitted =
+    campaign.status === "REVIEWED" || campaign.review_state === "CHANGES_REQUESTED";
+  await writeAudit(
+    organizationId,
+    actor,
+    resubmitted ? "campaign.resubmitted" : "campaign.updated",
+    campaignId,
+    "INFO",
+    editedFields.length > 0 ? { fields: editedFields } : undefined
   );
 
-  if (campaign.status === "REVIEWED" || campaign.review_state === "CHANGES_REQUESTED") {
+  if (resubmitted) {
     await notifySafe(notificationService.orgReviewersAndAdmins(organizationId), {
       type: "campaign",
       title: "Campaign re-submitted for review",
@@ -772,6 +888,16 @@ async function updateCampaign(organizationId, campaignId, data, actor) {
       organizationId,
     });
   }
+
+  // Auto-refresh the Swahili columns for whichever English fields changed —
+  // unless the caller explicitly supplied that field's own *Sw override.
+  await syncSwahiliTranslations(campaignId, {
+    name: data.nameSw === undefined ? data.name : undefined,
+    story: data.storySw === undefined ? data.story : undefined,
+    category: data.categorySw === undefined ? data.category : undefined,
+    scope: data.scope,
+    acceptance: data.acceptance,
+  });
 
   return getCampaign(organizationId, campaignId, actor);
 }
@@ -837,18 +963,58 @@ function mapChangeRequest(r) {
   };
 }
 
-/** { [campaignId]: mapChangeRequest } — newest open request per campaign. */
+/**
+ * Open change requests per campaign. A campaign can have an open EDIT (parked
+ * field changes) *and* an open STATUS (a manager's suspend/resume ask) at the
+ * same time, so we return them split out as well as the newest-of-any-kind:
+ *   - byId       — newest open request, any kind (legacy `changeRequest`)
+ *   - editById   — newest open EDIT request
+ *   - statusById — newest open STATUS request
+ */
 async function loadOpenChangeRequests(campaignIds) {
-  if (!campaignIds || campaignIds.length === 0) return {};
+  const result = { byId: {}, editById: {}, statusById: {} };
+  if (!campaignIds || campaignIds.length === 0) return result;
   const rows = await db.query(
     `SELECT * FROM campaign_change_requests
      WHERE campaign_id IN (?) AND status IN ('PENDING','REVIEWED','CHANGES_REQUESTED')
      ORDER BY id DESC`,
     [campaignIds]
   );
+  const { byId, editById, statusById } = result;
+  for (const r of rows) {
+    const mapped = mapChangeRequest(r);
+    if (!byId[r.campaign_id]) byId[r.campaign_id] = mapped;
+    const bucket = mapped.kind === "STATUS" ? statusById : editById;
+    if (!bucket[r.campaign_id]) bucket[r.campaign_id] = mapped;
+  }
+  return result;
+}
+
+/**
+ * { [campaignId]: { id, status, amount, requestedBy } } — the newest payout
+ * still in the approval chain (REQUESTED/REVIEWED) per campaign. Lets the
+ * campaigns list flag "a payout is already in review" instead of offering the
+ * action and having createPayout reject it.
+ */
+async function loadOpenPayoutRequests(campaignIds) {
+  if (!campaignIds || campaignIds.length === 0) return {};
+  const rows = await db.query(
+    `SELECT campaign_id, id, status, amount, requested_by_id
+       FROM payouts
+      WHERE campaign_id IN (?) AND status IN ('REQUESTED','REVIEWED')
+      ORDER BY id DESC`,
+    [campaignIds]
+  );
   const byId = {};
   for (const r of rows) {
-    if (!byId[r.campaign_id]) byId[r.campaign_id] = mapChangeRequest(r);
+    if (!byId[r.campaign_id]) {
+      byId[r.campaign_id] = {
+        id: r.id,
+        status: r.status,
+        amount: Number(r.amount),
+        requestedBy: r.requested_by_id ?? null,
+      };
+    }
   }
   return byId;
 }
@@ -881,7 +1047,17 @@ function collectMaterialChanges(campaign, data) {
     } else if (key === "minimumAmount") {
       if (Number(raw) !== num(campaign.minimum_amount)) changes[key] = Number(raw);
     } else {
-      const col = key === "name" ? campaign.name : key === "story" ? campaign.story : campaign.category;
+      // Remaining MATERIAL_FIELDS are plain text columns — compare against the
+      // matching campaign column by name.
+      const TEXT_COL = {
+        name: campaign.name,
+        story: campaign.story,
+        scope: campaign.scope,
+        acceptance: campaign.acceptance,
+        category: campaign.category,
+        contactPhone: campaign.contact_phone,
+      };
+      const col = TEXT_COL[key];
       const v = raw === "" ? null : raw ?? null;
       if (v !== (col ?? null)) changes[key] = v;
     }
@@ -972,6 +1148,8 @@ async function applyChangeRequestPayload(campaign, payload, stagedCoverPath) {
   const values = [];
   if (p.name !== undefined) { fields.push("name = ?"); values.push(p.name); }
   if (p.story !== undefined) { fields.push("story = ?"); values.push(p.story); }
+  if (p.scope !== undefined) { fields.push("scope = ?"); values.push(p.scope); }
+  if (p.acceptance !== undefined) { fields.push("acceptance = ?"); values.push(p.acceptance); }
   if (p.category !== undefined) { fields.push("category = ?"); values.push(p.category); }
   if (p.minimumAmount !== undefined) { fields.push("minimum_amount = ?"); values.push(p.minimumAmount); }
   if (p.contactPhone !== undefined) { fields.push("contact_phone = ?"); values.push(p.contactPhone); }
@@ -1009,6 +1187,16 @@ async function applyChangeRequestPayload(campaign, payload, stagedCoverPath) {
     values.push(campaign.id);
     await db.execute(`UPDATE campaigns SET ${fields.join(", ")} WHERE id = ?`, values);
   }
+
+  // The parked edit is now the live English content — re-translate the fields
+  // it touched so the Swahili pages stay in step.
+  await syncSwahiliTranslations(campaign.id, {
+    name: p.name,
+    story: p.story,
+    category: p.category,
+    scope: p.scope,
+    acceptance: p.acceptance,
+  });
 }
 
 async function listChangeRequests(organizationId, campaignId, user) {
@@ -1273,10 +1461,11 @@ async function decideChangeRequest(organizationId, campaignId, requestId, actor,
 async function setTranslations(organizationId, campaignId, data, actor) {
   const [orgSql, ...orgParams] = orgScope(organizationId, actor);
   const existing = await db.query(
-    `SELECT id FROM campaigns WHERE id = ?${orgSql}`,
+    `SELECT id, created_by_id FROM campaigns WHERE id = ?${orgSql}`,
     [campaignId, ...orgParams]
   );
   if (existing.length === 0) throw ApiError.notFound("Campaign not found");
+  assertOrgAdminMayEdit(existing[0], actor);
 
   await db.execute(
     "UPDATE campaigns SET name_sw = ?, story_sw = ?, category_sw = ? WHERE id = ?",
@@ -1300,8 +1489,12 @@ async function submitCampaign(organizationId, campaignId, actor) {
   );
   if (existing.length === 0) throw ApiError.notFound("Campaign not found");
   const draft = existing[0];
-  if (draft.status !== "DRAFT") {
-    throw ApiError.badRequest("Only draft campaigns can be submitted for approval");
+  // DRAFT is the first submission; REJECTED is a re-submission after a hard
+  // reject — the manager has (presumably) addressed the feedback and it goes
+  // straight back to the reviewer queue at stage 1.
+  const isResubmit = draft.status === "REJECTED";
+  if (draft.status !== "DRAFT" && !isResubmit) {
+    throw ApiError.badRequest("Only draft or rejected campaigns can be submitted for approval");
   }
   // The same essentials the one-step (non-draft) create flow always required —
   // enforced here so a bare draft can't reach a reviewer half-finished.
@@ -1317,18 +1510,32 @@ async function submitCampaign(organizationId, campaignId, actor) {
   }
 
   await db.execute(
-    "UPDATE campaigns SET status = 'PENDING', review_state = 'NONE' WHERE id = ?",
+    `UPDATE campaigns
+     SET status = 'PENDING', review_state = 'NONE',
+         first_approved_by = NULL, first_approved_at = NULL,
+         review_notes = ${isResubmit ? "NULL" : "review_notes"}
+     WHERE id = ?`,
     [campaignId]
   );
   await db.execute(
     `INSERT INTO audit_logs (organization_id, actor_id, actor_email, action, resource, resource_id, severity)
-     VALUES (?, ?, ?, 'campaign.submitted', 'campaign', ?, 'INFO')`,
-    [organizationId, actor.id, actor.email, String(campaignId)]
+     VALUES (?, ?, ?, ?, 'campaign', ?, 'INFO')`,
+    [
+      organizationId,
+      actor.id,
+      actor.email,
+      isResubmit ? "campaign.resubmitted" : "campaign.submitted",
+      String(campaignId),
+    ]
   );
   await notifySafe(notificationService.orgReviewersAndAdmins(organizationId), {
     type: "campaign",
-    title: "Campaign submitted for review",
-    body: "A campaign was submitted and needs a reviewer's first approval.",
+    title: isResubmit
+      ? "Rejected campaign re-submitted for review"
+      : "Campaign submitted for review",
+    body: isResubmit
+      ? "A previously rejected campaign was fixed and re-submitted — it needs a reviewer's first approval again."
+      : "A campaign was submitted and needs a reviewer's first approval.",
     link: campaignLink(campaignId),
     resource: "campaign",
     resourceId: campaignId,
@@ -1434,9 +1641,11 @@ async function approveCampaign(organizationId, campaignId, actor) {
 
 /**
  * A REVIEWER/ORG_ADMIN/SUPER_ADMIN rejects a campaign still in the approval
- * chain (PENDING / REVIEWED). Terminal: status -> CANCELLED. A reason is
- * mandatory (enforced in validation) and is stored on the campaign
- * (review_notes) so the manager sees why, plus in the audit trail.
+ * chain (PENDING / REVIEWED). status -> REJECTED — NOT terminal: the manager
+ * can fix the campaign and re-submit it straight back to PENDING (see
+ * submitCampaign). A reason is mandatory (enforced in validation) and is
+ * stored on the campaign (review_notes) so the manager sees why, plus in the
+ * audit trail.
  */
 async function rejectCampaign(organizationId, campaignId, actor, notes) {
   const reason = (notes || "").trim();
@@ -1460,14 +1669,15 @@ async function rejectCampaign(organizationId, campaignId, actor, notes) {
 
   await db.execute(
     `UPDATE campaigns
-     SET status = 'CANCELLED', is_public = 0, review_state = 'NONE', review_notes = ?
+     SET status = 'REJECTED', is_public = 0, review_state = 'NONE',
+         first_approved_by = NULL, first_approved_at = NULL, review_notes = ?
      WHERE id = ?`,
     [reason, campaignId]
   );
   await writeAudit(organizationId, actor, "campaign.rejected", campaignId, "WARNING", { notes: reason });
   await notifySafe(notificationService.campaignManagerAudience(campaignId), {
     type: "campaign",
-    title: "Campaign rejected",
+    title: "Campaign rejected — fix and re-submit",
     body: reason,
     link: campaignLink(campaignId),
     resource: "campaign",
@@ -2373,11 +2583,12 @@ async function uploadCampaignImages(organizationId, campaignId, actor, files) {
   await assertCampaignAccess(organizationId, actor, campaignId);
   const [orgSql, ...orgParams] = orgScope(organizationId, actor);
   const existing = await db.query(
-    `SELECT id, organization_id, image_url, status FROM campaigns WHERE id = ?${orgSql}`,
+    `SELECT id, organization_id, image_url, status, created_by_id FROM campaigns WHERE id = ?${orgSql}`,
     [campaignId, ...orgParams]
   );
   const campaign = existing[0];
   if (!campaign) throw ApiError.notFound("Campaign not found");
+  assertOrgAdminMayEdit(campaign, actor);
 
   const coverFile = (files && files.cover && files.cover[0]) || null;
   const galleryFiles = (files && files.gallery) || [];
@@ -2443,11 +2654,12 @@ async function uploadCampaignImages(organizationId, campaignId, actor, files) {
 async function removeCampaignImage(organizationId, campaignId, imageId, actor) {
   await assertCampaignAccess(organizationId, actor, campaignId);
   const [orgSql, ...orgParams] = orgScope(organizationId, actor);
-  const campaigns = await db.query(`SELECT id FROM campaigns WHERE id = ?${orgSql}`, [
+  const campaigns = await db.query(`SELECT id, created_by_id FROM campaigns WHERE id = ?${orgSql}`, [
     campaignId,
     ...orgParams,
   ]);
   if (campaigns.length === 0) throw ApiError.notFound("Campaign not found");
+  assertOrgAdminMayEdit(campaigns[0], actor);
 
   const rows = await db.query(
     "SELECT image_path FROM campaign_images WHERE id = ? AND campaign_id = ? AND is_cover = 0",
@@ -2754,12 +2966,7 @@ async function removeCampaignGift(organizationId, campaignId, giftId, actor) {
 async function getPaymentsBreakdown(organizationId, user) {
   const where = [];
   const values = [];
-  if (
-    user &&
-    user.role !== "SUPER_ADMIN" &&
-    user.role !== "ORG_ADMIN" &&
-    user.role !== "REVIEWER"
-  ) {
+  if (user && !isPlatformRole(user)) {
     where.push("c.organization_id = ?");
     values.push(organizationId);
   }
@@ -2833,7 +3040,8 @@ async function getPaymentsBreakdown(organizationId, user) {
 // ─── Public (unauthenticated) campaign browsing ──────────────────────────────
 
 const PUBLIC_SELECT = `
-  SELECT c.id, c.name, c.slug, c.story, c.name_sw, c.story_sw, c.category_sw, c.image_url,
+  SELECT c.id, c.name, c.slug, c.story, c.name_sw, c.story_sw, c.category_sw,
+         c.scope, c.acceptance, c.scope_sw, c.acceptance_sw, c.image_url,
          c.category, c.goal_amount, c.service_fee_percent, c.service_fee_amount, c.public_target,
          c.minimum_amount, c.start_date, c.end_date, c.status, c.raised_amount, c.donor_count,
          c.is_featured, c.created_at, o.name AS organization_name
@@ -3140,9 +3348,103 @@ async function sendCampaignLinkEmails(organizationId, campaignId) {
   ).catch(() => {}); // Don't fail if audit log insert fails
 }
 
+// ─── Campaign history / review timeline ─────────────────────────────────────
+//
+// Every step a campaign goes through is already written to audit_logs
+// (resource='campaign'). This surfaces the full chronological trail to anyone
+// who can see the campaign — its manager, the reviewer, the org admin — so when
+// a campaign bounces reviewer → admin → back to the manager → back to the
+// reviewer, each person sees who did what, why (the reason note), and which
+// fields the last edit touched.
+
+const CAMPAIGN_HISTORY_LABELS = {
+  "campaign.created": "Campaign created",
+  "campaign.submitted": "Submitted for review",
+  "campaign.updated": "Details edited",
+  "campaign.resubmitted": "Re-submitted for review",
+  "campaign.first_approved": "Passed first review",
+  "campaign.approved": "Final approval given — went live",
+  "campaign.rejected": "Rejected",
+  "campaign.changes_requested": "Sent back for changes",
+  "campaign.change_request.submitted": "Edit to a live campaign submitted",
+  "campaign.change_request.first_approved": "Edit passed first review",
+  "campaign.change_request.approved": "Edit approved & applied",
+  "campaign.change_request.changes_requested": "Edit sent back for changes",
+  "campaign.change_request.rejected": "Edit rejected",
+  "campaign.status_request.submitted": "Suspend / resume requested",
+  "campaign.status_changed": "Status changed",
+  "campaign.fee_proposal.approved": "Custom service fee approved",
+  "campaign.fee_proposal.changes_requested": "Custom service fee sent back",
+  "campaign.fee_proposal.rejected": "Custom service fee rejected",
+  "campaign.completion_report.submitted": "Completion report submitted",
+  "campaign.completion_report.approved": "Completion report approved",
+  "campaign.completion_report.changes_requested": "Completion report sent back",
+  "campaign.completion_report.rejected": "Completion report rejected",
+  "campaign.closure_request.submitted": "Closure requested",
+  "campaign.closure_request.approved": "Closure approved — campaign completed",
+  "campaign.closure_request.rejected": "Closure request rejected",
+  "campaign.pools.imported": "Donor pool imported",
+  "campaign.images.uploaded": "Photos updated",
+  "campaign.translated": "Swahili translation updated",
+  "campaign.featured": "Featured on the homepage",
+  "campaign.unfeatured": "Removed from the homepage",
+  "campaign.emails_sent": "Donor link emails sent",
+  "campaign.deleted": "Campaign deleted",
+};
+
+async function getCampaignHistory(organizationId, campaignId, user) {
+  await assertCampaignAccess(organizationId, user, campaignId);
+  const [orgSql, ...orgParams] = orgScope(organizationId, user);
+  const found = await db.query(`SELECT id FROM campaigns WHERE id = ?${orgSql}`, [
+    campaignId,
+    ...orgParams,
+  ]);
+  if (found.length === 0) throw ApiError.notFound("Campaign not found");
+
+  const rows = await db.query(
+    `SELECT al.id, al.action, al.details, al.severity, al.created_at,
+            al.actor_email, u.id AS actor_id, u.first_name, u.last_name, u.role AS actor_role
+       FROM audit_logs al
+       LEFT JOIN users u ON u.id = al.actor_id
+      WHERE al.resource = 'campaign' AND al.resource_id = ?
+      ORDER BY al.created_at ASC, al.id ASC`,
+    [String(campaignId)]
+  );
+
+  return rows.map((r) => {
+    const details = parsePayload(r.details);
+    // Different flows stored the human reason under different keys.
+    const note = [details.notes, details.reason].find(
+      (v) => typeof v === "string" && v.trim()
+    );
+    return {
+      id: r.id,
+      action: r.action,
+      label:
+        CAMPAIGN_HISTORY_LABELS[r.action] ||
+        r.action.replace(/^campaign\./, "").replace(/[._]/g, " "),
+      severity: r.severity,
+      notes: note || null,
+      fields: Array.isArray(details.fields) ? details.fields : null,
+      actor: r.actor_id
+        ? {
+            id: r.actor_id,
+            name: [r.first_name, r.last_name].filter(Boolean).join(" ") || r.actor_email,
+            email: r.actor_email,
+            role: r.actor_role,
+          }
+        : r.actor_email
+          ? { id: null, name: r.actor_email, email: r.actor_email, role: null }
+          : null,
+      createdAt: r.created_at,
+    };
+  });
+}
+
 module.exports = {
   listCampaigns,
   getCampaign,
+  getCampaignHistory,
   createCampaign,
   updateCampaign,
   submitCampaign,

@@ -20,7 +20,6 @@ import {
   BellRing,
   Bell,
   ShieldCheck,
-  HandCoins,
 } from "lucide-react";
 
 const navItems = [
@@ -32,7 +31,6 @@ const navItems = [
   { label: "Notifications", href: "/dashboard/notifications", icon: Bell },
   { label: "User", href: "/dashboard/user", icon: UserCog },
   { label: "Audit Log", href: "/dashboard/audit-log", icon: ClipboardList },
-  { label: "Payouts", href: "/dashboard/payouts", icon: HandCoins },
   { label: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
 
@@ -43,8 +41,13 @@ interface MobileNavProps {
 
 export function MobileNav({ open, onClose }: MobileNavProps) {
   const pathname = usePathname();
-  const { canAccessRoute, meta } = useRole();
-  const visibleItems = navItems.filter((item) => canAccessRoute(item.href));
+  const { canAccessRoute, isReviewer, meta } = useRole();
+  const visibleItems = navItems.filter((item) => {
+    if (!canAccessRoute(item.href)) return false;
+    // Reviewers only review campaigns — the list is hidden, "Approvals" is theirs.
+    if (isReviewer && item.href === "/dashboard/campaigns") return false;
+    return true;
+  });
   const pendingReminders = usePendingReminderCount();
   const pendingApprovals = usePendingApprovalCount();
   const { unreadCount } = useNotifications();
@@ -58,6 +61,12 @@ export function MobileNav({ open, onClose }: MobileNavProps) {
 
   const isActive = (href: string) => {
     if (href === "/dashboard") return pathname === "/dashboard";
+    if (href === "/dashboard/campaigns") {
+      return (
+        pathname.startsWith("/dashboard/campaigns") &&
+        !pathname.startsWith("/dashboard/campaigns/approvals")
+      );
+    }
     return pathname.startsWith(href);
   };
 

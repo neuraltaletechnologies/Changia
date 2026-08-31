@@ -1,7 +1,7 @@
-import { Heart, Megaphone, Settings, Users } from "lucide-react";
+import { HandCoins, Heart, Megaphone, Settings, Users } from "lucide-react";
 import { cn } from "@/lib/dashboard/utils";
 
-type NotifType = "donation" | "campaign" | "system" | "user";
+type NotifType = "donation" | "campaign" | "system" | "user" | "payout";
 
 const config: Record<
   NotifType,
@@ -11,6 +11,7 @@ const config: Record<
   campaign: { Icon: Megaphone, bg: "bg-sky-100", color: "text-sky-600" },
   system: { Icon: Settings, bg: "bg-slate-100", color: "text-slate-500" },
   user: { Icon: Users, bg: "bg-amber-100", color: "text-amber-600" },
+  payout: { Icon: HandCoins, bg: "bg-violet-100", color: "text-violet-600" },
 };
 
 export function NotificationIcon({ type }: { type: NotifType }) {

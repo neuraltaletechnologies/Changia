@@ -34,6 +34,11 @@ router.get("/", validate({ query: listCampaignsQuerySchema }), controller.listCa
 // caller's campaigns — a distinct 2-segment path, registered before "/:id".
 router.get("/payments/breakdown", controller.getPaymentsBreakdown);
 router.get("/:id", controller.getCampaign);
+// Full chronological trail (audit_logs) for a campaign — who submitted /
+// reviewed / approved / sent it back and why. Viewable by anyone with campaign
+// access (assertCampaignAccess in the service): its manager, a reviewer, the
+// org admin, a super admin.
+router.get("/:id/history", controller.getCampaignHistory);
 router.get("/:id/donor-targets", controller.getDonorTargets);
 
 // In-kind gifts recorded against a campaign (non-monetary contributions with an
@@ -79,13 +84,14 @@ router.delete(
   controller.removeDonorTarget
 );
 
-// Creation is available to ORG_ADMIN/CAMPAIGN_MANAGER. An ORG_ADMIN's own
-// campaign activates immediately (self-approved — they're already an
-// approver). A CAMPAIGN_MANAGER's campaign instead needs TWO independent
-// approvals via POST /:id/approve (PENDING -> REVIEWED -> ACTIVE, see
-// campaignService.approveCampaign) before it goes live. SUPER_ADMIN
-// deliberately can't create campaigns (or donor pools) — platform-wide, they
-// only manage/edit/approve what orgs already created.
+// Creation is available to ORG_ADMIN/CAMPAIGN_MANAGER. Every campaign — no
+// matter who creates it — clears the same strict two-stage chain via
+// POST /:id/approve (PENDING -> REVIEWED -> ACTIVE, see
+// campaignService.approveCampaign): stage 1 a REVIEWER, stage 2 an ORG_ADMIN,
+// two different people, neither the creator. An ORG_ADMIN who creates a
+// campaign therefore still needs a reviewer and a *different* admin to approve
+// it. SUPER_ADMIN deliberately can't create campaigns (or donor pools) —
+// platform-wide, they only manage/edit/approve what orgs already created.
 router.post(
   "/",
   authorize("ORG_ADMIN", "CAMPAIGN_MANAGER"),

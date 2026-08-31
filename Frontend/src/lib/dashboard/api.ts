@@ -1,4 +1,7 @@
-import { api } from "@/lib/api-client";
+import { api, getToken } from "@/lib/api-client";
+
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api/v1";
 
 // ─── Shared API types (mirror the Express backend responses) ────────────────
 
@@ -56,7 +59,30 @@ export interface DonorRecord {
   }[];
 }
 
-export type PoolCategory = "FAMILY" | "SCHOOL" | "STUDENT" | "OFFICE";
+export type PoolCategory =
+  | "FAMILY"
+  | "SCHOOL"
+  | "STUDENT"
+  | "OFFICE"
+  | "ALUMNI"
+  | "COMMUNITY"
+  | "CHURCH"
+  | "BUSINESS"
+  | "FRIENDS"
+  | "OTHER";
+
+export const POOL_CATEGORIES: PoolCategory[] = [
+  "FAMILY",
+  "SCHOOL",
+  "STUDENT",
+  "OFFICE",
+  "ALUMNI",
+  "COMMUNITY",
+  "CHURCH",
+  "BUSINESS",
+  "FRIENDS",
+  "OTHER",
+];
 
 export interface PoolMemberDonor {
   id: number;
@@ -100,6 +126,37 @@ export interface DonorPool {
   members?: PoolMember[];
 }
 
+export interface CampaignChangeRequest {
+  id: number;
+  status: "PENDING" | "REVIEWED" | "APPLIED" | "REJECTED" | "CHANGES_REQUESTED";
+  /** 'EDIT' = parked field changes; 'STATUS' = a manager's suspend/resume ask. */
+  kind?: "EDIT" | "STATUS";
+  /** Set when kind === 'STATUS'. */
+  statusAction?: "PAUSE" | "RESUME" | null;
+  payload: Partial<
+    Record<
+      | "name"
+      | "story"
+      | "goalAmount"
+      | "serviceFeePercent"
+      | "category"
+      | "startDate"
+      | "endDate"
+      | "minimumAmount"
+      | "contactPhone"
+      | "reason",
+      string | number | null
+    >
+  >;
+  hasStagedCover: boolean;
+  stagedCoverUrl: string | null;
+  submittedBy: number | null;
+  firstApprovedBy: number | null;
+  firstApprovedAt: string | null;
+  reviewNotes: string | null;
+  createdAt: string;
+}
+
 export interface CampaignRecord {
   id: number;
   name: string;
@@ -108,6 +165,12 @@ export interface CampaignRecord {
   nameSw: string | null;
   storySw: string | null;
   categorySw: string | null;
+  /** What the funds will deliver — shown on the public "Scope" tab. */
+  scope: string | null;
+  /** How a supporter knows a contribution landed — public "Acceptance" tab. */
+  acceptance: string | null;
+  scopeSw: string | null;
+  acceptanceSw: string | null;
   imageUrl: string | null;
   category: string | null;
   goalAmount: number;
@@ -124,7 +187,15 @@ export interface CampaignRecord {
   minimumAmount: number;
   startDate: string | null;
   endDate: string | null;
-  status: "DRAFT" | "PENDING" | "REVIEWED" | "ACTIVE" | "PAUSED" | "COMPLETED" | "CANCELLED";
+  status:
+    | "DRAFT"
+    | "PENDING"
+    | "REVIEWED"
+    | "ACTIVE"
+    | "PAUSED"
+    | "COMPLETED"
+    | "CANCELLED"
+    | "REJECTED";
   isPublic: boolean;
   contactPhone: string | null;
   raisedAmount: number;
@@ -145,39 +216,28 @@ export interface CampaignRecord {
   reviewState?: "NONE" | "CHANGES_REQUESTED";
   /** A material edit is parked awaiting re-approval (see `changeRequest`). */
   hasPendingChanges?: boolean;
-  /** The open change request for a live campaign, if any. */
-  changeRequest?: {
+  /**
+   * The newest open change request for a live campaign, any kind (legacy).
+   * A campaign can have an open EDIT *and* an open STATUS request at once, so
+   * prefer `editRequest` / `statusRequest` when you care which.
+   */
+  changeRequest?: CampaignChangeRequest | null;
+  /** Newest open EDIT (parked field changes) request, if any. */
+  editRequest?: CampaignChangeRequest | null;
+  /** Newest open STATUS (manager suspend/resume ask) request, if any. */
+  statusRequest?: CampaignChangeRequest | null;
+  /** A payout for this campaign is already in the approval chain (REQUESTED/REVIEWED). */
+  openPayoutRequest?: {
     id: number;
-    status: "PENDING" | "REVIEWED" | "APPLIED" | "REJECTED" | "CHANGES_REQUESTED";
-    /** 'EDIT' = parked field changes; 'STATUS' = a manager's suspend/resume ask. */
-    kind?: "EDIT" | "STATUS";
-    /** Set when kind === 'STATUS'. */
-    statusAction?: "PAUSE" | "RESUME" | null;
-    payload: Partial<
-      Record<
-        | "name"
-        | "story"
-        | "goalAmount"
-        | "serviceFeePercent"
-        | "category"
-        | "startDate"
-        | "endDate"
-        | "minimumAmount"
-        | "contactPhone"
-        | "reason",
-        string | number | null
-      >
-    >;
-    hasStagedCover: boolean;
-    stagedCoverUrl: string | null;
-    submittedBy: number | null;
-    firstApprovedBy: number | null;
-    firstApprovedAt: string | null;
-    reviewNotes: string | null;
-    createdAt: string;
+    status: "REQUESTED" | "REVIEWED";
+    amount: number;
+    requestedBy: number | null;
   } | null;
   createdAt: string;
   updatedAt: string;
+  /** Owning organisation — campaigns are branded with its name; cross-org (SUPER_ADMIN / REVIEWER) views show it. */
+  organizationId: number | null;
+  organizationName: string | null;
   assignments: { user: { id: number; firstName: string; lastName: string; email: string } }[];
   /** Lightweight summary embedded on list/detail responses — present only once a completion report exists. */
   completionReport?: {
@@ -208,6 +268,30 @@ export interface CampaignRecord {
   remaining?: number;
   progressPercent?: number;
 }
+
+/** One step in a chronological review trail (from audit_logs) — campaigns and payouts. */
+export interface ReviewTrailEntry {
+  id: number;
+  action: string;
+  /** Friendly label for the step, e.g. "Sent back for changes". */
+  label: string;
+  severity: AuditSeverity;
+  /** The reason / note a reviewer or admin gave, when the step carries one. */
+  notes: string | null;
+  /** Field names an edit touched (campaigns only; null for payouts). */
+  fields: string[] | null;
+  actor: {
+    id: number | null;
+    name: string;
+    email: string | null;
+    role: UserRole | null;
+  } | null;
+  createdAt: string;
+}
+
+/** @deprecated use ReviewTrailEntry */
+export type CampaignHistoryEntry = ReviewTrailEntry;
+export type PayoutHistoryEntry = ReviewTrailEntry;
 
 export interface CompletionReport {
   id: number;
@@ -632,6 +716,11 @@ export const campaignApi = {
       .then(unwrap),
   get: (id: string | number) =>
     api.get<{ success: boolean; data: CampaignRecord }>(`/campaigns/${id}`).then(unwrap),
+  /** Full chronological review trail — submitted / reviewed / approved / sent back, with reasons. */
+  history: (id: string | number) =>
+    api
+      .get<{ success: boolean; data: ReviewTrailEntry[] }>(`/campaigns/${id}/history`)
+      .then(unwrap),
   create: (body: Record<string, unknown>) =>
     api.post<{ success: boolean; data: CampaignRecord }>(`/campaigns`, body).then(unwrap),
   update: (id: string | number, body: Record<string, unknown>) =>
@@ -874,13 +963,17 @@ export const notificationApi = {
 
 export interface PayoutRecord {
   id: number;
+  organizationId: number | null;
   campaignId: number | null;
   campaignName: string | null;
   amount: number;
   reason: string | null;
-  status: "REQUESTED" | "APPROVED" | "PAID" | "REJECTED";
+  /** Two-stage chain: REQUESTED -> REVIEWED (reviewer) -> APPROVED (org admin) -> PAID (super admin). */
+  status: "REQUESTED" | "REVIEWED" | "APPROVED" | "PAID" | "REJECTED";
   notes: string | null;
   requestedBy: number | null;
+  firstApprovedBy: number | null;
+  firstApprovedAt: string | null;
   approvedBy: number | null;
   approvedAt: string | null;
   paidAt: string | null;
@@ -898,8 +991,13 @@ export const payoutApi = {
       .then(unwrap),
   get: (id: string | number) =>
     api.get<{ success: boolean; data: PayoutRecord }>(`/payouts/${id}`).then(unwrap),
-  /** campaignId + reason are required when the caller is a CAMPAIGN_MANAGER. */
-  create: (body: { amount: number; campaignId?: string | number; reason?: string; notes?: string }) =>
+  /** Full chronological trail — requested / reviewed / approved / rejected / paid, with reasons. */
+  history: (id: string | number) =>
+    api
+      .get<{ success: boolean; data: ReviewTrailEntry[] }>(`/payouts/${id}/history`)
+      .then(unwrap),
+  /** Every payout is tied to a campaign, with a reason. */
+  create: (body: { amount: number; campaignId: string | number; reason: string; notes?: string }) =>
     api.post<{ success: boolean; data: PayoutRecord }>(`/payouts`, body).then(unwrap),
   approve: (id: string | number, notes?: string) =>
     api.post<{ success: boolean; data: PayoutRecord }>(`/payouts/${id}/approve`, { notes }).then(unwrap),
@@ -907,6 +1005,49 @@ export const payoutApi = {
     api.post<{ success: boolean; data: PayoutRecord }>(`/payouts/${id}/reject`, { notes }).then(unwrap),
   markPaid: (id: string | number, body: { gatewayRef?: string; notes?: string }) =>
     api.post<{ success: boolean; data: PayoutRecord }>(`/payouts/${id}/paid`, body).then(unwrap),
+};
+
+// ─── Audit log ───────────────────────────────────────────────────────────────
+
+export type AuditSeverity = "INFO" | "WARNING" | "CRITICAL";
+
+export interface AuditLogEntry {
+  id: number;
+  action: string;
+  resource: string;
+  resourceId: string | null;
+  actorEmail: string | null;
+  actor: { id: number; firstName: string | null; lastName: string | null; email: string } | null;
+  severity: AuditSeverity;
+  details: unknown;
+  ipAddress: string | null;
+  createdAt: string;
+}
+
+export interface AuditListParams {
+  search?: string;
+  action?: string;
+  severity?: AuditSeverity;
+  resource?: string;
+  page?: number;
+  limit?: number;
+}
+
+export const auditApi = {
+  list: (params?: AuditListParams) =>
+    api
+      .get<{ success: boolean; data: { logs: AuditLogEntry[]; pagination: { total: number; page: number; totalPages: number } } }>(
+        `/audit-logs${qs(params || {})}`
+      )
+      .then(unwrap),
+  /** Streams the CSV export (auth header required — can't be a plain link). */
+  exportCsv: async (params?: AuditListParams): Promise<Blob> => {
+    const res = await fetch(`${API_BASE_URL}/audit-logs/export${qs(params || {})}`, {
+      headers: getToken() ? { Authorization: `Bearer ${getToken()}` } : {},
+    });
+    if (!res.ok) throw new Error("Failed to export audit log");
+    return res.blob();
+  },
 };
 
 // ─── User members (used for the admin "per manager" filter) ──────────────────
@@ -997,6 +1138,18 @@ export const organizationApi = {
         "/organizations/all"
       )
       .then(unwrap),
+  /** SUPER_ADMIN — stand up a new organisation (used by the add-user flow). */
+  create: (body: {
+    name: string;
+    email?: string;
+    phone?: string;
+    address?: string;
+    description?: string;
+    defaultServiceFeePercent?: number;
+  }) =>
+    api
+      .post<{ success: boolean; data: OrganizationBrief }>("/organizations", body)
+      .then(unwrap),
   getMine: () =>
     api.get<{ success: boolean; data: OrganizationRecord }>("/organizations").then(unwrap),
   updateMine: (body: {
@@ -1085,10 +1238,16 @@ export const PAY_STATUS_META: Record<
 };
 
 export const POOL_CATEGORY_META: Record<PoolCategory, { label: string; emoji: string }> = {
-  FAMILY: { label: "Family", emoji: "b" },
-  SCHOOL: { label: "School", emoji: "s" },
-  STUDENT: { label: "Student", emoji: "p" },
-  OFFICE: { label: "Office", emoji: "o" },
+  FAMILY: { label: "Family", emoji: "👪" },
+  SCHOOL: { label: "School", emoji: "🏫" },
+  STUDENT: { label: "Student", emoji: "🎓" },
+  OFFICE: { label: "Office", emoji: "🏢" },
+  ALUMNI: { label: "Alumni", emoji: "🎓" },
+  COMMUNITY: { label: "Community", emoji: "🏘️" },
+  CHURCH: { label: "Church / Faith group", emoji: "⛪" },
+  BUSINESS: { label: "Business / Corporate", emoji: "💼" },
+  FRIENDS: { label: "Friends", emoji: "🤝" },
+  OTHER: { label: "Other", emoji: "📁" },
 };
 
 export function donorFullName(d: {

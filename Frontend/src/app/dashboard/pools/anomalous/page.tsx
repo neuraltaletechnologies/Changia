@@ -35,6 +35,20 @@ import {
 } from "@/lib/dashboard/api";
 import { useRole } from "@/hooks/use-role";
 import { cn } from "@/lib/dashboard/utils";
+import {
+  SortableTh,
+  useTableSort,
+  type SortAccessors,
+} from "@/components/dashboard/ui/sortable-table";
+
+type AnomalousColumn = "donor" | "contact" | "paid" | "gifts";
+
+const anomalousColumnAccessors: SortAccessors<PoolMember, AnomalousColumn> = {
+  donor: (m) => donorFullName(m.donor).toLowerCase(),
+  contact: (m) => (m.donor.email || m.donor.phone || "").toLowerCase(),
+  paid: (m) => m.paidAmount ?? 0,
+  gifts: (m) => m.donationCount ?? 0,
+};
 
 export default function AnomalousPoolPage() {
   const { isSuperAdmin, isOrgAdmin } = useRole();
@@ -76,6 +90,12 @@ export default function AnomalousPoolPage() {
   }, [refresh]);
 
   const members = pool?.members || [];
+
+  const {
+    sorted: sortedMembers,
+    sort: colSort,
+    toggle: toggleColSort,
+  } = useTableSort(members, anomalousColumnAccessors);
 
   return (
     <div className="space-y-6">
@@ -159,25 +179,25 @@ export default function AnomalousPoolPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-muted/40">
-                  <th className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3">
+                  <SortableTh sortKey="donor" sort={colSort} onSort={toggleColSort} className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3">
                     Donor
-                  </th>
-                  <th className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3 hidden sm:table-cell">
+                  </SortableTh>
+                  <SortableTh sortKey="contact" sort={colSort} onSort={toggleColSort} className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3 hidden sm:table-cell">
                     Contact
-                  </th>
-                  <th className="text-right text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3">
+                  </SortableTh>
+                  <SortableTh sortKey="paid" sort={colSort} onSort={toggleColSort} align="right" className="text-right text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3">
                     Paid
-                  </th>
-                  <th className="text-right text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3">
+                  </SortableTh>
+                  <SortableTh sortKey="gifts" sort={colSort} onSort={toggleColSort} align="right" className="text-right text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3">
                     Gifts
-                  </th>
+                  </SortableTh>
                   <th className="text-right text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3">
                     Action
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {members.map((m) => (
+                {sortedMembers.map((m) => (
                   <tr key={m.id} className="hover:bg-muted/30 transition-colors">
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-3">

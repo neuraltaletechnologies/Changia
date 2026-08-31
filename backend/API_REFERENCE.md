@@ -825,6 +825,13 @@ Both use the same three-outcome decision body — `{ "action": "approve" | "requ
 - `POST /campaigns/:id/fee/review` — `SUPER_ADMIN`, `ORG_ADMIN` or `REVIEWER`. Decides a manager's pending custom `serviceFeePercent`. `approve` recomputes the fee/target; `reject` discards it; `request_changes` keeps it pending with a note.
 - `POST /campaigns/:id/closure-requests/:requestId/decide` — `SUPER_ADMIN`, `ORG_ADMIN` or `REVIEWER`. `approve` → campaign `COMPLETED`.
 
+### Payout proof-of-use photos
+
+Every payout record carries `proofImages: [{ id, url }]` — optional photos (invoices, receipts, delivery/site photos) the requesting `CAMPAIGN_MANAGER` attaches so the reviewer and org admin can see why the money is needed.
+
+- `POST /payouts/:id/proof` — `CAMPAIGN_MANAGER` (the requester only). `multipart/form-data`, up to 5 files under the `proof` field (JPEG/PNG/WEBP, ≤ 5 MB each). Allowed only while the request is `REQUESTED` or `REVIEWED`. Returns the updated payout. Errors: `404` (not the requester), `409 PAYOUT_PROOF_LOCKED`, `400 TOO_MANY_IMAGES`, `400 NO_IMAGES`, `400 INVALID_IMAGE_TYPE`.
+- `DELETE /payouts/:id/proof/:imageId` — same role/state rules. Returns the updated payout.
+
 ### In-kind gifts & payment breakdown
 
 - `GET /campaigns/payments/breakdown` — any authenticated member. Per-campaign payment split (TZS) for the caller's campaigns (a `CAMPAIGN_MANAGER` sees only assigned campaigns). Each row: `{ campaignId, name, goal, raised, paid, unpaid, promisedPaid, promisedUnpaid, giftValue }` where `paid` = confirmed money not tied to a pledge, `unpaid` = goal not covered by a pledge, `promisedPaid` / `promisedUnpaid` = money received / still owed against donor pledges, `giftValue` = estimated value of in-kind gifts. A row sums to `goal + giftValue`.

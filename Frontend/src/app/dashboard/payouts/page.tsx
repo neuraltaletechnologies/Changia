@@ -31,6 +31,11 @@ import {
 import { useRole } from "@/hooks/use-role";
 import { cn } from "@/lib/dashboard/utils";
 import { ReviewTimeline } from "@/components/dashboard/widgets/review-timeline";
+import {
+  SortableTh,
+  useTableSort,
+  type SortAccessors,
+} from "@/components/dashboard/ui/sortable-table";
 
 const STATUS_META: Record<PayoutRecord["status"], { label: string; styles: string }> = {
   REQUESTED: { label: "In first review", styles: "bg-orange-50 text-orange-700 border-orange-200" },
@@ -47,6 +52,19 @@ const STATUS_ORDER: PayoutRecord["status"][] = [
   "PAID",
   "REJECTED",
 ];
+
+type PayoutColumn = "campaign" | "amount" | "reason" | "status" | "requested";
+
+const payoutColumnAccessors: SortAccessors<PayoutRecord, PayoutColumn> = {
+  campaign: (p) => p.campaignName?.toLowerCase() ?? "",
+  amount: (p) => p.amount ?? 0,
+  reason: (p) => p.reason?.toLowerCase() ?? "",
+  status: (p) => {
+    const i = STATUS_ORDER.indexOf(p.status);
+    return i === -1 ? STATUS_ORDER.length : i;
+  },
+  requested: (p) => (p.createdAt ? Date.parse(p.createdAt) : 0),
+};
 
 function fmtDate(iso: string | null | undefined): string {
   if (!iso) return "—";
@@ -108,6 +126,12 @@ export default function PayoutsPage() {
     [payouts, statusFilter]
   );
 
+  const {
+    sorted: sortedPayouts,
+    sort: colSort,
+    toggle: toggleColSort,
+  } = useTableSort(filtered, payoutColumnAccessors);
+
   const counts = useMemo(() => {
     const c: Record<string, number> = { ALL: payouts.length };
     for (const s of STATUS_ORDER) c[s] = payouts.filter((p) => p.status === s).length;
@@ -146,7 +170,7 @@ export default function PayoutsPage() {
           variant="outline"
           size="sm"
           nativeButton={false}
-          render={<Link href="/dashboard/campaigns/approvals" />}
+          render={<Link href="/dashboard/approvals" />}
         >
           <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
           Approvals
@@ -209,11 +233,21 @@ export default function PayoutsPage() {
           <table className="w-full text-left">
             <thead>
               <tr className="text-[11px] uppercase tracking-wider text-muted-foreground border-b border-border">
-                <th className="px-5 py-3 font-medium">Campaign</th>
-                <th className="px-4 py-3 font-medium">Amount</th>
-                <th className="px-4 py-3 font-medium hidden md:table-cell">Reason</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium hidden lg:table-cell">Requested</th>
+                <SortableTh sortKey="campaign" sort={colSort} onSort={toggleColSort} className="px-5 py-3 font-medium text-left">
+                  Campaign
+                </SortableTh>
+                <SortableTh sortKey="amount" sort={colSort} onSort={toggleColSort} className="px-4 py-3 font-medium text-left">
+                  Amount
+                </SortableTh>
+                <SortableTh sortKey="reason" sort={colSort} onSort={toggleColSort} className="px-4 py-3 font-medium text-left hidden md:table-cell">
+                  Reason
+                </SortableTh>
+                <SortableTh sortKey="status" sort={colSort} onSort={toggleColSort} className="px-4 py-3 font-medium text-left">
+                  Status
+                </SortableTh>
+                <SortableTh sortKey="requested" sort={colSort} onSort={toggleColSort} className="px-4 py-3 font-medium text-left hidden lg:table-cell">
+                  Requested
+                </SortableTh>
                 <th className="px-5 py-3 text-right font-medium">Actions</th>
               </tr>
             </thead>
@@ -233,7 +267,7 @@ export default function PayoutsPage() {
                 </tr>
               )}
               {!loading &&
-                filtered.map((p) => {
+                sortedPayouts.map((p) => {
                   const meta = STATUS_META[p.status];
                   return (
                     <tr key={p.id} className="hover:bg-muted/30 transition-colors">
@@ -259,6 +293,23 @@ export default function PayoutsPage() {
                         <p className="text-xs text-muted-foreground truncate" title={p.reason ?? undefined}>
                           {p.reason || "—"}
                         </p>
+                        {p.proofImages.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {p.proofImages.map((img) => (
+                              <a
+                                key={img.id}
+                                href={img.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                title="Open proof of use"
+                                className="h-9 w-9 rounded overflow-hidden border border-border hover:ring-2 hover:ring-primary/40"
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={img.url} alt="Payout proof" className="h-full w-full object-cover" />
+                              </a>
+                            ))}
+                          </div>
+                        )}
                       </td>
                       {/* Status */}
                       <td className="px-4 py-3.5">

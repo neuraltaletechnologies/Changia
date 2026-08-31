@@ -71,6 +71,11 @@ import {
 } from "@/lib/dashboard/api";
 import { useRole } from "@/hooks/use-role";
 import { cn } from "@/lib/dashboard/utils";
+import {
+  SortableTh,
+  useTableSort,
+  type SortAccessors,
+} from "@/components/dashboard/ui/sortable-table";
 
 const CATEGORY_LABEL = Object.fromEntries(
   POOL_CATEGORIES.map((c) => [c, POOL_CATEGORY_META[c].label])
@@ -550,6 +555,18 @@ type RowDonor = Pick<
 
 const PANEL_PAGE_SIZE = 10;
 
+type DonorPanelColumn = "donor" | "details" | "contributed";
+
+const donorPanelColumnAccessors: SortAccessors<
+  { donor: RowDonor; contributed: number; gifts: number },
+  DonorPanelColumn
+> = {
+  donor: ({ donor }) => donorFullName(donor).toLowerCase(),
+  details: ({ donor }) =>
+    (donor.email || donor.position || donor.gender || "").toLowerCase(),
+  contributed: ({ contributed }) => contributed ?? 0,
+};
+
 function DonorPanel({
   poolId,
   onChanged,
@@ -603,18 +620,6 @@ function DonorPanel({
     load();
   }, [load]);
 
-  if (loading && !pool && allDonors.length === 0) {
-    return <div className="h-56 rounded-xl bg-card border border-border animate-pulse" />;
-  }
-
-  if (poolId && !pool) {
-    return (
-      <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-        {error || "Pool not found."}
-      </div>
-    );
-  }
-
   const rows: { donor: RowDonor; contributed: number; gifts: number }[] = poolId
     ? (pool?.members ?? []).map((m) => ({
         donor: m.donor,
@@ -626,6 +631,24 @@ function DonorPanel({
         contributed: d.totalPaid,
         gifts: d.donationCount,
       }));
+
+  const {
+    sorted: sortedRows,
+    sort: colSort,
+    toggle: toggleColSort,
+  } = useTableSort(rows, donorPanelColumnAccessors);
+
+  if (loading && !pool && allDonors.length === 0) {
+    return <div className="h-56 rounded-xl bg-card border border-border animate-pulse" />;
+  }
+
+  if (poolId && !pool) {
+    return (
+      <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+        {error || "Pool not found."}
+      </div>
+    );
+  }
 
   const totalPages = Math.max(1, Math.ceil(total / PANEL_PAGE_SIZE));
 
@@ -714,15 +737,15 @@ function DonorPanel({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-muted/40">
-              <th className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3">
+              <SortableTh sortKey="donor" sort={colSort} onSort={toggleColSort} className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3">
                 Donor
-              </th>
-              <th className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3 hidden md:table-cell">
+              </SortableTh>
+              <SortableTh sortKey="details" sort={colSort} onSort={toggleColSort} className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3 hidden md:table-cell">
                 Details
-              </th>
-              <th className="text-right text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3">
+              </SortableTh>
+              <SortableTh sortKey="contributed" sort={colSort} onSort={toggleColSort} align="right" className="text-right text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3">
                 Contributed
-              </th>
+              </SortableTh>
               <th className="w-10 px-3" />
             </tr>
           </thead>
@@ -740,7 +763,7 @@ function DonorPanel({
                 </td>
               </tr>
             ) : (
-              rows.map(({ donor, contributed, gifts }) => (
+              sortedRows.map(({ donor, contributed, gifts }) => (
                 <DonorRow
                   key={donor.id}
                   donor={donor}

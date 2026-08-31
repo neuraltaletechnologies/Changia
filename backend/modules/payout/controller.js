@@ -1,5 +1,6 @@
 const { asyncHandler } = require("../../utils/asyncHandler");
 const db = require("../../db");
+const { deleteUploadedFiles } = require("../../middlewares/upload");
 const service = require("./service");
 
 function audit(req, action, payout, severity = "INFO", details) {
@@ -34,6 +35,37 @@ const create = asyncHandler(async (req, res) => {
   });
   res.status(201).json({ success: true, data: payout });
 });
+/** multer (uploadPayoutProof) runs before this — req.files is a flat array.
+ *  Any business-rule failure still needs the files cleaned off disk. */
+const attachProof = asyncHandler(async (req, res) => {
+  try {
+    const payout = await service.attachProofImages(
+      req.user.organizationId,
+      req.user,
+      req.params.id,
+      req.files
+    );
+    await audit(req, "payout.proof_added", payout, "INFO", {
+      count: (req.files || []).length,
+    });
+    res.status(200).json({ success: true, data: payout });
+  } catch (error) {
+    deleteUploadedFiles(req.files);
+    throw error;
+  }
+});
+
+const removeProof = asyncHandler(async (req, res) => {
+  const payout = await service.removeProofImage(
+    req.user.organizationId,
+    req.user,
+    req.params.id,
+    req.params.imageId
+  );
+  await audit(req, "payout.proof_removed", payout, "INFO");
+  res.json({ success: true, data: payout });
+});
+
 const approve = asyncHandler(async (req, res) => {
   const payout = await service.decidePayout(req.user.organizationId, req.user, req.params.id, true, req.body);
   // REVIEWED means stage 1 just happened; APPROVED means stage 2.
@@ -79,4 +111,4 @@ const markPaid = asyncHandler(async (req, res) => {
   res.json({ success: true, data: payout });
 });
 
-module.exports = { list, get, getHistory, create, approve, reject, preview, markPaid };
+module.exports = { list, get, getHistory, create, attachProof, removeProof, approve, reject, preview, markPaid };

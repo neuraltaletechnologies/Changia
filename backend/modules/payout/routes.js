@@ -1,6 +1,7 @@
 const { Router } = require("express");
 const { authenticate, authorize } = require("../../middlewares/auth");
 const { validate } = require("../../middlewares/validate");
+const { uploadPayoutProof } = require("../../middlewares/upload");
 const controller = require("./controller");
 const { listSchema, createSchema, decisionSchema, paidSchema, previewSchema } = require("./validation");
 
@@ -25,6 +26,16 @@ router.post(
   controller.create
 );
 router.get("/:id", controller.get);
+// Optional "proof of use" photos on the manager's own request — invoices,
+// receipts, site photos — visible to the reviewer + org admin. Only the
+// requester, and only while the request is still in review (REQUESTED/REVIEWED).
+router.post(
+  "/:id/proof",
+  authorize("CAMPAIGN_MANAGER"),
+  uploadPayoutProof,
+  controller.attachProof
+);
+router.delete("/:id/proof/:imageId", authorize("CAMPAIGN_MANAGER"), controller.removeProof);
 // Full chronological trail (audit_logs) for one payout — requested / reviewed /
 // approved / rejected (with reason) / paid. Visible to anyone who can see the
 // payout itself (getPayout enforces it).

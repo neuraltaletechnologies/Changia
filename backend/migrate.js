@@ -47,6 +47,19 @@ const MIGRATIONS = [
   `ALTER TABLE payouts ADD COLUMN first_approved_at DATETIME NULL AFTER first_approved_by_id`,
   `ALTER TABLE payouts ADD CONSTRAINT fk_payouts_first_approver FOREIGN KEY (first_approved_by_id) REFERENCES users(id) ON DELETE SET NULL`,
 
+  // payout_images — optional "proof of use" photos a CAMPAIGN_MANAGER attaches
+  // to a payout request (invoices, receipts, site photos) so the reviewer and
+  // org admin can see why the money is needed. Up to 5 per request.
+  `CREATE TABLE IF NOT EXISTS payout_images (
+    id          BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    payout_id   BIGINT UNSIGNED NOT NULL,
+    image_path  VARCHAR(500) NOT NULL,
+    sort_order  INT NOT NULL DEFAULT 0,
+    created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_pi_payout FOREIGN KEY (payout_id) REFERENCES payouts(id) ON DELETE CASCADE,
+    INDEX idx_pi_payout (payout_id, sort_order)
+  ) ENGINE=InnoDB`,
+
   // users — force a password change on first login for admin-created accounts
   // (createUser / resendInvite set this to 1; changePassword clears it).
   `ALTER TABLE users ADD COLUMN must_change_password TINYINT(1) NOT NULL DEFAULT 0 AFTER status`,

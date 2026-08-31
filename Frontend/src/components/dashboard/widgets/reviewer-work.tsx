@@ -33,7 +33,7 @@ const QUEUE_BARS = [
 
 /**
  * Snapshot of a reviewer's / org admin's open approval queue by request type
- * (the exact items that land on /dashboard/campaigns/approvals for them), plus a
+ * (the exact items that land on /dashboard/approvals for them), plus a
  * ring of how their own decisions have progressed. Pure CSS/SVG — mirrors
  * CampaignMix.
  */
@@ -114,7 +114,7 @@ export function ReviewerWork({
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-sm font-semibold text-foreground">Review workload</h2>
         <Link
-          href="/dashboard/campaigns/approvals"
+          href="/dashboard/approvals"
           className="text-xs text-primary hover:underline"
         >
           Open approvals

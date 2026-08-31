@@ -42,7 +42,7 @@ const navItems = [
       },
       {
         label: "Approvals",
-        href: "/dashboard/campaigns/approvals",
+        href: "/dashboard/approvals",
         icon: ShieldCheck,
       },
       {
@@ -98,7 +98,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
   const badgeFor = (href: string): number => {
     if (href === "/dashboard/reminders") return pendingReminders;
-    if (href === "/dashboard/campaigns/approvals") return pendingApprovals;
+    if (href === "/dashboard/approvals") return pendingApprovals;
     if (href === "/dashboard/notifications") return unreadCount;
     return 0;
   };
@@ -119,13 +119,6 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
   const isActive = (href: string) => {
     if (href === "/dashboard") return pathname === "/dashboard";
-    // Keep "Campaigns" and "Approvals" from both lighting up on the approvals route.
-    if (href === "/dashboard/campaigns") {
-      return (
-        pathname.startsWith("/dashboard/campaigns") &&
-        !pathname.startsWith("/dashboard/campaigns/approvals")
-      );
-    }
     return pathname.startsWith(href);
   };
 

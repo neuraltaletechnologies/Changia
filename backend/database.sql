@@ -656,6 +656,20 @@ CREATE TABLE payouts (
   INDEX idx_payouts_campaign_status (campaign_id, status)
 ) ENGINE=InnoDB;
 
+-- Optional "proof of use" photos a CAMPAIGN_MANAGER attaches to a payout
+-- request (invoices, receipts, delivery/site photos) so the reviewer and org
+-- admin can see why the money is needed. Up to 5 per request; only editable
+-- while the request is still in the approval chain (REQUESTED / REVIEWED).
+CREATE TABLE payout_images (
+  id          BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  payout_id   BIGINT UNSIGNED NOT NULL,
+  image_path  VARCHAR(500) NOT NULL,
+  sort_order  INT NOT NULL DEFAULT 0,
+  created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_pi_payout FOREIGN KEY (payout_id) REFERENCES payouts(id) ON DELETE CASCADE,
+  INDEX idx_pi_payout (payout_id, sort_order)
+) ENGINE=InnoDB;
+
 -- ─── Audit logs (immutable, security-relevant) ───────────────────────────────
 
 CREATE TABLE audit_logs (

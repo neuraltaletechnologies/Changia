@@ -978,6 +978,8 @@ export interface PayoutRecord {
   approvedAt: string | null;
   paidAt: string | null;
   gatewayRef: string | null;
+  /** Optional "proof of use" photos the manager attached to the request. */
+  proofImages: { id: number; url: string }[];
   createdAt: string;
   updatedAt: string;
 }
@@ -999,12 +1001,65 @@ export const payoutApi = {
   /** Every payout is tied to a campaign, with a reason. */
   create: (body: { amount: number; campaignId: string | number; reason: string; notes?: string }) =>
     api.post<{ success: boolean; data: PayoutRecord }>(`/payouts`, body).then(unwrap),
+  /** Attach up to 5 "proof of use" photos to your own request (while it's still in review). */
+  attachProof: (id: string | number, files: File[]) => {
+    const form = new FormData();
+    files.slice(0, 5).forEach((f) => form.append("proof", f));
+    return api
+      .postForm<{ success: boolean; data: PayoutRecord }>(`/payouts/${id}/proof`, form)
+      .then(unwrap);
+  },
+  removeProof: (id: string | number, imageId: number) =>
+    api
+      .delete<{ success: boolean; data: PayoutRecord }>(`/payouts/${id}/proof/${imageId}`)
+      .then(unwrap),
   approve: (id: string | number, notes?: string) =>
     api.post<{ success: boolean; data: PayoutRecord }>(`/payouts/${id}/approve`, { notes }).then(unwrap),
   reject: (id: string | number, notes?: string) =>
     api.post<{ success: boolean; data: PayoutRecord }>(`/payouts/${id}/reject`, { notes }).then(unwrap),
   markPaid: (id: string | number, body: { gatewayRef?: string; notes?: string }) =>
     api.post<{ success: boolean; data: PayoutRecord }>(`/payouts/${id}/paid`, body).then(unwrap),
+};
+
+// ─── Approvals workspace ─────────────────────────────────────────────────────
+
+export type ApprovalHistoryType =
+  | "campaign"
+  | "edit"
+  | "fee"
+  | "closure"
+  | "report"
+  | "payout";
+
+export interface ApprovalHistoryEntry {
+  id: number;
+  action: string;
+  /** Friendly label, e.g. "Gave final approval — campaign went live". */
+  label: string;
+  severity: AuditSeverity;
+  /** The reason / note the approver gave, when the step carries one. */
+  notes: string | null;
+  resource: string;
+  resourceId: string | null;
+  /** Display name of what was decided on, e.g. "Water for Dodoma" or "… — payout". */
+  resourceName: string;
+  /** Dashboard link to the underlying campaign, when there is one. */
+  link: string | null;
+  createdAt: string;
+}
+
+export const approvalApi = {
+  /** The signed-in approver's own past decisions across every request type. */
+  history: (params?: { type?: ApprovalHistoryType; page?: number; limit?: number }) =>
+    api
+      .get<{
+        success: boolean;
+        data: {
+          items: ApprovalHistoryEntry[];
+          pagination: { page: number; limit: number; total: number; totalPages: number };
+        };
+      }>(`/approvals/history${qs(params || {})}`)
+      .then(unwrap),
 };
 
 // ─── Audit log ───────────────────────────────────────────────────────────────

@@ -3,9 +3,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
+  approvalApi,
   campaignApi,
   payoutApi,
   formatTZSFull,
+  type ApprovalHistoryEntry,
+  type ApprovalHistoryType,
   type CampaignRecord,
   type PayoutRecord,
   type ReviewAction,
@@ -19,6 +22,7 @@ import {
   Clock,
   FileText,
   HandCoins,
+  History,
   Loader2,
   Megaphone,
   PencilRuler,
@@ -83,6 +87,7 @@ export default function CampaignApprovalsPage() {
   const [actingId, setActingId] = useState<string | null>(null);
   const [dialog, setDialog] = useState<DialogTarget | null>(null);
   const [dialogSubmitting, setDialogSubmitting] = useState(false);
+  const [tab, setTab] = useState<"pending" | "history">("pending");
 
   const load = useCallback(async () => {
     try {
@@ -299,17 +304,44 @@ export default function CampaignApprovalsPage() {
         </Button>
         <div>
           <h1 className="text-xl font-semibold text-foreground tracking-tight">
-            Campaign Approvals
+            Approvals
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {totalPending} item{totalPending !== 1 ? "s" : ""} awaiting your review
-            {" · "}open any campaign to review it in full context.
+            {tab === "pending"
+              ? `${totalPending} item${totalPending !== 1 ? "s" : ""} awaiting your review · every request type in one place.`
+              : "Every approve / reject / send-back decision you've made, newest first."}
           </p>
         </div>
       </div>
 
+      {/* ── Pending / History toggle ─────────────────────────────────────── */}
+      <div className="flex gap-1 rounded-lg border border-border bg-muted/30 p-1 w-fit">
+        {(["pending", "history"] as const).map((t) => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => setTab(t)}
+            className={cn(
+              "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+              tab === t
+                ? "bg-card text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {t === "pending" ? (
+              <Clock className="h-3.5 w-3.5" />
+            ) : (
+              <History className="h-3.5 w-3.5" />
+            )}
+            {t === "pending" ? "Pending" : "My history"}
+          </button>
+        ))}
+      </div>
+
+      {tab === "history" && <ApprovalHistory />}
+
       {/* ── Summary bar — counts by request type, jumps to each section ──── */}
-      {!loading && (
+      {tab === "pending" && !loading && (
         <div className="flex flex-wrap gap-2">
           {SUMMARY_ITEMS.map((s) => {
             const v = counts[s.key];
@@ -340,6 +372,8 @@ export default function CampaignApprovalsPage() {
         </div>
       )}
 
+      {tab === "pending" && (
+       <>
       {error && (
         <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
           {error}
@@ -769,6 +803,181 @@ export default function CampaignApprovalsPage() {
           onSubmit={submitDialog}
         />
       )}
+       </>
+      )}
+    </div>
+  );
+}
+
+// ─── My approval history ────────────────────────────────────────────────────
+
+const HISTORY_FILTERS: { key: ApprovalHistoryType | undefined; label: string }[] = [
+  { key: undefined, label: "All" },
+  { key: "campaign", label: "Campaigns" },
+  { key: "edit", label: "Edits" },
+  { key: "fee", label: "Fees" },
+  { key: "closure", label: "Closures" },
+  { key: "report", label: "Reports" },
+  { key: "payout", label: "Payouts" },
+];
+
+function ApprovalHistory() {
+  const [items, setItems] = useState<ApprovalHistoryEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<ApprovalHistoryType | undefined>(undefined);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    approvalApi
+      .history({ type: filter, page, limit: 30 })
+      .then((res) => {
+        if (cancelled) return;
+        setItems((prev) => (page === 1 ? res.items : [...prev, ...res.items]));
+        setTotalPages(res.pagination.totalPages);
+        setError(null);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : "Couldn't load your history.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [filter, page]);
+
+  const sentBack = (a: string) =>
+    a.includes("rejected") || a.includes("changes_requested");
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-1.5">
+        {HISTORY_FILTERS.map((f) => (
+          <button
+            key={f.label}
+            type="button"
+            onClick={() => {
+              setPage(1);
+              setFilter(f.key);
+            }}
+            className={cn(
+              "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+              filter === f.key
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-border bg-card text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+
+      {error && (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          {error}
+        </div>
+      )}
+
+      {loading && page === 1 ? (
+        <div className="space-y-2">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="h-16 bg-card border border-border rounded-xl animate-pulse" />
+          ))}
+        </div>
+      ) : items.length === 0 ? (
+        <div className="text-center py-20 bg-card border border-border rounded-xl">
+          <History className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
+          <p className="text-sm text-muted-foreground">
+            You haven&apos;t recorded any approval decisions yet.
+          </p>
+        </div>
+      ) : (
+        <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[760px]">
+              <thead>
+                <tr className="border-b border-border bg-muted/40">
+                  <th className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3">
+                    Decision
+                  </th>
+                  <th className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-3">
+                    Resource
+                  </th>
+                  <th className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-3 hidden md:table-cell">
+                    Notes
+                  </th>
+                  <th className="text-right text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3">
+                    When
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {items.map((e) => (
+                  <tr key={e.id} className="hover:bg-muted/30 transition-colors align-top">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={cn(
+                            "h-2 w-2 shrink-0 rounded-full",
+                            sentBack(e.action) ? "bg-amber-500" : "bg-primary/60"
+                          )}
+                        />
+                        <span className="text-sm font-medium text-foreground">{e.label}</span>
+                      </div>
+                    </td>
+                    <td className="px-3 py-3 text-xs text-muted-foreground">
+                      {e.link ? (
+                        <Link href={e.link} className="hover:text-primary hover:underline">
+                          {e.resourceName}
+                        </Link>
+                      ) : (
+                        e.resourceName
+                      )}
+                    </td>
+                    <td className="px-3 py-3 hidden md:table-cell text-xs">
+                      {e.notes ? (
+                        <span
+                          className={cn(
+                            "inline-block rounded-lg border px-3 py-1.5 max-w-md",
+                            sentBack(e.action)
+                              ? "border-amber-200 bg-amber-50 text-amber-800"
+                              : "border-border bg-muted/40 text-muted-foreground"
+                          )}
+                        >
+                          &ldquo;{e.notes}&rdquo;
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground/50">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right text-[11px] text-muted-foreground whitespace-nowrap">
+                      {new Date(e.createdAt).toLocaleString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {page < totalPages && (
+        <div className="flex justify-center">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={loading}
+            onClick={() => setPage((p) => p + 1)}
+          >
+            {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Load more"}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
@@ -816,6 +1025,27 @@ function PayoutCard({
           <span className="font-semibold text-foreground">{formatTZSFull(p.amount)}</span>
           {p.reason && <span className="truncate max-w-xs">{p.reason}</span>}
         </div>
+        {p.proofImages.length > 0 && (
+          <div className="mt-2">
+            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">
+              Proof of use
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {p.proofImages.map((img) => (
+                <a
+                  key={img.id}
+                  href={img.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="h-14 w-14 rounded-md overflow-hidden border border-border hover:ring-2 hover:ring-primary/40"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={img.url} alt="Payout proof" className="h-full w-full object-cover" />
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
         {p.campaignId && (
           <Link
             href={`/dashboard/campaigns/${p.campaignId}`}

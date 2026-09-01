@@ -1,4 +1,3 @@
-const path = require("path");
 const db = require("../../db");
 const { ApiError } = require("../../utils/ApiError");
 const { env } = require("../../config");
@@ -103,11 +102,12 @@ async function syncSwahiliTranslations(campaignId, english) {
   }
 }
 
-/** Converts a stored "/uploads/..." web path back to an absolute disk path,
- *  so a superseded completion-report photo can be removed from disk. */
+/** Passes a stored "/uploads/..." web path straight through to
+ *  deleteUploadedFiles(), which routes it to whichever store backs it (local
+ *  disk or Cloudflare R2). Kept as a named helper so the call sites still read
+ *  as "delete the file behind this path". */
 function uploadWebPathToDiskPath(webPath) {
-  const segments = webPath.split("/").filter(Boolean);
-  return path.join(__dirname, "..", "..", ...segments);
+  return webPath;
 }
 
 function toAbsoluteImageUrl(webPath) {

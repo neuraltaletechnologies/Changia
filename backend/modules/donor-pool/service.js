@@ -911,9 +911,6 @@ async function sendReminder(organizationId, user, data) {
     });
   }
 
-  const subject = data.subject || `Reminder: ${campaign.name}`;
-  const body = data.message;
-
   const batchResult = await db.execute(
     `INSERT INTO message_batches
        (organization_id, campaign_id, created_by_id, type, subject, body, status, recipient_count)

@@ -40,12 +40,15 @@ import {
 export function RequestPayoutDialog({
   campaignId,
   suggestedAmount,
+  availableAmount,
   onClose,
   onSubmitted,
   run,
 }: {
   campaignId: string | number;
   suggestedAmount?: number;
+  /** Ceiling for the request — raised minus everything already paid out. */
+  availableAmount?: number;
   onClose: () => void;
   onSubmitted: () => void;
   run?: (fn: () => Promise<unknown>) => Promise<unknown>;
@@ -66,7 +69,13 @@ export function RequestPayoutDialog({
 
   const addFiles = (list: FileList | null) => {
     if (!list || list.length === 0) return;
-    setFiles((prev) => [...prev, ...Array.from(list)].slice(0, MAX_PAYOUT_PROOF_IMAGES));
+    // Copy the FileList to an array *now* — the onChange handler clears the
+    // input (`e.target.value = ""`) straight after this call, which empties the
+    // live FileList before React runs the state updater. Reading it lazily
+    // inside setFiles() would see nothing and the picker would appear to do
+    // nothing.
+    const picked = Array.from(list);
+    setFiles((prev) => [...prev, ...picked].slice(0, MAX_PAYOUT_PROOF_IMAGES));
   };
   const removeFile = (idx: number) => setFiles((prev) => prev.filter((_, i) => i !== idx));
 
@@ -75,6 +84,12 @@ export function RequestPayoutDialog({
     const amt = Number(amount);
     if (!amount.trim() || Number.isNaN(amt) || amt <= 0) {
       setError("Enter an amount greater than 0.");
+      return;
+    }
+    if (availableAmount != null && amt > availableAmount) {
+      setError(
+        `That's more than the ${formatTZSFull(availableAmount)} available to withdraw.`
+      );
       return;
     }
     if (!reason.trim()) {
@@ -145,12 +160,25 @@ export function RequestPayoutDialog({
             <Input
               type="number"
               min={1}
+              max={availableAmount}
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               placeholder="e.g. 1500000"
               className="h-9"
+              aria-invalid={
+                availableAmount != null && Number(amount) > availableAmount ? true : undefined
+              }
             />
-            {suggestedAmount != null && (
+            {availableAmount != null && (
+              <button
+                type="button"
+                onClick={() => setAmount(String(availableAmount))}
+                className="text-[11px] text-primary hover:underline w-fit"
+              >
+                Available to withdraw — {formatTZSFull(availableAmount)}
+              </button>
+            )}
+            {availableAmount == null && suggestedAmount != null && (
               <button
                 type="button"
                 onClick={() => setAmount(String(suggestedAmount))}

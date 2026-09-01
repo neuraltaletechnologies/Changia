@@ -43,7 +43,7 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
-  --font-sans: 'Inter', 'Inter Fallback';
+  --font-sans: var(--font-inter), 'Inter', 'Inter Fallback', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'Geist Mono', 'Geist Mono Fallback';
   --font-serif: 'Source Serif 4', 'Source Serif 4 Fallback';
   /* computed shadow variables below - do not modify */
@@ -160,6 +160,11 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+  }
+  /* Keep the dashboard on a 16px root; the marketing site bumps this to 17px
+     in src/assets/styles/global.css and both stylesheets load together here. */
+  html {
+    font-size: 100%;
   }
   body {
     @apply bg-background text-foreground;

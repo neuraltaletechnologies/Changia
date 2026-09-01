@@ -12,6 +12,18 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
+  /* Primary UI typeface — self-hosted Inter via next/font (see src/app/layout.tsx),
+     with a system fallback stack so text stays readable before the webfont loads. */
+  --font-sans:
+    var(--font-inter), ui-sans-serif, system-ui, -apple-system, 'Segoe UI',
+    Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+    'Segoe UI Symbol', 'Noto Color Emoji';
+
+  /* Lift the two smallest text steps so secondary/body copy stays legible
+     (the default 0.75rem / 0.875rem read as too small in the marketing UI). */
+  --text-xs: 0.8125rem;
+  --text-sm: 0.9375rem;
+
   /* https://tailwindcss.com/docs/colors#customizing-your-colors */
   --color-*: initial;
   --color-transparent: transparent;
@@ -186,5 +198,22 @@
   button:not(:disabled),
   [role='button']:not(:disabled) {
     cursor: pointer;
+  }
+
+  /*
+    Marketing site readability: nudge the root size up (16px -> 17px) so every
+    rem-based size scales a step larger, give body copy a more comfortable
+    line-height, and smooth the webfont. The dashboard pins its own 16px root in
+    src/app/dashboard/globals.css, so this only affects the public site.
+  */
+  html {
+    font-size: 106.25%;
+  }
+
+  body {
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
 }

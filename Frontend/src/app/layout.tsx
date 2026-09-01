@@ -1,6 +1,13 @@
 import type { Metadata, Viewport } from 'next';
+import { Inter } from 'next/font/google';
 import '@/assets/styles/global.css';
 import { SITE } from '@/data_files/constants';
+
+const inter = Inter({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-inter',
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://changia.org.tz'),
@@ -57,7 +64,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className="scrollbar-hide lenis lenis-smooth scroll-pt-16"
+      className={`${inter.variable} scrollbar-hide lenis lenis-smooth scroll-pt-16`}
       suppressHydrationWarning
     >
       <head>

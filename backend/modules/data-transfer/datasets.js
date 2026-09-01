@@ -82,6 +82,7 @@ const donors = {
       { field: "consent_status", values: ["CONSENTED", "PENDING", "WITHDRAWN"] },
       { field: "preferred_channel", values: ["SMS", "WHATSAPP", "EMAIL", "PHONE"] },
       { field: "tags", help: "Semicolon-separated, e.g. vip;alumni" },
+      { field: "notes", help: "Free-text context about this donor" },
     ],
     toInput: (r) => {
       const pick = (v, allowed, fallback) => {
@@ -106,6 +107,7 @@ const donors = {
         tags: r.tags
           ? r.tags.split(";").map((t) => t.trim()).filter(Boolean)
           : undefined,
+        notes: r.notes || undefined,
       };
     },
     schema: z.object({
@@ -120,6 +122,7 @@ const donors = {
       consentStatus: z.enum(["CONSENTED", "PENDING", "WITHDRAWN"]).optional(),
       preferredChannel: z.enum(["SMS", "WHATSAPP", "EMAIL", "PHONE"]).optional(),
       tags: z.array(z.string()).optional(),
+      notes: z.string().max(5000).optional(),
     }),
     async insert(input, req) {
       await donorService.createDonor(req.user.organizationId, input, req.user);
@@ -171,9 +174,11 @@ const poolMembers = {
       col("email", "email"),
       col("phone", "phone"),
       col("location", "location"),
+      col("gender", "gender"),
       col("position", "position"),
       col("status", "status"),
       col("consentStatus", "consent_status"),
+      col("preferredChannel", "preferred_channel"),
       col("expectedAmount", "expected_amount", "money"),
       col("paidAmount", "paid_amount", "money"),
       col("donationCount", "donation_count", "number"),
@@ -189,9 +194,11 @@ const poolMembers = {
         email: m.donor.email,
         phone: m.donor.phone,
         location: m.donor.location,
+        gender: m.donor.gender,
         position: m.donor.position,
         status: m.donor.status,
         consentStatus: m.donor.consentStatus,
+        preferredChannel: m.donor.preferredChannel,
         expectedAmount: m.expectedAmount,
         paidAmount: m.paidAmount,
         donationCount: m.donationCount,
@@ -202,17 +209,55 @@ const poolMembers = {
   import: {
     roles: ORG_WORKSPACE,
     requiresQuery: ["poolId"],
+    // A row links an existing donor by phone; any extra donor fields are used to
+    // create the donor first when no donor with that phone exists yet.
     templateFields: [
-      { field: "donor_phone", required: true, help: "Phone of an existing donor in your organisation" },
+      { field: "donor_phone", required: true, help: "Tanzanian number, e.g. +255712345678" },
       { field: "expected_amount", help: "Optional TZS amount this donor is expected to give" },
+      { field: "first_name", help: "Used only when creating a new donor" },
+      { field: "last_name" },
+      { field: "email" },
+      { field: "location" },
+      { field: "gender", values: ["MALE", "FEMALE", "UNSPECIFIED"] },
+      { field: "position" },
+      { field: "status", values: ["ACTIVE", "PROSPECT", "LAPSED", "INACTIVE"] },
+      { field: "consent_status", values: ["CONSENTED", "PENDING", "WITHDRAWN"] },
+      { field: "preferred_channel", values: ["SMS", "WHATSAPP", "EMAIL", "PHONE"] },
+      { field: "notes" },
     ],
-    toInput: (r) => ({
-      phone: r.donor_phone || "",
-      expectedAmount: r.expected_amount ? Number(r.expected_amount) : null,
-    }),
+    toInput: (r) => {
+      const pick = (v, allowed, fallback) => {
+        const up = String(v || "").toUpperCase();
+        return allowed.includes(up) ? up : fallback;
+      };
+      return {
+        phone: r.donor_phone || "",
+        expectedAmount: r.expected_amount ? Number(r.expected_amount) : null,
+        firstName: r.first_name || undefined,
+        lastName: r.last_name || undefined,
+        email: r.email || undefined,
+        location: r.location || undefined,
+        gender: pick(r.gender, ["MALE", "FEMALE", "UNSPECIFIED"], undefined),
+        position: r.position || undefined,
+        status: pick(r.status, ["ACTIVE", "PROSPECT", "LAPSED", "INACTIVE"], undefined),
+        consentStatus: pick(r.consent_status, ["CONSENTED", "PENDING", "WITHDRAWN"], undefined),
+        preferredChannel: pick(r.preferred_channel, ["SMS", "WHATSAPP", "EMAIL", "PHONE"], undefined),
+        notes: r.notes || undefined,
+      };
+    },
     schema: z.object({
       phone: z.string().regex(/^(\+?255|0)?[67][0-9]{8}$/, "Enter a valid Tanzanian phone number"),
       expectedAmount: z.number().int().nonnegative().nullable().optional(),
+      firstName: z.string().max(120).optional(),
+      lastName: z.string().max(120).optional(),
+      email: z.string().email("Invalid email").optional(),
+      location: z.string().max(160).optional(),
+      gender: z.enum(["MALE", "FEMALE", "UNSPECIFIED"]).optional(),
+      position: z.string().max(160).optional(),
+      status: z.enum(["ACTIVE", "PROSPECT", "LAPSED", "INACTIVE"]).optional(),
+      consentStatus: z.enum(["CONSENTED", "PENDING", "WITHDRAWN"]).optional(),
+      preferredChannel: z.enum(["SMS", "WHATSAPP", "EMAIL", "PHONE"]).optional(),
+      notes: z.string().max(5000).optional(),
     }),
     async insert(input, req) {
       const phone = normalizePhone(input.phone);
@@ -220,14 +265,36 @@ const poolMembers = {
         "SELECT id FROM donors WHERE organization_id = ? AND phone = ?",
         [req.user.organizationId, phone]
       );
-      if (rows.length === 0) {
-        throw new ApiError(422, "No donor with this phone in your organisation", "DONOR_NOT_FOUND");
+
+      if (rows.length > 0) {
+        const donorId = rows[0].id;
+        const body = { donorIds: [donorId] };
+        if (input.expectedAmount != null) body.expectedAmounts = { [donorId]: input.expectedAmount };
+        await poolService.addMembers(req.user.organizationId, req.user, req.query.poolId, body);
+        return;
       }
-      const donorId = rows[0].id;
-      const body = { donorIds: [donorId] };
-      if (input.expectedAmount != null) body.expectedAmounts = { [donorId]: input.expectedAmount };
+
+      // No donor with this phone — create one from the extra columns, then link.
+      const { expectedAmount, ...donorFields } = input;
+      const body = { donors: [{ ...donorFields, phone }] };
       await poolService.addMembers(req.user.organizationId, req.user, req.query.poolId, body);
+      if (expectedAmount != null) {
+        const created = await db.query(
+          "SELECT id FROM donors WHERE organization_id = ? AND phone = ?",
+          [req.user.organizationId, phone]
+        );
+        if (created.length > 0) {
+          await poolService.setMemberExpected(
+            req.user.organizationId,
+            req.user,
+            req.query.poolId,
+            created[0].id,
+            expectedAmount
+          );
+        }
+      }
     },
+    duplicateCode: "DONOR_EXISTS",
   },
 };
 

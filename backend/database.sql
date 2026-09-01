@@ -327,9 +327,13 @@ CREATE TABLE campaign_completion_reports (
   campaign_id     BIGINT UNSIGNED NOT NULL,
   organization_id BIGINT UNSIGNED NOT NULL,
   submitted_by_id BIGINT UNSIGNED NULL,
+  first_reviewed_by_id BIGINT UNSIGNED NULL,
+  first_reviewed_at    DATETIME NULL,
   summary         TEXT NOT NULL,
   amount_utilized DECIMAL(14,0) NULL,
-  status          ENUM('PENDING_REVIEW','APPROVED','REJECTED') NOT NULL DEFAULT 'PENDING_REVIEW',
+  -- Two-stage chain (mirrors payouts / closure requests): PENDING_REVIEW
+  -- (stage 1, a REVIEWER) → REVIEWED (stage 2, an ORG_ADMIN) → APPROVED.
+  status          ENUM('PENDING_REVIEW','REVIEWED','APPROVED','REJECTED') NOT NULL DEFAULT 'PENDING_REVIEW',
   submitted_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   reviewed_by_id  BIGINT UNSIGNED NULL,
   reviewed_at     DATETIME NULL,
@@ -339,6 +343,7 @@ CREATE TABLE campaign_completion_reports (
   CONSTRAINT fk_ccr_campaign FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE,
   CONSTRAINT fk_ccr_org FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
   CONSTRAINT fk_ccr_submitted_by FOREIGN KEY (submitted_by_id) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_ccr_first_reviewer FOREIGN KEY (first_reviewed_by_id) REFERENCES users(id) ON DELETE SET NULL,
   CONSTRAINT fk_ccr_reviewed_by FOREIGN KEY (reviewed_by_id) REFERENCES users(id) ON DELETE SET NULL,
   UNIQUE KEY uq_ccr_campaign (campaign_id),
   INDEX idx_ccr_org_status (organization_id, status)
@@ -367,30 +372,41 @@ CREATE TABLE campaign_images (
   image_path  VARCHAR(500) NOT NULL,
   is_cover    TINYINT(1) NOT NULL DEFAULT 0,
   sort_order  INT NOT NULL DEFAULT 0,
+  -- A gallery photo added to / removed from a LIVE campaign is staged for the
+  -- same two-stage review as a cover change: 'ADD' = uploaded but not yet
+  -- public, 'REMOVE' = still public until the campaign's change request clears.
+  pending_change ENUM('NONE','ADD','REMOVE') NOT NULL DEFAULT 'NONE',
   created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_ci_campaign FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE,
   INDEX idx_ci_campaign (campaign_id, sort_order)
 ) ENGINE=InnoDB;
 
 -- A CAMPAIGN_MANAGER requests permission to close (complete) their campaign,
--- with a reason; an ORG_ADMIN/SUPER_ADMIN approves (→ campaign COMPLETED) or
--- rejects (with a decision note shown back to the manager, who may request
--- again). Full history is kept — no uniqueness constraint — "only one open
--- request at a time" is enforced in the service layer.
+-- with a reason. It then clears the same two-stage chain as payouts / campaign
+-- change requests: a REVIEWER's first review (PENDING → REVIEWED), then an
+-- ORG_ADMIN/SUPER_ADMIN's final approval (REVIEWED → APPROVED, campaign →
+-- COMPLETED). Either stage can reject / request changes (→ REJECTED, with a
+-- decision note shown back to the manager, who may request again).
+-- first_approved_by_id/at record the stage-1 sign-off so stage 2 must be a
+-- different person. Full history is kept — no uniqueness constraint — "only one
+-- open request at a time" is enforced in the service layer.
 CREATE TABLE campaign_closure_requests (
-  id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  campaign_id     BIGINT UNSIGNED NOT NULL,
-  organization_id BIGINT UNSIGNED NOT NULL,
-  requested_by_id BIGINT UNSIGNED NULL,
-  reason          TEXT NOT NULL,
-  status          ENUM('PENDING','APPROVED','REJECTED') NOT NULL DEFAULT 'PENDING',
-  decided_by_id   BIGINT UNSIGNED NULL,
-  decided_at      DATETIME NULL,
-  decision_notes  TEXT NULL,
-  created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  id                   BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  campaign_id          BIGINT UNSIGNED NOT NULL,
+  organization_id      BIGINT UNSIGNED NOT NULL,
+  requested_by_id      BIGINT UNSIGNED NULL,
+  first_approved_by_id BIGINT UNSIGNED NULL,
+  first_approved_at    DATETIME NULL,
+  reason               TEXT NOT NULL,
+  status               ENUM('PENDING','REVIEWED','APPROVED','REJECTED') NOT NULL DEFAULT 'PENDING',
+  decided_by_id        BIGINT UNSIGNED NULL,
+  decided_at           DATETIME NULL,
+  decision_notes       TEXT NULL,
+  created_at           TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at           TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_ccreq_campaign FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE,
   CONSTRAINT fk_ccreq_org FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+  CONSTRAINT fk_ccreq_first_approver FOREIGN KEY (first_approved_by_id) REFERENCES users(id) ON DELETE SET NULL,
   INDEX idx_ccreq_campaign_status (campaign_id, status)
 ) ENGINE=InnoDB;
 

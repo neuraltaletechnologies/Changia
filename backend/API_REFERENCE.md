@@ -557,6 +557,7 @@ Routes: `/campaigns` — all authenticated, org-scoped.
         "isPublic": true,
         "contactPhone": "+255755987654",
         "raisedAmount": 2750000,
+        "availableForPayout": 2750000,
         "donorCount": 32,
         "approvedBy": 2,
         "approvedAt": "2026-01-02T00:00:00.000Z",
@@ -649,7 +650,8 @@ Detail view: campaign + its assigned managers + the **10 most recent confirmed d
 - An `ORG_ADMIN` may only edit a campaign **they created themselves** → `403 NOT_CAMPAIGN_EDITOR` otherwise. Editing a campaign built by a manager is not an admin action — send it back with `POST /campaigns/:id/request-changes` and the manager makes the change. (`SUPER_ADMIN` keeps blanket edit access.) The same rule applies to `PUT /campaigns/:id/translations` and `POST|DELETE /campaigns/:id/images`.
 - `COMPLETED` / `CANCELLED` campaigns can't be edited → `400 CAMPAIGN_LOCKED`.
 - Goal/fee can't change once a campaign has taken a donation → `400 GOAL_LOCKED`.
-- Editing a **material** field (`name`, `story`, `goalAmount`, `serviceFeePercent`, `category`, `startDate`, `endDate`, `minimumAmount`, `contactPhone`) of a **live** (`ACTIVE`/`PAUSED`) campaign does NOT apply immediately — it is parked as a **change request** (`hasPendingChanges: true`, `changeRequest` populated) that must clear the two-stage chain (see below). The live campaign keeps its last-approved values until then. Swahili translations and gallery photos always apply immediately.
+- Editing a **material** field (`name`, `story`, `goalAmount`, `serviceFeePercent`, `category`, `startDate`, `endDate`, `minimumAmount`, `contactPhone`) of a **live** (`ACTIVE`/`PAUSED`) campaign does NOT apply immediately — it is parked as a **change request** (`hasPendingChanges: true`, `changeRequest` populated) that must clear the two-stage chain (see below). The live campaign keeps its last-approved values until then. Swahili translations still apply immediately.
+- **Photos on a live campaign are also parked.** `POST /campaigns/:id/images` (cover *or* gallery) and `DELETE /campaigns/:id/images/:imageId` on an `ACTIVE`/`PAUSED` campaign open/refresh the same `changeRequest` instead of applying. Each gallery image carries `pendingChange: "NONE" | "ADD" | "REMOVE"` — an `"ADD"` is uploaded but hidden from the public campaign until approved; a `"REMOVE"` keeps showing publicly until approved. On the change request's final approval, staged adds go live and staged removals (and their files) are dropped; on `reject`, staged adds (and files) are discarded and staged removals revert. On a not-yet-live campaign every photo change still applies immediately.
 - Editing a not-yet-live campaign applies inline; a `REVIEWED` campaign drops back to `PENDING` (its first approval is cleared) so a review always covers the latest content.
 
 **Response — `200 OK`:** the updated campaign object.
@@ -736,7 +738,7 @@ Returns the full history (`ChangeRequest[]`). The open one is also embedded on t
 
 #### `POST /campaigns/:id/change-requests/:requestId/decide` — `SUPER_ADMIN`, `ORG_ADMIN` or `REVIEWER`
 
-**Required body** `{ "action": "approve" | "request_changes" | "reject", "notes": "…" }` (`notes` ≥ 10 chars required for the two negative actions). `approve` advances the change request through the same two-stage chain (`PENDING → REVIEWED → APPLIED`); on the final approval the payload (and any staged cover image) is written onto the campaign.
+**Required body** `{ "action": "approve" | "request_changes" | "reject", "notes": "…" }` (`notes` ≥ 10 chars required for the two negative actions). `approve` advances the change request through the same two-stage chain (`PENDING → REVIEWED → APPLIED`); on the final approval the payload (and any staged cover image / gallery photo adds & removals) is written onto the campaign.
 
 ### `POST /campaigns/:id/status` — `SUPER_ADMIN` or `ORG_ADMIN`
 
@@ -816,15 +818,17 @@ Resubmitting (after a `REJECTED` review, or before any review) **replaces** the 
 
 **Required body:** `{ "action": "approve" | "request_changes" | "reject", "notes": "…" }` — `notes` (≥ 10 chars) is required for `request_changes` and `reject`. (`{ "approved": true|false }` is still accepted for backwards compatibility.)
 
-**Response — `200 OK`:** the report object with `status: "APPROVED"` or `"REJECTED"`.
-**Errors:** `404` (no report submitted yet), `400 REPORT_NOT_PENDING`, `400 REASON_REQUIRED`.
+Two-stage chain, same as payouts / closure requests: `approve` on a `PENDING_REVIEW` report (a `REVIEWER`/`SUPER_ADMIN`, not the submitter) moves it to `REVIEWED` (first review); `approve` on a `REVIEWED` report (an `ORG_ADMIN`/`SUPER_ADMIN`, a different person, not the submitter) moves it to `APPROVED`. `reject` / `request_changes` at either stage → `REJECTED` (the manager resubmits). The report object carries `firstReviewedBy` / `firstReviewedAt`, and the summary embedded on campaign list/detail adds `firstReviewedBy`.
+
+**Response — `200 OK`:** the report object with `status: "REVIEWED"`, `"APPROVED"` or `"REJECTED"`.
+**Errors:** `404` (no report submitted yet), `400 REPORT_NOT_PENDING`, `400 REASON_REQUIRED`, `403 NEEDS_REVIEWER` / `403 NEEDS_ORG_ADMIN`, `400 SAME_AS_CREATOR` / `400 SAME_APPROVER`.
 
 ### Service-fee proposals & closure requests
 
 Both use the same three-outcome decision body — `{ "action": "approve" | "request_changes" | "reject", "notes": "…" }`, `notes` (≥ 10) required for the negatives:
 
 - `POST /campaigns/:id/fee/review` — `SUPER_ADMIN`, `ORG_ADMIN` or `REVIEWER`. Decides a manager's pending custom `serviceFeePercent`. `approve` recomputes the fee/target; `reject` discards it; `request_changes` keeps it pending with a note.
-- `POST /campaigns/:id/closure-requests/:requestId/decide` — `SUPER_ADMIN`, `ORG_ADMIN` or `REVIEWER`. `approve` → campaign `COMPLETED`.
+- `POST /campaigns/:id/closure-requests/:requestId/decide` — same two-stage chain as payouts / campaign change requests. `approve` on a `PENDING` request (a `REVIEWER`/`SUPER_ADMIN`, not the requester) moves it to `REVIEWED` (first review); `approve` on a `REVIEWED` request (an `ORG_ADMIN`/`SUPER_ADMIN`, a different person, not the requester) moves it to `APPROVED` and the campaign to `COMPLETED`. `reject` / `request_changes` at either stage → `REJECTED` (the manager may file a new request). The closure request object carries `firstApprovedBy` / `firstApprovedAt`. Errors: `403 NEEDS_REVIEWER` / `403 NEEDS_ORG_ADMIN`, `400 SAME_AS_CREATOR` / `400 SAME_APPROVER`, `400 CLOSURE_REQUEST_NOT_PENDING`, `409 CLOSURE_REQUEST_PENDING` (on request while one is already `PENDING`/`REVIEWED`).
 
 ### Payout proof-of-use photos
 
@@ -837,7 +841,7 @@ Every payout record carries `proofImages: [{ id, url }]` — optional photos (in
 
 Payout lifecycle: `REQUESTED` → `REVIEWED` (reviewer's first approval) → `APPROVED` (org admin's final approval — the funds are now **on hold**) → `PAID` (the requesting `CAMPAIGN_MANAGER` confirms the release, which atomically fires the ClickPesa mobile-money transfer). `reject` (`REQUESTED`/`REVIEWED` only) → `REJECTED`.
 
-The mobile-money destination is captured **with the request** (no separate checkout step). `POST /payouts` body: `{ amount (int TZS), campaignId, reason, provider, phone (Tanzanian number), accountName, notes? }`. Only one payout per campaign may be in flight (not `PAID`/`REJECTED`) — a duplicate is `409 PAYOUT_REQUEST_PENDING`.
+The mobile-money destination is captured **with the request** (no separate checkout step). `POST /payouts` body: `{ amount (int TZS), campaignId, reason, provider, phone (Tanzanian number), accountName, notes? }`. Only one payout per campaign may be in flight (not `PAID`/`REJECTED`) — a duplicate is `409 PAYOUT_REQUEST_PENDING`. `amount` may not exceed the campaign's `availableForPayout` (raised − already paid out) — over that is `400 PAYOUT_EXCEEDS_AVAILABLE`.
 
 Every payout record carries `disbursement` — `{ method: "MOBILE_MONEY", provider, accountName, phone, submittedAt, submittedBy }` — plus `confirmedBy` / `confirmedAt` once released.
 
@@ -1141,7 +1145,9 @@ Body: `{ "targetDonorId": number, "paymentMethod"?: { "method": "MOMO"|…, "acc
 
 ### `POST /donor-pools/reminders/send` — `SUPER_ADMIN`, `ORG_ADMIN`, or `CAMPAIGN_MANAGER`
 
-One-off bulk reminder (manual send, not a scheduled resend).
+One-off bulk reminder (manual send, not a scheduled resend). Two modes:
+
+**Single-channel mode** — every donor messaged on one channel with one free-text body:
 
 | Field | Type | Rules |
 |-------|------|-------|
@@ -1151,7 +1157,17 @@ One-off bulk reminder (manual send, not a scheduled resend).
 | `subject` | string | optional (Email only) |
 | `message` | string | required, max 5000 |
 
-**Response — `201 Created`:** `{ batch: {...}, deliveries: [{ donorId, recipient, status, providerRef, sentAt }] }`. Actual delivery depends on `MESSAGE_PROVIDER` — see `Backend/README.md` → "Messaging providers setup".
+**Preferred-channel mode** — each donor messaged on their own `preferredChannel`, rendered from a per-channel saved template:
+
+| Field | Type | Rules |
+|-------|------|-------|
+| `campaignId` | number | required |
+| `donorIds` | number[] | required, 1–500 |
+| `usePreferredChannel` | boolean | `true` |
+| `fallbackChannel` | string | `SMS` \| `WHATSAPP` \| `EMAIL` — used for donors whose `preferredChannel` is `PHONE`/unset/unreachable |
+| `templates` | object | `{ SMS?, WHATSAPP?, EMAIL? }` → template id; a template is required for every channel the recipients resolve to |
+
+**Response — `201 Created`:** `{ batch: {...}, deliveries: [{ donorId, channel?, recipient, status, providerRef, sentAt }] }` — preferred-channel mode sends one `message_batch` per channel and returns `batch.channel: "PREFERRED"` with `batch.channels: [...]`. Actual delivery depends on `MESSAGE_PROVIDER` — see `Backend/README.md` → "Messaging providers setup".
 
 ---
 

@@ -1,7 +1,12 @@
 const db = require("../../db");
 const { ApiError } = require("../../utils/ApiError");
 const { normalizePhone } = require("../../utils/phone");
-const { sendMessage, recipientFor, buildReminderEmailHtml } = require("../../utils/messaging");
+const {
+  sendMessage,
+  recipientFor,
+  buildReminderEmailHtml,
+  renderTemplate,
+} = require("../../utils/messaging");
 const { env } = require("../../config");
 const donorService = require("../donor/service");
 
@@ -651,6 +656,149 @@ async function mergeAnomalous(organizationId, user, anomalousDonorId, data) {
 
 // ─── Reminders ──────────────────────────────────────────────────────────────
 
+const REMINDER_CHANNELS = ["SMS", "WHATSAPP", "EMAIL"];
+
+/**
+ * One-off reminder where every donor is contacted on their own
+ * `preferred_channel`. Donors whose preferred channel is not a messaging
+ * channel (e.g. PHONE) or who lack a working contact for it fall back to
+ * `data.fallbackChannel` (default SMS). Each channel that ends up being used
+ * must have a saved template supplied in `data.templates`.
+ */
+async function sendPreferredChannelReminder({
+  data,
+  campaign,
+  effectiveOrgId,
+  orgName,
+  campaignUrl,
+  donors,
+  user,
+}) {
+  const fallback = REMINDER_CHANNELS.includes(data.fallbackChannel)
+    ? data.fallbackChannel
+    : "SMS";
+  const templateIds = data.templates || {};
+
+  // Resolve the channel each donor will actually be messaged on.
+  const routed = donors.map((donor) => {
+    let channel =
+      donor.preferred_channel && REMINDER_CHANNELS.includes(donor.preferred_channel)
+        ? donor.preferred_channel
+        : fallback;
+    if (!recipientFor(channel, donor) && donor.phone && channel === "EMAIL") {
+      channel = fallback === "EMAIL" ? "SMS" : fallback;
+    }
+    return { donor, channel };
+  });
+
+  const usedChannels = [...new Set(routed.map((r) => r.channel))];
+  const missing = usedChannels.filter((c) => !templateIds[c]);
+  if (missing.length > 0) {
+    throw ApiError.badRequest(
+      `Pick a template for: ${missing.join(", ")}`,
+      "TEMPLATE_REQUIRED"
+    );
+  }
+
+  // Load every template referenced, and confirm the channel matches.
+  const templatesByChannel = {};
+  for (const channel of usedChannels) {
+    const rows = await db.query(
+      "SELECT * FROM message_templates WHERE id = ? AND organization_id = ?",
+      [Number(templateIds[channel]), effectiveOrgId]
+    );
+    if (rows.length === 0) {
+      throw ApiError.badRequest(`Template for ${channel} was not found`, "TEMPLATE_NOT_FOUND");
+    }
+    if (rows[0].channel !== channel) {
+      throw ApiError.badRequest(
+        `The template picked for ${channel} is a ${rows[0].channel} template`,
+        "TEMPLATE_CHANNEL_MISMATCH"
+      );
+    }
+    templatesByChannel[channel] = rows[0];
+  }
+
+  const batchIds = [];
+  const allDeliveries = [];
+
+  for (const channel of usedChannels) {
+    const channelDonors = routed.filter((r) => r.channel === channel).map((r) => r.donor);
+    const template = templatesByChannel[channel];
+
+    const batchResult = await db.execute(
+      `INSERT INTO message_batches
+         (organization_id, campaign_id, created_by_id, type, subject, body, status, recipient_count)
+       VALUES (?, ?, ?, ?, ?, ?, 'SENT', ?)`,
+      [
+        effectiveOrgId,
+        campaign.id,
+        user.id,
+        channel,
+        template.subject || null,
+        template.body,
+        channelDonors.length,
+      ]
+    );
+    const batchId = batchResult.insertId;
+    batchIds.push(batchId);
+
+    for (const donor of channelDonors) {
+      const donorName =
+        [donor.first_name, donor.last_name].filter(Boolean).join(" ") || "Donor";
+      const vars = { donorName, campaignName: campaign.name, orgName, amountDue: "" };
+      const subject = renderTemplate(template.subject || `Reminder: ${campaign.name}`, vars);
+      const bodyText = renderTemplate(template.body, vars);
+      const recipient = recipientFor(channel, donor) || donor.phone;
+
+      let html = null;
+      if (channel === "EMAIL" && recipient) {
+        html = buildReminderEmailHtml({
+          donorName,
+          campaignName: campaign.name,
+          campaignUrl,
+          orgName,
+          messageBody: bodyText,
+        });
+      }
+
+      const result = recipient
+        ? await sendMessage({ channel, to: recipient, subject, body: bodyText, html })
+        : { status: "FAILED", providerRef: null, error: "Donor has no contact for this channel" };
+
+      await db.execute(
+        `INSERT INTO message_deliveries
+           (batch_id, donor_id, recipient, status, provider_ref, error, sent_at)
+         VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+        [batchId, donor.id, recipient || "", result.status, result.providerRef || null, result.error || null]
+      );
+      allDeliveries.push({
+        donorId: donor.id,
+        channel,
+        recipient: recipient || "",
+        status: result.status,
+      });
+    }
+
+    await db.execute(
+      `INSERT INTO audit_logs (organization_id, actor_id, actor_email, action, resource, resource_id, severity)
+       VALUES (?, ?, ?, 'reminder.sent', 'message_batch', ?, 'INFO')`,
+      [effectiveOrgId, user.id, user.email, String(batchId)]
+    );
+  }
+
+  return {
+    batch: {
+      id: batchIds[0] ?? null,
+      campaignId: campaign.id,
+      channel: "PREFERRED",
+      channels: usedChannels,
+      recipientCount: routed.length,
+    },
+    deliveries: allDeliveries,
+  };
+}
+
 async function sendReminder(organizationId, user, data) {
   // SUPER_ADMIN has no organization_id — look up campaign by ID only
   let campaign;
@@ -687,11 +835,27 @@ async function sendReminder(organizationId, user, data) {
     throw ApiError.badRequest("No valid donors selected for the reminder");
   }
 
-  const subject = data.subject || `Reminder: ${campaign.name}`;
-  const body = data.message;
-
   // Build campaign URL for email channel
   const campaignUrl = `${env.APP_BASE_URL}/campaigns/${campaign.slug || campaign.id}`;
+
+  // ─── Preferred-channel mode ──────────────────────────────────────────────
+  // Each donor is messaged on their own preferred_channel (falling back to
+  // `fallbackChannel` when that channel can't be used), rendered from a
+  // per-channel saved template.
+  if (data.usePreferredChannel) {
+    return sendPreferredChannelReminder({
+      data,
+      campaign,
+      effectiveOrgId,
+      orgName,
+      campaignUrl,
+      donors,
+      user,
+    });
+  }
+
+  const subject = data.subject || `Reminder: ${campaign.name}`;
+  const body = data.message;
 
   const batchResult = await db.execute(
     `INSERT INTO message_batches

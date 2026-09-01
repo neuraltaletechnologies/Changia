@@ -751,10 +751,20 @@ function DonorPanel({
               dataset="pool-members"
               params={{ poolId }}
               columns={[
-                { field: "donor_phone", required: true, help: "Phone of an existing donor" },
+                { field: "donor_phone", required: true, help: "Tanzanian number, e.g. +255712345678" },
                 { field: "expected_amount", help: "Optional TZS amount expected" },
+                { field: "first_name", help: "Used only when creating a new donor" },
+                { field: "last_name" },
+                { field: "email" },
+                { field: "location" },
+                { field: "gender", help: "MALE / FEMALE / UNSPECIFIED" },
+                { field: "position" },
+                { field: "status", help: "ACTIVE / PROSPECT / LAPSED / INACTIVE" },
+                { field: "consent_status", help: "CONSENTED / PENDING / WITHDRAWN" },
+                { field: "preferred_channel", help: "SMS / WHATSAPP / EMAIL / PHONE" },
+                { field: "notes" },
               ]}
-              description="Each row adds an existing donor to this pool."
+              description="Each row links an existing donor by phone, or creates a new donor from the extra columns."
               onImported={() => {
                 load();
                 onChanged();

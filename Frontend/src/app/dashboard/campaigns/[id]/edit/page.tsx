@@ -290,10 +290,10 @@ export default function EditCampaignPage() {
         <div className="rounded-xl border border-border bg-muted/40 px-4 py-3 text-xs text-muted-foreground">
           This campaign is live. Saved changes to the name, story, scope,
           acceptance, goal, service fee, category, dates, minimum amount, contact
-          phone or cover image need a reviewer&apos;s{" "}
+          phone, cover image or gallery photos need a reviewer&apos;s{" "}
           <span className="font-medium">and</span> an admin&apos;s approval before
-          they show publicly. Gallery photos apply right away, and the Swahili
-          translation refreshes automatically once the change is approved.
+          they show publicly. The Swahili translation refreshes automatically
+          once the change is approved.
         </div>
       )}
 

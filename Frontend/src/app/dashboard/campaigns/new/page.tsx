@@ -57,6 +57,10 @@ interface FormState {
   contactPhone: string;
 }
 
+// Mirrors the backend multer limit (Backend/middlewares/upload.js) so an
+// oversized photo is caught here instead of failing mid-submit.
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
 const initialForm: FormState = {
   name: "",
   category: CATEGORIES[0],
@@ -83,11 +87,14 @@ export default function NewCampaignPage() {
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [galleryFiles, setGalleryFiles] = useState<File[]>([]);
   const [coverError, setCoverError] = useState<string | null>(null);
+  const [galleryError, setGalleryError] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<"draft" | "submit" | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const submitting = pendingAction !== null;
   const [created, setCreated] = useState<CampaignRecord | null>(null);
-  const [imageWarning, setImageWarning] = useState<string | null>(null);
+  // Once the draft exists on the server we keep its record so a retry after a
+  // failed photo upload reuses it instead of creating a duplicate campaign.
+  const [draft, setDraft] = useState<CampaignRecord | null>(null);
 
   // The org's default campaign service fee (%), added on top of the goal —
   // see computeFees() in Backend/modules/campaign/service.js. Only an admin or
@@ -173,11 +180,19 @@ export default function NewCampaignPage() {
     if (mode === "submit" && !coverFile) {
       setCoverError("A cover photo is required to submit for review.");
       coverOk = false;
+    } else if (coverFile && coverFile.size > MAX_IMAGE_BYTES) {
+      setCoverError("The cover photo is larger than 5 MB. Choose a smaller image.");
+      coverOk = false;
     } else {
       setCoverError(null);
     }
 
-    return Object.keys(next).length === 0 && coverOk;
+    const galleryOk = galleryFiles.every((f) => f.size <= MAX_IMAGE_BYTES);
+    if (!galleryOk) {
+      setGalleryError("One or more supporting photos are larger than 5 MB. Remove or replace them.");
+    }
+
+    return Object.keys(next).length === 0 && coverOk && galleryOk;
   };
 
   const save = async (mode: "draft" | "submit") => {
@@ -186,7 +201,13 @@ export default function NewCampaignPage() {
     setPendingAction(mode);
     setSubmitError(null);
     try {
-      const campaign = await campaignApi.create({
+      // Always create as a draft first. For a "submit", this lets us upload the
+      // photos and only advance the campaign into the review queue once they're
+      // safely stored — a failed photo upload must not leave a half-finished
+      // campaign sitting in front of a reviewer. A retry after a failed upload
+      // reuses the draft (patching in any form edits) rather than creating a
+      // duplicate campaign.
+      const payload = {
         name: form.name.trim(),
         category: form.category,
         story: form.description.trim() || undefined,
@@ -201,16 +222,25 @@ export default function NewCampaignPage() {
         contactPhone: form.contactPhone.trim()
           ? form.contactPhone.replace(/[\s-]/g, "")
           : undefined,
-        poolIds: poolIds.length > 0 ? poolIds : undefined,
-        asDraft: mode === "draft" ? true : undefined,
         // Only an admin/reviewer can set this, and only send it when it differs
         // from the org default (managers never send it).
         serviceFeePercent:
           canSetFee && isCustomFee ? Number(serviceFeePercent) : undefined,
-      });
+      };
+      const campaign = draft
+        ? await campaignApi.update(draft.id, payload)
+        : await campaignApi.create({
+            ...payload,
+            poolIds: poolIds.length > 0 ? poolIds : undefined,
+            asDraft: true,
+          });
+      setDraft(campaign);
 
-      // Images are a separate call — the campaign already exists once this
-      // point is reached, so a failure here shouldn't block the flow.
+      // Upload photos. For a "submit" this is a hard gate: if it fails, the
+      // campaign stays a draft, we surface the error, and we do NOT submit it
+      // for review — the user fixes the photo on the campaign page and submits
+      // from there. For a "draft" a failure is non-blocking (they can add
+      // photos later).
       let imgError: string | null = null;
       if (coverFile || galleryFiles.length > 0) {
         try {
@@ -220,10 +250,21 @@ export default function NewCampaignPage() {
           await campaignApi.uploadImages(campaign.id, formData);
         } catch (imgErr) {
           imgError =
-            imgErr instanceof Error
-              ? `The campaign was saved, but the photos failed to upload: ${imgErr.message}. Add them from the campaign page.`
-              : "The campaign was saved, but the photos failed to upload. Add them from the campaign page.";
+            imgErr instanceof Error ? imgErr.message : "the photos could not be uploaded";
         }
+      }
+
+      if (mode === "submit" && imgError) {
+        // Hard stop: the campaign is saved as a draft but is NOT submitted for
+        // review. Fix the photo and press "Submit for review" again — the retry
+        // reuses this draft.
+        setSubmitError(
+          `The photos could not be uploaded: ${imgError}. ` +
+            "Your campaign is saved as a draft — choose a photo under 5 MB (JPEG, PNG or WEBP) and submit again. " +
+            "You can also finish it from the campaign page."
+        );
+        setPendingAction(null);
+        return;
       }
 
       if (mode === "draft") {
@@ -233,7 +274,9 @@ export default function NewCampaignPage() {
         return;
       }
 
-      setImageWarning(imgError);
+      // Photos are stored — now actually put the campaign into the review queue.
+      await campaignApi.submit(campaign.id);
+
       setCreated(campaign);
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : "Failed to save the campaign.");
@@ -268,11 +311,6 @@ export default function NewCampaignPage() {
             <Clock className="w-3.5 h-3.5" />
             Pending first review
           </div>
-          {imageWarning && (
-            <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 text-left">
-              {imageWarning}
-            </div>
-          )}
           {poolIds.length > 0 && (
             <p className="text-xs text-muted-foreground mt-3">
               {poolIds.length} donor pool{poolIds.length > 1 ? "s" : ""} imported for tracking.
@@ -584,7 +622,16 @@ export default function NewCampaignPage() {
                   accept="image/jpeg,image/png,image/webp"
                   className="hidden"
                   onChange={(e) => {
-                    setCoverFile(e.target.files?.[0] ?? null);
+                    const file = e.target.files?.[0] ?? null;
+                    if (file && file.size > MAX_IMAGE_BYTES) {
+                      setCoverFile(null);
+                      setCoverError(
+                        "That image is larger than 5 MB. Choose a smaller cover photo."
+                      );
+                      e.target.value = "";
+                      return;
+                    }
+                    setCoverFile(file);
                     setCoverError(null);
                   }}
                 />
@@ -604,9 +651,25 @@ export default function NewCampaignPage() {
                   accept="image/jpeg,image/png,image/webp"
                   multiple
                   className="hidden"
-                  onChange={(e) => setGalleryFiles(Array.from(e.target.files ?? []).slice(0, 8))}
+                  onChange={(e) => {
+                    const picked = Array.from(e.target.files ?? []);
+                    const tooBig = picked.filter((f) => f.size > MAX_IMAGE_BYTES);
+                    setGalleryFiles(
+                      picked.filter((f) => f.size <= MAX_IMAGE_BYTES).slice(0, 8)
+                    );
+                    setGalleryError(
+                      tooBig.length > 0
+                        ? `${tooBig.length} photo${
+                            tooBig.length > 1 ? "s were" : " was"
+                          } larger than 5 MB and skipped.`
+                        : null
+                    );
+                  }}
                 />
               </label>
+              {galleryError && (
+                <p className="text-xs text-destructive">{galleryError}</p>
+              )}
             </div>
           </div>
 

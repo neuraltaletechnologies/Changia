@@ -69,7 +69,13 @@ export function RequestPayoutDialog({
 
   const addFiles = (list: FileList | null) => {
     if (!list || list.length === 0) return;
-    setFiles((prev) => [...prev, ...Array.from(list)].slice(0, MAX_PAYOUT_PROOF_IMAGES));
+    // Copy the FileList to an array *now* — the onChange handler clears the
+    // input (`e.target.value = ""`) straight after this call, which empties the
+    // live FileList before React runs the state updater. Reading it lazily
+    // inside setFiles() would see nothing and the picker would appear to do
+    // nothing.
+    const picked = Array.from(list);
+    setFiles((prev) => [...prev, ...picked].slice(0, MAX_PAYOUT_PROOF_IMAGES));
   };
   const removeFile = (idx: number) => setFiles((prev) => prev.filter((_, i) => i !== idx));
 
@@ -157,6 +163,9 @@ export function RequestPayoutDialog({
               onChange={(e) => setAmount(e.target.value)}
               placeholder="e.g. 1500000"
               className="h-9"
+              aria-invalid={
+                availableAmount != null && Number(amount) > availableAmount ? true : undefined
+              }
             />
             {maxAmount != null && maxAmount > 0 && (
               <p className="text-[11px] text-muted-foreground">

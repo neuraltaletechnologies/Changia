@@ -608,6 +608,28 @@ function EditDonorSheet({
             </div>
           </div>
 
+          <div className="space-y-1.5">
+            <Label className="text-xs">Preferred communication channel</Label>
+            <Select
+              value={form.preferredChannel}
+              onValueChange={(v) => set("preferredChannel", v ?? "SMS")}
+            >
+              <SelectTrigger className="h-9 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="SMS">SMS</SelectItem>
+                <SelectItem value="WHATSAPP">WhatsApp</SelectItem>
+                <SelectItem value="EMAIL">Email</SelectItem>
+                <SelectItem value="PHONE">Phone Call</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-muted-foreground">
+              Reminders sent &ldquo;by preferred channel&rdquo; use this. Phone-call donors
+              fall back to the reminder&apos;s chosen fallback channel.
+            </p>
+          </div>
+
           {error && (
             <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
               {error}

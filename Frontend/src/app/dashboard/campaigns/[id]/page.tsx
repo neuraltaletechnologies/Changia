@@ -32,6 +32,7 @@ import {
   MoreHorizontal,
   PackageCheck,
   Pause,
+  Pencil,
   Phone,
   Play,
   Truck,
@@ -107,6 +108,7 @@ import {
   type SortAccessors,
 } from "@/components/dashboard/ui/sortable-table";
 import { CampaignPhotosCard } from "@/components/dashboard/campaigns/campaign-photos-card";
+import { CampaignEditSheet } from "@/components/dashboard/campaigns/campaign-edit-sheet";
 import { RequestPayoutDialog } from "@/components/dashboard/payouts/request-payout-dialog";
 import { PAYOUT_STATUS_LABEL } from "@/lib/dashboard/payouts";
 import { ReviewDecisionDialog } from "@/components/dashboard/campaigns/review-decision-dialog";
@@ -163,6 +165,7 @@ export default function CampaignDetailPage() {
   const [acting, setActing] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [reminderOpen, setReminderOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   const [selected, setSelected] = useState<Set<number>>(new Set());
 
@@ -294,14 +297,20 @@ export default function CampaignDetailPage() {
           </span>
         </div>
       )}
-      {campaign.status === "COMPLETED" && campaign.completionReport?.status === "PENDING_REVIEW" && (
-        <div className="flex items-start gap-2.5 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800">
-          <ShieldCheck className="w-4 h-4 mt-0.5 shrink-0" />
-          <span>
-            A completion report is waiting for review in the <strong>Completion</strong> tab.
-          </span>
-        </div>
-      )}
+      {campaign.status === "COMPLETED" &&
+        (campaign.completionReport?.status === "PENDING_REVIEW" ||
+          campaign.completionReport?.status === "REVIEWED") && (
+          <div className="flex items-start gap-2.5 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800">
+            <ShieldCheck className="w-4 h-4 mt-0.5 shrink-0" />
+            <span>
+              A completion report is{" "}
+              {campaign.completionReport?.status === "REVIEWED"
+                ? "awaiting an admin's final approval"
+                : "awaiting a reviewer's first review"}{" "}
+              in the <strong>Completion</strong> tab.
+            </span>
+          </div>
+        )}
       {campaign.status === "COMPLETED" && campaign.completionReport?.status === "REJECTED" && (
         <div className="flex items-start gap-2.5 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
           <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
@@ -311,11 +320,16 @@ export default function CampaignDetailPage() {
           </span>
         </div>
       )}
-      {campaign.latestClosureRequest?.status === "PENDING" && (
+      {(campaign.latestClosureRequest?.status === "PENDING" ||
+        campaign.latestClosureRequest?.status === "REVIEWED") && (
         <div className="flex items-start gap-2.5 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800">
           <ShieldCheck className="w-4 h-4 mt-0.5 shrink-0" />
           <span>
-            A request to close this campaign is waiting for review in the <strong>Payout</strong> tab.
+            A request to close this campaign is{" "}
+            {campaign.latestClosureRequest?.status === "REVIEWED"
+              ? "awaiting an admin's final approval"
+              : "awaiting a reviewer's first review"}{" "}
+            in the <strong>Payout</strong> tab.
           </span>
         </div>
       )}
@@ -509,20 +523,52 @@ export default function CampaignDetailPage() {
                   Changes pending review
                 </span>
               )}
-              {isAdmin && campaign.status === "ACTIVE" && campaign.isPublic && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={acting}
-                  className={campaign.isFeatured ? "text-amber-600 hover:text-amber-600" : undefined}
-                  onClick={() => act(() => campaignApi.setFeatured(id, !campaign.isFeatured))}
-                >
-                  <Star
-                    className={`w-3.5 h-3.5 mr-1.5 ${campaign.isFeatured ? "fill-amber-500 text-amber-500" : ""}`}
-                  />
-                  {campaign.isFeatured ? "Featured" : "Feature on homepage"}
-                </Button>
-              )}
+              {isAdmin &&
+                (() => {
+                  const featureEligible =
+                    campaign.status === "ACTIVE" && campaign.isPublic;
+                  const blockedReason =
+                    campaign.status !== "ACTIVE"
+                      ? "Only a live (ACTIVE) campaign can be featured on the homepage."
+                      : !campaign.isPublic
+                        ? "This campaign isn't public yet, so it can't be featured."
+                        : undefined;
+                  return (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={acting || !featureEligible}
+                      title={blockedReason}
+                      className={
+                        campaign.isFeatured
+                          ? "text-amber-600 hover:text-amber-600"
+                          : undefined
+                      }
+                      onClick={() =>
+                        act(() => campaignApi.setFeatured(id, !campaign.isFeatured))
+                      }
+                    >
+                      <Star
+                        className={`w-3.5 h-3.5 mr-1.5 ${campaign.isFeatured ? "fill-amber-500 text-amber-500" : ""}`}
+                      />
+                      {campaign.isFeatured ? "Featured" : "Feature on homepage"}
+                    </Button>
+                  );
+                })()}
+              {canEditContent &&
+                campaign.status !== "COMPLETED" &&
+                campaign.status !== "CANCELLED" && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setEditOpen(true)}
+                  >
+                    <Pencil className="w-3.5 h-3.5 mr-1.5" />
+                    {campaign.status === "ACTIVE" || campaign.status === "PAUSED"
+                      ? "Suggest edit"
+                      : "Edit"}
+                  </Button>
+                )}
               {(campaign.status === "DRAFT" || campaign.status === "REJECTED") &&
                 canEditContent &&
                 (() => {
@@ -536,14 +582,6 @@ export default function CampaignDetailPage() {
                   ].filter(Boolean) as string[];
                   return (
                     <>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        nativeButton={false}
-                        render={<Link href={`/dashboard/campaigns/${id}/edit`} />}
-                      >
-                        Edit
-                      </Button>
                       <Button
                         size="sm"
                         disabled={acting || missing.length > 0}
@@ -770,13 +808,17 @@ export default function CampaignDetailPage() {
               Payout
               {campaign.openPayoutRequest?.status === "APPROVED"
                 ? " (action needed)"
-                : campaign.latestClosureRequest?.status === "PENDING" && " (review needed)"}
+                : (campaign.latestClosureRequest?.status === "PENDING" ||
+                    campaign.latestClosureRequest?.status === "REVIEWED") &&
+                  " (review needed)"}
             </TabsTrigger>
           )}
           {campaign.status === "COMPLETED" && (
             <TabsTrigger value="completion">
               Completion
-              {campaign.completionReport?.status === "PENDING_REVIEW" && " (review needed)"}
+              {(campaign.completionReport?.status === "PENDING_REVIEW" ||
+                campaign.completionReport?.status === "REVIEWED") &&
+                " (review needed)"}
             </TabsTrigger>
           )}
         </TabsList>
@@ -828,7 +870,7 @@ export default function CampaignDetailPage() {
             onToggleSelect={toggleSelect}
             onToggleAll={toggleAll}
             onUpdated={refresh}
-            canManage={isAdmin}
+            canManage={isAdmin || isCampaignManager}
             canRemind={isAdmin || isCampaignManager}
             onSendReminder={() => setReminderOpen(true)}
             canImport={isAdmin || isCampaignManager}
@@ -840,6 +882,14 @@ export default function CampaignDetailPage() {
               act(() => campaignApi.removeTarget(id, donorId))
             }
           />
+        </TabsContent>
+
+        <TabsContent value="donations" className="pt-2 space-y-6">
+          <DonationsList
+            donations={campaign.donations ?? []}
+            campaignId={id}
+            onChanged={refresh}
+          />
           <CampaignGiftsSection
             campaignId={id}
             donors={(board?.targets ?? []).map((t) => ({
@@ -847,14 +897,6 @@ export default function CampaignDetailPage() {
               name: donorFullName(t.donor),
             }))}
             canManage={isAdmin || isCampaignManager}
-            onChanged={refresh}
-          />
-        </TabsContent>
-
-        <TabsContent value="donations" className="pt-2">
-          <DonationsList
-            donations={campaign.donations ?? []}
-            campaignId={id}
             onChanged={refresh}
           />
         </TabsContent>
@@ -891,7 +933,9 @@ export default function CampaignDetailPage() {
               serviceFeeAmount={campaign.serviceFeeAmount}
               isAdmin={isAdmin}
               canRequestPayout={isCampaignManager}
-              canReviewClosure={canApproveRole}
+              canReviewClosureStage1={canReviewCampaign}
+              canReviewClosureStage2={canFinalApproveCampaign}
+              currentUserId={uid}
               canRequestClosure={
                 isCampaignManager &&
                 (campaign.status === "ACTIVE" || campaign.status === "PAUSED")
@@ -905,7 +949,9 @@ export default function CampaignDetailPage() {
           <TabsContent value="completion" className="pt-2">
             <CompletionReportTab
               campaignId={id}
-              canReview={canApproveRole}
+              canReviewStage1={canReviewCampaign}
+              canReviewStage2={canFinalApproveCampaign}
+              currentUserId={uid}
               canSubmit={isCampaignManager}
               onReviewed={refresh}
             />
@@ -1003,6 +1049,13 @@ export default function CampaignDetailPage() {
           }}
         />
       )}
+
+      <CampaignEditSheet
+        campaign={campaign}
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        onSaved={refresh}
+      />
     </div>
   );
 }
@@ -1648,19 +1701,26 @@ function CampaignHistoryTab({ campaignId }: { campaignId: string }) {
 
 const REPORT_STATUS_BADGE: Record<string, string> = {
   PENDING_REVIEW: "bg-sky-50 text-sky-700 border-sky-200",
+  REVIEWED: "bg-violet-50 text-violet-700 border-violet-200",
   APPROVED: "bg-emerald-50 text-emerald-700 border-emerald-200",
   REJECTED: "bg-rose-50 text-rose-700 border-rose-200",
 };
 
 function CompletionReportTab({
   campaignId,
-  canReview,
+  canReviewStage1,
+  canReviewStage2,
+  currentUserId,
   canSubmit,
   onReviewed,
 }: {
   campaignId: string;
-  /** REVIEWER / ORG_ADMIN / SUPER_ADMIN — may approve/reject the report. */
-  canReview: boolean;
+  /** REVIEWER / SUPER_ADMIN — may give the first review (PENDING_REVIEW). */
+  canReviewStage1: boolean;
+  /** ORG_ADMIN / SUPER_ADMIN — may give the final approval (REVIEWED). */
+  canReviewStage2: boolean;
+  /** Current user id — a stage-1 reviewer can't also give the final approval. */
+  currentUserId: string | null;
   canSubmit: boolean;
   onReviewed: () => void;
 }) {
@@ -1703,7 +1763,11 @@ function CompletionReportTab({
                 REPORT_STATUS_BADGE[report.status]
               )}
             >
-              {report.status.replace("_", " ")}
+              {report.status === "PENDING_REVIEW"
+                ? "PENDING · first review"
+                : report.status === "REVIEWED"
+                  ? "REVIEWED · final approval"
+                  : report.status}
             </span>
           </div>
           <div className="p-5 space-y-4">
@@ -1733,23 +1797,52 @@ function CompletionReportTab({
               Submitted {new Date(report.submittedAt).toLocaleDateString()}
               {report.submittedBy ? ` by ${donorFullName(report.submittedBy)}` : ""}
             </p>
+            {report.firstReviewedAt && (
+              <p className="text-[11px] text-muted-foreground">
+                First review {new Date(report.firstReviewedAt).toLocaleDateString()}
+                {report.firstReviewedBy ? ` by ${donorFullName(report.firstReviewedBy)}` : ""}
+              </p>
+            )}
             {report.reviewedAt && (
               <p className="text-[11px] text-muted-foreground">
-                Reviewed {new Date(report.reviewedAt).toLocaleDateString()}
+                {report.status === "APPROVED" ? "Final approval" : "Reviewed"}{" "}
+                {new Date(report.reviewedAt).toLocaleDateString()}
                 {report.reviewedBy ? ` by ${donorFullName(report.reviewedBy)}` : ""}
                 {report.reviewNotes ? ` — "${report.reviewNotes}"` : ""}
               </p>
             )}
 
-            {canReview && report.status === "PENDING_REVIEW" && (
-              <ReviewReportForm
-                campaignId={campaignId}
-                onDone={() => {
-                  load();
-                  onReviewed();
-                }}
-              />
-            )}
+            {(() => {
+              const canStage1 = canReviewStage1 && report.status === "PENDING_REVIEW";
+              const canStage2 =
+                canReviewStage2 &&
+                report.status === "REVIEWED" &&
+                String(report.firstReviewedBy?.id ?? "") !== (currentUserId ?? "");
+              if (!canStage1 && !canStage2) {
+                if (
+                  canReviewStage2 &&
+                  report.status === "REVIEWED" &&
+                  String(report.firstReviewedBy?.id ?? "") === (currentUserId ?? "")
+                ) {
+                  return (
+                    <p className="text-[11px] text-muted-foreground">
+                      You gave the first review — a different admin must give the final approval.
+                    </p>
+                  );
+                }
+                return null;
+              }
+              return (
+                <ReviewReportForm
+                  campaignId={campaignId}
+                  stage={report.status === "REVIEWED" ? 2 : 1}
+                  onDone={() => {
+                    load();
+                    onReviewed();
+                  }}
+                />
+              );
+            })()}
           </div>
         </div>
       )}
@@ -1879,7 +1972,16 @@ function SubmitReportForm({
   );
 }
 
-function ReviewReportForm({ campaignId, onDone }: { campaignId: string; onDone: () => void }) {
+function ReviewReportForm({
+  campaignId,
+  stage,
+  onDone,
+}: {
+  campaignId: string;
+  /** 1 = a reviewer's first review; 2 = an admin's final approval. */
+  stage: 1 | 2;
+  onDone: () => void;
+}) {
   const [notes, setNotes] = useState("");
   const [acting, setActing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1906,7 +2008,9 @@ function ReviewReportForm({ campaignId, onDone }: { campaignId: string; onDone: 
 
   return (
     <div className="pt-4 border-t border-border space-y-3">
-      <p className="text-xs font-semibold text-foreground">Review this report</p>
+      <p className="text-xs font-semibold text-foreground">
+        {stage === 1 ? "First review of this report" : "Final approval of this report"}
+      </p>
       <Textarea
         value={notes}
         onChange={(e) => setNotes(e.target.value)}
@@ -1926,7 +2030,7 @@ function ReviewReportForm({ campaignId, onDone }: { campaignId: string; onDone: 
       <div className="flex flex-wrap gap-2">
         <Button size="sm" onClick={() => decide("approve")} disabled={acting}>
           {acting ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Check className="w-3.5 h-3.5 mr-1.5" />}
-          Approve
+          {stage === 1 ? "Pass first review" : "Approve"}
         </Button>
         <Button
           size="sm"
@@ -2038,10 +2142,13 @@ function RequestClosureDialog({
 function DecideClosureForm({
   campaignId,
   requestId,
+  stage,
   onDone,
 }: {
   campaignId: string;
   requestId: number;
+  /** 1 = a reviewer's first review; 2 = an admin's final approval. */
+  stage: 1 | 2;
   onDone: () => void;
 }) {
   const [notes, setNotes] = useState("");
@@ -2089,7 +2196,7 @@ function DecideClosureForm({
       <div className="flex flex-wrap gap-2">
         <Button size="xs" onClick={() => decide("approve")} disabled={acting}>
           {acting ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Check className="w-3 h-3 mr-1" />}
-          Approve (completes campaign)
+          {stage === 1 ? "Pass first review" : "Approve (completes campaign)"}
         </Button>
         <Button size="xs" variant="outline" onClick={() => decide("request_changes")} disabled={acting}>
           Request changes
@@ -2125,6 +2232,7 @@ function CampaignGiftsSection({
   const [error, setError] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<number | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -2183,16 +2291,24 @@ function CampaignGiftsSection({
       )}
 
       <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
-        <div className="px-5 py-4 border-b border-border flex items-center justify-between gap-3">
+        <div className="px-5 py-4 border-b border-border flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Gift className="w-4 h-4 text-violet-500" />
             <h2 className="text-sm font-semibold text-foreground">In-kind gifts</h2>
           </div>
-          <span className="text-[11px] text-muted-foreground">
-            {pledgedCount > 0 ? `${pledgedCount} pledged · ` : ""}
-            {gifts.length} gift{gifts.length === 1 ? "" : "s"} &middot;{" "}
-            {formatTZSFull(total)} est.
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="text-[11px] text-muted-foreground">
+              {pledgedCount > 0 ? `${pledgedCount} pledged · ` : ""}
+              {gifts.length} gift{gifts.length === 1 ? "" : "s"} &middot;{" "}
+              {formatTZSFull(total)} est.
+            </span>
+            {canManage && (
+              <Button size="xs" onClick={() => setAddOpen(true)}>
+                <Gift className="w-3.5 h-3.5 mr-1.5" />
+                Record a gift
+              </Button>
+            )}
+          </div>
         </div>
 
         {gifts.length === 0 ? (
@@ -2299,10 +2415,13 @@ function CampaignGiftsSection({
       </div>
 
       {canManage && (
-        <AddGiftForm
+        <AddGiftDialog
+          open={addOpen}
+          onOpenChange={setAddOpen}
           campaignId={campaignId}
           donors={donors}
           onAdded={() => {
+            setAddOpen(false);
             load();
             onChanged();
           }}
@@ -2312,11 +2431,15 @@ function CampaignGiftsSection({
   );
 }
 
-function AddGiftForm({
+function AddGiftDialog({
+  open,
+  onOpenChange,
   campaignId,
   donors,
   onAdded,
 }: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
   campaignId: string;
   donors: { id: number; name: string }[];
   onAdded: () => void;
@@ -2356,69 +2479,76 @@ function AddGiftForm({
   };
 
   return (
-    <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
-      <div className="px-5 py-4 border-b border-border">
-        <p className="text-sm font-medium text-foreground">Record an in-kind gift</p>
-        <p className="text-xs text-muted-foreground">
-          Its estimated value is added to the campaign&apos;s payment breakdown.
-        </p>
-      </div>
-      <div className="p-5 space-y-4">
-        <div className="space-y-1.5">
-          <Label className="text-xs">Description</Label>
-          <Input
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="e.g. 20 school desks donated by a local carpenter"
-          />
-        </div>
-        <div className="grid sm:grid-cols-2 gap-4">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Record an in-kind gift</DialogTitle>
+          <DialogDescription>
+            Log donated goods, services or time with an estimated value.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
           <div className="space-y-1.5">
-            <Label className="text-xs">Estimated value (TZS)</Label>
+            <Label className="text-xs">Description</Label>
             <Input
-              type="number"
-              min={0}
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              placeholder="0"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="e.g. 20 school desks donated by a local carpenter"
             />
           </div>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Estimated value (TZS)</Label>
+              <Input
+                type="number"
+                min={0}
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                placeholder="0"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Received on (optional)</Label>
+              <Input
+                type="date"
+                value={receivedAt}
+                onChange={(e) => setReceivedAt(e.target.value)}
+              />
+            </div>
+          </div>
           <div className="space-y-1.5">
-            <Label className="text-xs">Received on (optional)</Label>
-            <Input
-              type="date"
-              value={receivedAt}
-              onChange={(e) => setReceivedAt(e.target.value)}
-            />
+            <Label className="text-xs">Donor (optional)</Label>
+            <Select value={donorId} onValueChange={(v) => setDonorId(v ?? "none")}>
+              <SelectTrigger className="h-9 text-sm">
+                <SelectValue placeholder="No specific donor" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No specific donor</SelectItem>
+                {donors.map((d) => (
+                  <SelectItem key={d.id} value={String(d.id)}>
+                    {d.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
+          {error && (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+              {error}
+            </div>
+          )}
         </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs">Donor (optional)</Label>
-          <Select value={donorId} onValueChange={(v) => setDonorId(v ?? "none")}>
-            <SelectTrigger className="h-9 text-sm">
-              <SelectValue placeholder="No specific donor" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">No specific donor</SelectItem>
-              {donors.map((d) => (
-                <SelectItem key={d.id} value={String(d.id)}>
-                  {d.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        {error && (
-          <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-            {error}
-          </div>
-        )}
-        <Button size="sm" onClick={submit} disabled={submitting}>
-          {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : null}
-          Record gift
-        </Button>
-      </div>
-    </div>
+        <DialogFooter>
+          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button size="sm" onClick={submit} disabled={submitting}>
+            {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : null}
+            Record gift
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -2460,6 +2590,12 @@ function ChangeRequestTab({
 }) {
   const cr = campaign.changeRequest!;
   const isStatusReq = cr.kind === "STATUS";
+  const stagedPhotoAdds = (campaign.images ?? []).filter(
+    (i) => i.pendingChange === "ADD"
+  );
+  const stagedPhotoRemovals = (campaign.images ?? []).filter(
+    (i) => i.pendingChange === "REMOVE"
+  );
   const stage = cr.status === "PENDING" ? 1 : cr.status === "REVIEWED" ? 2 : 0;
   const canActThisStage = stage === 1 ? canReview : stage === 2 ? canFinalApprove : false;
   const isOwnFirst = stage === 2 && String(cr.firstApprovedBy ?? "") === currentUserId;
@@ -2537,8 +2673,58 @@ function ChangeRequestTab({
                 <td className="py-1.5 font-medium text-foreground">new image staged</td>
               </tr>
             )}
+            {(stagedPhotoAdds.length > 0 || stagedPhotoRemovals.length > 0) && (
+              <tr>
+                <td className="py-1.5 pr-4 text-muted-foreground align-top">Photos</td>
+                <td className="py-1.5 pr-4 text-muted-foreground">
+                  {(campaign.images ?? []).filter((i) => i.pendingChange !== "ADD").length}{" "}
+                  live
+                </td>
+                <td className="py-1.5 font-medium text-foreground">
+                  {[
+                    stagedPhotoAdds.length > 0 && `${stagedPhotoAdds.length} to add`,
+                    stagedPhotoRemovals.length > 0 &&
+                      `${stagedPhotoRemovals.length} to remove`,
+                  ]
+                    .filter(Boolean)
+                    .join(", ")}
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
+        {(stagedPhotoAdds.length > 0 || stagedPhotoRemovals.length > 0) && (
+          <div className="flex flex-wrap gap-2 pt-3">
+            {stagedPhotoAdds.map((img) => (
+              <div
+                key={`add-${img.id}`}
+                className="relative w-20 h-20 rounded-lg overflow-hidden border border-amber-300"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={img.url} alt="" className="w-full h-full object-cover" />
+                <span className="absolute bottom-0 inset-x-0 text-center text-[8px] font-medium bg-amber-500/90 text-white py-0.5">
+                  Add
+                </span>
+              </div>
+            ))}
+            {stagedPhotoRemovals.map((img) => (
+              <div
+                key={`rm-${img.id}`}
+                className="relative w-20 h-20 rounded-lg overflow-hidden border border-rose-300"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={img.url}
+                  alt=""
+                  className="w-full h-full object-cover opacity-40"
+                />
+                <span className="absolute bottom-0 inset-x-0 text-center text-[8px] font-medium bg-rose-500/90 text-white py-0.5">
+                  Remove
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
       )}
 
@@ -2578,7 +2764,9 @@ function PayoutRequestTab({
   serviceFeeAmount,
   isAdmin,
   canRequestPayout,
-  canReviewClosure,
+  canReviewClosureStage1,
+  canReviewClosureStage2,
+  currentUserId,
   canRequestClosure,
   onChanged,
 }: {
@@ -2591,8 +2779,12 @@ function PayoutRequestTab({
   isAdmin: boolean;
   /** CAMPAIGN_MANAGER — may request a payout and confirm its release. */
   canRequestPayout: boolean;
-  /** REVIEWER / ORG_ADMIN / SUPER_ADMIN — may approve/reject a closure request. */
-  canReviewClosure: boolean;
+  /** REVIEWER / SUPER_ADMIN — may give a closure request its first review (PENDING). */
+  canReviewClosureStage1: boolean;
+  /** ORG_ADMIN / SUPER_ADMIN — may give the final approval (REVIEWED). */
+  canReviewClosureStage2: boolean;
+  /** Current user id — a stage-1 approver can't also give the final approval. */
+  currentUserId: string | null;
   /** CAMPAIGN_MANAGER on an ACTIVE/PAUSED campaign — may request closure. */
   canRequestClosure: boolean;
   /** Bubble up so the parent campaign banner / tab badge refresh too. */
@@ -2647,7 +2839,8 @@ function PayoutRequestTab({
   const suggestedAmount =
     campaignStatus === "COMPLETED" && maxPayout > 0 ? maxPayout : undefined;
   const latestClosure = closures[0];
-  const closurePending = latestClosure?.status === "PENDING";
+  const closurePending =
+    latestClosure?.status === "PENDING" || latestClosure?.status === "REVIEWED";
   const closableStatus = campaignStatus === "ACTIVE" || campaignStatus === "PAUSED";
   const showClosureButton = canRequestClosure && closableStatus;
 
@@ -2698,7 +2891,9 @@ function PayoutRequestTab({
         <ClosureHistoryCard
           closures={closures}
           campaignId={campaignId}
-          canReview={canReviewClosure}
+          canReviewStage1={canReviewClosureStage1}
+          canReviewStage2={canReviewClosureStage2}
+          currentUserId={currentUserId}
           onChanged={reload}
         />
       )}
@@ -2722,7 +2917,7 @@ function PayoutRequestTab({
         <RequestPayoutDialog
           campaignId={campaignId}
           suggestedAmount={suggestedAmount}
-          maxAmount={maxPayout}
+          availableAmount={remainingBalance}
           onClose={() => setPayoutDialog(false)}
           onSubmitted={() => {
             setPayoutDialog(false);
@@ -2956,16 +3151,24 @@ function PayoutRowDetail({
   );
 }
 
-/** Closure request history + review actions, shown inside the Payout tab. */
+/**
+ * Closure request history + review actions, shown inside the Payout tab.
+ * Two-stage chain: a reviewer decides a PENDING request (→ REVIEWED), then an
+ * org admin decides the REVIEWED one (→ APPROVED, campaign COMPLETED).
+ */
 function ClosureHistoryCard({
   closures,
   campaignId,
-  canReview,
+  canReviewStage1,
+  canReviewStage2,
+  currentUserId,
   onChanged,
 }: {
   closures: ClosureRequest[];
   campaignId: string;
-  canReview: boolean;
+  canReviewStage1: boolean;
+  canReviewStage2: boolean;
+  currentUserId: string | null;
   onChanged: () => void;
 }) {
   return (
@@ -2974,7 +3177,13 @@ function ClosureHistoryCard({
         <h2 className="text-sm font-semibold text-foreground">Closure requests</h2>
       </div>
       <div className="divide-y divide-border">
-        {closures.map((r) => (
+        {closures.map((r) => {
+          const canDecideStage1 = canReviewStage1 && r.status === "PENDING";
+          const canDecideStage2 =
+            canReviewStage2 &&
+            r.status === "REVIEWED" &&
+            String(r.firstApprovedBy ?? "") !== (currentUserId ?? "");
+          return (
           <div key={r.id} className="p-5 space-y-2">
             <div className="flex items-center justify-between">
               <span
@@ -2983,7 +3192,11 @@ function ClosureHistoryCard({
                   REQUEST_STATUS_BADGE[r.status]
                 )}
               >
-                {r.status}
+                {r.status === "PENDING"
+                  ? "PENDING · first review"
+                  : r.status === "REVIEWED"
+                    ? "REVIEWED · final approval"
+                    : r.status}
               </span>
               <span className="text-[11px] text-muted-foreground">
                 {new Date(r.requestedAt).toLocaleDateString()}
@@ -2992,14 +3205,27 @@ function ClosureHistoryCard({
             <p className="text-sm text-muted-foreground leading-relaxed">{r.reason}</p>
             {r.decisionNotes && (
               <p className="text-[11px] text-muted-foreground">
-                Admin note: &quot;{r.decisionNotes}&quot;
+                Reviewer note: &quot;{r.decisionNotes}&quot;
               </p>
             )}
-            {canReview && r.status === "PENDING" && (
-              <DecideClosureForm campaignId={campaignId} requestId={r.id} onDone={onChanged} />
+            {(canDecideStage1 || canDecideStage2) && (
+              <DecideClosureForm
+                campaignId={campaignId}
+                requestId={r.id}
+                stage={r.status === "REVIEWED" ? 2 : 1}
+                onDone={onChanged}
+              />
             )}
+            {canReviewStage2 &&
+              r.status === "REVIEWED" &&
+              String(r.firstApprovedBy ?? "") === (currentUserId ?? "") && (
+                <p className="text-[11px] text-muted-foreground">
+                  You gave the first review — a different admin must give the final approval.
+                </p>
+              )}
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -3634,6 +3860,13 @@ function ImportPoolDialog({
 
 // ─── Reminder dialog ───────────────────────────────────────────────────────────
 
+const MSG_CHANNELS: ReminderChannel[] = ["SMS", "WHATSAPP", "EMAIL"];
+const CHANNEL_LABEL: Record<ReminderChannel, string> = {
+  SMS: "SMS",
+  WHATSAPP: "WhatsApp",
+  EMAIL: "Email",
+};
+
 function ReminderDialog({
   campaignId,
   campaignName,
@@ -3649,11 +3882,15 @@ function ReminderDialog({
   onClose: () => void;
   onSent: () => void;
 }) {
-  const [channel, setChannel] = useState<ReminderChannel>("EMAIL");
+  const [channel, setChannel] = useState<ReminderChannel | "PREFERRED">("SMS");
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
   const [templateId, setTemplateId] = useState("");
+  // Preferred-channel mode
+  const [fallbackChannel, setFallbackChannel] = useState<ReminderChannel>("SMS");
+  const [allTemplates, setAllTemplates] = useState<MessageTemplate[]>([]);
+  const [channelTemplate, setChannelTemplate] = useState<Partial<Record<ReminderChannel, string>>>({});
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState<{
@@ -3664,13 +3901,47 @@ function ReminderDialog({
     skipped: { donorId: number; name: string; reason: string }[];
   } | null>(null);
 
+  const isPreferred = channel === "PREFERRED";
+
+  // Single-channel mode: templates filtered to the chosen channel.
   useEffect(() => {
+    if (isPreferred) return;
     setTemplateId("");
     templateApi
       .list({ channel, limit: 100 })
       .then((r) => setTemplates(r.templates))
       .catch(() => setTemplates([]));
-  }, [channel]);
+  }, [channel, isPreferred]);
+
+  // Preferred mode: load every template once, filter client-side per channel.
+  useEffect(() => {
+    if (!isPreferred || allTemplates.length > 0) return;
+    templateApi
+      .list({ limit: 200 })
+      .then((r) => setAllTemplates(r.templates))
+      .catch(() => setAllTemplates([]));
+  }, [isPreferred, allTemplates.length]);
+
+  // Which channels the selected donors will actually be messaged on.
+  const usedChannels = useMemo(() => {
+    if (!isPreferred) return [];
+    const set = new Set<ReminderChannel>();
+    for (const d of donors) {
+      const pref = d.preferredChannel;
+      set.add(pref && (MSG_CHANNELS as string[]).includes(pref) ? (pref as ReminderChannel) : fallbackChannel);
+    }
+    return MSG_CHANNELS.filter((c) => set.has(c));
+  }, [isPreferred, donors, fallbackChannel]);
+
+  const channelCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const d of donors) {
+      const pref = d.preferredChannel;
+      const c = pref && (MSG_CHANNELS as string[]).includes(pref) ? pref : fallbackChannel;
+      counts[c] = (counts[c] ?? 0) + 1;
+    }
+    return counts;
+  }, [donors, fallbackChannel]);
 
   const applyTemplate = (id: string) => {
     setTemplateId(id);
@@ -3681,30 +3952,35 @@ function ReminderDialog({
     }
   };
 
-  const ready =
-    donorIds.length > 0 &&
-    (channel === "SMS" || channel === "WHATSAPP"
-      ? message.trim().length >= 2
-      : subject.trim().length >= 2 && message.trim().length >= 2);
+  const ready = isPreferred
+    ? donorIds.length > 0 && usedChannels.every((c) => channelTemplate[c])
+    : donorIds.length > 0 &&
+      (channel === "SMS" || channel === "WHATSAPP"
+        ? message.trim().length >= 2
+        : subject.trim().length >= 2 && message.trim().length >= 2);
 
   const send = async () => {
     setSending(true);
     setError(null);
     try {
-      const r = await poolApi.sendReminder({
-        campaignId: Number(campaignId),
-        donorIds,
-        channel,
-        subject: channel === "EMAIL" ? subject : undefined,
-        message,
-      });
-      setSent({
-        recipientCount: r.batch.recipientCount ?? 0,
-        skippedCount: r.batch.skippedCount ?? 0,
-        failedCount: r.batch.failedCount ?? 0,
-        failedDetails: r.failedDetails ?? [],
-        skipped: r.skipped ?? [],
-      });
+      const r = isPreferred
+        ? await poolApi.sendReminder({
+            campaignId: Number(campaignId),
+            donorIds,
+            usePreferredChannel: true,
+            fallbackChannel,
+            templates: Object.fromEntries(
+              usedChannels.map((c) => [c, Number(channelTemplate[c])])
+            ) as Partial<Record<ReminderChannel, number>>,
+          })
+        : await poolApi.sendReminder({
+            campaignId: Number(campaignId),
+            donorIds,
+            channel,
+            subject: channel === "EMAIL" ? subject : undefined,
+            message,
+          });
+      setSent({ recipientCount: r.batch.recipientCount ?? donorIds.length });
       onSent();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to send reminders.");
@@ -3737,7 +4013,13 @@ function ReminderDialog({
                     {donorFullName(d)}
                   </span>
                   <span className="text-[10px] text-muted-foreground shrink-0 ml-2">
-                    {d.phone || d.email || "no contact"}
+                    {isPreferred
+                      ? CHANNEL_LABEL[
+                          (d.preferredChannel && (MSG_CHANNELS as string[]).includes(d.preferredChannel)
+                            ? d.preferredChannel
+                            : fallbackChannel) as ReminderChannel
+                        ]
+                      : d.phone || d.email || "no contact"}
                   </span>
                 </div>
               ))}
@@ -3745,7 +4027,10 @@ function ReminderDialog({
 
             <div className="space-y-1.5">
               <Label className="text-xs">Channel</Label>
-              <Select value={channel} onValueChange={(v) => setChannel((v ?? "SMS") as ReminderChannel)}>
+              <Select
+                value={channel}
+                onValueChange={(v) => setChannel((v ?? "SMS") as ReminderChannel | "PREFERRED")}
+              >
                 <SelectTrigger className="h-9 text-sm">
                   <SelectValue />
                 </SelectTrigger>
@@ -3753,50 +4038,118 @@ function ReminderDialog({
                   <SelectItem value="SMS">SMS</SelectItem>
                   <SelectItem value="WHATSAPP">WhatsApp</SelectItem>
                   <SelectItem value="EMAIL">Email</SelectItem>
+                  <SelectItem value="PREFERRED">Each donor&apos;s preferred channel</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            {templates.length > 0 && (
-              <div className="space-y-1.5">
-                <Label className="text-xs">Use a saved template (optional)</Label>
-                <Select value={templateId} onValueChange={(v) => applyTemplate(v ?? "")}>
-                  <SelectTrigger className="h-9 text-sm">
-                    <SelectValue placeholder="Write my own message" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {templates.map((t) => (
-                      <SelectItem key={t.id} value={String(t.id)}>
-                        {t.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
+            {isPreferred ? (
+              <>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">
+                    Fallback channel
+                    <span className="text-muted-foreground font-normal">
+                      {" "}
+                      — for donors with no messaging preference (e.g. &ldquo;Phone call&rdquo;)
+                    </span>
+                  </Label>
+                  <Select
+                    value={fallbackChannel}
+                    onValueChange={(v) => setFallbackChannel((v ?? "SMS") as ReminderChannel)}
+                  >
+                    <SelectTrigger className="h-9 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="SMS">SMS</SelectItem>
+                      <SelectItem value="WHATSAPP">WhatsApp</SelectItem>
+                      <SelectItem value="EMAIL">Email</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            {channel === "EMAIL" && (
-              <div className="space-y-1.5">
-                <Label className="text-xs">Subject</Label>
-                <Input
-                  className="h-9 text-sm"
-                  value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
-                  placeholder={`Reminder about ${campaignName}`}
-                />
-              </div>
-            )}
+                <p className="text-[11px] text-muted-foreground">
+                  {usedChannels
+                    .map((c) => `${channelCounts[c] ?? 0} via ${CHANNEL_LABEL[c]}`)
+                    .join(" · ")}
+                </p>
 
-            <div className="space-y-1.5">
-              <Label className="text-xs">Message</Label>
-              <Textarea
-                rows={4}
-                className="text-sm resize-none"
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                placeholder="Friendly note prompting them to complete their pledge."
-              />
-            </div>
+                {usedChannels.map((c) => {
+                  const opts = allTemplates.filter((t) => t.channel === c);
+                  return (
+                    <div key={c} className="space-y-1.5">
+                      <Label className="text-xs">{CHANNEL_LABEL[c]} template</Label>
+                      {opts.length === 0 ? (
+                        <p className="text-[11px] text-destructive">
+                          No {CHANNEL_LABEL[c]} templates yet — create one on the Reminders tab first.
+                        </p>
+                      ) : (
+                        <Select
+                          value={channelTemplate[c] ?? ""}
+                          onValueChange={(v) =>
+                            setChannelTemplate((prev) => ({ ...prev, [c]: v ?? "" }))
+                          }
+                        >
+                          <SelectTrigger className="h-9 text-sm">
+                            <SelectValue placeholder={`Pick a ${CHANNEL_LABEL[c]} template`} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {opts.map((t) => (
+                              <SelectItem key={t.id} value={String(t.id)}>
+                                {t.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </div>
+                  );
+                })}
+              </>
+            ) : (
+              <>
+                {templates.length > 0 && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Use a saved template (optional)</Label>
+                    <Select value={templateId} onValueChange={(v) => applyTemplate(v ?? "")}>
+                      <SelectTrigger className="h-9 text-sm">
+                        <SelectValue placeholder="Write my own message" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {templates.map((t) => (
+                          <SelectItem key={t.id} value={String(t.id)}>
+                            {t.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {channel === "EMAIL" && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Subject</Label>
+                    <Input
+                      className="h-9 text-sm"
+                      value={subject}
+                      onChange={(e) => setSubject(e.target.value)}
+                      placeholder={`Reminder about ${campaignName}`}
+                    />
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Message</Label>
+                  <Textarea
+                    rows={4}
+                    className="text-sm resize-none"
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    placeholder="Friendly note prompting them to complete their pledge."
+                  />
+                </div>
+              </>
+            )}
 
             {error && (
               <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">

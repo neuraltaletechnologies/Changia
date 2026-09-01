@@ -233,6 +233,8 @@ export interface CampaignRecord {
     amount: number;
     requestedBy: number | null;
   } | null;
+  /** Raised minus everything already paid out — the ceiling for a new payout request. */
+  availableForPayout?: number;
   createdAt: string;
   updatedAt: string;
   /** Owning organisation — campaigns are branded with its name; cross-org (SUPER_ADMIN / REVIEWER) views show it. */
@@ -241,19 +243,32 @@ export interface CampaignRecord {
   assignments: { user: { id: number; firstName: string; lastName: string; email: string } }[];
   /** Lightweight summary embedded on list/detail responses — present only once a completion report exists. */
   completionReport?: {
-    status: "PENDING_REVIEW" | "APPROVED" | "REJECTED";
+    /** Two-stage chain: PENDING_REVIEW (stage 1) → REVIEWED (stage 2) → APPROVED. */
+    status: "PENDING_REVIEW" | "REVIEWED" | "APPROVED" | "REJECTED";
     submittedAt: string;
     reviewedAt: string | null;
+    /** Stage-1 (reviewer) sign-off — set once it clears first review. */
+    firstReviewedBy: number | null;
+    firstReviewedAt: string | null;
   } | null;
-  /** Gallery photos (cover image stays on imageUrl) set at creation or later. */
-  images?: { id: number; url: string }[];
+  /**
+   * Gallery photos (cover image stays on imageUrl) set at creation or later.
+   * On a live campaign a photo change is staged for the two-stage review:
+   * `pendingChange` is "ADD" (uploaded, not yet public) or "REMOVE" (still
+   * public until the change request clears); "NONE"/undefined = live.
+   */
+  images?: { id: number; url: string; pendingChange?: "NONE" | "ADD" | "REMOVE" }[];
   /** Most recent closure request, if any — full history via campaignApi.listClosureRequests. */
   latestClosureRequest?: {
     id: number;
-    status: "PENDING" | "APPROVED" | "REJECTED";
+    /** Two-stage chain: PENDING (stage 1) → REVIEWED (stage 2) → APPROVED. */
+    status: "PENDING" | "REVIEWED" | "APPROVED" | "REJECTED";
     reason: string;
     decisionNotes: string | null;
     requestedAt: string;
+    /** Stage-1 (reviewer) sign-off — set once it clears first review. */
+    firstApprovedBy: number | null;
+    firstApprovedAt: string | null;
   } | null;
   donations?: {
     id: number;
@@ -298,9 +313,13 @@ export interface CompletionReport {
   campaignId: number;
   summary: string;
   amountUtilized: number | null;
-  status: "PENDING_REVIEW" | "APPROVED" | "REJECTED";
+  /** Two-stage chain: PENDING_REVIEW (stage 1) → REVIEWED (stage 2) → APPROVED. */
+  status: "PENDING_REVIEW" | "REVIEWED" | "APPROVED" | "REJECTED";
   submittedBy: { id: number; firstName: string; lastName: string | null } | null;
   submittedAt: string;
+  /** Reviewer who gave the first review — set once it reaches REVIEWED. */
+  firstReviewedBy: { id: number; firstName: string; lastName: string | null } | null;
+  firstReviewedAt: string | null;
   reviewedBy: { id: number; firstName: string; lastName: string | null } | null;
   reviewedAt: string | null;
   reviewNotes: string | null;
@@ -311,9 +330,12 @@ export interface ClosureRequest {
   id: number;
   campaignId: number;
   reason: string;
-  status: "PENDING" | "APPROVED" | "REJECTED";
+  /** Two-stage chain: PENDING (stage 1) → REVIEWED (stage 2) → APPROVED. */
+  status: "PENDING" | "REVIEWED" | "APPROVED" | "REJECTED";
   decisionNotes: string | null;
   requestedAt: string;
+  firstApprovedBy: number | null;
+  firstApprovedAt: string | null;
   decidedAt: string | null;
 }
 
@@ -357,6 +379,7 @@ export interface CampaignTarget {
     gender: Gender;
     position: string | null;
     isAnomalous: boolean;
+    preferredChannel: "SMS" | "WHATSAPP" | "EMAIL" | "PHONE" | null;
   };
   addedAt: string;
 }
@@ -432,18 +455,21 @@ export interface PoolImportPreview {
 
 export interface ReminderResponse {
   batch: {
-    id: number;
+    id: number | null;
     campaignId: number;
-    channel: "SMS" | "WHATSAPP" | "EMAIL";
-    subject: string;
-    body: string;
+    channel: "SMS" | "WHATSAPP" | "EMAIL" | "PREFERRED";
+    /** Set when channel === 'PREFERRED': the channels actually used. */
+    channels?: ("SMS" | "WHATSAPP" | "EMAIL")[];
+    subject?: string;
+    body?: string;
     recipientCount: number;
     skippedCount: number;
     failedCount: number;
   };
   deliveries: {
-    id: number;
+    id?: number;
     donorId: number;
+    channel?: "SMS" | "WHATSAPP" | "EMAIL";
     recipient: string;
     status: string;
     providerRef: string | null;
@@ -661,13 +687,23 @@ export const poolApi = {
         body
       )
       .then(unwrap),
-  sendReminder: (body: {
-    campaignId: number;
-    donorIds: number[];
-    channel: "SMS" | "WHATSAPP" | "EMAIL";
-    subject?: string;
-    message: string;
-  }) =>
+  sendReminder: (
+    body:
+      | {
+          campaignId: number;
+          donorIds: number[];
+          channel: "SMS" | "WHATSAPP" | "EMAIL";
+          subject?: string;
+          message: string;
+        }
+      | {
+          campaignId: number;
+          donorIds: number[];
+          usePreferredChannel: true;
+          fallbackChannel: ReminderChannel;
+          templates: Partial<Record<ReminderChannel, number>>;
+        }
+  ) =>
     api.post<{ success: boolean; data: ReminderResponse }>(`/donor-pools/reminders/send`, body).then(unwrap),
 };
 

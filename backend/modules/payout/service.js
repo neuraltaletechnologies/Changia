@@ -219,7 +219,7 @@ async function createPayout(organizationId, user, data) {
   }
   await assertCampaignAccess(organizationId, user, campaignId);
   const owned = await db.query(
-    "SELECT id, status FROM campaigns WHERE id = ? AND organization_id = ?",
+    "SELECT id, status, raised_amount FROM campaigns WHERE id = ? AND organization_id = ?",
     [campaignId, organizationId]
   );
   if (owned.length === 0) throw ApiError.notFound("Campaign not found");

@@ -16,6 +16,7 @@ const COLUMNS = [
   { field: "consent_status", help: "CONSENTED / PENDING / WITHDRAWN" },
   { field: "preferred_channel", help: "SMS / WHATSAPP / EMAIL / PHONE" },
   { field: "tags", help: "Semicolon-separated, e.g. vip;alumni" },
+  { field: "notes", help: "Free-text context about this donor" },
 ];
 
 export default function ImportDonorsPage() {

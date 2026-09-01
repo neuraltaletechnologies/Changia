@@ -17,7 +17,8 @@ interface ReviewerWorkProps {
    *       / REQUESTED payouts)
    *   2 — an ORG_ADMIN's final approval (REVIEWED campaigns / change requests /
    *       payouts that first review has already cleared)
-   * Single-stage reviews (fees, closures, completion reports) show for both.
+   * Closures and completion reports follow the same two-stage chain
+   * (PENDING → REVIEWED). Single-stage reviews (fees) show for both.
    */
   stage?: 1 | 2;
 }
@@ -71,12 +72,20 @@ export function ReviewerWork({
         : p.status === "REQUESTED" && notMe(p.requestedBy)
     ).length,
     fees: campaigns.filter((c) => c.feeStatus === "PENDING").length,
-    closures: campaigns.filter(
-      (c) => c.latestClosureRequest && c.latestClosureRequest.status === "PENDING"
-    ).length,
-    reports: campaigns.filter(
-      (c) => c.completionReport && c.completionReport.status === "PENDING_REVIEW"
-    ).length,
+    closures: campaigns.filter((c) => {
+      const cr = c.latestClosureRequest;
+      if (!cr) return false;
+      return isFinal
+        ? cr.status === "REVIEWED" && notMe(cr.firstApprovedBy)
+        : cr.status === "PENDING";
+    }).length,
+    reports: campaigns.filter((c) => {
+      const r = c.completionReport;
+      if (!r) return false;
+      return isFinal
+        ? r.status === "REVIEWED" && notMe(r.firstReviewedBy)
+        : r.status === "PENDING_REVIEW";
+    }).length,
   };
   const max = Math.max(...Object.values(queue), 1);
   const openTotal = Object.values(queue).reduce((a, b) => a + b, 0);

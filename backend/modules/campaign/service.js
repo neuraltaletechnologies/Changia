@@ -3313,11 +3313,34 @@ async function removeCampaignGift(organizationId, campaignId, giftId, actor) {
   return listCampaignGifts(organizationId, campaignId, actor);
 }
 
+// A gift only ever moves forward along its handover lifecycle. It can be
+// CANCELLED while still PLEDGED or SCHEDULED, but RECEIVED and CANCELLED are
+// terminal: a received gift is already counted toward the campaign's in-kind
+// total, so it can never be walked back to an earlier stage.
+const GIFT_STAGE_ORDER = ["PLEDGED", "SCHEDULED", "RECEIVED"];
+
+function assertGiftStageTransition(from, to) {
+  if (from === to) return;
+  const fromIdx = GIFT_STAGE_ORDER.indexOf(from);
+  const toIdx = GIFT_STAGE_ORDER.indexOf(to);
+  const allowed =
+    from !== "RECEIVED" &&
+    from !== "CANCELLED" &&
+    (to === "CANCELLED" || (fromIdx !== -1 && toIdx > fromIdx));
+  if (!allowed) {
+    throw ApiError.badRequest(
+      `A gift at "${from}" can't move to "${to}" — gift stages only move forward.`,
+      "GIFT_STAGE_BACKWARD"
+    );
+  }
+}
+
 /**
  * Advances a gift pledge along its handover lifecycle
  * (PLEDGED → SCHEDULED → RECEIVED, or CANCELLED). Used by the assigned manager
  * (or an admin) from the campaign dashboard once they've arranged a pickup or
- * taken delivery of the item.
+ * taken delivery of the item. Stages only move forward (see
+ * assertGiftStageTransition).
  */
 async function updateCampaignGiftStatus(organizationId, campaignId, giftId, actor, status) {
   await assertCampaignAccess(organizationId, actor, campaignId);
@@ -3327,6 +3350,8 @@ async function updateCampaignGiftStatus(organizationId, campaignId, giftId, acto
   );
   const gift = rows[0];
   if (!gift) throw ApiError.notFound("Gift not found");
+
+  assertGiftStageTransition(gift.status, status);
 
   if (gift.status !== status) {
     const receivedClause = status === "RECEIVED" ? ", received_at = COALESCE(received_at, CURDATE())" : "";
@@ -3444,7 +3469,8 @@ async function createPublicGiftPledge(idOrSlug, data) {
  *   unpaid         — remaining campaign goal not covered by a pledge
  *   promisedPaid   — money received against a donor pledge
  *   promisedUnpaid — pledged but not yet received
- *   giftValue      — estimated value of in-kind contributions
+ *   giftValue      — estimated value of RECEIVED in-kind contributions
+ *                    (pledged / scheduled gifts don't count until handed over)
  * Each pie therefore sums to (goal + giftValue). Two grouped queries — no N+1.
  */
 async function getPaymentsBreakdown(organizationId, user) {
@@ -3487,7 +3513,7 @@ async function getPaymentsBreakdown(organizationId, user) {
   const giftRows = await db.query(
     `SELECT campaign_id, SUM(estimated_value) AS gift_value
      FROM campaign_gifts
-     WHERE campaign_id IN (?) AND status <> 'CANCELLED'
+     WHERE campaign_id IN (?) AND status = 'RECEIVED'
      GROUP BY campaign_id`,
     [ids]
   );

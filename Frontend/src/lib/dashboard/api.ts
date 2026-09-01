@@ -976,7 +976,13 @@ export const campaignApi = {
         `/campaigns/${id}/gifts/${giftId}`
       )
       .then(unwrap),
-  /** Advance a gift pledge: PLEDGED → SCHEDULED → RECEIVED, or CANCELLED. */
+  /**
+   * Advance a gift pledge along its handover lifecycle. Stages only move
+   * forward (PLEDGED → SCHEDULED → RECEIVED); CANCELLED is allowed only from
+   * PLEDGED/SCHEDULED, and RECEIVED/CANCELLED are terminal. A backward move is
+   * rejected with 400 GIFT_STAGE_BACKWARD. Only RECEIVED gifts count toward the
+   * campaign's in-kind total.
+   */
   updateGiftStatus: (
     id: string | number,
     giftId: string | number,

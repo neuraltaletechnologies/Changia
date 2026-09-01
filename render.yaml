@@ -1,0 +1,49 @@
+# Render Blueprint — deploys the Changia backend API (Express).
+# Frontend is deployed separately on Vercel; MySQL is a managed cloud DB (Aiven / TiDB Cloud).
+#
+# Usage: Render Dashboard → New → Blueprint → pick the neuraltaletechnologies/Changia repo.
+# Then fill in the DB_* values (marked `sync: false`) from your MySQL provider.
+services:
+  - type: web
+    name: changia-api
+    runtime: node
+    plan: free
+    rootDir: Backend
+    buildCommand: npm install --omit=dev
+    startCommand: node server.js
+    healthCheckPath: /api/v1/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: CORS_ORIGINS
+        value: https://changia.neuraltale.com
+      - key: APP_BASE_URL
+        value: https://changia.neuraltale.com
+      - key: API_PUBLIC_URL
+        value: https://api.changia.neuraltale.com
+      - key: DEFAULT_SERVICE_FEE_PERCENT
+        value: "5"
+      - key: MESSAGE_PROVIDER
+        value: simulated
+      - key: CLICKPESA_ENABLED
+        value: "false"
+      # ─── MySQL (fill these from your Aiven / TiDB Cloud dashboard) ───────────
+      - key: DB_SSL
+        value: "true"
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_NAME
+        sync: false

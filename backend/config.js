@@ -22,6 +22,10 @@ const env = {
     user: process.env.DB_USER || "root",
     password: process.env.DB_PASSWORD || "",
     database: process.env.DB_NAME || "changia",
+    // Managed MySQL providers need TLS. DB_SSL=true turns it on; DB_SSL_CA is an
+    // optional PEM string or path to the provider's CA bundle (strict verify).
+    ssl: process.env.DB_SSL === "true" || process.env.DB_SSL === "1",
+    sslCa: process.env.DB_SSL_CA || "",
   },
 
   // ─── Messaging providers (SMS / WhatsApp / Email) ──────────────────────────

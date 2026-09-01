@@ -1113,7 +1113,7 @@ function CampaignActionsMenu({
       {dialog === "payout" ? (
         <RequestPayoutDialog
           campaignId={campaign.id}
-          availableAmount={campaign.availableForPayout ?? campaign.raisedAmount}
+          maxAmount={campaign.availableForPayout ?? campaign.raisedAmount}
           onClose={() => setDialog(null)}
           onSubmitted={() => setDialog(null)}
           run={onRun}

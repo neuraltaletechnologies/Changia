@@ -56,6 +56,8 @@ export function usePendingApprovalCount(): number {
           const reminderN = reminderRes?.pending.length ?? 0;
           const campaignN = (r?.campaigns ?? []).filter((c) => {
             const cr = c.changeRequest;
+            const closure = c.latestClosureRequest;
+            const report = c.completionReport;
             if (canReviewCampaign) {
               if (
                 c.status === "PENDING" &&
@@ -64,6 +66,9 @@ export function usePendingApprovalCount(): number {
               )
                 return true;
               if (cr && cr.status === "PENDING") return true;
+              // Closure request / completion report stage 1 — a reviewer's first review.
+              if (closure?.status === "PENDING") return true;
+              if (report?.status === "PENDING_REVIEW") return true;
             }
             if (canFinalApproveCampaign) {
               const notMine =
@@ -71,12 +76,19 @@ export function usePendingApprovalCount(): number {
               if (c.status === "REVIEWED" && notMine) return true;
               if (cr && cr.status === "REVIEWED" && String(cr.firstApprovedBy ?? "") !== uid)
                 return true;
+              // Closure request / completion report stage 2 — an admin's final approval.
+              if (
+                closure?.status === "REVIEWED" &&
+                String(closure.firstApprovedBy ?? "") !== uid
+              )
+                return true;
+              if (
+                report?.status === "REVIEWED" &&
+                String(report.firstReviewedBy ?? "") !== uid
+              )
+                return true;
             }
             if (c.feeStatus === "PENDING") return true;
-            // Closure requests + completion reports are reviewed by any approver
-            // (in full context on the campaign page).
-            if (c.latestClosureRequest?.status === "PENDING") return true;
-            if (c.completionReport?.status === "PENDING_REVIEW") return true;
             return false;
           }).length;
 

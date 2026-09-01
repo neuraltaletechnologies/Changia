@@ -203,6 +203,26 @@ const MIGRATIONS = [
     INDEX idx_ccr2_org_status (organization_id, status)
   ) ENGINE=InnoDB`,
 
+  // campaign_closure_requests — two-stage approval chain (mirrors payouts /
+  // campaign change requests): a manager's request to close a campaign now
+  // needs a REVIEWER's first review (PENDING -> REVIEWED) before an ORG_ADMIN
+  // gives the final approval (REVIEWED -> APPROVED, campaign -> COMPLETED).
+  // first_approved_by_id/at track the stage-1 sign-off so stage 2 must be a
+  // different person.
+  `ALTER TABLE campaign_closure_requests MODIFY COLUMN status ENUM('PENDING','REVIEWED','APPROVED','REJECTED') NOT NULL DEFAULT 'PENDING'`,
+  `ALTER TABLE campaign_closure_requests ADD COLUMN first_approved_by_id BIGINT UNSIGNED NULL AFTER requested_by_id`,
+  `ALTER TABLE campaign_closure_requests ADD COLUMN first_approved_at DATETIME NULL AFTER first_approved_by_id`,
+  `ALTER TABLE campaign_closure_requests ADD CONSTRAINT fk_ccreq_first_approver FOREIGN KEY (first_approved_by_id) REFERENCES users(id) ON DELETE SET NULL`,
+
+  // campaign_completion_reports — same two-stage approval chain: a REVIEWER's
+  // first review (PENDING_REVIEW -> REVIEWED) before an ORG_ADMIN gives the
+  // final approval (REVIEWED -> APPROVED). first_reviewed_by_id/at track the
+  // stage-1 sign-off so stage 2 must be a different person.
+  `ALTER TABLE campaign_completion_reports MODIFY COLUMN status ENUM('PENDING_REVIEW','REVIEWED','APPROVED','REJECTED') NOT NULL DEFAULT 'PENDING_REVIEW'`,
+  `ALTER TABLE campaign_completion_reports ADD COLUMN first_reviewed_by_id BIGINT UNSIGNED NULL AFTER submitted_by_id`,
+  `ALTER TABLE campaign_completion_reports ADD COLUMN first_reviewed_at DATETIME NULL AFTER first_reviewed_by_id`,
+  `ALTER TABLE campaign_completion_reports ADD CONSTRAINT fk_ccr_first_reviewer FOREIGN KEY (first_reviewed_by_id) REFERENCES users(id) ON DELETE SET NULL`,
+
   // campaign_change_requests — also carries manager-initiated PAUSE / RESUME
   // ("suspend" / "resume") requests, which clear the very same two-stage chain
   // (REVIEWER then ORG_ADMIN) before the campaign's status actually changes.
@@ -210,6 +230,12 @@ const MIGRATIONS = [
   // set status_action and keep the reason (if any) in payload.
   `ALTER TABLE campaign_change_requests ADD COLUMN request_kind ENUM('EDIT','STATUS') NOT NULL DEFAULT 'EDIT' AFTER organization_id`,
   `ALTER TABLE campaign_change_requests ADD COLUMN status_action ENUM('PAUSE','RESUME') NULL AFTER request_kind`,
+
+  // campaign_images — a gallery photo added to / removed from a LIVE campaign is
+  // now staged for the same two-stage review as a cover change instead of
+  // showing publicly right away. 'ADD' = uploaded, not yet public; 'REMOVE' =
+  // still public but dropped once the campaign's change request clears.
+  `ALTER TABLE campaign_images ADD COLUMN pending_change ENUM('NONE','ADD','REMOVE') NOT NULL DEFAULT 'NONE' AFTER sort_order`,
 
   // notifications — per-user in-app staff notification centre.
   `CREATE TABLE IF NOT EXISTS notifications (

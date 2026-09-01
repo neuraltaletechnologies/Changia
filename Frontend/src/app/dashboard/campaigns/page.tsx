@@ -617,13 +617,15 @@ export default function CampaignsPage() {
 const PROOF_BADGE: Record<string, string> = {
   MISSING: "bg-amber-50 text-amber-700 border-amber-200",
   PENDING_REVIEW: "bg-sky-50 text-sky-700 border-sky-200",
+  REVIEWED: "bg-violet-50 text-violet-700 border-violet-200",
   APPROVED: "bg-emerald-50 text-emerald-700 border-emerald-200",
   REJECTED: "bg-rose-50 text-rose-700 border-rose-200",
 };
 
 const PROOF_LABEL: Record<string, string> = {
   MISSING: "Proof needed",
-  PENDING_REVIEW: "Proof pending review",
+  PENDING_REVIEW: "Proof — first review",
+  REVIEWED: "Proof — final approval",
   APPROVED: "Proof approved",
   REJECTED: "Proof rejected",
 };
@@ -693,18 +695,23 @@ function reviewChipsForCampaign(c: CampaignRecord): ReviewChip[] {
   if (c.openPayoutRequest)
     chips.push(stageChip("Payout", c.openPayoutRequest.status, CHIP_VIOLET));
 
-  // 5. A request to close the campaign (single decision, not two-stage).
-  if (c.latestClosureRequest?.status === "PENDING")
-    chips.push({ label: "Closure · In review", styles: CHIP_SKY });
+  // 5. A request to close the campaign — two-stage (reviewer then org admin).
+  if (
+    c.latestClosureRequest?.status === "PENDING" ||
+    c.latestClosureRequest?.status === "REVIEWED"
+  )
+    chips.push(stageChip("Closure", c.latestClosureRequest.status, CHIP_SKY));
   else if (
     c.latestClosureRequest?.status === "REJECTED" &&
     (c.status === "ACTIVE" || c.status === "PAUSED")
   )
     chips.push({ label: "Closure · Rejected", styles: CHIP_ROSE, rejected: true });
 
-  // 6. Completion proof for a finished campaign.
+  // 6. Completion proof for a finished campaign — two-stage (reviewer then org admin).
   if (c.completionReport?.status === "PENDING_REVIEW")
-    chips.push({ label: "Proof · In review", styles: CHIP_SKY });
+    chips.push({ label: "Proof · Stage 1 of 2", styles: CHIP_SKY });
+  else if (c.completionReport?.status === "REVIEWED")
+    chips.push({ label: "Proof · Stage 2 of 2", styles: CHIP_SKY });
   else if (c.completionReport?.status === "REJECTED")
     chips.push({ label: "Proof · Rejected", styles: CHIP_ROSE, rejected: true });
 
@@ -916,7 +923,17 @@ function CampaignActionsMenu({
       campaign.reviewState !== "CHANGES_REQUESTED" &&
       canReviewCampaign) ||
       (campaign.status === "REVIEWED" && canFinalApproveCampaign));
+  // Featuring is only allowed once a campaign is live (ACTIVE) and public — the
+  // backend's setFeatured enforces the same. Admins still see the menu item on
+  // every campaign, just disabled with a reason until it qualifies.
   const canFeature = isAdmin && campaign.status === "ACTIVE" && campaign.isPublic;
+  const featureBlockedReason = !isAdmin
+    ? null
+    : campaign.status !== "ACTIVE"
+      ? "Only a live (ACTIVE) campaign can be featured on the homepage."
+      : !campaign.isPublic
+        ? "This campaign isn't public yet, so it can't be featured."
+        : null;
 
   // A manager works only their assigned campaigns; suspend/resume/payout/closure
   // are all "requests" for them (they clear review), direct only for admins.
@@ -981,10 +998,21 @@ function CampaignActionsMenu({
               {campaign.status === "REVIEWED" ? "Give final approval" : "Give first approval"}
             </DropdownMenuItem>
           )}
-          {canFeature && (
-            <DropdownMenuItem onClick={wrap(onToggleFeatured)}>
-              <Star className="w-3.5 h-3.5 mr-1.5" />
-              {campaign.isFeatured ? "Unfeature" : "Feature on homepage"}
+          {isAdmin && (
+            <DropdownMenuItem
+              onClick={canFeature ? wrap(onToggleFeatured) : () => {}}
+              disabled={!canFeature}
+              className={cn(!canFeature && "flex-col items-start gap-0.5")}
+            >
+              <span className="flex items-center">
+                <Star className="w-3.5 h-3.5 mr-1.5" />
+                {campaign.isFeatured ? "Unfeature" : "Feature on homepage"}
+              </span>
+              {featureBlockedReason && (
+                <span className="pl-5 text-[11px] font-normal text-muted-foreground">
+                  {featureBlockedReason}
+                </span>
+              )}
             </DropdownMenuItem>
           )}
 
@@ -1085,6 +1113,7 @@ function CampaignActionsMenu({
       {dialog === "payout" ? (
         <RequestPayoutDialog
           campaignId={campaign.id}
+          availableAmount={campaign.availableForPayout ?? campaign.raisedAmount}
           onClose={() => setDialog(null)}
           onSubmitted={() => setDialog(null)}
           run={onRun}
@@ -1144,7 +1173,7 @@ function CampaignRequestDialog({
     closure: {
       title: "Request closure",
       blurb:
-        "Ask a reviewer/admin to mark this campaign completed. You'll still need to submit the completion proof afterwards.",
+        "This asks a reviewer, then an org admin, to mark this campaign completed. You'll still need to submit the completion proof afterwards.",
       reasonLabel: "Why should this campaign close?",
       reasonRequired: true,
     },

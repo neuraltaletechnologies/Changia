@@ -430,12 +430,14 @@ async function listCampaigns(organizationId, filters, user) {
     closureByCampaign,
     changeReqByCampaign,
     payoutReqByCampaign,
+    paidOutByCampaign,
   ] = await Promise.all([
     loadCompletionReportSummaries(completedIds),
-    loadCampaignImages(allIds),
+    loadCampaignImages(allIds, { includePending: true }),
     loadLatestClosureRequests(allIds),
     loadOpenChangeRequests(allIds),
     loadOpenPayoutRequests(allIds),
+    loadPaidOutTotals(allIds),
   ]);
 
   return {
@@ -449,6 +451,10 @@ async function listCampaigns(organizationId, filters, user) {
       editRequest: changeReqByCampaign.editById[c.id] || null,
       statusRequest: changeReqByCampaign.statusById[c.id] || null,
       openPayoutRequest: payoutReqByCampaign[c.id] || null,
+      availableForPayout: Math.max(
+        0,
+        num(c.raised_amount) - (paidOutByCampaign[c.id] || 0)
+      ),
     })),
     pagination: {
       page,
@@ -503,12 +509,14 @@ async function getCampaign(organizationId, campaignId, user) {
     closureByCampaign,
     changeReqByCampaign,
     payoutReqByCampaign,
+    paidOutByCampaign,
   ] = await Promise.all([
     campaign.status === "COMPLETED" ? loadCompletionReportSummaries([campaign.id]) : {},
-    loadCampaignImages([campaign.id]),
+    loadCampaignImages([campaign.id], { includePending: true }),
     loadLatestClosureRequests([campaign.id]),
     loadOpenChangeRequests([campaign.id]),
     loadOpenPayoutRequests([campaign.id]),
+    loadPaidOutTotals([campaign.id]),
   ]);
 
   return {
@@ -523,6 +531,10 @@ async function getCampaign(organizationId, campaignId, user) {
     editRequest: changeReqByCampaign.editById[campaign.id] || null,
     statusRequest: changeReqByCampaign.statusById[campaign.id] || null,
     openPayoutRequest: payoutReqByCampaign[campaign.id] || null,
+    availableForPayout: Math.max(
+      0,
+      raised - (paidOutByCampaign[campaign.id] || 0)
+    ),
     donations: donations.map((d) => ({
       id: d.id,
       amount: num(d.amount),
@@ -861,12 +873,10 @@ async function updateCampaign(organizationId, campaignId, data, actor) {
   }
 
   // Record which fields the edit touched so the campaign history / review
-  // timeline can show a reviewer exactly what changed since the last round.
-  const editedFields = Object.keys(data).filter(
-    (k) =>
-      data[k] !== undefined &&
-      !["managerIds", "poolIds", "expectedAmounts", "asDraft"].includes(k)
-  );
+  // timeline can show a reviewer exactly what changed since the last round —
+  // only the fields that actually differ, not every field the edit form always
+  // submits.
+  const editedFields = collectChangedFields(campaign, data);
   const resubmitted =
     campaign.status === "REVIEWED" || campaign.review_state === "CHANGES_REQUESTED";
   await writeAudit(
@@ -1021,6 +1031,25 @@ async function loadOpenPayoutRequests(campaignIds) {
   return byId;
 }
 
+/**
+ * { [campaignId]: number } — total already paid out (status PAID) per campaign.
+ * Used to derive `availableForPayout` (raised − paidOut) so a new request can't
+ * ask for more than is left; createPayout enforces the same cap server-side.
+ */
+async function loadPaidOutTotals(campaignIds) {
+  if (!campaignIds || campaignIds.length === 0) return {};
+  const rows = await db.query(
+    `SELECT campaign_id, COALESCE(SUM(amount), 0) AS paid_out
+       FROM payouts
+      WHERE campaign_id IN (?) AND status = 'PAID'
+      GROUP BY campaign_id`,
+    [campaignIds]
+  );
+  const byId = {};
+  for (const r of rows) byId[r.campaign_id] = Number(r.paid_out);
+  return byId;
+}
+
 async function getOpenChangeRequestRow(campaignId, kind = "EDIT") {
   const rows = await db.query(
     `SELECT * FROM campaign_change_requests
@@ -1030,6 +1059,52 @@ async function getOpenChangeRequestRow(campaignId, kind = "EDIT") {
     [campaignId, kind]
   );
   return rows[0] || null;
+}
+
+/**
+ * Every editable field in `data` that actually differs from the campaign row —
+ * feeds the history/timeline "Changed: …" list so it names only what really
+ * changed, not every field the edit form always submits.
+ */
+function collectChangedFields(campaign, data) {
+  const changed = [];
+  const timeEq = (a, b) =>
+    (a ? new Date(a).getTime() : null) === (b ? new Date(b).getTime() : null);
+  const TEXT_COL = {
+    name: "name",
+    story: "story",
+    scope: "scope",
+    acceptance: "acceptance",
+    category: "category",
+    contactPhone: "contact_phone",
+    nameSw: "name_sw",
+    storySw: "story_sw",
+    categorySw: "category_sw",
+  };
+  for (const [key, col] of Object.entries(TEXT_COL)) {
+    if (data[key] === undefined) continue;
+    const next = data[key] === "" ? null : data[key] ?? null;
+    if (next !== (campaign[col] ?? null)) changed.push(key);
+  }
+  if (data.goalAmount !== undefined && Number(data.goalAmount) !== num(campaign.goal_amount))
+    changed.push("goalAmount");
+  if (
+    data.serviceFeePercent !== undefined &&
+    Number(data.serviceFeePercent) !== num(campaign.service_fee_percent)
+  )
+    changed.push("serviceFeePercent");
+  if (
+    data.minimumAmount !== undefined &&
+    Number(data.minimumAmount) !== num(campaign.minimum_amount)
+  )
+    changed.push("minimumAmount");
+  if (data.startDate !== undefined && !timeEq(data.startDate, campaign.start_date))
+    changed.push("startDate");
+  if (data.endDate !== undefined && !timeEq(data.endDate, campaign.end_date))
+    changed.push("endDate");
+  if (data.isPublic !== undefined && (data.isPublic ? 1 : 0) !== (campaign.is_public ? 1 : 0))
+    changed.push("isPublic");
+  return changed;
 }
 
 /** Which MATERIAL_FIELDS in `data` actually differ from the campaign row. */
@@ -1216,6 +1291,52 @@ async function listChangeRequests(organizationId, campaignId, user) {
   return rows.map(mapChangeRequest);
 }
 
+function galleryDiskPaths(rows) {
+  return rows
+    .filter((r) => r.image_path && r.image_path.startsWith("/uploads/campaigns/"))
+    .map((r) => ({ path: uploadWebPathToDiskPath(r.image_path) }));
+}
+
+/** Change request APPROVED: promote staged gallery additions to live and drop
+ *  staged removals (and their files). */
+async function finalizeStagedGallery(campaignId) {
+  const removed = await db.query(
+    "SELECT id, image_path FROM campaign_images WHERE campaign_id = ? AND pending_change = 'REMOVE'",
+    [campaignId]
+  );
+  if (removed.length > 0) {
+    await db.execute(
+      "DELETE FROM campaign_images WHERE campaign_id = ? AND pending_change = 'REMOVE'",
+      [campaignId]
+    );
+    deleteUploadedFiles(galleryDiskPaths(removed));
+  }
+  await db.execute(
+    "UPDATE campaign_images SET pending_change = 'NONE' WHERE campaign_id = ? AND pending_change = 'ADD'",
+    [campaignId]
+  );
+}
+
+/** Change request REJECTED: drop staged additions (and their files) and
+ *  un-stage pending removals — back to the last-approved gallery. */
+async function revertStagedGallery(campaignId) {
+  const added = await db.query(
+    "SELECT id, image_path FROM campaign_images WHERE campaign_id = ? AND pending_change = 'ADD'",
+    [campaignId]
+  );
+  if (added.length > 0) {
+    await db.execute(
+      "DELETE FROM campaign_images WHERE campaign_id = ? AND pending_change = 'ADD'",
+      [campaignId]
+    );
+    deleteUploadedFiles(galleryDiskPaths(added));
+  }
+  await db.execute(
+    "UPDATE campaign_images SET pending_change = 'NONE' WHERE campaign_id = ? AND pending_change = 'REMOVE'",
+    [campaignId]
+  );
+}
+
 /**
  * A CAMPAIGN_MANAGER asks to suspend (PAUSE) or resume (RESUME) a campaign.
  * The ask is parked as a STATUS change request that clears the same two-stage
@@ -1381,6 +1502,8 @@ async function decideChangeRequest(organizationId, campaignId, requestId, actor,
       await changeCampaignStatus(organizationId, campaignId, target, actor);
     } else {
       await applyChangeRequestPayload(campaign, parsePayload(request.payload), request.staged_cover_path);
+      // Promote any staged gallery photos (adds go live, removals are dropped).
+      await finalizeStagedGallery(campaignId);
       await db.execute(
         "UPDATE campaigns SET has_pending_changes = 0, review_state = 'NONE', review_notes = NULL WHERE id = ?",
         [campaignId]
@@ -1432,6 +1555,8 @@ async function decideChangeRequest(organizationId, campaignId, requestId, actor,
       [notes, requestId]
     );
     if (!isStatus) {
+      // Drop any staged gallery photos and un-stage pending removals.
+      await revertStagedGallery(campaignId);
       await db.execute(
         "UPDATE campaigns SET has_pending_changes = 0, review_state = 'NONE', review_notes = ? WHERE id = ?",
         [notes, campaignId]
@@ -2107,7 +2232,8 @@ async function getCampaignDonorTargets(organizationId, campaignId, user) {
 
   const rows = await db.query(
     `SELECT cdt.id, cdt.donor_id, cdt.expected_amount, cdt.pool_id, cdt.created_at,
-       d.first_name, d.last_name, d.email, d.phone, d.gender, d.position, d.is_anomalous,
+       d.first_name, d.last_name, d.email, d.phone, d.gender, d.position,
+       d.is_anomalous, d.preferred_channel,
        p.name AS pool_name, p.category AS pool_category,
        (SELECT COALESCE(SUM(dd.amount),0) FROM donations dd
          WHERE dd.donor_id = cdt.donor_id AND dd.campaign_id = cdt.campaign_id
@@ -2148,6 +2274,7 @@ async function getCampaignDonorTargets(organizationId, campaignId, user) {
         gender: r.gender,
         position: r.position,
         isAnomalous: Boolean(r.is_anomalous),
+        preferredChannel: r.preferred_channel,
       },
       addedAt: r.created_at,
     };
@@ -2320,7 +2447,8 @@ async function setFeatured(organizationId, campaignId, featured, actor) {
 async function loadCompletionReportSummaries(campaignIds) {
   if (!campaignIds || campaignIds.length === 0) return {};
   const rows = await db.query(
-    `SELECT campaign_id, status, submitted_at, reviewed_at
+    `SELECT campaign_id, status, submitted_at, reviewed_at,
+            first_reviewed_by_id, first_reviewed_at
      FROM campaign_completion_reports WHERE campaign_id IN (?)`,
     [campaignIds]
   );
@@ -2330,6 +2458,9 @@ async function loadCompletionReportSummaries(campaignIds) {
       status: r.status,
       submittedAt: r.submitted_at,
       reviewedAt: r.reviewed_at,
+      // Two-stage chain: PENDING_REVIEW (stage 1) -> REVIEWED (stage 2) -> APPROVED.
+      firstReviewedBy: r.first_reviewed_by_id ?? null,
+      firstReviewedAt: r.first_reviewed_at ?? null,
     };
   }
   return byId;
@@ -2347,10 +2478,12 @@ async function getCompletionReport(organizationId, campaignId, user) {
 
   const rows = await db.query(
     `SELECT r.*, u.first_name AS submitted_by_first_name, u.last_name AS submitted_by_last_name,
-            rv.first_name AS reviewed_by_first_name, rv.last_name AS reviewed_by_last_name
+            rv.first_name AS reviewed_by_first_name, rv.last_name AS reviewed_by_last_name,
+            fr.first_name AS first_reviewed_by_first_name, fr.last_name AS first_reviewed_by_last_name
      FROM campaign_completion_reports r
      LEFT JOIN users u ON u.id = r.submitted_by_id
      LEFT JOIN users rv ON rv.id = r.reviewed_by_id
+     LEFT JOIN users fr ON fr.id = r.first_reviewed_by_id
      WHERE r.campaign_id = ?`,
     [campaignId]
   );
@@ -2373,6 +2506,11 @@ async function getCompletionReport(organizationId, campaignId, user) {
       ? { id: report.submitted_by_id, firstName: report.submitted_by_first_name, lastName: report.submitted_by_last_name }
       : null,
     submittedAt: report.submitted_at,
+    // Stage-1 (reviewer) sign-off — set once the report clears first review.
+    firstReviewedBy: report.first_reviewed_by_id
+      ? { id: report.first_reviewed_by_id, firstName: report.first_reviewed_by_first_name, lastName: report.first_reviewed_by_last_name }
+      : null,
+    firstReviewedAt: report.first_reviewed_at,
     reviewedBy: report.reviewed_by_id
       ? { id: report.reviewed_by_id, firstName: report.reviewed_by_first_name, lastName: report.reviewed_by_last_name }
       : null,
@@ -2434,7 +2572,8 @@ async function submitCompletionReport(organizationId, campaignId, actor, data, f
       await tx.execute(
         `UPDATE campaign_completion_reports
          SET summary = ?, amount_utilized = ?, status = 'PENDING_REVIEW',
-             submitted_by_id = ?, reviewed_by_id = NULL, reviewed_at = NULL, review_notes = NULL,
+             submitted_by_id = ?, first_reviewed_by_id = NULL, first_reviewed_at = NULL,
+             reviewed_by_id = NULL, reviewed_at = NULL, review_notes = NULL,
              submitted_at = NOW()
          WHERE id = ?`,
         [data.summary, data.amountUtilized ?? null, actor.id, reportId]
@@ -2472,9 +2611,11 @@ async function submitCompletionReport(organizationId, campaignId, actor, data, f
     [organizationId, actor.id, actor.email, String(campaignId)]
   );
 
-  await notifySafe(notificationService.orgReviewersAndAdmins(organizationId), {
+  // Stage 1 of the chain is a platform REVIEWER's first review; an ORG_ADMIN
+  // only gets it once it clears first review (see reviewCompletionReport).
+  await notifySafe(notificationService.platformReviewers(), {
     type: "campaign",
-    title: "Completion report to review",
+    title: "Completion report awaiting first review",
     body: "A campaign manager submitted proof of how the funds were used.",
     link: campaignLink(campaignId),
     resource: "campaign",
@@ -2486,10 +2627,15 @@ async function submitCompletionReport(organizationId, campaignId, actor, data, f
 }
 
 /**
- * A REVIEWER/ORG_ADMIN/SUPER_ADMIN decides a pending completion report.
+ * Decides a completion report. Two-stage chain, mirroring decideClosureRequest /
+ * decideChangeRequest / decidePayout:
  *   data.action: 'approve' | 'request_changes' | 'reject' (last two need a note).
- * 'request_changes' and 'reject' both set REJECTED (the manager resubmits) —
- * the difference is the wording of the feedback and notification.
+ *   - approve @ PENDING_REVIEW → stage 1 (REVIEWER/SUPER_ADMIN, not the submitter):
+ *                                report -> REVIEWED, then an ORG_ADMIN gets it.
+ *   - approve @ REVIEWED       → stage 2 (ORG_ADMIN/SUPER_ADMIN, a different
+ *                                person, not the submitter): report -> APPROVED.
+ *   - request_changes / reject → report REJECTED (the manager resubmits) — the
+ *     difference is only the wording of the feedback and notification.
  */
 async function reviewCompletionReport(organizationId, campaignId, actor, data) {
   const action = data.action || (data.approved ? "approve" : "reject");
@@ -2507,28 +2653,96 @@ async function reviewCompletionReport(organizationId, campaignId, actor, data) {
   organizationId = campaigns[0].organization_id ?? organizationId;
 
   const existing = await db.query(
-    "SELECT id, status FROM campaign_completion_reports WHERE campaign_id = ?",
+    `SELECT id, status, submitted_by_id, first_reviewed_by_id
+       FROM campaign_completion_reports WHERE campaign_id = ?`,
     [campaignId]
   );
-  if (!existing[0]) throw ApiError.notFound("No completion report has been submitted yet");
-  if (existing[0].status !== "PENDING_REVIEW") {
-    throw ApiError.badRequest("Only a pending report can be reviewed", "REPORT_NOT_PENDING");
+  const report = existing[0];
+  if (!report) throw ApiError.notFound("No completion report has been submitted yet");
+  if (report.status !== "PENDING_REVIEW" && report.status !== "REVIEWED") {
+    throw ApiError.badRequest("This report can no longer be reviewed", "REPORT_NOT_PENDING");
   }
 
-  const status = action === "approve" ? "APPROVED" : "REJECTED";
+  const campaignName = campaigns[0].name;
+
+  if (action === "approve" && report.status === "PENDING_REVIEW") {
+    // ── Stage 1: a reviewer's first review. ─────────────────────────────────
+    assertApprovalStage({ actor, stage: 1, creatorId: report.submitted_by_id });
+    await db.execute(
+      `UPDATE campaign_completion_reports
+       SET status = 'REVIEWED', first_reviewed_by_id = ?, first_reviewed_at = NOW(),
+           review_notes = NULL
+       WHERE id = ?`,
+      [actor.id, report.id]
+    );
+    await writeAudit(organizationId, actor, "campaign.completion_report.first_reviewed", campaignId);
+    await notifySafe(notificationService.orgAdmins(organizationId), {
+      type: "campaign",
+      title: "Completion report ready for final approval",
+      body: `The completion report for "${campaignName}" passed first review.`,
+      link: campaignLink(campaignId),
+      resource: "campaign",
+      resourceId: campaignId,
+      organizationId,
+    });
+    await notifySafe(notificationService.campaignManagerAudience(campaignId), {
+      type: "campaign",
+      title: "Your completion report passed first review",
+      body: `The completion report for "${campaignName}" now needs a final approval from an admin.`,
+      link: campaignLink(campaignId),
+      resource: "campaign",
+      resourceId: campaignId,
+      organizationId,
+    });
+    return getCompletionReport(organizationId, campaignId, actor);
+  }
+
+  if (action === "approve") {
+    // ── Stage 2: an org admin's final approval. ────────────────────────────
+    assertApprovalStage({
+      actor,
+      stage: 2,
+      firstApprovedBy: report.first_reviewed_by_id,
+      creatorId: report.submitted_by_id,
+    });
+    await db.execute(
+      `UPDATE campaign_completion_reports
+       SET status = 'APPROVED', reviewed_by_id = ?, reviewed_at = NOW(), review_notes = ?
+       WHERE id = ?`,
+      [actor.id, notes || null, report.id]
+    );
+    await writeAudit(
+      organizationId,
+      actor,
+      "campaign.completion_report.approved",
+      campaignId,
+      "INFO",
+      notes ? { notes } : undefined
+    );
+    await notifySafe(notificationService.campaignManagerAudience(campaignId), {
+      type: "campaign",
+      title: "Completion report approved",
+      body: notes || `"${campaignName}"`,
+      link: campaignLink(campaignId),
+      resource: "campaign",
+      resourceId: campaignId,
+      organizationId,
+    });
+    return getCompletionReport(organizationId, campaignId, actor);
+  }
+
+  // ── request_changes / reject — either stage sends it back to the manager. ──
   await db.execute(
     `UPDATE campaign_completion_reports
-     SET status = ?, reviewed_by_id = ?, reviewed_at = NOW(), review_notes = ?
+     SET status = 'REJECTED', reviewed_by_id = ?, reviewed_at = NOW(), review_notes = ?,
+         first_reviewed_by_id = NULL, first_reviewed_at = NULL
      WHERE id = ?`,
-    [status, actor.id, notes || null, existing[0].id]
+    [actor.id, notes || null, report.id]
   );
-
   const auditAction =
-    action === "approve"
-      ? "campaign.completion_report.approved"
-      : action === "request_changes"
-        ? "campaign.completion_report.changes_requested"
-        : "campaign.completion_report.rejected";
+    action === "request_changes"
+      ? "campaign.completion_report.changes_requested"
+      : "campaign.completion_report.rejected";
   await writeAudit(
     organizationId,
     actor,
@@ -2537,17 +2751,13 @@ async function reviewCompletionReport(organizationId, campaignId, actor, data) {
     action === "reject" ? "WARNING" : "INFO",
     notes ? { notes } : undefined
   );
-
-  const notifyTitle =
-    action === "approve"
-      ? "Completion report approved"
-      : action === "request_changes"
-        ? "Changes requested on your completion report"
-        : "Completion report rejected";
   await notifySafe(notificationService.campaignManagerAudience(campaignId), {
     type: "campaign",
-    title: notifyTitle,
-    body: notes || `"${campaigns[0].name}"`,
+    title:
+      action === "request_changes"
+        ? "Changes requested on your completion report"
+        : "Completion report rejected",
+    body: notes || `"${campaignName}"`,
     link: campaignLink(campaignId),
     resource: "campaign",
     resourceId: campaignId,
@@ -2559,20 +2769,32 @@ async function reviewCompletionReport(organizationId, campaignId, actor, data) {
 
 // ─── Campaign images (cover + gallery) ────────────────────────────────────────
 
-/** { [campaignId]: [{id,url}] } gallery-only (is_cover=0) images for the
- *  given campaigns — embedded on list/detail responses. */
-async function loadCampaignImages(campaignIds) {
+/**
+ * { [campaignId]: [{id,url,pendingChange}] } gallery-only (is_cover=0) images.
+ *
+ * A gallery photo added to / removed from a LIVE campaign is staged for the
+ * same two-stage review as a cover change (pending_change 'ADD' / 'REMOVE').
+ * Public consumers must NOT see a staged addition and must keep showing a
+ * photo staged for removal until the change request clears, so by default
+ * `pending_change = 'ADD'` rows are filtered out. Dashboard callers pass
+ * `includePending: true` to get every row plus its `pendingChange` so the UI
+ * can badge what's awaiting review.
+ */
+async function loadCampaignImages(campaignIds, { includePending = false } = {}) {
   if (!campaignIds || campaignIds.length === 0) return {};
   const rows = await db.query(
-    `SELECT id, campaign_id, image_path FROM campaign_images
+    `SELECT id, campaign_id, image_path, pending_change FROM campaign_images
      WHERE campaign_id IN (?) AND is_cover = 0
+       ${includePending ? "" : "AND pending_change <> 'ADD'"}
      ORDER BY sort_order ASC, id ASC`,
     [campaignIds]
   );
   const byId = {};
   for (const r of rows) {
     if (!byId[r.campaign_id]) byId[r.campaign_id] = [];
-    byId[r.campaign_id].push({ id: r.id, url: toAbsoluteImageUrl(r.image_path) });
+    const img = { id: r.id, url: toAbsoluteImageUrl(r.image_path) };
+    if (includePending) img.pendingChange = r.pending_change || "NONE";
+    byId[r.campaign_id].push(img);
   }
   return byId;
 }
@@ -2585,7 +2807,7 @@ async function uploadCampaignImages(organizationId, campaignId, actor, files) {
   await assertCampaignAccess(organizationId, actor, campaignId);
   const [orgSql, ...orgParams] = orgScope(organizationId, actor);
   const existing = await db.query(
-    `SELECT id, organization_id, image_url, status, created_by_id FROM campaigns WHERE id = ?${orgSql}`,
+    `SELECT id, organization_id, name, image_url, status, created_by_id FROM campaigns WHERE id = ?${orgSql}`,
     [campaignId, ...orgParams]
   );
   const campaign = existing[0];
@@ -2598,22 +2820,19 @@ async function uploadCampaignImages(organizationId, campaignId, actor, files) {
     throw ApiError.badRequest("No images were uploaded", "NO_IMAGES");
   }
 
+  // On a LIVE campaign every photo change (cover or gallery) is staged for the
+  // same two-stage review — nothing shows publicly until it clears both stages.
+  const isLive = LIVE_STATUSES.includes(campaign.status);
+  const auditOrgId = organizationId ?? campaign.organization_id;
+  let parked = false;
+
   if (coverFile) {
     const coverPath = `/uploads/campaigns/${campaignId}/${coverFile.filename}`;
-    if (LIVE_STATUSES.includes(campaign.status)) {
-      // A live campaign's cover change is parked for re-approval — the file
-      // stays on disk but is NOT wired to image_url until the change request
-      // clears both stages.
+    if (isLive) {
+      // The file stays on disk but is NOT wired to image_url until the change
+      // request clears both stages.
       await upsertChangeRequest(campaign, actor, {}, coverPath);
-      await notifySafe(notificationService.orgReviewersAndAdmins(organizationId), {
-        type: "campaign",
-        title: "Campaign cover change awaiting review",
-        body: "A new cover image needs a reviewer's approval before it shows publicly.",
-        link: campaignLink(campaignId),
-        resource: "campaign",
-        resourceId: campaignId,
-        organizationId,
-      });
+      parked = true;
     } else {
       const oldImageUrl = campaign.image_url;
       await db.execute("UPDATE campaigns SET image_url = ? WHERE id = ?", [coverPath, campaignId]);
@@ -2634,43 +2853,95 @@ async function uploadCampaignImages(organizationId, campaignId, actor, files) {
     let order = Number(maxOrder) + 1;
     for (const file of galleryFiles) {
       await db.execute(
-        `INSERT INTO campaign_images (campaign_id, image_path, is_cover, sort_order)
-         VALUES (?, ?, 0, ?)`,
-        [campaignId, `/uploads/campaigns/${campaignId}/${file.filename}`, order]
+        `INSERT INTO campaign_images (campaign_id, image_path, is_cover, sort_order, pending_change)
+         VALUES (?, ?, 0, ?, ?)`,
+        [
+          campaignId,
+          `/uploads/campaigns/${campaignId}/${file.filename}`,
+          order,
+          isLive ? "ADD" : "NONE",
+        ]
       );
       order++;
+    }
+    if (isLive) {
+      // A new gallery photo on a live campaign waits for the same review as the
+      // cover — open (or refresh) the campaign's change request.
+      await upsertChangeRequest(campaign, actor, {}, undefined);
+      parked = true;
     }
   }
 
   await db.execute(
     `INSERT INTO audit_logs (organization_id, actor_id, actor_email, action, resource, resource_id, severity)
      VALUES (?, ?, ?, 'campaign.images.uploaded', 'campaign', ?, 'INFO')`,
-    [organizationId, actor.id, actor.email, String(campaignId)]
+    [auditOrgId, actor.id, actor.email, String(campaignId)]
   );
+
+  if (parked) {
+    await writeAudit(auditOrgId, actor, "campaign.change_request.submitted", campaignId, "INFO", {
+      fields: ["photos"],
+    });
+    await notifySafe(notificationService.orgReviewersAndAdmins(auditOrgId), {
+      type: "campaign",
+      title: "Campaign photo change awaiting review",
+      body: `"${campaign.name || "A campaign"}" has photo changes that need a reviewer's approval before they show publicly.`,
+      link: campaignLink(campaignId),
+      resource: "campaign",
+      resourceId: campaignId,
+      organizationId: auditOrgId,
+    });
+  }
 
   return getCampaign(organizationId, campaignId, actor);
 }
 
 /** Removes one gallery photo (never the cover — replace it via
- *  uploadCampaignImages instead). */
+ *  uploadCampaignImages instead). On a LIVE campaign the removal is staged for
+ *  the same two-stage review as any other photo change: the photo keeps showing
+ *  publicly until the change request clears both stages. */
 async function removeCampaignImage(organizationId, campaignId, imageId, actor) {
   await assertCampaignAccess(organizationId, actor, campaignId);
   const [orgSql, ...orgParams] = orgScope(organizationId, actor);
-  const campaigns = await db.query(`SELECT id, created_by_id FROM campaigns WHERE id = ?${orgSql}`, [
-    campaignId,
-    ...orgParams,
-  ]);
+  const campaigns = await db.query(
+    `SELECT id, organization_id, name, status, created_by_id FROM campaigns WHERE id = ?${orgSql}`,
+    [campaignId, ...orgParams]
+  );
   if (campaigns.length === 0) throw ApiError.notFound("Campaign not found");
-  assertOrgAdminMayEdit(campaigns[0], actor);
+  const campaign = campaigns[0];
+  assertOrgAdminMayEdit(campaign, actor);
 
   const rows = await db.query(
-    "SELECT image_path FROM campaign_images WHERE id = ? AND campaign_id = ? AND is_cover = 0",
+    "SELECT image_path, pending_change FROM campaign_images WHERE id = ? AND campaign_id = ? AND is_cover = 0",
     [imageId, campaignId]
   );
   if (rows.length === 0) throw ApiError.notFound("Image not found");
+  const image = rows[0];
+  const auditOrgId = organizationId ?? campaign.organization_id;
+
+  // A published photo can't just vanish from a live campaign — stage the
+  // removal. A not-yet-approved staged addition ('ADD') was never public, so
+  // deleting it outright just cancels the pending upload.
+  if (LIVE_STATUSES.includes(campaign.status) && image.pending_change !== "ADD") {
+    await db.execute("UPDATE campaign_images SET pending_change = 'REMOVE' WHERE id = ?", [imageId]);
+    await upsertChangeRequest(campaign, actor, {}, undefined);
+    await writeAudit(auditOrgId, actor, "campaign.change_request.submitted", campaignId, "INFO", {
+      fields: ["photos"],
+    });
+    await notifySafe(notificationService.orgReviewersAndAdmins(auditOrgId), {
+      type: "campaign",
+      title: "Campaign photo change awaiting review",
+      body: `"${campaign.name || "A campaign"}" has photo changes that need a reviewer's approval before they show publicly.`,
+      link: campaignLink(campaignId),
+      resource: "campaign",
+      resourceId: campaignId,
+      organizationId: auditOrgId,
+    });
+    return getCampaign(organizationId, campaignId, actor);
+  }
 
   await db.execute("DELETE FROM campaign_images WHERE id = ?", [imageId]);
-  deleteUploadedFiles([{ path: uploadWebPathToDiskPath(rows[0].image_path) }]);
+  deleteUploadedFiles([{ path: uploadWebPathToDiskPath(image.image_path) }]);
 
   return getCampaign(organizationId, campaignId, actor);
 }
@@ -2697,6 +2968,9 @@ async function loadLatestClosureRequests(campaignIds) {
       reason: r.reason,
       decisionNotes: r.decision_notes,
       requestedAt: r.created_at,
+      // Two-stage chain (REVIEWER then ORG_ADMIN): PENDING -> REVIEWED -> APPROVED.
+      firstApprovedBy: r.first_approved_by_id ?? null,
+      firstApprovedAt: r.first_approved_at ?? null,
     };
   }
   return byId;
@@ -2710,6 +2984,8 @@ function mapClosureRequest(r) {
     status: r.status,
     decisionNotes: r.decision_notes,
     requestedAt: r.created_at,
+    firstApprovedBy: r.first_approved_by_id ?? null,
+    firstApprovedAt: r.first_approved_at ?? null,
     decidedAt: r.decided_at,
   };
 }
@@ -2732,12 +3008,12 @@ async function requestClosure(organizationId, campaignId, actor, data) {
   }
 
   const pending = await db.query(
-    "SELECT id FROM campaign_closure_requests WHERE campaign_id = ? AND status = 'PENDING'",
+    "SELECT id FROM campaign_closure_requests WHERE campaign_id = ? AND status IN ('PENDING','REVIEWED')",
     [campaignId]
   );
   if (pending.length > 0) {
     throw ApiError.conflict(
-      "A closure request for this campaign is already pending review",
+      "A closure request for this campaign is already in review",
       "CLOSURE_REQUEST_PENDING"
     );
   }
@@ -2753,9 +3029,11 @@ async function requestClosure(organizationId, campaignId, actor, data) {
     [organizationId, actor.id, actor.email, String(campaignId)]
   );
 
-  await notifySafe(notificationService.orgReviewersAndAdmins(organizationId), {
+  // Stage 1 of the chain is a platform REVIEWER's first review; an ORG_ADMIN
+  // only gets it once it clears first review (see decideClosureRequest).
+  await notifySafe(notificationService.platformReviewers(), {
     type: "campaign",
-    title: "Closure request to review",
+    title: "Closure request awaiting first review",
     body: "A campaign manager asked to close a campaign.",
     link: campaignLink(campaignId),
     resource: "campaign",
@@ -2783,11 +3061,15 @@ async function listClosureRequests(organizationId, campaignId, user) {
 }
 
 /**
- * A REVIEWER/ORG_ADMIN/SUPER_ADMIN decides a pending closure request.
+ * A REVIEWER/ORG_ADMIN/SUPER_ADMIN decides a closure request. Two-stage chain,
+ * mirroring decideChangeRequest / decidePayout:
  *   data.action: 'approve' | 'request_changes' | 'reject' (last two need a note).
- *   - approve         → request APPROVED, campaign -> COMPLETED.
- *   - request_changes → request REJECTED with a note (manager files a new one).
- *   - reject          → request REJECTED with a reason.
+ *   - approve @ PENDING  → stage 1 (REVIEWER/SUPER_ADMIN, not the requester):
+ *                          request -> REVIEWED, then an ORG_ADMIN gets it.
+ *   - approve @ REVIEWED → stage 2 (ORG_ADMIN/SUPER_ADMIN, a different person,
+ *                          not the requester): request -> APPROVED, campaign -> COMPLETED.
+ *   - request_changes    → request REJECTED with a note (manager files a new one).
+ *   - reject             → request REJECTED with a reason.
  */
 async function decideClosureRequest(organizationId, campaignId, requestId, actor, data) {
   const action = data.action || (data.approved ? "approve" : "reject");
@@ -2805,33 +3087,100 @@ async function decideClosureRequest(organizationId, campaignId, requestId, actor
   organizationId = campaigns[0].organization_id ?? organizationId;
 
   const requests = await db.query(
-    "SELECT id, status FROM campaign_closure_requests WHERE id = ? AND campaign_id = ?",
+    `SELECT id, status, requested_by_id, first_approved_by_id
+       FROM campaign_closure_requests WHERE id = ? AND campaign_id = ?`,
     [requestId, campaignId]
   );
   const request = requests[0];
   if (!request) throw ApiError.notFound("Closure request not found");
-  if (request.status !== "PENDING") {
-    throw ApiError.badRequest("Only a pending request can be decided", "CLOSURE_REQUEST_NOT_PENDING");
+  if (request.status !== "PENDING" && request.status !== "REVIEWED") {
+    throw ApiError.badRequest(
+      "This closure request can no longer be decided",
+      "CLOSURE_REQUEST_NOT_PENDING"
+    );
   }
 
-  const status = action === "approve" ? "APPROVED" : "REJECTED";
-  await db.execute(
-    `UPDATE campaign_closure_requests
-     SET status = ?, decided_by_id = ?, decided_at = NOW(), decision_notes = ?
-     WHERE id = ?`,
-    [status, actor.id, notes || null, requestId]
-  );
+  const campaignName = campaigns[0].name;
+
+  if (action === "approve" && request.status === "PENDING") {
+    // ── Stage 1: a reviewer's first review. ──────────────────────────────────
+    assertApprovalStage({ actor, stage: 1, creatorId: request.requested_by_id });
+    await db.execute(
+      `UPDATE campaign_closure_requests
+       SET status = 'REVIEWED', first_approved_by_id = ?, first_approved_at = NOW(),
+           decision_notes = NULL
+       WHERE id = ?`,
+      [actor.id, requestId]
+    );
+    await writeAudit(organizationId, actor, "campaign.closure_request.first_approved", campaignId);
+    await notifySafe(notificationService.orgAdmins(organizationId), {
+      type: "campaign",
+      title: "Closure request ready for final approval",
+      body: `The request to close "${campaignName}" passed first review.`,
+      link: campaignLink(campaignId),
+      resource: "campaign",
+      resourceId: campaignId,
+      organizationId,
+    });
+    await notifySafe(notificationService.campaignManagerAudience(campaignId), {
+      type: "campaign",
+      title: "Your closure request passed first review",
+      body: `The request to close "${campaignName}" now needs a final approval from an admin.`,
+      link: campaignLink(campaignId),
+      resource: "campaign",
+      resourceId: campaignId,
+      organizationId,
+    });
+    return listClosureRequests(organizationId, campaignId, actor);
+  }
 
   if (action === "approve") {
+    // ── Stage 2: an org admin's final approval — campaign is completed now. ──
+    assertApprovalStage({
+      actor,
+      stage: 2,
+      firstApprovedBy: request.first_approved_by_id,
+      creatorId: request.requested_by_id,
+    });
+    await db.execute(
+      `UPDATE campaign_closure_requests
+       SET status = 'APPROVED', decided_by_id = ?, decided_at = NOW(), decision_notes = ?
+       WHERE id = ?`,
+      [actor.id, notes || null, requestId]
+    );
     await changeCampaignStatus(organizationId, campaignId, "COMPLETED", actor);
+    await writeAudit(
+      organizationId,
+      actor,
+      "campaign.closure_request.approved",
+      campaignId,
+      "INFO",
+      notes ? { notes } : undefined
+    );
+    await notifySafe(notificationService.campaignManagerAudience(campaignId), {
+      type: "campaign",
+      title: "Closure request approved",
+      body: notes || `"${campaignName}" is now complete.`,
+      link: campaignLink(campaignId),
+      resource: "campaign",
+      resourceId: campaignId,
+      organizationId,
+    });
+    return listClosureRequests(organizationId, campaignId, actor);
   }
 
+  // ── request_changes / reject — either stage sends it back to the manager. ──
+  await db.execute(
+    `UPDATE campaign_closure_requests
+     SET status = 'REJECTED', decided_by_id = ?, decided_at = NOW(), decision_notes = ?,
+         first_approved_by_id = NULL, first_approved_at = NULL
+     WHERE id = ?`,
+    [actor.id, notes || null, requestId]
+  );
   const auditAction =
-    action === "approve"
-      ? "campaign.closure_request.approved"
-      : action === "request_changes"
-        ? "campaign.closure_request.changes_requested"
-        : "campaign.closure_request.rejected";
+    action === "request_changes"
+      ? "campaign.closure_request.changes_requested"
+      : "campaign.closure_request.rejected";
   await writeAudit(
     organizationId,
     actor,
@@ -2840,17 +3189,13 @@ async function decideClosureRequest(organizationId, campaignId, requestId, actor
     action === "reject" ? "WARNING" : "INFO",
     notes ? { notes } : undefined
   );
-
-  const notifyTitle =
-    action === "approve"
-      ? "Closure request approved"
-      : action === "request_changes"
-        ? "Changes requested on your closure request"
-        : "Closure request rejected";
   await notifySafe(notificationService.campaignManagerAudience(campaignId), {
     type: "campaign",
-    title: notifyTitle,
-    body: notes || `"${campaigns[0].name}"`,
+    title:
+      action === "request_changes"
+        ? "Changes requested on your closure request"
+        : "Closure request rejected",
+    body: notes || `"${campaignName}"`,
     link: campaignLink(campaignId),
     resource: "campaign",
     resourceId: campaignId,
@@ -3518,10 +3863,13 @@ const CAMPAIGN_HISTORY_LABELS = {
   "campaign.fee_proposal.changes_requested": "Custom service fee sent back",
   "campaign.fee_proposal.rejected": "Custom service fee rejected",
   "campaign.completion_report.submitted": "Completion report submitted",
+  "campaign.completion_report.first_reviewed": "Completion report passed first review",
   "campaign.completion_report.approved": "Completion report approved",
   "campaign.completion_report.changes_requested": "Completion report sent back",
   "campaign.completion_report.rejected": "Completion report rejected",
   "campaign.closure_request.submitted": "Closure requested",
+  "campaign.closure_request.first_approved": "Closure passed first review",
+  "campaign.closure_request.changes_requested": "Changes requested on closure",
   "campaign.closure_request.approved": "Closure approved — campaign completed",
   "campaign.closure_request.rejected": "Closure request rejected",
   "campaign.pools.imported": "Donor pool imported",

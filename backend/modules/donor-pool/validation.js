@@ -97,13 +97,42 @@ const mergeAnomalousSchema = z.object({
     .optional(),
 });
 
-const reminderSchema = z.object({
-  campaignId: poolIdSchema,
-  donorIds: z.array(poolIdSchema).min(1, "Select at least one donor").max(500),
-  channel: z.enum(["SMS", "WHATSAPP", "EMAIL"]),
-  subject: z.string().max(255).optional().or(z.literal("")),
-  message: z.string().min(1, "Message is required").max(5000),
-});
+const reminderChannelEnum = z.enum(["SMS", "WHATSAPP", "EMAIL"]);
+
+const reminderSchema = z
+  .object({
+    campaignId: poolIdSchema,
+    donorIds: z.array(poolIdSchema).min(1, "Select at least one donor").max(500),
+    // Single-channel mode: every donor is messaged on `channel` with `message`.
+    channel: reminderChannelEnum.optional(),
+    subject: z.string().max(255).optional().or(z.literal("")),
+    message: z.string().max(5000).optional().or(z.literal("")),
+    // Preferred-channel mode: each donor is messaged on their own
+    // preferred_channel, rendered from a per-channel saved template. Donors
+    // whose preferred channel has no usable contact / template fall back to
+    // `fallbackChannel`.
+    usePreferredChannel: z.boolean().optional(),
+    fallbackChannel: reminderChannelEnum.optional(),
+    templates: z.record(reminderChannelEnum, poolIdSchema).optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.usePreferredChannel) {
+      if (!data.templates || Object.keys(data.templates).length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["templates"],
+          message: "Pick a template for each channel your donors will receive.",
+        });
+      }
+      return;
+    }
+    if (!data.channel) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["channel"], message: "Channel is required" });
+    }
+    if (!data.message || data.message.trim().length < 1) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["message"], message: "Message is required" });
+    }
+  });
 
 module.exports = {
   POOL_CATEGORIES,

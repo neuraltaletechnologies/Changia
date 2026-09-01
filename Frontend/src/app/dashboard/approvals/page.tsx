@@ -155,19 +155,42 @@ export default function CampaignApprovalsPage() {
 
   // ── Closure requests + completion reports — reviewed in full context on the
   //    campaign page, so here we just surface the queue and link through.
+  // Closure requests run the same two-stage chain as campaigns / change requests:
+  // stage 1 is a reviewer's first review (PENDING); stage 2 an admin's final
+  // approval (REVIEWED). Decided in full context on the campaign page.
   const closureReviews = useMemo(
     () =>
-      all.filter(
-        (c) => c.latestClosureRequest && c.latestClosureRequest.status === "PENDING"
-      ),
-    [all]
+      all
+        .filter((c) =>
+          ["PENDING", "REVIEWED"].includes(c.latestClosureRequest?.status ?? "")
+        )
+        .filter((c) => {
+          const cr = c.latestClosureRequest!;
+          if (cr.status === "PENDING") return canReviewCampaign || isSuperAdmin;
+          return (
+            (canFinalApproveCampaign || isSuperAdmin) &&
+            String(cr.firstApprovedBy ?? "") !== uid
+          );
+        }),
+    [all, canReviewCampaign, canFinalApproveCampaign, isSuperAdmin, uid]
   );
+  // Completion reports run the same two-stage chain: stage 1 is a reviewer's
+  // first review (PENDING_REVIEW); stage 2 an admin's final approval (REVIEWED).
   const reportReviews = useMemo(
     () =>
-      all.filter(
-        (c) => c.completionReport && c.completionReport.status === "PENDING_REVIEW"
-      ),
-    [all]
+      all
+        .filter((c) =>
+          ["PENDING_REVIEW", "REVIEWED"].includes(c.completionReport?.status ?? "")
+        )
+        .filter((c) => {
+          const r = c.completionReport!;
+          if (r.status === "PENDING_REVIEW") return canReviewCampaign || isSuperAdmin;
+          return (
+            (canFinalApproveCampaign || isSuperAdmin) &&
+            String(r.firstReviewedBy ?? "") !== uid
+          );
+        }),
+    [all, canReviewCampaign, canFinalApproveCampaign, isSuperAdmin, uid]
   );
 
   // ── Payout queues — the same two-stage chain as campaigns.
@@ -663,7 +686,7 @@ export default function CampaignApprovalsPage() {
           <SectionHeading
             icon={Ban}
             title="Closure requests"
-            sub="Managers asking to end a campaign early — open each campaign to review the reason and decide."
+            sub="Managers asking to end a campaign early — a reviewer gives the first review, then an admin the final approval. Open each campaign to review the reason and decide."
           />
           {closureReviews.map((c) => (
             <div
@@ -678,6 +701,11 @@ export default function CampaignApprovalsPage() {
                   {c.name}
                 </Link>
                 <div className="mt-1 text-[11px] text-muted-foreground">
+                  <span className="font-medium">
+                    {c.latestClosureRequest?.status === "REVIEWED"
+                      ? "Stage 2 of 2 · final approval · "
+                      : "Stage 1 of 2 · first review · "}
+                  </span>
                   {c.organizationName && <span className="font-medium">{c.organizationName} · </span>}
                   {c.latestClosureRequest?.reason && (
                     <span className="truncate">“{c.latestClosureRequest.reason}”</span>
@@ -704,7 +732,7 @@ export default function CampaignApprovalsPage() {
           <SectionHeading
             icon={FileText}
             title="Completion reports"
-            sub="Reports submitted after a campaign ends — open each campaign to review the report and record your decision."
+            sub="Reports submitted after a campaign ends — a reviewer gives the first review, then an admin the final approval. Open each campaign to review the report and record your decision."
           />
           {reportReviews.map((c) => (
             <div
@@ -719,6 +747,11 @@ export default function CampaignApprovalsPage() {
                   {c.name}
                 </Link>
                 <div className="mt-1 text-[11px] text-muted-foreground">
+                  <span className="font-medium">
+                    {c.completionReport?.status === "REVIEWED"
+                      ? "Stage 2 of 2 · final approval · "
+                      : "Stage 1 of 2 · first review · "}
+                  </span>
                   {c.organizationName && <span className="font-medium">{c.organizationName} · </span>}
                   {c.completionReport?.submittedAt && (
                     <span>

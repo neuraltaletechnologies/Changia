@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ImageIcon, Loader2, XCircle } from "lucide-react";
 import { campaignApi } from "@/lib/dashboard/api";
+import { cn } from "@/lib/dashboard/utils";
 
 /**
  * Cover + supporting photos for a campaign. Used on the campaign detail page
@@ -13,6 +14,8 @@ import { campaignApi } from "@/lib/dashboard/api";
  * `POST /campaigns/:id/images` multipart endpoint — `cover` (1 file) replaces
  * the cover, `gallery` (up to 8) appends supporting photos.
  */
+type Photo = { id: number; url: string; pendingChange?: "NONE" | "ADD" | "REMOVE" };
+
 export function CampaignPhotosCard({
   campaignId,
   images,
@@ -22,7 +25,7 @@ export function CampaignPhotosCard({
   onChanged,
 }: {
   campaignId: string | number;
-  images: { id: number; url: string }[];
+  images: Photo[];
   coverUrl?: string | null;
   canManage: boolean;
   /** When true, render the cover photo with a "replace" control. */
@@ -64,6 +67,10 @@ export function CampaignPhotosCard({
     }
   };
 
+  const hasPending = images.some(
+    (i) => i.pendingChange === "ADD" || i.pendingChange === "REMOVE"
+  );
+
   if (images.length === 0 && !canManage && !showCover) return null;
 
   return (
@@ -90,6 +97,12 @@ export function CampaignPhotosCard({
         )}
       </div>
       {error && <p className="text-xs text-destructive mb-3">{error}</p>}
+      {hasPending && (
+        <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
+          Photo changes are waiting for review — a reviewer and an admin must
+          approve them before they show on the public campaign page.
+        </p>
+      )}
 
       {showCover && (
         <div className="mb-4">
@@ -133,25 +146,48 @@ export function CampaignPhotosCard({
         <p className="text-xs text-muted-foreground">No supporting photos yet.</p>
       ) : (
         <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-          {images.map((img) => (
-            <div
-              key={img.id}
-              className="relative group aspect-square rounded-lg overflow-hidden border border-border"
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={img.url} alt="Campaign photo" className="w-full h-full object-cover" />
-              {canManage && (
-                <button
-                  type="button"
-                  onClick={() => removeImage(img.id)}
-                  className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                  aria-label="Remove photo"
-                >
-                  <XCircle className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-          ))}
+          {images.map((img) => {
+            const pendingAdd = img.pendingChange === "ADD";
+            const pendingRemove = img.pendingChange === "REMOVE";
+            return (
+              <div
+                key={img.id}
+                className="relative group aspect-square rounded-lg overflow-hidden border border-border"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={img.url}
+                  alt="Campaign photo"
+                  className={cn(
+                    "w-full h-full object-cover",
+                    pendingRemove && "opacity-40"
+                  )}
+                />
+                {(pendingAdd || pendingRemove) && (
+                  <span
+                    className={cn(
+                      "absolute bottom-1 left-1 right-1 text-center text-[9px] font-medium rounded px-1 py-0.5",
+                      pendingAdd
+                        ? "bg-amber-500/90 text-white"
+                        : "bg-rose-500/90 text-white"
+                    )}
+                  >
+                    {pendingAdd ? "Pending review" : "Removal pending"}
+                  </span>
+                )}
+                {canManage && !pendingRemove && (
+                  <button
+                    type="button"
+                    onClick={() => removeImage(img.id)}
+                    className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    aria-label={pendingAdd ? "Cancel this photo" : "Remove photo"}
+                  >
+                    <XCircle className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

@@ -219,7 +219,7 @@ async function createPayout(organizationId, user, data) {
   }
   await assertCampaignAccess(organizationId, user, campaignId);
   const owned = await db.query(
-    "SELECT id, status FROM campaigns WHERE id = ? AND organization_id = ?",
+    "SELECT id, status, raised_amount FROM campaigns WHERE id = ? AND organization_id = ?",
     [campaignId, organizationId]
   );
   if (owned.length === 0) throw ApiError.notFound("Campaign not found");
@@ -247,6 +247,21 @@ async function createPayout(organizationId, user, data) {
     throw ApiError.conflict(
       "A payout for this campaign is already in progress",
       "PAYOUT_REQUEST_PENDING"
+    );
+  }
+
+  // The request can't exceed what's actually available — the campaign's raised
+  // total minus everything already paid out for it.
+  const [{ paidOut }] = await db.query(
+    `SELECT COALESCE(SUM(amount), 0) AS paidOut
+       FROM payouts WHERE campaign_id = ? AND status = 'PAID'`,
+    [campaignId]
+  );
+  const available = Math.max(0, Number(owned[0].raised_amount) - Number(paidOut));
+  if (Number(data.amount) > available) {
+    throw ApiError.badRequest(
+      `This payout is more than the ${available.toLocaleString()} TZS available to withdraw`,
+      "PAYOUT_EXCEEDS_AVAILABLE"
     );
   }
 

@@ -872,9 +872,13 @@ interface CampaignCompletionReport {
   campaignId: string;
   summary: string;                 // narrative, min 20 chars
   amountUtilized: number | null;   // TZS integer
-  status: 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED';
+  // Two-stage chain (mirrors payouts / closure requests):
+  //   PENDING_REVIEW (stage 1, a REVIEWER) -> REVIEWED (stage 2, an ORG_ADMIN) -> APPROVED
+  status: 'PENDING_REVIEW' | 'REVIEWED' | 'APPROVED' | 'REJECTED';
   submittedBy: { id: string; firstName: string; lastName: string } | null;
   submittedAt: string;
+  firstReviewedBy: { id: string; firstName: string; lastName: string } | null;  // stage-1 reviewer
+  firstReviewedAt: string | null;
   reviewedBy: { id: string; firstName: string; lastName: string } | null;
   reviewedAt: string | null;
   reviewNotes: string | null;
@@ -882,11 +886,11 @@ interface CampaignCompletionReport {
 }
 ```
 
-Every `Campaign` returned by `GET /campaigns` / `GET /campaigns/:id` additionally carries `completionReport: { status, submittedAt, reviewedAt } | null` when `status === 'completed'` — enough to badge the campaigns list without an extra request.
+Every `Campaign` returned by `GET /campaigns` / `GET /campaigns/:id` additionally carries `completionReport: { status, submittedAt, reviewedAt, firstReviewedBy } | null` when `status === 'completed'` — enough to badge the campaigns list without an extra request.
 
 - **`GET /campaigns/:id/completion-report`** — any org member with access to the campaign. Returns the full `CampaignCompletionReport`, or `data: null`.
 - **`POST /campaigns/:id/completion-report`** — assigned `CAMPAIGN_MANAGER` only. **`multipart/form-data`** (not JSON): `summary` (text, required), `amountUtilized` (text/number, optional), `images` (file[], **required, ≥1**, ≤8, JPEG/PNG/WEBP, ≤5MB each — field name must be `images`). Resubmitting replaces the previous submission and resets to `PENDING_REVIEW`; an `APPROVED` report is locked (`409 REPORT_ALREADY_APPROVED`). Errors: `400 CAMPAIGN_NOT_COMPLETED`, `400 PROOF_IMAGES_REQUIRED`, `400 INVALID_IMAGE_TYPE`.
-- **`POST /campaigns/:id/completion-report/review`** — `SUPER_ADMIN`/`ORG_ADMIN` only. Body `{ "approved": boolean, "notes"?: string }`. Sets `APPROVED`/`REJECTED`. **Approval is what makes the campaign eligible for the public blog** (see below) and unblocks the manager's next `POST /campaigns`.
+- **`POST /campaigns/:id/completion-report/review`** — `SUPER_ADMIN` / `ORG_ADMIN` / `REVIEWER`. Body `{ "action": "approve" | "request_changes" | "reject", "notes"?: string }` (`{ "approved": boolean }` still accepted). Two-stage: `approve` on a `PENDING_REVIEW` report (a `REVIEWER`/`SUPER_ADMIN`, not the submitter) → `REVIEWED`; `approve` on a `REVIEWED` report (an `ORG_ADMIN`/`SUPER_ADMIN`, a different person, not the submitter) → `APPROVED`; `reject` / `request_changes` at either stage → `REJECTED`. **The final approval is what makes the campaign eligible for the public blog** (see below) and unblocks the manager's next `POST /campaigns`. Errors: `403 NEEDS_REVIEWER` / `403 NEEDS_ORG_ADMIN`, `400 SAME_AS_CREATOR` / `400 SAME_APPROVER`, `400 REPORT_NOT_PENDING`.
 
 **Frontend note:** because the endpoint takes `FormData`, `src/lib/api-client.ts`'s `request()` must skip `JSON.stringify`/`Content-Type: application/json` when `body instanceof FormData` and let the browser set the multipart boundary.
 

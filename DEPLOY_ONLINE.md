@@ -25,17 +25,24 @@ A live, shareable deployment on an all-free stack.
    No credit card required.
 2. Wait for the service to reach **Running**, then open the **Overview** tab and note:
    `Host`, `Port`, `User` (`avnadmin`), `Password`, and the default DB name `defaultdb`.
-3. Import the schema + demo data from your machine (needs the `mysql` client):
+3. Import the schema + demo data. No local `mysql` client needed — a Node script
+   ([`Backend/scripts/import-db.js`](Backend/scripts/import-db.js), uses the
+   `mysql2` driver so it handles MySQL 8 auth + TLS):
 
    ```bash
-   mysql --host <HOST> --port <PORT> --user avnadmin -p \
-         --ssl-mode=REQUIRED defaultdb < Backend/database.sql
+   cd Backend
+   node scripts/import-db.js --uri "mysql://avnadmin:<PASSWORD>@<HOST>:<PORT>/defaultdb?ssl-mode=REQUIRED"
    ```
 
+   (Paste the full **Service URI** from Aiven's Connection details, password and all.)
    `database.sql` runs `CREATE DATABASE IF NOT EXISTS changia; USE changia;` — Aiven
-   allows this, so afterwards the data lives in a **`changia`** database on the server.
-4. **Change the demo passwords** — log in later via the app and reset, or run an
-   `UPDATE users SET password_hash = ...` now.
+   allows this, so afterwards the data lives in a **`changia`** database on the
+   server. The script prints `changia.users has N row(s)` on success.
+
+   > With a `mysql` client available you can instead run:
+   > `mysql --host <HOST> --port <PORT> --user avnadmin -p --ssl-mode=REQUIRED defaultdb < database.sql`
+
+4. **Change the demo passwords** — log in later via the app and reset.
 
 > **Alternative — TiDB Cloud Serverless** (<https://tidbcloud.com>, also free, MySQL 8
 > compatible): create a cluster, use its `Connect` panel for host/port/user/password,

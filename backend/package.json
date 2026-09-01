@@ -9,7 +9,8 @@
     "tunnel": "node ../scripts/tunnel.js --name api --port 5000",
     "dev:preview": "node ../scripts/preview-run.js --target api -- npm run dev",
     "start": "node server.js",
-    "setup": "npm install && mysql -u root -p < database.sql"
+    "setup": "npm install && mysql -u root -p < database.sql",
+    "db:import": "node scripts/import-db.js"
   },
   "engines": {
     "node": ">=18"

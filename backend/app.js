@@ -4,6 +4,7 @@ const express = require("express");
 const helmet = require("helmet");
 const morgan = require("morgan");
 const { env } = require("./config");
+const { objectStore } = require("./utils/objectStore");
 const { errorHandler, notFoundHandler } = require("./middlewares/errorHandler");
 const { apiLimiter } = require("./middlewares/rateLimiter");
 const authRoutes = require("./modules/auth/routes");
@@ -56,11 +57,30 @@ function createApp() {
   // helmet()'s default `Cross-Origin-Resource-Policy: same-origin` would stop the
   // web app (served from its own origin/subdomain) from loading these photos in
   // <img> tags, so relax CORP for this path only.
-  app.use(
-    "/uploads",
-    helmet.crossOriginResourcePolicy({ policy: "cross-origin" }),
-    express.static(path.join(__dirname, "uploads"))
-  );
+  //
+  // When Cloudflare R2 is configured the bytes live there (Render's disk is
+  // ephemeral) — stream them back through this same route so the public URL and
+  // CSP are unchanged. Otherwise serve straight off the local disk.
+  const uploadsCorp = helmet.crossOriginResourcePolicy({ policy: "cross-origin" });
+  if (objectStore.isEnabled()) {
+    app.use("/uploads", uploadsCorp, async (req, res, next) => {
+      if (req.method !== "GET" && req.method !== "HEAD") return next();
+      try {
+        const key = decodeURIComponent(req.path.replace(/^\/+/, ""));
+        if (!key || key.includes("..")) return res.status(400).end();
+        const obj = await objectStore.getObject(key);
+        if (!obj) return res.status(404).end();
+        res.set("Content-Type", obj.contentType);
+        res.set("Content-Length", obj.contentLength);
+        res.set("Cache-Control", "public, max-age=86400");
+        res.end(req.method === "HEAD" ? undefined : obj.buffer);
+      } catch (err) {
+        next(err);
+      }
+    });
+  } else {
+    app.use("/uploads", uploadsCorp, express.static(path.join(__dirname, "uploads")));
+  }
 
   // ─── Routes ─────────────────────────────────────────────────────────────────
   app.get("/", (req, res) => {

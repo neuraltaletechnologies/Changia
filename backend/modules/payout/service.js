@@ -1,4 +1,3 @@
-const path = require("path");
 const db = require("../../db");
 const { env } = require("../../config");
 const { ApiError } = require("../../utils/ApiError");
@@ -14,11 +13,11 @@ function toAbsoluteImageUrl(webPath) {
   return webPath;
 }
 
-/** "/uploads/..." web path -> absolute disk path, so a removed proof photo can
- *  be cleaned off disk. */
+/** Passes a stored "/uploads/..." web path straight through to
+ *  deleteUploadedFiles(), which routes it to whichever store backs it (local
+ *  disk or Cloudflare R2). */
 function uploadWebPathToDiskPath(webPath) {
-  const segments = webPath.split("/").filter(Boolean);
-  return path.join(__dirname, "..", "..", ...segments);
+  return webPath;
 }
 
 function serialize(row, proofImages = []) {

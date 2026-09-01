@@ -28,6 +28,19 @@ const env = {
     sslCa: process.env.DB_SSL_CA || "",
   },
 
+  // ─── Cloudflare R2 object store (uploaded photos) ──────────────────────────
+  // Set all four to push uploads to R2 instead of the local disk (see
+  // utils/objectStore.js). Unset → uploads stay on disk (local dev / hosting
+  // with a persistent disk). Endpoint defaults to
+  // https://<accountId>.r2.cloudflarestorage.com.
+  R2: {
+    accountId: process.env.R2_ACCOUNT_ID || "",
+    accessKeyId: process.env.R2_ACCESS_KEY_ID || "",
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY || "",
+    bucket: process.env.R2_BUCKET || "",
+    endpoint: process.env.R2_ENDPOINT || "",
+  },
+
   // ─── Messaging providers (SMS / WhatsApp / Email) ──────────────────────────
   // "simulated" (default) needs no credentials — every send is logged and
   // recorded in message_deliveries with a synthetic reference so reminders

@@ -1,5 +1,6 @@
 const { randomUUID } = require("crypto");
 const db = require("../../db");
+const { env } = require("../../config");
 const { ApiError } = require("../../utils/ApiError");
 const { normalizePhone } = require("../../utils/phone");
 const poolService = require("../donor-pool/service");
@@ -268,7 +269,7 @@ async function recordConfirmedDonation(data) {
           amount: data.amount,
           receiptNumber,
           transactionId: String(donation.id),
-          campaignUrl: campaignSlug ? `https://changia.org.tz/campaigns/${campaignSlug}` : null,
+          campaignUrl: campaignSlug ? `${env.APP_BASE_URL}/campaigns/${campaignSlug}` : null,
         });
         await sendEmail({
           to: donorEmail,

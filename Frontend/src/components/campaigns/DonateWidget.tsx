@@ -7,7 +7,6 @@ import {
   formatTZS,
   getContributionStatus,
   pledgeGift,
-  simulateConfirmContribution,
   startContribution,
   type ContributionStatus,
   type GiftDeliveryMethod,
@@ -50,7 +49,7 @@ const STRINGS = {
     checkPhone: 'Check your phone to approve',
     pendingText: (amount: string) =>
       `We never ask for your mobile-money PIN — approve the ${amount} request at your operator's own prompt to complete it.`,
-    simulate: 'Simulate approval (demo)',
+
     cancel: 'Cancel and start over',
     expired: 'The request expired before it was approved.',
     notApproved: 'The request was not approved.',
@@ -102,7 +101,7 @@ const STRINGS = {
     checkPhone: 'Angalia simu yako ili kuthibitisha',
     pendingText: (amount: string) =>
       `Hatuombi PIN yako ya pesa za simu — thibitisha ombi la ${amount} kwenye ombi la mtoa huduma wako mwenyewe ili kukamilisha.`,
-    simulate: 'Iga uthibitisho (demo)',
+
     cancel: 'Ghairi na anza upya',
     expired: 'Ombi limeisha muda kabla ya kuthibitishwa.',
     notApproved: 'Ombi halikuthibitishwa.',
@@ -227,15 +226,6 @@ export default function DonateWidget({
     }
   };
 
-  const simulateApproval = async () => {
-    if (!attemptId) return;
-    try {
-      await simulateConfirmContribution(attemptId);
-    } catch {
-      // The poller above will surface the real state on its next tick.
-    }
-  };
-
   const reset = () => {
     setStage('form');
     setAttemptId(null);
@@ -356,13 +346,10 @@ export default function DonateWidget({
         <p className="mt-1 text-sm text-pretty text-neutral-600 dark:text-neutral-400">
           {t.pendingText(formatTZS(Number(amount)))}
         </p>
-        <button type="button" onClick={simulateApproval} className={`${buttonClasses} mt-4`}>
-          {t.simulate}
-        </button>
         <button
           type="button"
           onClick={reset}
-          className="mt-2 block w-full text-xs text-neutral-500 underline dark:text-neutral-400"
+          className="mt-4 block w-full text-xs text-neutral-500 underline dark:text-neutral-400"
         >
           {t.cancel}
         </button>

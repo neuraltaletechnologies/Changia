@@ -930,6 +930,7 @@ export default function CampaignDetailPage() {
               campaignId={id}
               campaignStatus={campaign.status}
               campaignRaised={campaign.raisedAmount}
+              serviceFeeAmount={campaign.serviceFeeAmount}
               isAdmin={isAdmin}
               canRequestPayout={isCampaignManager}
               canReviewClosureStage1={canReviewCampaign}
@@ -2760,6 +2761,7 @@ function PayoutRequestTab({
   campaignId,
   campaignStatus,
   campaignRaised,
+  serviceFeeAmount,
   isAdmin,
   canRequestPayout,
   canReviewClosureStage1,
@@ -2772,6 +2774,8 @@ function PayoutRequestTab({
   campaignStatus: string;
   /** Total raised — used to suggest the remaining balance once closure is granted. */
   campaignRaised: number;
+  /** Platform service fee deducted from raised amount. */
+  serviceFeeAmount: number;
   isAdmin: boolean;
   /** CAMPAIGN_MANAGER — may request a payout and confirm its release. */
   canRequestPayout: boolean;
@@ -2830,9 +2834,10 @@ function PayoutRequestTab({
   const paidOut = payouts
     .filter((p) => p.status === "PAID")
     .reduce((sum, p) => sum + p.amount, 0);
-  const remainingBalance = Math.max(0, campaignRaised - paidOut);
+  // Available for payout = total raised − platform fee − already paid out.
+  const maxPayout = Math.max(0, campaignRaised - serviceFeeAmount - paidOut);
   const suggestedAmount =
-    campaignStatus === "COMPLETED" && remainingBalance > 0 ? remainingBalance : undefined;
+    campaignStatus === "COMPLETED" && maxPayout > 0 ? maxPayout : undefined;
   const latestClosure = closures[0];
   const closurePending =
     latestClosure?.status === "PENDING" || latestClosure?.status === "REVIEWED";
@@ -3289,20 +3294,51 @@ function ConfirmPayoutDialog({
 }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
   const d = payout.disbursement;
 
   const submit = async () => {
     setError(null);
+    setSuccess(false);
     setSubmitting(true);
     try {
       await payoutApi.confirm(payout.id);
-      onDone();
+      setSuccess(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to release the payout.");
     } finally {
       setSubmitting(false);
     }
   };
+
+  if (success) {
+    return (
+      <Dialog open onOpenChange={(v) => !v && onDone()}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold text-emerald-700">✓ Payout released</DialogTitle>
+            <DialogDescription className="text-xs">
+              The transfer has been sent to the mobile-money account.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 text-xs">
+            <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2">
+              <p className="font-medium text-emerald-800">{formatTZSFull(payout.amount)} sent</p>
+              {d?.phone && <p className="text-emerald-700 mt-1">To: {d.phone}{d.accountName ? ` (${d.accountName})` : ""}</p>}
+              {d?.provider && <p className="text-emerald-700">Provider: {d.provider}</p>}
+            </div>
+            <p className="text-muted-foreground">
+              ClickPesa will process the transfer. The recipient should receive the money shortly.
+              If the transfer fails or is reversed, the payout status will update automatically.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button onClick={onDone}>Done</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>
@@ -3857,7 +3893,13 @@ function ReminderDialog({
   const [channelTemplate, setChannelTemplate] = useState<Partial<Record<ReminderChannel, string>>>({});
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [sent, setSent] = useState<{ recipientCount: number } | null>(null);
+  const [sent, setSent] = useState<{
+    recipientCount: number;
+    skippedCount: number;
+    failedCount: number;
+    failedDetails: { donorId: number; name: string; recipient: string; error: string }[];
+    skipped: { donorId: number; name: string; reason: string }[];
+  } | null>(null);
 
   const isPreferred = channel === "PREFERRED";
 
@@ -3961,7 +4003,7 @@ function ReminderDialog({
         </DialogHeader>
 
         {sent ? (
-          <ReminderSent recipientCount={sent.recipientCount} onClose={onClose} />
+          <ReminderSentResult result={sent} onClose={onClose} />
         ) : (
           <div className="space-y-4">
             <div className="max-h-32 overflow-y-auto rounded-lg border border-border divide-y divide-border">
@@ -4131,23 +4173,71 @@ function ReminderDialog({
   );
 }
 
-function ReminderSent({
-  recipientCount,
+function ReminderSentResult({
+  result,
   onClose,
 }: {
-  recipientCount: number;
+  result: {
+    recipientCount: number;
+    skippedCount: number;
+    failedCount: number;
+    failedDetails: { donorId: number; name: string; recipient: string; error: string }[];
+    skipped: { donorId: number; name: string; reason: string }[];
+  };
   onClose: () => void;
 }) {
+  const { recipientCount, skippedCount, failedCount, failedDetails, skipped } = result;
+  const hasIssues = skippedCount > 0 || failedCount > 0;
+
   return (
-    <div className="py-6 text-center">
-      <div className="w-12 h-12 rounded-full bg-emerald-50 mx-auto flex items-center justify-center mb-3">
-        <Check className="w-6 h-6 text-emerald-600" />
+    <div className="py-4">
+      <div className="text-center mb-4">
+        <div className="w-12 h-12 rounded-full bg-emerald-50 mx-auto flex items-center justify-center mb-3">
+          <Check className="w-6 h-6 text-emerald-600" />
+        </div>
+        <p className="text-sm font-semibold text-foreground">
+          {recipientCount > 0 ? "Reminders sent" : "No reminders sent"}
+        </p>
+        <p className="text-xs text-muted-foreground mt-1">
+          {recipientCount > 0
+            ? `${recipientCount} reminder${recipientCount !== 1 ? "s" : ""} queued for delivery.`
+            : "All reminders failed to send."}
+        </p>
       </div>
-      <p className="text-sm font-semibold text-foreground">Reminders sent</p>
-      <p className="text-xs text-muted-foreground mt-1 mb-4">
-        {recipientCount} reminder{recipientCount !== 1 ? "s" : ""} queued for delivery.
-      </p>
-      <Button size="sm" onClick={onClose}>Done</Button>
+
+      {failedDetails.length > 0 && (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 mb-3">
+          <p className="text-[11px] font-semibold text-destructive mb-1.5">
+            Failed ({failedDetails.length})
+          </p>
+          <div className="space-y-1 max-h-28 overflow-y-auto">
+            {failedDetails.map((f) => (
+              <p key={f.donorId} className="text-[11px] text-destructive/80">
+                {f.name} ({f.recipient}): {f.error}
+              </p>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {skipped.length > 0 && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 mb-3">
+          <p className="text-[11px] font-semibold text-amber-800 mb-1.5">
+            Skipped ({skipped.length})
+          </p>
+          <div className="space-y-1 max-h-28 overflow-y-auto">
+            {skipped.map((s) => (
+              <p key={s.donorId} className="text-[11px] text-amber-700">
+                {s.name}: {s.reason}
+              </p>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="text-center mt-2">
+        <Button size="sm" onClick={onClose}>Done</Button>
+      </div>
     </div>
   );
 }

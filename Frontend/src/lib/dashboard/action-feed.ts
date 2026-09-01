@@ -112,6 +112,7 @@ const RULES: Rule[] = [
   { method: "POST", pattern: /^\/payouts$/, labels: L("Requesting payout…", "Payout requested", "Couldn't request the payout") },
   { method: "POST", pattern: /^\/payouts\/:id\/approve$/, labels: L("Approving payout…", "Payout approved", "Couldn't approve the payout") },
   { method: "POST", pattern: /^\/payouts\/:id\/reject$/, labels: L("Rejecting payout…", "Payout rejected", "Couldn't reject the payout") },
+  { method: "POST", pattern: /^\/payouts\/:id\/confirm$/, labels: L("Confirming payout release…", "Payout released", "Couldn't release the payout") },
   { method: "POST", pattern: /^\/payouts\/:id\/paid$/, labels: L("Marking as paid…", "Marked as paid", "Couldn't mark the payout as paid") },
 
   // Donors

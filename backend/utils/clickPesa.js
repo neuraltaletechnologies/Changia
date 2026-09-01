@@ -224,7 +224,7 @@ async function previewPayout({ amount, phoneNumber, orderReference }) {
  * @param {Object} params
  * @param {number} params.amount - Amount in TZS (what recipient should receive)
  * @param {string} params.phoneNumber - Recipient phone
- * @param {string} params.orderReference - Unique reference (must match preview)
+ * @param {string} params.orderReference - Unique reference for this payout
  * @returns {Object} Payout creation response
  */
 async function createPayout({ amount, phoneNumber, orderReference }) {

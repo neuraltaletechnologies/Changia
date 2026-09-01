@@ -12,6 +12,8 @@ router.post("/clickpesa", handleWebhook);
 
 // Alias endpoint (some ClickPesa setups use event-specific URLs)
 router.post("/clickpesa/payment-received", handleWebhook);
+router.post("/clickpesa/payout-initiated", handleWebhook);
 router.post("/clickpesa/payout-refunded", handleWebhook);
+router.post("/clickpesa/payout-reversed", handleWebhook);
 
 module.exports = router;

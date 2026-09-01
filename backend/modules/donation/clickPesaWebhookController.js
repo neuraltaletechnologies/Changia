@@ -2,6 +2,7 @@ const db = require("../../db");
 const { asyncHandler } = require("../../utils/asyncHandler");
 const { validateChecksum, CLICKPESA } = require("../../utils/clickPesa");
 const donationService = require("./service");
+const notificationService = require("../notification/service");
 
 function num(value) {
   return value === null || value === undefined ? 0 : Number(value);
@@ -14,7 +15,7 @@ function num(value) {
  * Events handled:
  *   PAYMENT RECEIVED  → confirm donation
  *   PAYMENT FAILED    → mark attempt failed
- *   PAYOUT INITIATED  → no-op (already processing)
+ *   PAYOUT INITIATED  → mark a successful payout as PAID and notify staff
  *   PAYOUT REFUNDED   → restore reserved payout funds
  *   PAYOUT REVERSED   → restore reserved payout funds
  */
@@ -77,8 +78,7 @@ const handleWebhook = asyncHandler(async (req, res) => {
         await handlePaymentFailed(data, orderReference);
         break;
       case "PAYOUT INITIATED":
-        // No-op — payout is already in PROCESSING state locally
-        console.log(`ClickPesa payout initiated: ${orderReference}`);
+        await handlePayoutInitiated(data, orderReference);
         break;
       case "PAYOUT REFUNDED":
         await handlePayoutRefunded(data, orderReference);
@@ -151,6 +151,71 @@ async function handlePaymentFailed(data, orderReference) {
 }
 
 // ─── Payout (Disbursement) Handlers ─────────────────────────────────────────
+
+/**
+ * ClickPesa reports a successful disbursement through the PAYOUT INITIATED
+ * event with data.status = SUCCESS. The confirm endpoint normally marks the
+ * row first, so this handler is deliberately idempotent and also covers a
+ * callback that arrives after the API response.
+ */
+async function handlePayoutInitiated(data, orderReference) {
+  if (String(data.status || "").toUpperCase() !== "SUCCESS") {
+    console.log(
+      `ClickPesa payout initiated: ${orderReference} | status=${data.status || "unknown"}`
+    );
+    return;
+  }
+
+  const rows = await db.query(
+    `SELECT p.*, c.name AS campaign_name
+       FROM payouts p
+       LEFT JOIN campaigns c ON c.id = p.campaign_id
+      WHERE p.gateway_ref = ? OR p.gateway_ref = ?
+      ORDER BY p.id DESC
+      LIMIT 1`,
+    [data.id || orderReference, orderReference]
+  );
+  const payout = rows[0];
+  if (!payout) {
+    console.error(`ClickPesa PAYOUT INITIATED: no matching payout for ref ${orderReference}`);
+    return;
+  }
+  if (payout.status === "PAID") {
+    console.log(`ClickPesa PAYOUT INITIATED: payout ${payout.id} already PAID`);
+    return;
+  }
+  if (payout.status === "REJECTED") {
+    console.log(`ClickPesa PAYOUT INITIATED: payout ${payout.id} already REJECTED`);
+    return;
+  }
+
+  const result = await db.execute(
+    `UPDATE payouts
+        SET status = 'PAID', paid_at = COALESCE(paid_at, NOW()),
+            gateway_ref = COALESCE(?, gateway_ref)
+      WHERE id = ? AND status NOT IN ('PAID', 'REJECTED')`,
+    [data.id || orderReference, payout.id]
+  );
+  if (!result.affectedRows) return;
+
+  const [admins, orgAdmins] = await Promise.all([
+    notificationService.superAdmins(),
+    notificationService.orgAdmins(payout.organization_id),
+  ]);
+  await notificationService.notify(
+    [payout.requested_by_id, ...admins, ...orgAdmins],
+    {
+      type: "payout",
+      title: "Payout completed",
+      body: `ClickPesa confirmed the ${Number(payout.amount).toLocaleString()} TZS payout for "${payout.campaign_name || "a campaign"}".`,
+      link: "/dashboard/payouts",
+      resource: "payout",
+      resourceId: payout.id,
+      organizationId: payout.organization_id,
+    }
+  );
+  console.log(`ClickPesa payout completed: payout ${payout.id}`);
+}
 
 /**
  * A payout was refunded or reversed. Restore the reserved funds.

@@ -243,7 +243,7 @@ CLICKPESA_TIMEOUT_MS=15000
 |---|---|---|
 | `PAYMENT RECEIVED` | ClickPesa → `/webhooks/clickpesa` | Confirms donation, credits campaign |
 | `PAYMENT FAILED` | ClickPesa → `/webhooks/clickpesa` | Marks payment attempt as failed |
-| `PAYOUT INITIATED` | ClickPesa → `/webhooks/clickpesa` | No-op (already processing) |
+| `PAYOUT INITIATED` | ClickPesa → `/webhooks/clickpesa` | When `data.status=SUCCESS`, marks the payout paid and notifies staff (idempotent) |
 | `PAYOUT REFUNDED` | ClickPesa → `/webhooks/clickpesa` | Restores reserved payout funds |
 | `PAYOUT REVERSED` | ClickPesa → `/webhooks/clickpesa` | Restores reserved payout funds |
 
@@ -285,7 +285,9 @@ CLICKPESA_TIMEOUT_MS=15000
 ### Webhooks (unauthenticated)
 - `POST /webhooks/clickpesa` — ClickPesa event receiver
 - `POST /webhooks/clickpesa/payment-received` — Alias
+- `POST /webhooks/clickpesa/payout-initiated` — Alias
 - `POST /webhooks/clickpesa/payout-refunded` — Alias
+- `POST /webhooks/clickpesa/payout-reversed` — Alias
 
 ---
 

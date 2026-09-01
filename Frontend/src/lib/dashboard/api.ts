@@ -438,6 +438,8 @@ export interface ReminderResponse {
     subject: string;
     body: string;
     recipientCount: number;
+    skippedCount: number;
+    failedCount: number;
   };
   deliveries: {
     id: number;
@@ -445,7 +447,19 @@ export interface ReminderResponse {
     recipient: string;
     status: string;
     providerRef: string | null;
+    error: string | null;
     sentAt: string;
+  }[];
+  skipped: {
+    donorId: number;
+    name: string;
+    reason: string;
+  }[];
+  failedDetails: {
+    donorId: number;
+    name: string;
+    recipient: string;
+    error: string;
   }[];
 }
 

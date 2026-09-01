@@ -40,12 +40,15 @@ import {
 export function RequestPayoutDialog({
   campaignId,
   suggestedAmount,
+  maxAmount,
   onClose,
   onSubmitted,
   run,
 }: {
   campaignId: string | number;
   suggestedAmount?: number;
+  /** Maximum amount available for payout (raised − platform fee − already paid). */
+  maxAmount?: number;
   onClose: () => void;
   onSubmitted: () => void;
   run?: (fn: () => Promise<unknown>) => Promise<unknown>;
@@ -75,6 +78,10 @@ export function RequestPayoutDialog({
     const amt = Number(amount);
     if (!amount.trim() || Number.isNaN(amt) || amt <= 0) {
       setError("Enter an amount greater than 0.");
+      return;
+    }
+    if (maxAmount != null && amt > maxAmount) {
+      setError(`Amount exceeds the available balance of ${formatTZSFull(maxAmount)}.`);
       return;
     }
     if (!reason.trim()) {
@@ -145,18 +152,29 @@ export function RequestPayoutDialog({
             <Input
               type="number"
               min={1}
+              max={maxAmount ?? undefined}
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               placeholder="e.g. 1500000"
               className="h-9"
             />
+            {maxAmount != null && maxAmount > 0 && (
+              <p className="text-[11px] text-muted-foreground">
+                Available for payout: <span className="font-medium text-foreground">{formatTZSFull(maxAmount)}</span>
+              </p>
+            )}
+            {maxAmount != null && maxAmount <= 0 && (
+              <p className="text-[11px] text-destructive">
+                No amount available for payout — all funds are allocated or already paid out.
+              </p>
+            )}
             {suggestedAmount != null && (
               <button
                 type="button"
                 onClick={() => setAmount(String(suggestedAmount))}
                 className="text-[11px] text-primary hover:underline w-fit"
               >
-                Use remaining balance — {formatTZSFull(suggestedAmount)}
+                Use available balance — {formatTZSFull(suggestedAmount)}
               </button>
             )}
           </div>
@@ -266,7 +284,7 @@ export function RequestPayoutDialog({
           <Button variant="outline" onClick={onClose} disabled={submitting}>
             Cancel
           </Button>
-          <Button onClick={submit} disabled={submitting}>
+          <Button onClick={submit} disabled={submitting || (maxAmount != null && maxAmount <= 0)}>
             {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : null}
             Request payout
           </Button>

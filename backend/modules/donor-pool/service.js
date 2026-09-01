@@ -676,15 +676,69 @@ async function sendReminder(organizationId, user, data) {
   const orgRows = await db.query("SELECT name FROM organizations WHERE id = ?", [effectiveOrgId]);
   const orgName = orgRows[0]?.name || "Changia";
 
+  // ── Channel validation ──────────────────────────────────────────────────
+  // Fail fast if the chosen channel's messaging provider isn't configured in
+  // live mode, so the user gets a clear error instead of silent FAILED
+  // deliveries for every donor.
+  if (env.MESSAGE_PROVIDER === "live") {
+    if (data.channel === "SMS" && !env.AFRICAS_TALKING.username) {
+      throw ApiError.badRequest(
+        "SMS reminders require Africa's Talking credentials (AT_USERNAME, AT_API_KEY). Configure them in your .env file or switch to EMAIL.",
+        "SMS_NOT_CONFIGURED"
+      );
+    }
+    if (data.channel === "WHATSAPP" && !env.WHATSAPP.token) {
+      throw ApiError.badRequest(
+        "WhatsApp reminders require Meta WhatsApp Business credentials (WHATSAPP_TOKEN, WHATSAPP_PHONE_NUMBER_ID). Configure them in your .env or switch to EMAIL.",
+        "WHATSAPP_NOT_CONFIGURED"
+      );
+    }
+    if (data.channel === "EMAIL" && !env.SMTP.host) {
+      throw ApiError.badRequest(
+        "Email reminders require SMTP credentials (SMTP_HOST, SMTP_USER, SMTP_PASSWORD). Configure them in your .env file.",
+        "EMAIL_NOT_CONFIGURED"
+      );
+    }
+  }
+
   const donorIds = data.donorIds.map(Number);
   const donors = await db.query(
-    `SELECT id, first_name, last_name, email, phone, preferred_channel
+    `SELECT id, first_name, last_name, email, phone, preferred_channel, consent_status
      FROM donors
      WHERE id IN (?) AND organization_id = ?`,
     [donorIds, effectiveOrgId]
   );
   if (donors.length === 0) {
     throw ApiError.badRequest("No valid donors selected for the reminder");
+  }
+
+  // Filter out donors who can't receive this channel's message:
+  //   - WITHDRAWN consent → skip
+  //   - No valid contact for the channel → skip
+  const eligibleDonors = [];
+  const skippedNoContact = [];
+  const skippedConsent = [];
+  for (const donor of donors) {
+    if (donor.consent_status === "WITHDRAWN") {
+      skippedConsent.push(donor);
+      continue;
+    }
+    const contact = recipientFor(data.channel, donor);
+    if (!contact) {
+      skippedNoContact.push(donor);
+      continue;
+    }
+    eligibleDonors.push({ ...donor, _recipient: contact });
+  }
+
+  if (eligibleDonors.length === 0) {
+    const reasons = [];
+    if (skippedConsent.length > 0) reasons.push(`${skippedConsent.length} donor(s) have withdrawn consent`);
+    if (skippedNoContact.length > 0) reasons.push(`${skippedNoContact.length} donor(s) have no ${data.channel === "EMAIL" ? "email" : "phone number"}`);
+    throw ApiError.badRequest(
+      `No donors can receive ${data.channel} reminders. ${reasons.join("; ") || "Check that donors have a valid contact for the chosen channel."}`,
+      "NO_ELIGIBLE_DONORS"
+    );
   }
 
   const subject = data.subject || `Reminder: ${campaign.name}`;
@@ -697,17 +751,20 @@ async function sendReminder(organizationId, user, data) {
     `INSERT INTO message_batches
        (organization_id, campaign_id, created_by_id, type, subject, body, status, recipient_count)
      VALUES (?, ?, ?, ?, ?, ?, 'SENT', ?)`,
-    [effectiveOrgId, data.campaignId, user.id, data.channel, subject, body, donors.length]
+    [effectiveOrgId, data.campaignId, user.id, data.channel, subject, body, eligibleDonors.length]
   );
   const batchId = batchResult.insertId;
 
-  for (const donor of donors) {
-    const recipient = recipientFor(data.channel, donor) || donor.phone;
-    if (!recipient) continue;
+  let sentCount = 0;
+  let failedCount = 0;
+  const failedDetails = [];
+
+  for (const donor of eligibleDonors) {
+    const recipient = donor._recipient;
 
     // Build HTML email for EMAIL channel with campaign link
     let html = null;
-    if (data.channel === "EMAIL" && recipient) {
+    if (data.channel === "EMAIL") {
       const donorName = [donor.first_name, donor.last_name].filter(Boolean).join(" ") || "Donor";
       html = buildReminderEmailHtml({
         donorName,
@@ -731,29 +788,81 @@ async function sendReminder(organizationId, user, data) {
        VALUES (?, ?, ?, ?, ?, ?, NOW())`,
       [batchId, donor.id, recipient, result.status, result.providerRef, result.error || null]
     );
+
+    if (result.status === "FAILED") {
+      failedCount++;
+      failedDetails.push({
+        donorId: donor.id,
+        name: [donor.first_name, donor.last_name].filter(Boolean).join(" ") || "Donor",
+        recipient,
+        error: result.error || "Unknown error",
+      });
+    } else {
+      sentCount++;
+    }
   }
+
+  // Update the batch with the actual sent count
+  await db.execute(
+    "UPDATE message_batches SET recipient_count = ? WHERE id = ?",
+    [sentCount, batchId]
+  );
 
   await db.execute(
     `INSERT INTO audit_logs (organization_id, actor_id, actor_email, action, resource, resource_id, severity)
-     VALUES (?, ?, ?, 'reminder.sent', 'message_batch', ?, 'INFO')`,
-    [effectiveOrgId, user.id, user.email, String(batchId)]
+     VALUES (?, ?, ?, 'reminder.sent', 'message_batch', ?, ?)`,
+    [effectiveOrgId, user.id, user.email, String(batchId), sentCount > 0 ? "INFO" : "WARNING"]
   );
 
+  // If nothing was actually sent, clean up the batch and report clearly
+  if (sentCount === 0 && failedCount > 0) {
+    await db.execute("DELETE FROM message_deliveries WHERE batch_id = ?", [batchId]);
+    await db.execute("DELETE FROM message_batches WHERE id = ?", [batchId]);
+    const firstError = failedDetails[0]?.error || "Sending failed";
+    throw ApiError.badRequest(
+      `None of the ${failedCount} reminder(s) could be delivered. ${firstError}${failedCount > 1 ? ` (and ${failedCount - 1} more)` : ""}`,
+      "ALL_DELIVERIES_FAILED"
+    );
+  }
+
   const deliveries = await db.query(
-    "SELECT id, donor_id, recipient, status, provider_ref, sent_at FROM message_deliveries WHERE batch_id = ?",
+    "SELECT id, donor_id, recipient, status, provider_ref, error, sent_at FROM message_deliveries WHERE batch_id = ?",
     [batchId]
   );
 
   return {
-    batch: { id: batchId, campaignId: data.campaignId, channel: data.channel, subject, body, recipientCount: donors.length },
+    batch: {
+      id: batchId,
+      campaignId: data.campaignId,
+      channel: data.channel,
+      subject,
+      body,
+      recipientCount: sentCount,
+      skippedCount: skippedConsent.length + skippedNoContact.length,
+      failedCount,
+    },
     deliveries: deliveries.map((d) => ({
       id: d.id,
       donorId: d.donor_id,
       recipient: d.recipient,
       status: d.status,
       providerRef: d.provider_ref,
+      error: d.error || null,
       sentAt: d.sent_at,
     })),
+    skipped: [
+      ...skippedConsent.map((d) => ({
+        donorId: d.id,
+        name: [d.first_name, d.last_name].filter(Boolean).join(" ") || "Donor",
+        reason: "consent withdrawn",
+      })),
+      ...skippedNoContact.map((d) => ({
+        donorId: d.id,
+        name: [d.first_name, d.last_name].filter(Boolean).join(" ") || "Donor",
+        reason: `no ${data.channel === "EMAIL" ? "email" : "phone number"}`,
+      })),
+    ],
+    failedDetails,
   };
 }
 

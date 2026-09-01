@@ -250,6 +250,26 @@ async function createPayout(organizationId, user, data) {
     );
   }
 
+  // Compute the maximum withdrawable amount: raised − platform fee − already paid out.
+  const [campRow] = await db.query(
+    `SELECT COALESCE(raised_amount, 0) AS raised,
+            COALESCE(service_fee_amount, 0) AS fee
+       FROM campaigns WHERE id = ?`,
+    [campaignId]
+  );
+  const [paidRow] = await db.query(
+    `SELECT COALESCE(SUM(amount), 0) AS totalPaid
+       FROM payouts WHERE campaign_id = ? AND status = 'PAID'`,
+    [campaignId]
+  );
+  const maxPayout = Math.max(0, Number(campRow.raised) - Number(campRow.fee) - Number(paidRow.totalPaid));
+  if (Number(data.amount) > maxPayout) {
+    throw ApiError.badRequest(
+      `The requested amount (${Number(data.amount).toLocaleString()} TZS) exceeds the available balance of ${maxPayout.toLocaleString()} TZS (raised minus platform fee minus already paid out).`,
+      "PAYOUT_EXCEEDS_BALANCE"
+    );
+  }
+
   const result = await db.execute(
     `INSERT INTO payouts (
        organization_id, campaign_id, amount, reason, status, requested_by_id, notes,
@@ -484,28 +504,102 @@ async function confirmPayout(organizationId, user, id, data = {}) {
     let clickPesaResult = null;
 
     if (clickPesa.CLICKPESA.enabled) {
-      const orderReference = clickPesa.generateOrderReference("Payout");
+      // Use SEPARATE order references for preview and create — ClickPesa
+      // rejects a reused reference with "Order reference already used".
+      const previewRef = clickPesa.generateOrderReference("Pv");
+      const createRef = clickPesa.generateOrderReference("Py");
+
+      // Step 1: Preview the payout (validates phone, amount, balance)
+      let previewResponse;
+      try {
+        previewResponse = await clickPesa.previewPayout({
+          amount: Number(row.amount),
+          phoneNumber: row.disbursement_phone,
+          orderReference: previewRef,
+        });
+        console.log(`[payout] ClickPesa preview: HTTP ${previewResponse.status}`, JSON.stringify(previewResponse.data).substring(0, 300));
+      } catch (err) {
+        console.error(`[payout] ClickPesa preview network error:`, err.message);
+        throw ApiError.badRequest(`Payout preview failed: ${err.message}`, "CLICKPESA_PREVIEW_FAILED");
+      }
+      // Check both HTTP status AND response body for errors
+      if (previewResponse.status < 200 || previewResponse.status >= 300) {
+        console.error(`[payout] ClickPesa preview rejected:`, JSON.stringify(previewResponse.data).substring(0, 300));
+        throw ApiError.badRequest(
+          `Payout preview failed: ${previewResponse.data?.message || `HTTP ${previewResponse.status}`}`,
+          "CLICKPESA_PREVIEW_FAILED"
+        );
+      }
+      // Even on HTTP 200, ClickPesa may return an error message
+      if (previewResponse.data?.message && !previewResponse.data?.receiver) {
+        console.error(`[payout] ClickPesa preview body error:`, previewResponse.data.message);
+        throw ApiError.badRequest(
+          `Payout preview failed: ${previewResponse.data.message}`,
+          "CLICKPESA_PREVIEW_FAILED"
+        );
+      }
+      console.log(`[payout] Preview OK — provider=${previewResponse.data?.channelProvider}, fee=${previewResponse.data?.fee}`);
+
+      // Step 2: Create the payout (sends money to recipient)
       let cpResponse;
       try {
         cpResponse = await clickPesa.createPayout({
           amount: Number(row.amount),
           phoneNumber: row.disbursement_phone,
-          orderReference,
+          orderReference: createRef,
         });
+        console.log(`[payout] ClickPesa create: HTTP ${cpResponse.status}`, JSON.stringify(cpResponse.data).substring(0, 300));
       } catch (err) {
+        console.error(`[payout] ClickPesa create network error:`, err.message);
         throw ApiError.badRequest(`Payment transfer failed: ${err.message}`, "CLICKPESA_PAYOUT_FAILED");
       }
-      if (cpResponse.status >= 200 && cpResponse.status < 300 && cpResponse.data?.id) {
+      // Check HTTP status first
+      if (cpResponse.status < 200 || cpResponse.status >= 300) {
+        console.error(`[payout] ClickPesa create rejected:`, JSON.stringify(cpResponse.data).substring(0, 300));
+        throw ApiError.badRequest(
+          `Payment transfer failed: ${cpResponse.data?.message || `ClickPesa payout creation failed: HTTP ${cpResponse.status}`}`,
+          "CLICKPESA_PAYOUT_FAILED"
+        );
+      }
+      // On success ClickPesa returns an id; verify it exists
+      if (cpResponse.data?.id) {
         gatewayRef = cpResponse.data.id;
         clickPesaResult = {
           id: cpResponse.data.id,
           status: cpResponse.data.status,
           fee: cpResponse.data.fee,
           channelProvider: cpResponse.data.channelProvider,
+          amount: cpResponse.data.amount,
+          beneficiary: cpResponse.data.beneficiary,
         };
+        console.log(`[payout] ClickPesa payout created: id=${cpResponse.data.id} status=${cpResponse.data.status} channel=${cpResponse.data.channelProvider}`);
+
+        // Wait 2 seconds then query the payout status to check if it was
+        // actually completed or if ClickPesa reversed it (e.g. low balance).
+        await new Promise((r) => setTimeout(r, 2000));
+        try {
+          const queryResult = await clickPesa.queryPayout(createRef);
+          if (queryResult) {
+            console.log(`[payout] ClickPesa query: status=${queryResult.status}`);
+            clickPesaResult.status = queryResult.status;
+            if (queryResult.status === "REVERSED" || queryResult.status === "FAILED") {
+              console.error(`[payout] ClickPesa payout was ${queryResult.status}:`, queryResult.message || "No details");
+              throw ApiError.badRequest(
+                `The payout was ${queryResult.status.toLowerCase()} by the payment provider. ${queryResult.message || "Please check your ClickPesa balance and try again."}`,
+                "CLICKPESA_PAYOUT_REVERSED"
+              );
+            }
+          }
+        } catch (queryErr) {
+          // If it's our own ApiError, re-throw it
+          if (queryErr.code) throw queryErr;
+          // Otherwise log but don't fail — the create succeeded
+          console.error(`[payout] ClickPesa query failed (non-fatal):`, queryErr.message);
+        }
       } else {
+        console.error(`[payout] ClickPesa create missing id:`, JSON.stringify(cpResponse.data).substring(0, 300));
         throw ApiError.badRequest(
-          `Payment transfer failed: ${cpResponse.data?.message || `ClickPesa payout creation failed: ${cpResponse.status}`}`,
+          `Payment transfer failed: ${cpResponse.data?.message || `ClickPesa returned no payout id (HTTP ${cpResponse.status})`}`,
           "CLICKPESA_PAYOUT_FAILED"
         );
       }

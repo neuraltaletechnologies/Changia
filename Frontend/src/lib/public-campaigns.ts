@@ -235,13 +235,6 @@ export async function getContributionStatus(attemptId: number): Promise<Contribu
   return payload.data as ContributionStatus;
 }
 
-/** ⚠️ Dev/demo-only stand-in for the real gateway callback. */
-export function simulateConfirmContribution(
-  attemptId: number
-): Promise<{ attemptId: number; status: string; receiptNumber: string | null; amount: number | null }> {
-  return publicPost(`/public/donations/contributions/${attemptId}/simulate-confirm`);
-}
-
 // ─── Public in-kind gift pledge ──────────────────────────────────────────────
 // Not every supporter gives money — some donate goods. A visitor describes the
 // item and says how it changes hands: the team picks it up (with an address) or

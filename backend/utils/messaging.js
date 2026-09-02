@@ -17,6 +17,7 @@
  */
 
 const { env } = require("../config");
+const { normalizePhone } = require("./phone");
 
 function makeSimulatedRef(channel) {
   return `SIM-${channel}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
@@ -97,8 +98,10 @@ async function sendSmsLive({ to, body }) {
   };
 }
 
-async function sendWhatsAppLive({ to, body }) {
-  const url = `https://graph.facebook.com/v20.0/${env.WHATSAPP.phoneNumberId}/messages`;
+// Business-initiated WhatsApp reminders use an approved Meta template. The
+// local reminder body is intentionally not sent as free-form text.
+async function sendWhatsAppLive({ to }) {
+  const url = `https://graph.facebook.com/${env.WHATSAPP.apiVersion}/${env.WHATSAPP.phoneNumberId}/messages`;
   const res = await fetch(url, {
     method: "POST",
     headers: {
@@ -108,13 +111,27 @@ async function sendWhatsAppLive({ to, body }) {
     body: JSON.stringify({
       messaging_product: "whatsapp",
       to,
-      type: "text",
-      text: { body },
+      type: "template",
+      template: {
+        name: env.WHATSAPP.templateName,
+        language: { code: env.WHATSAPP.templateLanguage },
+      },
     }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new Error(data?.error?.message || `WhatsApp API responded ${res.status}`);
+    const metaError = data?.error;
+    if (metaError?.code === 190) {
+      throw new Error(
+        "WhatsApp authentication failed (Meta error 190): the configured access token was rejected. " +
+          "Generate a token with whatsapp_business_messaging permission for this WhatsApp Business account, " +
+          "then restart the API after updating WHATSAPP_TOKEN."
+      );
+    }
+    throw new Error(
+      metaError?.message ||
+        `WhatsApp API responded ${res.status}${metaError?.code ? ` (Meta error ${metaError.code})` : ""}`
+    );
   }
   return {
     provider: "whatsapp_cloud_api",
@@ -194,6 +211,7 @@ async function sendMessage({ channel, to, subject, body, html }) {
  */
 function recipientFor(channel, donor) {
   if (channel === "EMAIL") return donor.email;
+  if (channel === "WHATSAPP") return donor.phone ? normalizePhone(donor.phone) : donor.phone;
   return donor.phone;
 }
 

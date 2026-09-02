@@ -578,7 +578,7 @@ Routes: `/campaigns` — all authenticated, org-scoped.
 Detail view: campaign + its assigned managers + the **10 most recent confirmed donations** + progress math.
 
 **Response — `200 OK`:** the campaign object above, plus:
-
+EAAYIOlgCrzYBSb6BJZCp6n7iWZB0fZAek6VOQf4XN2lWCJdBhGxF3q9c4WEkZCxYs57rSyKe0RtTGEZAR8ul7920X7rYJCkwinIz72a1UqPfR4uZBrFPZC8QgCDjzYF4ISJojI7uMqiguVxsZCv5CuobsJ4ZCNO5lx6zlaTJkQRokDq90G7BoMj4ejUgadHTrYBYDlzBAZB1s7lQgwEYgtFFZAp9Y78Fv1uSmFzRFNhxLpMMU5Q4Gc18KTkYRBHiHVRvyP7bycbIFU3bzUZBHPrcazlZAZAdKeVAZDZD
 ```json
 {
   "success": true,

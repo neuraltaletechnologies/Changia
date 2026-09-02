@@ -64,6 +64,9 @@ const env = {
     token: process.env.WHATSAPP_TOKEN || "",
     phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || "",
     businessAccountId: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || "",
+    apiVersion: process.env.WHATSAPP_API_VERSION || "v22.0",
+    templateName: process.env.WHATSAPP_TEMPLATE_NAME || "hello_world",
+    templateLanguage: process.env.WHATSAPP_TEMPLATE_LANGUAGE || "en_US",
   },
 
   // ─── ClickPesa payment gateway ────────────────────────────────────────────────

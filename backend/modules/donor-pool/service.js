@@ -658,6 +658,32 @@ async function mergeAnomalous(organizationId, user, anomalousDonorId, data) {
 
 const REMINDER_CHANNELS = ["SMS", "WHATSAPP", "EMAIL"];
 
+function assertLiveMessagingChannelConfigured(channel) {
+  if (env.MESSAGE_PROVIDER !== "live") return;
+
+  if (channel === "SMS" && (!env.AFRICAS_TALKING.username || !env.AFRICAS_TALKING.apiKey)) {
+    throw ApiError.badRequest(
+      "SMS reminders require Africa's Talking credentials (AT_USERNAME, AT_API_KEY). Configure them in your .env file or switch to EMAIL.",
+      "SMS_NOT_CONFIGURED"
+    );
+  }
+  if (channel === "WHATSAPP" && (!env.WHATSAPP.token || !env.WHATSAPP.phoneNumberId)) {
+    throw ApiError.badRequest(
+      "WhatsApp reminders require Meta WhatsApp Business credentials (WHATSAPP_TOKEN, WHATSAPP_PHONE_NUMBER_ID). Configure them in your .env or switch to EMAIL.",
+      "WHATSAPP_NOT_CONFIGURED"
+    );
+  }
+  if (
+    channel === "EMAIL" &&
+    (!env.SMTP.host || !env.SMTP.user || !env.SMTP.password || !env.SMTP.fromEmail)
+  ) {
+    throw ApiError.badRequest(
+      "Email reminders require SMTP credentials (SMTP_HOST, SMTP_USER, SMTP_PASSWORD, SMTP_FROM_EMAIL). Configure them in your .env file.",
+      "EMAIL_NOT_CONFIGURED"
+    );
+  }
+}
+
 /**
  * One-off reminder where every donor is contacted on their own
  * `preferred_channel`. Donors whose preferred channel is not a messaging
@@ -679,19 +705,45 @@ async function sendPreferredChannelReminder({
     : "SMS";
   const templateIds = data.templates || {};
 
-  // Resolve the channel each donor will actually be messaged on.
-  const routed = donors.map((donor) => {
-    let channel =
-      donor.preferred_channel && REMINDER_CHANNELS.includes(donor.preferred_channel)
-        ? donor.preferred_channel
-        : fallback;
-    if (!recipientFor(channel, donor) && donor.phone && channel === "EMAIL") {
-      channel = fallback === "EMAIL" ? "SMS" : fallback;
+  // Resolve the channel each donor will actually be messaged on. Keep
+  // withdrawn donors and donors without a usable contact out of the batches,
+  // so preferred-channel sends have the same consent guarantees as
+  // single-channel sends.
+  const routed = [];
+  const skippedConsent = [];
+  const skippedNoContact = [];
+  for (const donor of donors) {
+    if (donor.consent_status === "WITHDRAWN") {
+      skippedConsent.push(donor);
+      continue;
     }
-    return { donor, channel };
-  });
+
+    const preferred = REMINDER_CHANNELS.includes(donor.preferred_channel)
+      ? donor.preferred_channel
+      : fallback;
+    let channel = preferred;
+    if (!recipientFor(channel, donor) && channel !== fallback && recipientFor(fallback, donor)) {
+      channel = fallback;
+    }
+    if (!recipientFor(channel, donor)) {
+      skippedNoContact.push(donor);
+      continue;
+    }
+    routed.push({ donor, channel });
+  }
+
+  if (routed.length === 0) {
+    const reasons = [];
+    if (skippedConsent.length > 0) reasons.push(`${skippedConsent.length} donor(s) have withdrawn consent`);
+    if (skippedNoContact.length > 0) reasons.push("the remaining donors have no usable contact details");
+    throw ApiError.badRequest(
+      `No donors can receive reminders. ${reasons.join("; ") || "Check donor contact details."}`,
+      "NO_ELIGIBLE_DONORS"
+    );
+  }
 
   const usedChannels = [...new Set(routed.map((r) => r.channel))];
+  usedChannels.forEach(assertLiveMessagingChannelConfigured);
   const missing = usedChannels.filter((c) => !templateIds[c]);
   if (missing.length > 0) {
     throw ApiError.badRequest(
@@ -721,6 +773,9 @@ async function sendPreferredChannelReminder({
 
   const batchIds = [];
   const allDeliveries = [];
+  const failedDetails = [];
+  let sentCount = 0;
+  let failedCount = 0;
 
   for (const channel of usedChannels) {
     const channelDonors = routed.filter((r) => r.channel === channel).map((r) => r.donor);
@@ -742,6 +797,7 @@ async function sendPreferredChannelReminder({
     );
     const batchId = batchResult.insertId;
     batchIds.push(batchId);
+    let channelSentCount = 0;
 
     for (const donor of channelDonors) {
       const donorName =
@@ -749,7 +805,7 @@ async function sendPreferredChannelReminder({
       const vars = { donorName, campaignName: campaign.name, orgName, amountDue: "" };
       const subject = renderTemplate(template.subject || `Reminder: ${campaign.name}`, vars);
       const bodyText = renderTemplate(template.body, vars);
-      const recipient = recipientFor(channel, donor) || donor.phone;
+      const recipient = recipientFor(channel, donor);
 
       let html = null;
       if (channel === "EMAIL" && recipient) {
@@ -777,13 +833,53 @@ async function sendPreferredChannelReminder({
         channel,
         recipient: recipient || "",
         status: result.status,
+        providerRef: result.providerRef || null,
+        error: result.error || null,
       });
+
+      if (result.status === "FAILED") {
+        failedCount++;
+        failedDetails.push({
+          donorId: donor.id,
+          name: [donor.first_name, donor.last_name].filter(Boolean).join(" ") || "Donor",
+          recipient,
+          error: result.error || "Unknown error",
+        });
+      } else {
+        sentCount++;
+        channelSentCount++;
+      }
     }
+
+    await db.execute(
+      "UPDATE message_batches SET recipient_count = ?, status = ? WHERE id = ?",
+      [
+        channelSentCount,
+        channelSentCount === channelDonors.length
+          ? "SENT"
+          : channelSentCount > 0
+            ? "PARTIAL"
+            : "FAILED",
+        batchId,
+      ]
+    );
 
     await db.execute(
       `INSERT INTO audit_logs (organization_id, actor_id, actor_email, action, resource, resource_id, severity)
        VALUES (?, ?, ?, 'reminder.sent', 'message_batch', ?, 'INFO')`,
       [effectiveOrgId, user.id, user.email, String(batchId)]
+    );
+  }
+
+  if (sentCount === 0 && failedCount > 0) {
+    for (const batchId of batchIds) {
+      await db.execute("DELETE FROM message_deliveries WHERE batch_id = ?", [batchId]);
+      await db.execute("DELETE FROM message_batches WHERE id = ?", [batchId]);
+    }
+    const firstError = failedDetails[0]?.error || "Sending failed";
+    throw ApiError.badRequest(
+      `None of the ${failedCount} reminder(s) could be delivered. ${firstError}${failedCount > 1 ? ` (and ${failedCount - 1} more)` : ""}`,
+      "ALL_DELIVERIES_FAILED"
     );
   }
 
@@ -793,9 +889,24 @@ async function sendPreferredChannelReminder({
       campaignId: campaign.id,
       channel: "PREFERRED",
       channels: usedChannels,
-      recipientCount: routed.length,
+      recipientCount: sentCount,
+      skippedCount: skippedConsent.length + skippedNoContact.length,
+      failedCount,
     },
     deliveries: allDeliveries,
+    skipped: [
+      ...skippedConsent.map((d) => ({
+        donorId: d.id,
+        name: [d.first_name, d.last_name].filter(Boolean).join(" ") || "Donor",
+        reason: "consent withdrawn",
+      })),
+      ...skippedNoContact.map((d) => ({
+        donorId: d.id,
+        name: [d.first_name, d.last_name].filter(Boolean).join(" ") || "Donor",
+        reason: "no usable contact details",
+      })),
+    ],
+    failedDetails,
   };
 }
 
@@ -824,31 +935,6 @@ async function sendReminder(organizationId, user, data) {
   const orgRows = await db.query("SELECT name FROM organizations WHERE id = ?", [effectiveOrgId]);
   const orgName = orgRows[0]?.name || "Changia";
 
-  // ── Channel validation ──────────────────────────────────────────────────
-  // Fail fast if the chosen channel's messaging provider isn't configured in
-  // live mode, so the user gets a clear error instead of silent FAILED
-  // deliveries for every donor.
-  if (env.MESSAGE_PROVIDER === "live") {
-    if (data.channel === "SMS" && !env.AFRICAS_TALKING.username) {
-      throw ApiError.badRequest(
-        "SMS reminders require Africa's Talking credentials (AT_USERNAME, AT_API_KEY). Configure them in your .env file or switch to EMAIL.",
-        "SMS_NOT_CONFIGURED"
-      );
-    }
-    if (data.channel === "WHATSAPP" && !env.WHATSAPP.token) {
-      throw ApiError.badRequest(
-        "WhatsApp reminders require Meta WhatsApp Business credentials (WHATSAPP_TOKEN, WHATSAPP_PHONE_NUMBER_ID). Configure them in your .env or switch to EMAIL.",
-        "WHATSAPP_NOT_CONFIGURED"
-      );
-    }
-    if (data.channel === "EMAIL" && !env.SMTP.host) {
-      throw ApiError.badRequest(
-        "Email reminders require SMTP credentials (SMTP_HOST, SMTP_USER, SMTP_PASSWORD). Configure them in your .env file.",
-        "EMAIL_NOT_CONFIGURED"
-      );
-    }
-  }
-
   const donorIds = data.donorIds.map(Number);
   const donors = await db.query(
     `SELECT id, first_name, last_name, email, phone, preferred_channel, consent_status
@@ -859,6 +945,24 @@ async function sendReminder(organizationId, user, data) {
   if (donors.length === 0) {
     throw ApiError.badRequest("No valid donors selected for the reminder");
   }
+
+  // Preferred-channel sends must be routed before single-channel filtering;
+  // their request intentionally has no `channel` or `message`.
+  if (data.usePreferredChannel) {
+    return sendPreferredChannelReminder({
+      data,
+      campaign,
+      effectiveOrgId,
+      orgName,
+      campaignUrl: `${env.APP_BASE_URL}/campaigns/${campaign.slug || campaign.id}`,
+      donors,
+      user,
+    });
+  }
+
+  // Fail fast when the selected live provider is not configured. This gives
+  // the donor-board dialog a useful error instead of an empty-looking send.
+  assertLiveMessagingChannelConfigured(data.channel);
 
   // Filter out donors who can't receive this channel's message:
   //   - WITHDRAWN consent → skip

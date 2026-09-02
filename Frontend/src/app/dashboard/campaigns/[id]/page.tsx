@@ -1044,8 +1044,8 @@ export default function CampaignDetailPage() {
           }
           onClose={() => setReminderOpen(false)}
           onSent={() => {
-            setReminderOpen(false);
             refresh();
+            setSelected(new Set());
           }}
         />
       )}
@@ -4033,8 +4033,8 @@ function ReminderDialog({
           });
       setSent({
         recipientCount: r.batch.recipientCount ?? donorIds.length,
-        skippedCount: r.batch.skippedCount ?? 0,
-        failedCount: r.batch.failedCount ?? 0,
+        skippedCount: r.batch.skippedCount ?? r.skipped?.length ?? 0,
+        failedCount: r.batch.failedCount ?? r.failedDetails?.length ?? 0,
         failedDetails: r.failedDetails ?? [],
         skipped: r.skipped ?? [],
       });

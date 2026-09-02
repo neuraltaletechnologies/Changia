@@ -999,6 +999,22 @@ async function sendReminder(organizationId, user, data) {
   // Build campaign URL for email channel
   const campaignUrl = `${env.APP_BASE_URL}/campaigns/${campaign.slug || campaign.id}`;
 
+  // ─── Preferred-channel mode ──────────────────────────────────────────────
+  // Each donor is messaged on their own preferred_channel (falling back to
+  // `fallbackChannel` when that channel can't be used), rendered from a
+  // per-channel saved template.
+  if (data.usePreferredChannel) {
+    return sendPreferredChannelReminder({
+      data,
+      campaign,
+      effectiveOrgId,
+      orgName,
+      campaignUrl,
+      donors,
+      user,
+    });
+  }
+
   const batchResult = await db.execute(
     `INSERT INTO message_batches
        (organization_id, campaign_id, created_by_id, type, subject, body, status, recipient_count)

@@ -22,6 +22,23 @@ const env = {
     user: process.env.DB_USER || "root",
     password: process.env.DB_PASSWORD || "",
     database: process.env.DB_NAME || "changia",
+    // Managed MySQL providers need TLS. DB_SSL=true turns it on; DB_SSL_CA is an
+    // optional PEM string or path to the provider's CA bundle (strict verify).
+    ssl: process.env.DB_SSL === "true" || process.env.DB_SSL === "1",
+    sslCa: process.env.DB_SSL_CA || "",
+  },
+
+  // ─── Cloudflare R2 object store (uploaded photos) ──────────────────────────
+  // Set all four to push uploads to R2 instead of the local disk (see
+  // utils/objectStore.js). Unset → uploads stay on disk (local dev / hosting
+  // with a persistent disk). Endpoint defaults to
+  // https://<accountId>.r2.cloudflarestorage.com.
+  R2: {
+    accountId: process.env.R2_ACCOUNT_ID || "",
+    accessKeyId: process.env.R2_ACCESS_KEY_ID || "",
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY || "",
+    bucket: process.env.R2_BUCKET || "",
+    endpoint: process.env.R2_ENDPOINT || "",
   },
 
   // ─── Messaging providers (SMS / WhatsApp / Email) ──────────────────────────

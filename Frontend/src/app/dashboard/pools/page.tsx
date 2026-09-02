@@ -1526,6 +1526,7 @@ function AddMemberDialog({
     phone: "",
     gender: "UNSPECIFIED" as Gender,
     position: "",
+    preferredChannel: "SMS",
   });
 
   const runSearch = async () => {
@@ -1557,6 +1558,10 @@ function AddMemberDialog({
 
   const addNew = async () => {
     setError(null);
+    if (form.preferredChannel === "EMAIL" && !form.email.trim()) {
+      setError("An email address is required when the preferred channel is Email.");
+      return;
+    }
     try {
       await poolApi.addMembers(poolId, {
         donors: [
@@ -1567,6 +1572,7 @@ function AddMemberDialog({
             phone: form.phone,
             gender: form.gender,
             position: form.position || undefined,
+            preferredChannel: form.preferredChannel,
           },
         ],
       });
@@ -1577,6 +1583,7 @@ function AddMemberDialog({
         phone: "",
         gender: "UNSPECIFIED",
         position: "",
+        preferredChannel: "SMS",
       });
       onAdded();
     } catch (e) {
@@ -1746,6 +1753,30 @@ function AddMemberDialog({
                   className="h-9 text-sm"
                 />
               </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">
+                Preferred channel <span className="text-destructive">*</span>
+              </Label>
+              <Select
+                value={form.preferredChannel}
+                onValueChange={(v) => setForm({ ...form, preferredChannel: v ?? "SMS" })}
+              >
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="SMS">SMS</SelectItem>
+                  <SelectItem value="WHATSAPP">WhatsApp</SelectItem>
+                  <SelectItem value="EMAIL">Email</SelectItem>
+                  <SelectItem value="PHONE">Phone Call</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground">
+                {form.preferredChannel === "EMAIL"
+                  ? "Reminders go by email — an email address is required."
+                  : "Reminders go by SMS / WhatsApp — a valid phone number is required."}
+              </p>
             </div>
             <div className="flex justify-end pt-1">
               <Button size="sm" type="button" onClick={addNew}>

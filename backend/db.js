@@ -1,5 +1,22 @@
+const fs = require("fs");
 const mysql = require("mysql2/promise");
 const { env } = require("./config");
+
+// Managed MySQL hosts (Aiven, TiDB Cloud, PlanetScale, Railway, …) require TLS.
+// Set DB_SSL=true to enable it. DB_SSL_CA is optional — a PEM string or a path
+// to the provider's CA bundle for strict certificate verification; without it we
+// still negotiate TLS but skip chain validation (fine for a demo, and the usual
+// fix for "self-signed certificate in certificate chain" against Aiven/TiDB).
+function buildSslOption() {
+  if (!env.DB.ssl) return undefined;
+  if (env.DB.sslCa) {
+    const ca = env.DB.sslCa.includes("BEGIN CERTIFICATE")
+      ? env.DB.sslCa
+      : fs.readFileSync(env.DB.sslCa, "utf8");
+    return { ca, minVersion: "TLSv1.2" };
+  }
+  return { rejectUnauthorized: false, minVersion: "TLSv1.2" };
+}
 
 const pool = mysql.createPool({
   host: env.DB.host,
@@ -7,6 +24,7 @@ const pool = mysql.createPool({
   user: env.DB.user,
   password: env.DB.password,
   database: env.DB.database,
+  ssl: buildSslOption(),
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,

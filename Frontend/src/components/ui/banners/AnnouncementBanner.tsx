@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 type AnnouncementBannerProps = {
   title?: string;
@@ -15,7 +15,27 @@ export default function AnnouncementBanner({
   btnTitle,
   url,
 }: AnnouncementBannerProps) {
-  const [visible, setVisible] = useState(true);
+  const storageKey = `changia_banner_dismissed:${btnId}`;
+  // Start hidden so the banner never flashes before we've checked the stored
+  // dismissal; reveal it on mount only if the visitor hasn't closed it before.
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(storageKey) !== '1') setVisible(true);
+    } catch {
+      setVisible(true);
+    }
+  }, [storageKey]);
+
+  const dismiss = () => {
+    setVisible(false);
+    try {
+      localStorage.setItem(storageKey, '1');
+    } catch {
+      /* storage unavailable — banner stays dismissed for this session only */
+    }
+  };
 
   if (!visible) return null;
 
@@ -36,8 +56,6 @@ export default function AnnouncementBanner({
             <a
               className="group inline-flex items-center gap-x-2 rounded-full border-2 border-neutral-50 px-3 py-2 text-sm font-semibold text-neutral-50 backdrop-brightness-75 transition duration-300 hover:border-neutral-100/70 hover:text-neutral-50/70 disabled:pointer-events-none disabled:opacity-50 sm:backdrop-brightness-100 dark:border-neutral-700 dark:text-neutral-700 dark:backdrop-brightness-100 dark:hover:border-neutral-700/70 dark:hover:text-neutral-800/70 dark:focus:outline-hidden"
               href={url}
-              target="_blank"
-              rel="noopener noreferrer"
             >
               {btnTitle}
               <svg
@@ -59,7 +77,7 @@ export default function AnnouncementBanner({
             type="button"
             className="ml-auto inline-flex items-center gap-x-2 rounded-full border border-transparent bg-gray-100 p-2 text-sm font-semibold text-gray-800 hover:bg-gray-200 disabled:pointer-events-none disabled:opacity-50 dark:bg-neutral-700 dark:text-neutral-50 dark:hover:bg-neutral-700/80 dark:hover:text-neutral-50 dark:focus:outline-hidden"
             id={btnId}
-            onClick={() => setVisible(false)}
+            onClick={dismiss}
           >
             <span className="sr-only">Dismiss</span>
             <svg

@@ -9,13 +9,15 @@
     "tunnel": "node ../scripts/tunnel.js --name api --port 5000",
     "dev:preview": "node ../scripts/preview-run.js --target api -- npm run dev",
     "start": "node server.js",
-    "setup": "npm install && mysql -u root -p < database.sql"
+    "setup": "npm install && mysql -u root -p < database.sql",
+    "db:import": "node scripts/import-db.js"
   },
   "engines": {
     "node": ">=18"
   },
   "dependencies": {
     "africastalking": "^0.7.1",
+    "aws4fetch": "^1.0.20",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",

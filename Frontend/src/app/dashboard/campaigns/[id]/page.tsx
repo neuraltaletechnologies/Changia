@@ -2217,6 +2217,23 @@ function DecideClosureForm({
 
 // ─── In-kind gifts (non-monetary contributions) ─────────────────────────────
 
+// Gift stages only ever move forward: PLEDGED → SCHEDULED → RECEIVED. A gift can
+// be CANCELLED while pledged or scheduled, but RECEIVED and CANCELLED are final.
+const GIFT_STAGE_RANK: Record<GiftStatus, number> = {
+  PLEDGED: 0,
+  SCHEDULED: 1,
+  RECEIVED: 2,
+  CANCELLED: 3,
+};
+
+/** A gift can move to `to` only if it advances a stage (or is a cancellation). */
+function canMoveGift(from: GiftStatus, to: GiftStatus) {
+  if (from === to) return true;
+  if (from === "RECEIVED" || from === "CANCELLED") return false;
+  if (to === "CANCELLED") return true;
+  return GIFT_STAGE_RANK[to] > GIFT_STAGE_RANK[from];
+}
+
 function CampaignGiftsSection({
   campaignId,
   donors,
@@ -2277,10 +2294,17 @@ function CampaignGiftsSection({
     return <div className="h-40 bg-card border border-border rounded-xl animate-pulse" />;
   }
 
-  const total = gifts
-    .filter((g) => g.status !== "CANCELLED")
+  // Only RECEIVED gifts count toward the campaign's in-kind total; pledged /
+  // scheduled gifts are still awaiting handover.
+  const receivedTotal = gifts
+    .filter((g) => g.status === "RECEIVED")
     .reduce((s, g) => s + g.estimatedValue, 0);
-  const pledgedCount = gifts.filter((g) => g.status === "PLEDGED").length;
+  const pendingTotal = gifts
+    .filter((g) => g.status === "PLEDGED" || g.status === "SCHEDULED")
+    .reduce((s, g) => s + g.estimatedValue, 0);
+  const pendingCount = gifts.filter(
+    (g) => g.status === "PLEDGED" || g.status === "SCHEDULED"
+  ).length;
 
   return (
     <div className="space-y-4">
@@ -2298,9 +2322,10 @@ function CampaignGiftsSection({
           </div>
           <div className="flex items-center gap-3">
             <span className="text-[11px] text-muted-foreground">
-              {pledgedCount > 0 ? `${pledgedCount} pledged · ` : ""}
+              {pendingCount > 0 ? `${pendingCount} awaiting handover · ` : ""}
               {gifts.length} gift{gifts.length === 1 ? "" : "s"} &middot;{" "}
-              {formatTZSFull(total)} est.
+              {formatTZSFull(receivedTotal)} received
+              {pendingTotal > 0 ? ` (+${formatTZSFull(pendingTotal)} pledged)` : ""}
             </span>
             {canManage && (
               <Button size="xs" onClick={() => setAddOpen(true)}>
@@ -2377,23 +2402,49 @@ function CampaignGiftsSection({
 
                 {canManage && (
                   <div className="flex shrink-0 items-center gap-1.5">
-                    {g.source === "PUBLIC" && (
-                      <Select
-                        value={g.status}
-                        onValueChange={(v) => setStatus(g.id, v as GiftStatus)}
-                        disabled={busyId === g.id}
-                      >
-                        <SelectTrigger className="h-7 w-[8.5rem] text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="PLEDGED">Pledged</SelectItem>
-                          <SelectItem value="SCHEDULED">Scheduled</SelectItem>
-                          <SelectItem value="RECEIVED">Received</SelectItem>
-                          <SelectItem value="CANCELLED">Cancelled</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    )}
+                    {g.source === "PUBLIC" &&
+                      (g.status === "RECEIVED" || g.status === "CANCELLED" ? (
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                            g.status === "RECEIVED"
+                              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-300"
+                              : "bg-slate-500/10 text-slate-600 dark:text-slate-300"
+                          }`}
+                        >
+                          {g.status === "RECEIVED" ? (
+                            <PackageCheck className="w-3 h-3" />
+                          ) : (
+                            <XCircle className="w-3 h-3" />
+                          )}
+                          {g.status === "RECEIVED" ? "Received" : "Cancelled"}
+                        </span>
+                      ) : (
+                        <Select
+                          value={g.status}
+                          onValueChange={(v) => setStatus(g.id, v as GiftStatus)}
+                          disabled={busyId === g.id}
+                        >
+                          <SelectTrigger className="h-7 w-[8.5rem] text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem
+                              value="PLEDGED"
+                              disabled={!canMoveGift(g.status, "PLEDGED")}
+                            >
+                              Pledged
+                            </SelectItem>
+                            <SelectItem
+                              value="SCHEDULED"
+                              disabled={!canMoveGift(g.status, "SCHEDULED")}
+                            >
+                              Scheduled
+                            </SelectItem>
+                            <SelectItem value="RECEIVED">Received</SelectItem>
+                            <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ))}
                     <Button
                       size="xs"
                       variant="ghost"

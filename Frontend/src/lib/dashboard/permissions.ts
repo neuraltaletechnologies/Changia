@@ -166,6 +166,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "campaign:create",
     "donor:view",
     "donor:add",
+    "donor:manage", // edits/deletes its org's donors + their payment methods
     "payout:request",
     "reminder:manage",
     "donorpool:create",

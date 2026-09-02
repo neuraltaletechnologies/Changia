@@ -66,8 +66,10 @@ const STATUS_BADGE: Record<string, string> = {
 
 export default function DonorProfilePage() {
   const { id } = useParams<{ id: string }>();
-  const { isSuperAdmin, isOrgAdmin } = useRole();
-  const isAdmin = isSuperAdmin || isOrgAdmin;
+  const { hasPermission } = useRole();
+  // Same gate as the pool donor list's ⋯ quick action: a campaign manager (or
+  // SUPER_ADMIN) may edit a donor's details from the full profile too.
+  const canManageDonor = hasPermission("donor:manage");
 
   const [donor, setDonor] = useState<DonorRecord | null>(null);
   const [loading, setLoading] = useState(true);
@@ -169,11 +171,11 @@ export default function DonorProfilePage() {
               {donor.phone || donor.email || "No contact details"}
             </p>
           </div>
-          {isAdmin && (
+          {canManageDonor && (
             <div className="flex gap-2 shrink-0">
               <Button size="sm" onClick={() => setEditing(true)}>
                 <Edit className="w-3.5 h-3.5 mr-1.5" />
-                Edit
+                Edit details
               </Button>
             </div>
           )}
@@ -288,7 +290,7 @@ export default function DonorProfilePage() {
               <h2 className="text-sm font-semibold text-foreground">
                 Payment Methods
               </h2>
-              {isAdmin && (
+              {canManageDonor && (
                 <Button size="xs" variant="outline" onClick={() => setAddingPm(true)}>
                   + Add
                 </Button>
@@ -305,6 +307,7 @@ export default function DonorProfilePage() {
                     key={pm.id}
                     pm={pm}
                     donorId={donor.id}
+                    canManage={canManageDonor}
                     onRemoved={refresh}
                   />
                 ))}
@@ -411,10 +414,12 @@ function StatCard({
 function PaymentMethodRow({
   pm,
   donorId,
+  canManage,
   onRemoved,
 }: {
   pm: PaymentMethod;
   donorId: number;
+  canManage: boolean;
   onRemoved: () => void;
 }) {
   const [removing, setRemoving] = useState(false);
@@ -437,15 +442,17 @@ function PaymentMethodRow({
           {pm.accountRef || "No reference"}
         </p>
       </div>
-      <Button
-        size="xs"
-        variant="ghost"
-        className="text-destructive hover:bg-destructive/10"
-        onClick={remove}
-        disabled={removing}
-      >
-        Remove
-      </Button>
+      {canManage && (
+        <Button
+          size="xs"
+          variant="ghost"
+          className="text-destructive hover:bg-destructive/10"
+          onClick={remove}
+          disabled={removing}
+        >
+          Remove
+        </Button>
+      )}
     </div>
   );
 }

@@ -33,7 +33,7 @@ services:
       - key: DEFAULT_SERVICE_FEE_PERCENT
         value: "5"
       - key: MESSAGE_PROVIDER
-        value: simulated
+        value: live
       - key: CLICKPESA_ENABLED
         value: "false"
       # ─── MySQL (fill these from your Aiven / TiDB Cloud dashboard) ───────────

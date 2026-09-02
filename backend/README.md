@@ -86,6 +86,7 @@ All use the password **`Changia@2026`**:
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` / `SMTP_FROM_EMAIL` / `SMTP_FROM_NAME` | *(empty)* | Email reminders (Nodemailer/SMTP) |
 | `AT_USERNAME` / `AT_API_KEY` / `AT_SENDER_ID` | *(empty)* | SMS reminders (Africa's Talking) |
 | `WHATSAPP_TOKEN` / `WHATSAPP_PHONE_NUMBER_ID` / `WHATSAPP_BUSINESS_ACCOUNT_ID` | *(empty)* | WhatsApp reminders (Meta Cloud API) |
+| `WHATSAPP_API_VERSION` / `WHATSAPP_TEMPLATE_NAME` / `WHATSAPP_TEMPLATE_LANGUAGE` | `v22.0` / `hello_world` / `en_US` | WhatsApp Graph API template request settings |
 | `REMINDER_SCHEDULER_INTERVAL_MINUTES` | `60` | How often the auto-resend scheduler checks for due donor-pool/campaign reminder cycles |
 
 You can set these as environment variables or edit `config.js` directly — no .env file is required.
@@ -213,7 +214,8 @@ Tanzania-first SMS delivery.
    WHATSAPP_PHONE_NUMBER_ID=123456789012345
    WHATSAPP_BUSINESS_ACCOUNT_ID=123456789012345
    ```
-6. **Production note:** outside Meta's test mode, WhatsApp only allows *business-initiated* messages (like a payment reminder) using a template pre-approved by Meta. Reminder templates created in **Reminders → Templates** are plain text here for simplicity — for a production WhatsApp rollout, mirror their wording as an approved [message template](https://developers.facebook.com/docs/whatsapp/message-templates) in Meta Business Manager first.
+6. Changia sends the approved template configured by `WHATSAPP_TEMPLATE_NAME` (default `hello_world`) through Graph API `v22.0`; set `WHATSAPP_TEMPLATE_LANGUAGE` to the template's language code.
+7. **Production note:** outside Meta's test mode, WhatsApp only allows *business-initiated* messages (like a payment reminder) using a template pre-approved by Meta. Create and approve a campaign-specific Meta template, then set its name and language in `.env`; the local reminder template text is not sent as free-form WhatsApp text.
 
 ### Reminder auto-resend scheduler
 No credentials needed — it's a `node-cron` job inside the API process (`jobs/reminderScheduler.js`), started automatically by `server.js`. `REMINDER_SCHEDULER_INTERVAL_MINUTES` (default `60`) controls how often it checks for due schedules.

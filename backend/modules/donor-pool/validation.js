@@ -113,7 +113,10 @@ const reminderSchema = z
     // `fallbackChannel`.
     usePreferredChannel: z.boolean().optional(),
     fallbackChannel: reminderChannelEnum.optional(),
-    templates: z.record(reminderChannelEnum, poolIdSchema).optional(),
+    // A preferred-channel send only needs templates for the channels actually
+    // used by the selected donors. `partialRecord` is important with Zod 4:
+    // `record(enum, value)` treats every enum member as required.
+    templates: z.partialRecord(reminderChannelEnum, poolIdSchema).optional(),
   })
   .superRefine((data, ctx) => {
     if (data.usePreferredChannel) {

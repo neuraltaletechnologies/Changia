@@ -164,7 +164,7 @@ export function RequestPayoutDialog({
               placeholder="e.g. 1500000"
               className="h-9"
               aria-invalid={
-                availableAmount != null && Number(amount) > availableAmount ? true : undefined
+                maxAmount != null && Number(amount) > maxAmount ? true : undefined
               }
             />
             {maxAmount != null && maxAmount > 0 && (

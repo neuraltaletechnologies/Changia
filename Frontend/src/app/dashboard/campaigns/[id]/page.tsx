@@ -1044,8 +1044,8 @@ export default function CampaignDetailPage() {
           }
           onClose={() => setReminderOpen(false)}
           onSent={() => {
-            setReminderOpen(false);
             refresh();
+            setSelected(new Set());
           }}
         />
       )}
@@ -2917,7 +2917,7 @@ function PayoutRequestTab({
         <RequestPayoutDialog
           campaignId={campaignId}
           suggestedAmount={suggestedAmount}
-          availableAmount={remainingBalance}
+          maxAmount={maxPayout}
           onClose={() => setPayoutDialog(false)}
           onSubmitted={() => {
             setPayoutDialog(false);
@@ -3980,7 +3980,13 @@ function ReminderDialog({
             subject: channel === "EMAIL" ? subject : undefined,
             message,
           });
-      setSent({ recipientCount: r.batch.recipientCount ?? donorIds.length });
+      setSent({
+        recipientCount: r.batch.recipientCount ?? donorIds.length,
+        skippedCount: r.batch.skippedCount ?? r.skipped?.length ?? 0,
+        failedCount: r.batch.failedCount ?? r.failedDetails?.length ?? 0,
+        failedDetails: r.failedDetails ?? [],
+        skipped: r.skipped ?? [],
+      });
       onSent();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to send reminders.");

@@ -919,7 +919,7 @@ This is what actually **posts a campaign to the public blog**: a campaign shows 
 
 > **Backed by frontend pages:** `/dashboard/donors` (Donor Pool with full filter set + counts), `/dashboard/donors/import`, and `/dashboard/donors/:id` (profile + donation history).
 
-A consent-aware donor pool. All roles can list and add donors; only `SUPER_ADMIN`/`ORG_ADMIN` can update/delete/import. This module powers the **Donor Pool** page at `http://localhost:3000/dashboard/donors` and the **donor profile** page at `http://localhost:3000/dashboard/donors/:id`.
+A consent-aware donor pool. All roles can list and add donors; only `SUPER_ADMIN`/`CAMPAIGN_MANAGER` can update/delete donors (import stays `SUPER_ADMIN`-only). This module powers the **Donor Pool** page at `http://localhost:3000/dashboard/donors` and the **donor profile** page at `http://localhost:3000/dashboard/donors/:id`.
 
 ### `GET /donors` — list donors (with the full pool filter set)
 
@@ -1005,13 +1005,13 @@ Authenticated (all roles, matching the `donor:add` permission).
 
 ### `PUT /donors/:id` — update a donor
 
-Authenticated (SUPER_ADMIN, ORG_ADMIN). Update profile, consent, tags, status, notes.
+Authenticated (SUPER_ADMIN, CAMPAIGN_MANAGER). Update profile, consent, tags, status, notes. `ORG_ADMIN` is a platform-level approver and cannot edit donor details.
 
 **Response — `200 OK`:** updated `Donor`.
 
 ### `DELETE /donors/:id` — remove a donor
 
-Authenticated (SUPER_ADMIN, ORG_ADMIN). If the donor has confirmed donations, prefer deactivating (`status: inactive`) rather than hard-deleting; return `409 RECORD_IN_USE` if hard delete is attempted.
+Authenticated (SUPER_ADMIN, CAMPAIGN_MANAGER). If the donor has confirmed donations, prefer deactivating (`status: inactive`) rather than hard-deleting; return `409 RECORD_IN_USE` if hard delete is attempted.
 
 **Response — `200 OK`:** `{ "success": true, "message": "Donor removed" }`
 

@@ -1048,13 +1048,15 @@ Detail view: donor + consent history + up to 20 donations.
 **Response — `201 Created`:** the full donor detail object (with `consents` and `donations`).
 **Errors:** `409 DONOR_EXISTS` (phone already in org).
 
-### `PUT /donors/:id` — `SUPER_ADMIN` or `ORG_ADMIN`
+### `PUT /donors/:id` — `SUPER_ADMIN` or `CAMPAIGN_MANAGER`
+
+> `ORG_ADMIN` is a platform-level approver — it views and approves campaigns, payouts and payment approvals but can no longer edit a donor's details. Donor records belong to the org's campaign managers (and `SUPER_ADMIN`).
 
 **All fields optional** — same fields as `POST /donors`. Setting `consentStatus: "CONSENTED"` creates/updates a consent record for the preferred channel; `"WITHDRAWN"` revokes all consents.
 
 **Response — `200 OK`:** the updated donor detail object.
 
-### `DELETE /donors/:id` — `SUPER_ADMIN` or `ORG_ADMIN`
+### `DELETE /donors/:id` — `SUPER_ADMIN` or `CAMPAIGN_MANAGER`
 
 **Response — `200 OK`:**
 
@@ -1505,7 +1507,7 @@ audit export now also honours `?format=xlsx`.
 | **POST** `/donor-pools` (create) | ❌ | ✅ | ✅ |
 | PUT/DELETE `/donor-pools/:id` | ✅ | ✅ | owner only |
 | POST `/donors` | ✅ | ✅ | ✅ |
-| PUT/DELETE `/donors/:id` | ✅ | ✅ | ❌ |
+| PUT/DELETE `/donors/:id`, donor payment methods | ✅ | ❌ | ✅ |
 | GET `/donations`, GET attempts | ✅ | ✅ | ✅ |
 | POST `/donations/campaigns/:id/attempts` | ✅ | ✅ | ✅ |
 | POST `/donations/simulate-callback` | ✅ | ✅ | ❌ |

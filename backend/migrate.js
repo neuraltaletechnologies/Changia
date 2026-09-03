@@ -330,6 +330,27 @@ const MIGRATIONS = [
     updated_at           TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_org_settings_org FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
   ) ENGINE=InnoDB`,
+
+  // campaign_testimonials — the "What Campaign Owners Say" quote cards on the
+  // public /campaigns page. Platform content, edited only by SUPER_ADMIN from
+  // the dashboard Settings › Testimonials tab. quote_sw / role_sw are
+  // machine-translated on save; /sw/campaigns falls back to English when blank.
+  `CREATE TABLE IF NOT EXISTS campaign_testimonials (
+    id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    quote         TEXT NOT NULL,
+    author        VARCHAR(150) NOT NULL,
+    role          VARCHAR(200) NOT NULL,
+    quote_sw      TEXT NULL,
+    role_sw       VARCHAR(200) NULL,
+    photo_url     VARCHAR(500) NULL,
+    is_active     TINYINT(1) NOT NULL DEFAULT 1,
+    sort_order    INT NOT NULL DEFAULT 0,
+    created_by_id BIGINT UNSIGNED NULL,
+    created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_testimonial_creator FOREIGN KEY (created_by_id) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX idx_testimonial_active (is_active, sort_order, id)
+  ) ENGINE=InnoDB`,
 ];
 
 async function columnExists(table, column) {
@@ -407,6 +428,37 @@ async function runMigrations() {
   }
 
   await seedReviewers();
+  await seedTestimonials();
+}
+
+/**
+ * Seed the three original "What Campaign Owners Say" cards the /campaigns page
+ * used to hard-code, so an existing DB doesn't render an empty section the
+ * moment this feature ships. Runs once — only while the table is empty.
+ */
+async function seedTestimonials() {
+  try {
+    const rows = await db.query("SELECT COUNT(*) AS cnt FROM campaign_testimonials");
+    if (rows[0].cnt > 0) return;
+    await db.execute(
+      `INSERT INTO campaign_testimonials (quote, author, role, sort_order) VALUES
+        (?, ?, ?, 0), (?, ?, ?, 1), (?, ?, ?, 2)`,
+      [
+        "As our launch partner, we could set up a secure dashboard, manage users by role, and keep an audit-ready donor pool from day one. Changia gave us the foundation we needed to run campaigns people can trust.",
+        "Dr. Msuya",
+        "Organization Administrator | Initial Launch Partner",
+        "With a shareable campaign link, we turn radio and WhatsApp listeners into donors. A short link, a QR code and a mobile-first campaign page — from TZS 100 — and every verified contribution updates the progress bar.",
+        "Amadi Kimaro",
+        "Campaign Manager | Community Health Fund",
+        "Self-serve contributions are the innovation we've been waiting for. A supporter picks an amount, confirms with their own PIN at the operator prompt, and our totals update the moment the gateway verifies it.",
+        "Neema Mushi",
+        "Field Fundraising Lead",
+      ]
+    );
+    console.log("🌱 Seeded 3 default campaign testimonials");
+  } catch (err) {
+    console.warn(`⚠️  Testimonial seed warning: ${err.message}`);
+  }
 }
 
 /**

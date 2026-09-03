@@ -182,7 +182,7 @@ export default function PublicCampaignPage({ params }: PublicCampaignPageProps) 
                   This campaign collects small mobile money contributions from our donor pool and public networks to support the primary requirements. As agreed under the digital platform directives, all funds are sent directly to the verified project coordinators under transparent, auditable ledger controls.
                 </p>
                 <p className="text-sm text-muted-foreground leading-relaxed">
-                  Donations made through this page route directly to Vodacom M-Pesa, Tigo Pesa, Airtel Money, or Halopesa. A progress notification message is generated for you upon verification.
+                  Donations made through this page route directly to Vodacom M-Pesa, Mix by Yas, Airtel Money, or Halopesa. A progress notification message is generated for you upon verification.
                 </p>
               </div>
 
@@ -288,7 +288,7 @@ export default function PublicCampaignPage({ params }: PublicCampaignPageProps) 
                           <div className="grid grid-cols-2 gap-2">
                             {[
                               { id: "mpesa", label: "M-Pesa", color: "border-red-500/30 hover:bg-red-50/10" },
-                              { id: "tigopesa", label: "Tigo Pesa", color: "border-blue-500/30 hover:bg-blue-50/10" },
+                              { id: "tigopesa", label: "Mix by Yas", color: "border-blue-500/30 hover:bg-blue-50/10" },
                               { id: "airtel", label: "Airtel Money", color: "border-red-600/30 hover:bg-red-50/10" },
                               { id: "halopesa", label: "Halopesa", color: "border-orange-500/30 hover:bg-orange-50/10" },
                             ].map((net) => (

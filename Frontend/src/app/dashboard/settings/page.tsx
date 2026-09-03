@@ -16,8 +16,9 @@ import {
 } from "@/components/dashboard/ui/select";
 import { PasswordInput } from "@/components/dashboard/ui/password-input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/dashboard/ui/tabs";
-import { Building2, Bell, Shield, Globe, Percent } from "lucide-react";
+import { Building2, Bell, Shield, Globe, Percent, Quote } from "lucide-react";
 import { useRole } from "@/hooks/use-role";
+import TestimonialsSettings from "@/components/dashboard/settings/TestimonialsSettings";
 import { ApiClientError, changePasswordRequest } from "@/lib/api-client";
 import {
   organizationApi,
@@ -31,6 +32,14 @@ const allTabs = [
   { value: "organisation", label: "Organisation", icon: Building2, permission: "settings:org" as const },
   { value: "notifications", label: "Notifications", icon: Bell, permission: "settings:org" as const },
   { value: "localisation", label: "Localisation", icon: Globe, permission: "settings:org" as const },
+  // Platform content — the public /campaigns testimonial cards. SUPER_ADMIN
+  // only, and not tied to an organisation.
+  {
+    value: "testimonials",
+    label: "Testimonials",
+    icon: Quote,
+    permission: "settings:platform" as const,
+  },
   // Password change is per-account, so every role sees the Security tab.
   { value: "security", label: "Security", icon: Shield },
 ];
@@ -60,14 +69,22 @@ export default function SettingsPage() {
   // "settings:org" but who isn't linked to an organisation (e.g. a platform
   // reviewer, or an account mid role-change) would otherwise fire
   // GET /settings/org and get a bare "Failed to load" — hide those tabs and
-  // show a short notice instead.
+  // show a short notice instead. A SUPER_ADMIN has no org by design (they work
+  // the Testimonials / Security tabs here), so skip the notice for them.
   const hasOrg = Boolean(user?.organizationId);
   const canManageOrg = hasPermission("settings:org") && hasOrg;
-  const orgTabsHidden = resolved && hasPermission("settings:org") && !hasOrg;
+  const orgTabsHidden =
+    resolved &&
+    hasPermission("settings:org") &&
+    !hasOrg &&
+    !hasPermission("settings:platform");
 
-  const tabs = allTabs.filter(
-    (t) => !t.permission || (hasPermission(t.permission) && hasOrg)
-  );
+  const tabs = allTabs.filter((t) => {
+    if (!t.permission) return true;
+    // Platform-level tabs (testimonials) are not tied to an organisation.
+    if (t.permission === "settings:platform") return hasPermission(t.permission);
+    return hasPermission(t.permission) && hasOrg;
+  });
 
   // ─── Organisation settings (org admin+, backed by /settings/org) ────────────
   const [loading, setLoading] = useState(canManageOrg);
@@ -593,6 +610,13 @@ export default function SettingsPage() {
                 </div>
               </div>
             )}
+          </TabsContent>
+        )}
+
+        {/* ─── Testimonials (platform content, SUPER_ADMIN) ─────────────── */}
+        {hasPermission("settings:platform") && (
+          <TabsContent value="testimonials" className="space-y-4">
+            <TestimonialsSettings />
           </TabsContent>
         )}
 

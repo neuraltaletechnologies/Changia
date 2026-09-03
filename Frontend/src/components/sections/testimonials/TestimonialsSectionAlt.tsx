@@ -4,8 +4,8 @@ type Testimonial = {
   content: string;
   author: string;
   role: string;
-  avatarSrc: string;
-  avatarAlt: string;
+  avatarSrc?: string | null;
+  avatarAlt?: string;
 };
 
 type TestimonialsSectionAltProps = {
@@ -17,6 +17,8 @@ export default function TestimonialsSectionAlt({
   title,
   testimonials,
 }: TestimonialsSectionAltProps) {
+  if (!testimonials.length) return null;
+
   return (
     <section
       className="mx-auto max-w-[85rem] px-4 py-10 sm:px-6 lg:px-8 lg:py-14 2xl:max-w-full"
@@ -39,7 +41,7 @@ export default function TestimonialsSectionAlt({
               </div>
               <div className="rounded-b-xl bg-neutral-300/30 p-4 md:px-7 dark:bg-neutral-900/30">
                 <div className="flex items-center">
-                  <AvatarTestimonialSection src={t.avatarSrc} alt={t.avatarAlt} />
+                  <AvatarTestimonialSection src={t.avatarSrc} alt={t.avatarAlt || t.author} />
                   <div className="ms-3 grow">
                     <p className="text-sm font-bold text-neutral-800 sm:text-base dark:text-neutral-200">
                       {t.author}

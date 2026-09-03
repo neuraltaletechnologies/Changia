@@ -14,6 +14,7 @@ const UPLOADS_BASE = path.join(__dirname, "..", "uploads");
 const UPLOAD_ROOT = path.join(UPLOADS_BASE, "completion-reports");
 const CAMPAIGN_IMAGES_ROOT = path.join(UPLOADS_BASE, "campaigns");
 const PAYOUT_IMAGES_ROOT = path.join(UPLOADS_BASE, "payouts");
+const TESTIMONIAL_IMAGES_ROOT = path.join(UPLOADS_BASE, "testimonials");
 
 const ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
@@ -105,6 +106,14 @@ const uploadPayoutProof = multer({
   limits: { fileSize: 5 * 1024 * 1024, files: 5 },
 }).array("proof", 5);
 
+/** Route middleware: a single testimonial portrait under the "photo" field.
+ *  Stored at /uploads/testimonials/<id>/<file>. */
+const uploadTestimonialPhoto = multer({
+  storage: makeStorage(TESTIMONIAL_IMAGES_ROOT, "testimonials"),
+  fileFilter,
+  limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+}).single("photo");
+
 // ─── Bulk-import spreadsheet upload ─────────────────────────────────────────
 // A single .csv / .xlsx file under the "file" field, kept in memory (never
 // persisted — the buffer is parsed then discarded). Used by modules/data-transfer.
@@ -171,10 +180,12 @@ module.exports = {
   uploadCompletionImages,
   uploadCampaignImages,
   uploadPayoutProof,
+  uploadTestimonialPhoto,
   uploadImportFile,
   deleteUploadedFiles,
   UPLOADS_BASE,
   UPLOAD_ROOT,
   CAMPAIGN_IMAGES_ROOT,
   PAYOUT_IMAGES_ROOT,
+  TESTIMONIAL_IMAGES_ROOT,
 };

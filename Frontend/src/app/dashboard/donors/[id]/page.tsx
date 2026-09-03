@@ -48,7 +48,7 @@ import { ExportMenu } from "@/components/dashboard/export-menu";
 
 const METHOD_LABEL: Record<PaymentMethodType, string> = {
   MOMO: "M-Pesa",
-  TIGO_PESA: "Tigo Pesa",
+  TIGO_PESA: "Mix by Yas",
   AIRTEL_MONEY: "Airtel Money",
   HALOPESA: "Halopesa",
   BANK_TRANSFER: "Bank transfer",

@@ -4,7 +4,7 @@
 
 Changia now integrates with **ClickPesa** for real mobile money payments in Tanzania. This enables:
 - **Donations**: Donors approve USSD push prompts on their phones to contribute to campaigns.
-- **Payouts**: Admins send approved payouts to mobile money accounts (M-Pesa, Tigo Pesa, etc.).
+- **Payouts**: Admins send approved payouts to mobile money accounts (M-Pesa, Mix by Yas, etc.).
 
 When ClickPesa is disabled (dev mode), the system falls back to simulation/mock behavior so development works without credentials.
 

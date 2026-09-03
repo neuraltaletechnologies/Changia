@@ -1,5 +1,8 @@
 type Partner = {
-  icon: string;
+  /** Path to the official logo file, e.g. `/payments/mpesa.svg`. */
+  logo: string;
+  /** Optional inline-SVG fallback used until a real logo file is dropped in. */
+  icon?: string;
   name?: string;
   href?: string;
 };
@@ -27,10 +30,26 @@ export default function ClientsSection({
           </p>
         ) : null}
       </div>
-      <div className="flex flex-col items-center justify-center gap-y-2 sm:flex-row sm:gap-x-12 sm:gap-y-0 lg:gap-x-24">
+      <div className="-mx-4 flex flex-row flex-nowrap items-center justify-start gap-x-5 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:justify-center sm:gap-x-10 sm:gap-y-5 sm:px-0 lg:gap-x-14">
         {partners.map((partner, i) => (
-          <a key={i} href={partner.href} rel="noopener noreferrer">
-            <div dangerouslySetInnerHTML={{ __html: partner.icon }} />
+          <a
+            key={i}
+            href={partner.href}
+            rel="noopener noreferrer"
+            aria-label={partner.name}
+            className="shrink-0"
+          >
+            {partner.icon ? (
+              <div dangerouslySetInnerHTML={{ __html: partner.icon }} />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={partner.logo}
+                alt={partner.name ?? ''}
+                loading="lazy"
+                className="block h-12 w-auto max-w-[150px] object-contain sm:h-14"
+              />
+            )}
           </a>
         ))}
       </div>

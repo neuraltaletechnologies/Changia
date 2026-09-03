@@ -1435,6 +1435,66 @@ export const settingsApi = {
     api.put<{ success: boolean; data: OrgSettings }>("/settings/org", body).then(unwrap),
 };
 
+// ─── Marketing testimonials ("What Campaign Owners Say") ────────────────────
+//
+// The quote cards on the public /campaigns page. SUPER_ADMIN-only, edited from
+// the Settings › Testimonials tab. Swahili (quoteSw / roleSw) is filled in
+// automatically by machine translation on save — there is no Swahili input.
+
+export interface Testimonial {
+  id: number;
+  quote: string;
+  author: string;
+  role: string;
+  quoteSw: string | null;
+  roleSw: string | null;
+  photoUrl: string | null;
+  isActive: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type TestimonialCreate = {
+  quote: string;
+  author: string;
+  role: string;
+  isActive?: boolean;
+};
+
+export type TestimonialUpdate = Partial<{
+  quote: string;
+  author: string;
+  role: string;
+  isActive: boolean;
+}>;
+
+export const testimonialsApi = {
+  list: () =>
+    api
+      .get<{ success: boolean; data: { testimonials: Testimonial[] } }>("/testimonials")
+      .then(unwrap)
+      .then((d) => d.testimonials),
+  create: (body: TestimonialCreate) =>
+    api.post<{ success: boolean; data: Testimonial }>("/testimonials", body).then(unwrap),
+  update: (id: number, body: TestimonialUpdate) =>
+    api.put<{ success: boolean; data: Testimonial }>(`/testimonials/${id}`, body).then(unwrap),
+  remove: (id: number) =>
+    api.delete<{ success: boolean; data: { id: number } }>(`/testimonials/${id}`).then(unwrap),
+  reorder: (ids: number[]) =>
+    api
+      .put<{ success: boolean; data: { testimonials: Testimonial[] } }>("/testimonials/reorder", { ids })
+      .then(unwrap)
+      .then((d) => d.testimonials),
+  uploadPhoto: (id: number, file: File) => {
+    const form = new FormData();
+    form.append("photo", file);
+    return api
+      .postForm<{ success: boolean; data: Testimonial }>(`/testimonials/${id}/photo`, form)
+      .then(unwrap);
+  },
+};
+
 // ─── Status labels ───────────────────────────────────────────────────────────
 
 export const PAY_STATUS_META: Record<

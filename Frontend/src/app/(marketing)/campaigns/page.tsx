@@ -3,7 +3,7 @@ import PrimaryCTA from '@components/ui/buttons/PrimaryCTA';
 import PublicCampaignCard from '@components/ui/cards/PublicCampaignCard';
 import FeaturesStatsAlt from '@components/sections/features/FeaturesStatsAlt';
 import TestimonialsSectionAlt from '@components/sections/testimonials/TestimonialsSectionAlt';
-import { getPublicCampaigns } from '@/lib/public-campaigns';
+import { getPublicCampaigns, getPublicTestimonials } from '@/lib/public-campaigns';
 
 export const metadata: Metadata = {
   title: 'Campaigns',
@@ -20,38 +20,19 @@ const title = 'Campaigns';
 const subTitle =
   "Every campaign below is live and organized by a verified Changia organization. Open one to read its story, see how the target breaks down, and contribute in a few taps.";
 
-const testimonials = [
-  {
-    content:
-      'As our launch partner, we could set up a secure dashboard, manage users by role, and keep an audit-ready donor pool from day one. Changia gave us the foundation we needed to run campaigns people can trust.',
-    author: 'Dr. Msuya',
-    role: 'Organization Administrator | Initial Launch Partner',
-    avatarSrc:
-      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=1374&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=facearea&facepad=2&w=320&h=320&q=80',
-    avatarAlt: 'Image Description',
-  },
-  {
-    content:
-      'With a shareable campaign link, we turn radio and WhatsApp listeners into donors. A short link, a QR code and a mobile-first campaign page — from TZS 100 — and every verified contribution updates the progress bar.',
-    author: 'Amadi Kimaro',
-    role: 'Campaign Manager | Community Health Fund',
-    avatarSrc:
-      'https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=1376&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D8&auto=format&fit=facearea&facepad=2&w=320&h=320&q=80',
-    avatarAlt: 'Image Description',
-  },
-  {
-    content:
-      "Self-serve contributions are the innovation we've been waiting for. A supporter picks an amount, confirms with their own PIN at the operator prompt, and our totals update the moment the gateway verifies it.",
-    author: 'Neema Mushi',
-    role: 'Field Fundraising Lead',
-    avatarSrc:
-      'https://images.unsplash.com/photo-1474176857210-7287d38d27c6?q=80&w=1470&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D8&auto=format&fit=facearea&facepad=2&w=320&h=320&q=80',
-    avatarAlt: 'Image Description',
-  },
-];
-
 export default async function CampaignsIndexPage() {
-  const campaigns = await getPublicCampaigns(5);
+  const [campaigns, testimonialRows] = await Promise.all([
+    getPublicCampaigns(5),
+    getPublicTestimonials('en'),
+  ]);
+
+  const testimonials = testimonialRows.map((t) => ({
+    content: t.quote,
+    author: t.author,
+    role: t.role,
+    avatarSrc: t.photoUrl,
+    avatarAlt: t.author,
+  }));
 
   return (
     <>

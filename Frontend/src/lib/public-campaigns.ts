@@ -103,6 +103,29 @@ export async function getPublicCampaigns(
   return data?.campaigns ?? [];
 }
 
+// ─── "What Campaign Owners Say" testimonials ────────────────────────────────
+// Platform-managed quote cards shown on the /campaigns page. Edited by a
+// SUPER_ADMIN in the dashboard (Settings › Testimonials). The Swahili page
+// gets machine-translated text, falling back to English server-side.
+
+export interface PublicTestimonial {
+  id: number;
+  quote: string;
+  author: string;
+  role: string;
+  photoUrl: string | null;
+}
+
+export async function getPublicTestimonials(
+  locale: Locale = 'en'
+): Promise<PublicTestimonial[]> {
+  const data = await publicGet<{ testimonials: PublicTestimonial[] }>(
+    `/public/testimonials?locale=${locale}`,
+    { revalidate: 300 }
+  );
+  return data?.testimonials ?? [];
+}
+
 export async function getPublicCampaign(
   idOrSlug: string,
   locale: Locale = 'en'

@@ -3,7 +3,7 @@ import PrimaryCTA from '@components/ui/buttons/PrimaryCTA';
 import PublicCampaignCard from '@components/ui/cards/PublicCampaignCard';
 import FeaturesStatsAlt from '@components/sections/features/FeaturesStatsAlt';
 import TestimonialsSectionAlt from '@components/sections/testimonials/TestimonialsSectionAlt';
-import { getPublicCampaigns } from '@/lib/public-campaigns';
+import { getPublicCampaigns, getPublicTestimonials } from '@/lib/public-campaigns';
 
 export const metadata: Metadata = {
   title: 'Kampeni',
@@ -20,38 +20,19 @@ const title = 'Kampeni';
 const subTitle =
   'Kila kampeni hapa chini iko hai na inasimamiwa na shirika lililothibitishwa na Changia. Fungua moja kusoma hadithi yake, ona jinsi lengo linavyogawanyika, na uchangie kwa mibofyo michache.';
 
-const testimonials = [
-  {
-    content:
-      'Kama mshirika wa uzinduzi, tuliweza kuanzisha dashibodi salama, kusimamia watumiaji kwa majukumu na kuweka hifadhidata ya wafadhili iliyoandaliwa kwa ukaguzi tangu siku ya kwanza. Changia ilitupa msingi wa kuendesha kampeni za kuaminika.',
-    author: 'Dr Msuya',
-    role: 'Msimamizi wa shirika | Mshirika wa awali wa uzinduzi',
-    avatarSrc:
-      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=1374&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=facearea&facepad=2&w=320&h=320&q=80',
-    avatarAlt: 'Maelezo ya picha',
-  },
-  {
-    content:
-      'Kwa kiungo cha kushiriki cha kampeni, tunawageuza wasikilizaji wa redio na WhatsApp kuwa wafadhili. Kiungo kifupi, msimbo wa QR na ukurasa wa kampeni wa simu — tangu TZS 100 — na kila mchango uliothibitishwa husasisha upau wa maendeleo.',
-    author: 'Amadi Kimaro',
-    role: 'Afisa wa kampeni | Mfuko wa afya wa jamii',
-    avatarSrc:
-      'https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=1376&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D8&auto=format&fit=facearea&facepad=2&w=320&h=320&q=80',
-    avatarAlt: 'Maelezo ya picha',
-  },
-  {
-    content:
-      'Michango ya kujitolea ndio uvumbuzi tuliokuwa tukiusubiri. Mfadhili anachagua kiasi, anathibitisha kwa PIN yake mwenyewe kwenye ombi la mtoa huduma, na jumla zetu husasishwa mara tu mlango unapothibitisha.',
-    author: 'Neema Mushi',
-    role: 'Msimamizi wa ukusanyaji wa mbugani',
-    avatarSrc:
-      'https://images.unsplash.com/photo-1474176857210-7287d38d27c6?q=80&w=1470&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D8&auto=format&fit=facearea&facepad=2&w=320&h=320&q=80',
-    avatarAlt: 'Maelezo ya picha',
-  },
-];
-
 export default async function SwahiliCampaignsIndexPage() {
-  const campaigns = await getPublicCampaigns(5, 'sw');
+  const [campaigns, testimonialRows] = await Promise.all([
+    getPublicCampaigns(5, 'sw'),
+    getPublicTestimonials('sw'),
+  ]);
+
+  const testimonials = testimonialRows.map((t) => ({
+    content: t.quote,
+    author: t.author,
+    role: t.role,
+    avatarSrc: t.photoUrl,
+    avatarAlt: t.author,
+  }));
 
   return (
     <>

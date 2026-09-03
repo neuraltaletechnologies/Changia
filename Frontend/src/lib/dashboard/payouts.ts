@@ -2,7 +2,7 @@
 export const MOBILE_MONEY_PROVIDERS = [
   "M-Pesa",
   "Airtel Money",
-  "Tigo Pesa (Mixx by Yas)",
+  "Mix by Yas (Mixx by Yas)",
   "HaloPesa",
   "Azam Pesa",
   "T-Pesa",

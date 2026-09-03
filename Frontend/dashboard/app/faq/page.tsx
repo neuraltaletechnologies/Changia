@@ -17,7 +17,7 @@ const faqs: FAQItem[] = [
   },
   {
     question: "How do donors make a contribution?",
-    answer: "Donors can click a Campaign  link or receive a direct push payment request from a Campaign  manager. They select their mobile operator (M-Pesa, Tigo Pesa, Airtel Money, or Halopesa), input their phone number, and confirm the transaction by entering their PIN in their operator's secure approval popup.",
+    answer: "Donors can click a Campaign  link or receive a direct push payment request from a Campaign  manager. They select their mobile operator (M-Pesa, Mix by Yas, Airtel Money, or Halopesa), input their phone number, and confirm the transaction by entering their PIN in their operator's secure approval popup.",
   },
   {
     question: "Does Changia store, see, or ask for my All money transfer PIN?",
@@ -29,7 +29,7 @@ const faqs: FAQItem[] = [
   },
   {
     question: "Which mobile networks are supported in Tanzania?",
-    answer: "We support all major Tanzanian All money transfer providers: Vodacom M-Pesa, Tigo Pesa, Airtel Money, and Halopesa. Payouts can be settled directly to your organization's bank account or authorized All money transfer merchant account.",
+    answer: "We support all major Tanzanian All money transfer providers: Vodacom M-Pesa, Mix by Yas, Airtel Money, and Halopesa. Payouts can be settled directly to your organization's bank account or authorized All money transfer merchant account.",
   },
   {
     question: "How do instant push donations work for field fundraisers?",

@@ -485,6 +485,33 @@ CREATE TABLE campaign_change_requests (
   INDEX idx_ccr2_org_status (organization_id, status)
 ) ENGINE=InnoDB;
 
+-- ─── Marketing testimonials ("What Campaign Owners Say") ─────────────────────
+-- The quote cards on the public /campaigns page. Platform-managed content —
+-- only SUPER_ADMIN edits them, from the dashboard Settings › Testimonials tab.
+-- quote_sw / role_sw are machine-translated (Google Translate) on save; the
+-- Swahili /sw/campaigns page falls back to the English text when they're blank.
+CREATE TABLE campaign_testimonials (
+  id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  quote         TEXT NOT NULL,
+  author        VARCHAR(150) NOT NULL,
+  role          VARCHAR(200) NOT NULL,
+  quote_sw      TEXT NULL,
+  role_sw       VARCHAR(200) NULL,
+  photo_url     VARCHAR(500) NULL,
+  is_active     TINYINT(1) NOT NULL DEFAULT 1,
+  sort_order    INT NOT NULL DEFAULT 0,
+  created_by_id BIGINT UNSIGNED NULL,
+  created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_testimonial_creator FOREIGN KEY (created_by_id) REFERENCES users(id) ON DELETE SET NULL,
+  INDEX idx_testimonial_active (is_active, sort_order, id)
+) ENGINE=InnoDB;
+
+INSERT INTO campaign_testimonials (quote, author, role, sort_order) VALUES
+  ('As our launch partner, we could set up a secure dashboard, manage users by role, and keep an audit-ready donor pool from day one. Changia gave us the foundation we needed to run campaigns people can trust.', 'Dr. Msuya', 'Organization Administrator | Initial Launch Partner', 0),
+  ('With a shareable campaign link, we turn radio and WhatsApp listeners into donors. A short link, a QR code and a mobile-first campaign page — from TZS 100 — and every verified contribution updates the progress bar.', 'Amadi Kimaro', 'Campaign Manager | Community Health Fund', 1),
+  ('Self-serve contributions are the innovation we''ve been waiting for. A supporter picks an amount, confirms with their own PIN at the operator prompt, and our totals update the moment the gateway verifies it.', 'Neema Mushi', 'Field Fundraising Lead', 2);
+
 -- ─── Message batches and deliveries ──────────────────────────────────────────
 
 CREATE TABLE message_batches (

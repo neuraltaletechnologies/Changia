@@ -22,6 +22,8 @@ const reminderScheduleRoutes = require("./modules/reminder-schedule/routes");
 const payoutRoutes = require("./modules/payout/routes");
 const approvalRoutes = require("./modules/approval/routes");
 const settingsRoutes = require("./modules/settings/routes");
+const testimonialRoutes = require("./modules/testimonial/routes");
+const testimonialPublicRoutes = require("./modules/testimonial/publicRoutes");
 const notificationRoutes = require("./modules/notification/routes");
 const dataTransferRoutes = require("./modules/data-transfer/routes");
 const webhookRoutes = require("./routes/webhooks");
@@ -103,6 +105,7 @@ function createApp() {
   // authenticated /campaigns and /donations routers, distinct path prefix).
   app.use("/api/v1/public/campaigns", apiLimiter, campaignPublicRoutes);
   app.use("/api/v1/public/donations", apiLimiter, donationPublicRoutes);
+  app.use("/api/v1/public/testimonials", apiLimiter, testimonialPublicRoutes);
   app.use("/api/v1/campaigns", campaignRoutes);
   app.use("/api/v1/donors", donorRoutes);
   app.use("/api/v1/donor-pools", donorPoolRoutes);
@@ -113,6 +116,7 @@ function createApp() {
   app.use("/api/v1/payouts", payoutRoutes);
   app.use("/api/v1/approvals", approvalRoutes);
   app.use("/api/v1/settings", settingsRoutes);
+  app.use("/api/v1/testimonials", testimonialRoutes);
   app.use("/api/v1/notifications", notificationRoutes);
   // Bulk CSV / XLSX export + import (see modules/data-transfer/datasets.js).
   app.use("/api/v1/data", dataTransferRoutes);

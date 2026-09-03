@@ -41,24 +41,26 @@ export const OG = {
   image: ogImageSrc,
 };
 
+// Mobile-money wallets Changia supports. Logo files live in
+// `Frontend/public/payments/` — keep `logo` pointing at the real filename there.
 export const partnersData = [
   {
-    icon: `<svg class="mx-auto block h-8 w-auto text-neutral-600 dark:text-neutral-300" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" font-family="system-ui, sans-serif" font-size="8" font-weight="700" fill="currentColor">M-Pesa</text></svg>`,
+    logo: '/payments/mpesa.svg',
     name: 'M-Pesa',
     href: '#',
   },
   {
-    icon: `<svg class="mx-auto block h-8 w-auto text-neutral-600 dark:text-neutral-300" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" font-family="system-ui, sans-serif" font-size="8" font-weight="700" fill="currentColor">Tigo Pesa</text></svg>`,
-    name: 'Tigo Pesa',
+    logo: '/payments/mix-by-yas.svg',
+    name: 'Mixx by Yas',
     href: '#',
   },
   {
-    icon: `<svg class="mx-auto block h-8 w-auto text-neutral-600 dark:text-neutral-300" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" font-family="system-ui, sans-serif" font-size="8" font-weight="700" fill="currentColor">Airtel Money</text></svg>`,
+    logo: '/payments/airtel.svg',
     name: 'Airtel Money',
     href: '#',
   },
   {
-    icon: `<svg class="mx-auto block h-8 w-auto text-neutral-600 dark:text-neutral-300" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" font-family="system-ui, sans-serif" font-size="8" font-weight="700" fill="currentColor">HaloPesa</text></svg>`,
+    logo: '/payments/halotel.png',
     name: 'HaloPesa',
     href: '#',
   },

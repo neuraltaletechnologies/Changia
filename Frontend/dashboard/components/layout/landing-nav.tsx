@@ -178,7 +178,7 @@ export function LandingFooter() {
                   Vodacom M-Pesa
                 </span>
                 <span className="text-[10px] font-medium bg-[#006fba]/10 text-[#006fba] border border-[#006fba]/20 px-2 py-0.5 rounded-full">
-                  Tigo Pesa
+                  Mix by Yas
                 </span>
                 <span className="text-[10px] font-medium bg-[#f58220]/10 text-[#f58220] border border-[#f58220]/20 px-2 py-0.5 rounded-full">
                   Halopesa

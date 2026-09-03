@@ -16,6 +16,7 @@ Every endpoint of the Changia backend: **what you must send** (auth, roles, body
 - [Organizations](#organizations-module)
 - [Users (user)](#users-user-module)
 - [Campaigns](#campaigns-module)
+- [Testimonials](#testimonials-module--testimonials-super_admin-only)
 - [Public campaign browsing](#public-campaign-browsing-module)
 - [Donors (CRM)](#donors-crm-module)
 - [Donor pools](#donor-pools-module)
@@ -867,6 +868,21 @@ Every payout record carries `disbursement` — `{ method: "MOBILE_MONEY", provid
 
 ---
 
+## Testimonials module — `/testimonials` (`SUPER_ADMIN` only)
+
+The "What Campaign Owners Say" quote cards on the public `/campaigns` page. Platform-managed content, edited from the dashboard **Settings › Testimonials** tab. `quoteSw` / `roleSw` are machine-translated (Google Translate) on every save; the `/sw/campaigns` page falls back to the English text when they're blank.
+
+`Testimonial`: `{ id, quote, author, role, quoteSw, roleSw, photoUrl, isActive, sortOrder, createdAt, updatedAt }` — `photoUrl` is an absolute URL (or `null`).
+
+- `GET /testimonials` → `{ testimonials: Testimonial[] }` — every card, in display order.
+- `POST /testimonials` — body `{ quote (10–1000), author (2–150), role (2–200), isActive? }`. Appends to the end. Returns the `Testimonial`.
+- `PUT /testimonials/:id` — body any of `{ quote, author, role, isActive }` (at least one). Changed `quote` / `role` are re-translated. Returns the `Testimonial`.
+- `DELETE /testimonials/:id` → `{ id }`. Also removes the stored photo.
+- `PUT /testimonials/reorder` — body `{ ids: number[] }` (the full ordered list of every card id). Returns `{ testimonials: Testimonial[] }`.
+- `POST /testimonials/:id/photo` — `multipart/form-data`, one `photo` file (JPEG/PNG/WEBP, ≤ 5 MB). Replaces the portrait. Returns the `Testimonial`.
+
+---
+
 ## Public campaign browsing module
 
 Routes: `/public/campaigns` — **unauthenticated**, rate-limited. Powers the marketing site.
@@ -905,6 +921,10 @@ A single `ACTIVE` or `COMPLETED` campaign by slug or numeric id, with its 10 mos
   }
 }
 ```
+
+### `GET /public/testimonials` (+ `?locale=`)
+
+The "What Campaign Owners Say" cards for the `/campaigns` page. Active cards only, in display order. `locale=sw` returns the machine-translated quote/role where present (English otherwise). Response: `{ testimonials: [{ id, quote, author, role, photoUrl }] }`.
 
 ### `GET /public/campaigns/completed/:id` — impact story detail (+ `?locale=`)
 

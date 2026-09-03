@@ -413,7 +413,7 @@ function MergeDialog({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="MOMO">M-Pesa</SelectItem>
-                    <SelectItem value="TIGO_PESA">Tigo Pesa</SelectItem>
+                    <SelectItem value="TIGO_PESA">Mix by Yas</SelectItem>
                     <SelectItem value="AIRTEL_MONEY">Airtel Money</SelectItem>
                     <SelectItem value="HALOPESA">Halopesa</SelectItem>
                     <SelectItem value="BANK_TRANSFER">Bank transfer</SelectItem>

@@ -50,8 +50,11 @@ const env = {
   SMTP: {
     host: process.env.SMTP_HOST || "",
     port: Number(process.env.SMTP_PORT) || 465,
-    user: process.env.SMTP_USER || "",
-    password: process.env.SMTP_PASSWORD || process.env.SMTP_PASS || "",
+    user: (process.env.SMTP_USER || "").trim(),
+    // Gmail shows app passwords grouped as "abcd efgh ijkl mnop" for readability,
+    // but the real secret has no spaces — strip any whitespace so a copy-paste
+    // of the grouped form still authenticates.
+    password: (process.env.SMTP_PASSWORD || process.env.SMTP_PASS || "").replace(/\s+/g, ""),
     fromEmail: process.env.SMTP_FROM_EMAIL || "",
     fromName: process.env.SMTP_FROM_NAME || "Changia",
   },
